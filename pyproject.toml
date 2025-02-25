@@ -1,7 +1,22 @@
 [project]
-name = "stan-agent"
-version = "0.1.0"
-description = "Add your description here"
+name = "omnichannel-agent"
+dynamic = ["version"]
+description = "AI agent integration for OminiChannels"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "pydantic-ai>=0.0.26",
+    "pydantic>=2.10.6",
+    "pika>=1.3.2",
+    "python-dotenv>=1.0.1",
+    "requests>=2.32.3",
+    "sqlalchemy>=2.0.38",
+    "psycopg2-binary>=2.9.10",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "version.__version__"}

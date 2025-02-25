@@ -11,3 +11,6 @@ We are in a python envirionment, and we are using ´uv` as our package manager.
 When installing new libs we use `uv add`
 
 When running code, we check if we have a venv activated, if not we `source .venv/bin/activate` 
+
+Never use "requirements.txt" we handle all in "pyproject.toml" 
+
