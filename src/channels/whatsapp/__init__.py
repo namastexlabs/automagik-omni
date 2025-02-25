@@ -1,3 +1,3 @@
 """
-WhatsApp integration module for Stan application.
+WhatsApp integration module for Agent application.
 """ 

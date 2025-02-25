@@ -1,5 +1,5 @@
 """
-Stan agent implementation.
+Agent implementation.
 This is a placeholder for the actual agent implementation.
 """
 
@@ -12,13 +12,13 @@ from datetime import datetime
 from src.db.models import ChatMessage, Agent
 
 # Configure logging
-logger = logging.getLogger("src.agent.stan")
+logger = logging.getLogger("src.agent.agent")
 
-class StanAgent:
-    """Stan agent implementation."""
+class AgentImplementation:
+    """Agent implementation."""
     
     def __init__(self):
-        """Initialize the Stan agent."""
+        """Initialize the Agent."""
         # Placeholder for any initialization
         pass
     
@@ -45,7 +45,7 @@ class StanAgent:
         if not system_prompt:
             # Default system prompt
             system_prompt = """
-            You are Stan, a friendly and helpful AI assistant on WhatsApp.
+            You are an Agent, a friendly and helpful AI assistant on WhatsApp.
             Your goal is to provide helpful, accurate, and friendly responses to user inquiries.
             Be concise in your responses as this is a chat interface.
             """
@@ -76,7 +76,7 @@ class StanAgent:
             if "hi" in message_text.lower() or "hello" in message_text.lower():
                 return "Hello! How can I help you today?"
             elif "who are you" in message_text.lower():
-                return "I'm Stan, your helpful AI assistant on WhatsApp. How can I assist you?"
+                return "I'm your helpful AI assistant on WhatsApp. How can I assist you?"
             elif "bye" in message_text.lower():
                 return "Goodbye! Feel free to message again if you need anything."
             elif "thanks" in message_text.lower() or "thank you" in message_text.lower():

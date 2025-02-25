@@ -1,5 +1,5 @@
 """
-Main entry point for Stan application.
+Main entry point for Agent application.
 """
 
 import os
@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import after loading environment variables
-from src.service import stan_service
+from src.service import agent_service
 from src.db.engine import init_db, create_tables
 from src.config import config
 
@@ -31,16 +31,16 @@ def handle_shutdown(signal_number, frame):
     """Handle shutdown signals."""
     logger.info(f"Received signal {signal_number}, shutting down...")
     
-    # Stop the Stan service
-    stan_service.stop()
+    # Stop the Agent service
+    agent_service.stop()
     
     logger.info("Shutdown complete")
     sys.exit(0)
 
 def run():
-    """Run the Stan application."""
+    """Run the Agent application."""
     try:
-        logger.info("Starting Stan application...")
+        logger.info("Starting Agent application...")
         
         # Check if configuration is valid
         if not config.is_valid:
@@ -57,19 +57,19 @@ def run():
         signal.signal(signal.SIGINT, handle_shutdown)
         signal.signal(signal.SIGTERM, handle_shutdown)
         
-        # Start the Stan service
-        if not stan_service.start():
-            logger.error("Failed to start Stan service")
+        # Start the Agent service
+        if not agent_service.start():
+            logger.error("Failed to start Agent service")
             sys.exit(1)
         
-        logger.info("Stan application started successfully")
+        logger.info("Agent application started successfully")
         
         # Keep the main thread alive
         while True:
             time.sleep(1)
             
     except Exception as e:
-        logger.error(f"Error running Stan application: {e}", exc_info=True)
+        logger.error(f"Error running Agent application: {e}", exc_info=True)
         sys.exit(1)
 
 if __name__ == "__main__":

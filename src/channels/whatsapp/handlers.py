@@ -17,7 +17,7 @@ from src.db.repositories import (
     ChatMessageRepository,
     AgentRepository
 )
-from src.agent.stan import StanAgent
+from src.agent.agent import AgentImplementation
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.handlers")
@@ -29,7 +29,7 @@ class WhatsAppMessageHandler:
         self.message_queue = queue.Queue()
         self.processing_thread = None
         self.is_running = False
-        self.agent = StanAgent()
+        self.agent = AgentImplementation()
         self.send_response_callback = None
     
     def start(self):

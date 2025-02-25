@@ -1,4 +1,4 @@
 """
-Channels module for Stan application.
+Channels module for Agent application.
 This module handles integrations with different messaging platforms.
 """  

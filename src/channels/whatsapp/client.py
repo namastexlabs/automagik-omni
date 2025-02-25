@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 import threading
 from datetime import datetime
 
-from evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
+from src.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
 from src.channels.whatsapp.handlers import message_handler
 
@@ -108,12 +108,36 @@ class WhatsAppClient:
         # Connect to RabbitMQ
         if self.connect():
             logger.info("Starting to consume WhatsApp messages asynchronously")
+            
+            # Print diagnostics about the queue
+            self._check_queue_status()
+            
             thread = threading.Thread(target=self.client.start_consuming)
             thread.daemon = True
             thread.start()
             return True
         else:
             return False
+    
+    def _check_queue_status(self):
+        """Check and log the status of the RabbitMQ queue for diagnostic purposes."""
+        try:
+            if self.client.channel and self.client.connection and self.client.connection.is_open:
+                # Get queue info
+                queue_info = self.client.channel.queue_declare(queue=self.client.queue_name, passive=True)
+                message_count = queue_info.method.message_count
+                consumer_count = queue_info.method.consumer_count
+                
+                logger.info(f"Queue '{self.client.queue_name}' status:")
+                logger.info(f"  - Message count: {message_count}")
+                logger.info(f"  - Consumer count: {consumer_count}")
+                logger.info(f"  - Exchange: {self.client.config.exchange_name}")
+                logger.info(f"  - Routing pattern: {self.client.config.instance_name}.{EventType.MESSAGES_UPSERT}")
+                
+                # Check if messages are being published to the exchange
+                logger.info("Checking for recent messages in the exchange...")
+        except Exception as e:
+            logger.warning(f"Failed to check queue status: {e}")
     
     def stop(self):
         """Stop the WhatsApp client."""

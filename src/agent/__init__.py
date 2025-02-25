@@ -1,3 +1,3 @@
 """
-Agent module for Stan application.
+Agent module for Agent application.
 """ 
