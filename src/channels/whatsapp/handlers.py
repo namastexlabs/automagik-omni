@@ -101,6 +101,14 @@ class WhatsAppMessageHandler:
                     user_repo = UserRepository(db)
                     user = user_repo.get_or_create_by_whatsapp(sender_id)
                     
+                    # Ensure user has an ID
+                    if not user.id:
+                        logger.warning(f"User has no ID after creation/retrieval: {user}")
+                        db.refresh(user)  # Try to refresh from DB
+                        if not user.id:
+                            logger.error("Failed to get valid user ID, cannot process message")
+                            return
+                    
                     # Log user details for debugging
                     logger.info(f"Processing message for user: id={user.id}, phone={user.phone_number}")
                     
@@ -121,6 +129,11 @@ class WhatsAppMessageHandler:
                         logger.warning("No active WhatsApp agent found")
                         return
                     
+                    # Ensure agent has an ID
+                    if not agent.id:
+                        logger.warning("Agent has no ID, cannot process message")
+                        return
+                    
                     # Get conversation history
                     conversation_messages = msg_repo.get_by_session(session.id, limit=20)
                     
@@ -134,26 +147,45 @@ class WhatsAppMessageHandler:
                         agent=agent
                     )
                     
-                    # Save agent response
-                    agent_message = agent_repo.create_agent_response(
-                        session_id=session.id,
-                        user_id=user.id,
-                        agent_id=agent.id,
-                        text_content=agent_response
-                    )
-                    
-                    logger.info(f"Created agent response for user_id={user.id}, session_id={session.id}")
-                    
-                    # Send response via WhatsApp
-                    response_payload = self._send_whatsapp_response(
+                    # First send the response via WhatsApp to get the message ID
+                    response_result = self._send_whatsapp_response(
                         recipient=sender_id,
                         text=agent_response
                     )
                     
+                    # Get the message ID from the response payload or generate one if not available
+                    wpp_message_id = None
+                    if response_result and isinstance(response_result, dict):
+                        # Try to extract message ID from the response payload
+                        if 'raw_response' in response_result and response_result['raw_response']:
+                            raw_response = response_result['raw_response']
+                            if isinstance(raw_response, dict) and 'key' in raw_response:
+                                wpp_message_id = raw_response['key'].get('id')
+                            elif isinstance(raw_response, dict) and 'id' in raw_response:
+                                wpp_message_id = raw_response['id']
+                    
+                    # If we couldn't extract a message ID, use a timestamp-based ID
+                    if not wpp_message_id:
+                        import time
+                        import uuid
+                        # Create a deterministic ID similar to WhatsApp format
+                        wpp_message_id = f"AGENT{int(time.time())}{str(uuid.uuid4())[:8]}"
+                    
+                    # Now create the agent message with the WhatsApp message ID
+                    agent_message = agent_repo.create_agent_response(
+                        session_id=session.id,
+                        user_id=user.id,  # Ensure user ID is set
+                        agent_id=agent.id,  # Ensure agent ID is set
+                        text_content=agent_response,
+                        id=wpp_message_id  # Use WhatsApp message ID
+                    )
+                    
+                    logger.info(f"Created agent response with ID={wpp_message_id} for user_id={user.id}, session_id={session.id}")
+                    
                     # Update the agent message with the response payload if available
-                    if response_payload:
+                    if response_result:
                         msg_repo = ChatMessageRepository(db)
-                        msg_repo.update(agent_message.id, raw_payload=response_payload)
+                        msg_repo.update(agent_message.id, raw_payload=response_result)
                         logger.info(f"Updated agent message with response payload: {agent_message.id}")
                     
                 except Exception as e:

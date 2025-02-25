@@ -253,11 +253,23 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         timestamp_ms = data.get('messageTimestamp', 0) * 1000
         timestamp = datetime.fromtimestamp(timestamp_ms / 1000.0)
         
+        # Get the active agent ID to associate with this message
+        agent_id = None
+        try:
+            # Get the active agent for the platform
+            agent_repo = AgentRepository(self.db)
+            agent = agent_repo.get_active_agent(agent_type='whatsapp')
+            if agent:
+                agent_id = agent.id
+        except Exception as e:
+            logger.warning(f"Could not get active agent ID: {e}")
+        
         # Create the message
         return self.create(
             id=message_id,
             session_id=session_id,
             user_id=user_id,
+            agent_id=agent_id,  # Add the agent ID
             role='user',
             text_content=text_content,
             media_url=media_url,
@@ -266,6 +278,43 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             raw_payload=whatsapp_message,
             message_timestamp=timestamp
         )
+
+    def create(self, **kwargs) -> ChatMessage:
+        """Create a new chat message.
+        
+        Args:
+            **kwargs: Message attributes
+            
+        Returns:
+            ChatMessage: Created message
+        """
+        # Log the data we're creating with
+        logger.info(f"Creating ChatMessage with data: {kwargs}")
+        
+        # Ensure user_id is an integer if provided
+        if 'user_id' in kwargs and kwargs['user_id'] is not None:
+            try:
+                kwargs['user_id'] = int(kwargs['user_id'])
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid user_id: {kwargs['user_id']} - cannot convert to int")
+        
+        # Ensure agent_id is an integer if provided
+        if 'agent_id' in kwargs and kwargs['agent_id'] is not None:
+            try:
+                kwargs['agent_id'] = int(kwargs['agent_id'])
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid agent_id: {kwargs['agent_id']} - cannot convert to int")
+        
+        # Create the message object
+        message = ChatMessage(**kwargs)
+        
+        # Add to DB
+        logger.info(f"Adding ChatMessage to DB: {vars(message)}")
+        self.db.add(message)
+        self.db.commit()
+        self.db.refresh(message)
+        
+        return message
 
 class AgentRepository(BaseRepository[Agent]):
     """Repository for Agent operations."""
@@ -284,24 +333,52 @@ class AgentRepository(BaseRepository[Agent]):
             Agent.active == True
         ).first()
     
-    def create_agent_response(self, session_id: str, user_id: Any, agent_id: str, 
-                             text_content: str, tool_calls: Optional[Dict] = None, 
-                             tool_outputs: Optional[Dict] = None) -> ChatMessage:
-        """Create an agent response message."""
-        # Log the user_id for debugging
-        logger.info(f"Creating agent response with user_id: {user_id} (type: {type(user_id).__name__})")
+    def create_agent_response(self, session_id: str, user_id: int, agent_id: int, 
+                         text_content: str, tool_calls=None, tool_outputs=None, message_type="text",
+                         id: Optional[str] = None) -> ChatMessage:
+        """Create a chat message from the agent.
         
-        return ChatMessageRepository(self.db).create(
-            session_id=session_id,
-            user_id=user_id,  # No conversion needed, passing as is
-            agent_id=agent_id,
-            role='assistant',
-            text_content=text_content,
-            tool_calls=tool_calls,
-            tool_outputs=tool_outputs,
-            message_type='text',
-            message_timestamp=datetime.now(timezone.utc)
-        )
+        Args:
+            session_id: Session ID
+            user_id: User ID
+            agent_id: Agent ID
+            text_content: Message text content
+            tool_calls: Optional tool calls data
+            tool_outputs: Optional tool outputs data
+            message_type: Message type (default: "text")
+            id: Optional custom message ID
+            
+        Returns:
+            ChatMessage: Created chat message
+        """
+        logger.info(f"Creating agent response with user_id: {user_id} (type: {type(user_id)})")
+        
+        from datetime import datetime, timezone
+        
+        message_data = {
+            "session_id": session_id,
+            "user_id": user_id,
+            "agent_id": agent_id,
+            "role": "assistant",
+            "text_content": text_content,
+            "tool_calls": tool_calls,
+            "tool_outputs": tool_outputs,
+            "message_type": message_type,
+            "message_timestamp": datetime.now(timezone.utc),
+        }
+        
+        # Add custom ID if provided
+        if id:
+            message_data["id"] = id
+        else:
+            # Generate a UUID if no custom ID provided
+            import uuid
+            message_data["id"] = str(uuid.uuid4())
+            
+        
+        # Use the chat message repository to create the message
+        msg_repo = ChatMessageRepository(self.db)
+        return msg_repo.create(**message_data)
 
 class MemoryRepository(BaseRepository[Memory]):
     """Repository for Memory operations."""
