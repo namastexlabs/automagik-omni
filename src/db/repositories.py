@@ -225,40 +225,66 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             return url
             
         from src.config import config
+        import boto3
+        from botocore.client import Config
         
-        # Check if this is a MinIO URL (either internal or IP-based)
-        is_minio_url = "minio:9000" in url or config.minio.endpoint in url
-        
-        if is_minio_url:
-            # Extract the path from the URL
-            from urllib.parse import urlparse
-            parsed_url = urlparse(url)
-            
-            # Get the path component
-            path = parsed_url.path
-            
-            # Format: /bucket_name/path/to/object
-            # We need to extract the path after bucket name
-            parts = path.split('/', 2)  # Split into ['', 'bucket_name', 'rest/of/path']
-            
-            if len(parts) >= 3:
-                # Bucket name is parts[1], rest of path is parts[2]
-                bucket_name = parts[1]
-                object_path = parts[2]
+        # If the URL is a S3/MinIO URL, try to create a presigned URL
+        if "minio:9000" in url or config.minio.endpoint in url:
+            try:
+                # Extract bucket and key from the MinIO URL
+                from urllib.parse import urlparse
+                parsed_url = urlparse(url)
+                path_parts = parsed_url.path.split('/', 2)
                 
-                # Construct the public URL using the configured public URL
-                public_url = f"{config.public_media_url}/media/{object_path}"
-                
-                # Remove query parameters if they exist
-                if '?' in public_url:
-                    public_url = public_url.split('?')[0]
-                
-                logger.info(f"Converted MinIO URL to public URL: {public_url}")
-                return public_url
+                if len(path_parts) >= 3:
+                    bucket = path_parts[1]  # evolution
+                    key = path_parts[2]  # rest of the path
+                    
+                    # Create a new S3 client with the configured credentials
+                    s3_client = boto3.client(
+                        's3',
+                        endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
+                        aws_access_key_id=config.minio.access_key,
+                        aws_secret_access_key=config.minio.secret_key,
+                        config=Config(signature_version='s3v4'),
+                        region_name=config.minio.region
+                    )
+                    
+                    # Create a presigned URL that expires in 7 days
+                    presigned_url = s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': bucket, 'Key': key},
+                        ExpiresIn=604800  # 7 days in seconds
+                    )
+                    
+                    logger.info(f"Created presigned URL for MinIO object: {presigned_url}")
+                    return presigned_url
+                    
+            except Exception as e:
+                logger.error(f"Failed to create presigned URL for MinIO object: {e}")
+            
+            # Fallback to the direct public URL approach
+            server_url = config.public_media_url
+            
+            # Extract path based on what's in the URL
+            if "minio:9000" in url:
+                # Extract path after minio:9000
+                path_parts = url.split('minio:9000', 1)[1]
             else:
-                logger.warning(f"Could not extract path components from MinIO URL: {url}")
-        
-        # If we couldn't convert it, return the original URL
+                # Handle when the actual endpoint is in the URL
+                endpoint_with_port = f"{config.minio.endpoint}:{config.minio.port}"
+                path_parts = url.split(endpoint_with_port, 1)[1] if endpoint_with_port in url else ""
+            
+            # Construct the public URL using the server URL as configured in environment
+            public_url = f"{server_url}/media{path_parts}"
+            
+            # Remove query parameters if they exist
+            if '?' in public_url:
+                public_url = public_url.split('?')[0]
+            
+            logger.info(f"Using direct public URL: {public_url}")
+            return public_url
+            
         return url
     
     def create_from_whatsapp(self, session_id: str, user_id: Any, whatsapp_message: Dict[str, Any]) -> ChatMessage:

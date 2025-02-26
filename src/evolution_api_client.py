@@ -11,6 +11,8 @@ import pika
 from enum import Enum, auto
 from typing import Dict, Any, List, Optional, Callable, Union
 from pydantic import BaseModel
+import time
+import random
 
 # Configure logging
 logger = logging.getLogger("src.evolution_api_client")
@@ -39,6 +41,10 @@ class RabbitMQConfig(BaseModel):
     global_mode: bool = False
     events: List[EventType]
     api_key: Optional[str] = None  # API key for Evolution API authentication if needed
+    # Connection settings
+    heartbeat: int = 30  # Heartbeat interval in seconds
+    connection_attempts: int = 3  # Number of connection attempts
+    retry_delay: int = 5  # Delay between connection attempts in seconds
 
 class EvolutionAPIClient:
     """Client for interacting with Evolution API via RabbitMQ."""
@@ -56,6 +62,10 @@ class EvolutionAPIClient:
             event_type: [] for event_type in EventType
         }
         self._consumer_tag = None
+        self.queue_name = None
+        self.is_consuming = False
+        self.reconnect_delay = 0  # Initial reconnect delay
+        self.max_reconnect_delay = 300  # Maximum reconnect delay (5 minutes)
     
     def connect(self) -> bool:
         """Connect to RabbitMQ.
@@ -68,8 +78,20 @@ class EvolutionAPIClient:
             if self.connection and self.connection.is_open:
                 self.connection.close()
             
+            # Create connection parameters with heartbeat and retries
+            params = pika.URLParameters(self.config.uri)
+            params.heartbeat = self.config.heartbeat
+            params.connection_attempts = self.config.connection_attempts
+            params.retry_delay = self.config.retry_delay
+            
             # Create a new connection
-            self.connection = pika.BlockingConnection(pika.URLParameters(self.config.uri))
+            logger.info(f"Connecting to RabbitMQ at {self.config.uri} with heartbeat={self.config.heartbeat}s")
+            self.connection = pika.BlockingConnection(params)
+            
+            # Add connection close callback
+            self.connection.add_on_connection_blocked_callback(self._on_connection_blocked)
+            self.connection.add_on_connection_unblocked_callback(self._on_connection_unblocked)
+            
             self.channel = self.connection.channel()
             
             # Declare the exchange
@@ -136,12 +158,67 @@ class EvolutionAPIClient:
             )
             logger.info(f"Bound queue to routing key: {routing_key} (catch-all)")
             
+            # Reset reconnect delay on successful connection
+            self.reconnect_delay = 0
+            
             logger.info(f"Connected to RabbitMQ at {self.config.uri}")
             return True
         
         except Exception as e:
             logger.error(f"Failed to connect to RabbitMQ: {e}")
+            # Implement exponential backoff for reconnection
+            self._increase_reconnect_delay()
             return False
+    
+    def _on_connection_blocked(self, connection, reason):
+        """Called when the connection is blocked by RabbitMQ."""
+        logger.warning(f"Connection blocked: {reason}")
+    
+    def _on_connection_unblocked(self, connection):
+        """Called when the connection is unblocked by RabbitMQ."""
+        logger.info("Connection unblocked")
+    
+    def _increase_reconnect_delay(self):
+        """Increase the reconnect delay with exponential backoff."""
+        if self.reconnect_delay == 0:
+            self.reconnect_delay = self.config.retry_delay
+        else:
+            self.reconnect_delay = min(self.reconnect_delay * 2, self.max_reconnect_delay)
+            # Add jitter to avoid thundering herd problem
+            jitter = random.uniform(0, 0.1 * self.reconnect_delay)
+            self.reconnect_delay += jitter
+            
+        logger.info(f"Next reconnection attempt in {self.reconnect_delay:.1f} seconds")
+    
+    def reconnect(self) -> bool:
+        """Attempt to reconnect to RabbitMQ with exponential backoff."""
+        # Wait before reconnecting
+        if self.reconnect_delay > 0:
+            logger.info(f"Waiting {self.reconnect_delay:.1f} seconds before reconnecting...")
+            time.sleep(self.reconnect_delay)
+        
+        # Try to reconnect
+        logger.info("Attempting to reconnect to RabbitMQ...")
+        return self.connect()
+    
+    def ensure_connection(self) -> bool:
+        """Ensure we have a valid connection to RabbitMQ."""
+        if self.connection and self.connection.is_open:
+            # Make sure the channel is still valid by checking it
+            try:
+                # Simple no-op to check if channel is still good
+                self.channel.exchange_declare(
+                    exchange=self.config.exchange_name,
+                    exchange_type='topic',
+                    durable=True,
+                    passive=True  # Just check if it exists, don't create
+                )
+                return True
+            except Exception as e:
+                logger.warning(f"Channel check failed: {e}")
+                return self.reconnect()
+        else:
+            return self.reconnect()
     
     def subscribe(self, event_type: EventType, callback: Callable[[Dict[str, Any]], None]):
         """Subscribe to an event type.
@@ -213,7 +290,7 @@ class EvolutionAPIClient:
     
     def start_consuming(self):
         """Start consuming messages from RabbitMQ."""
-        if not self.channel or not self.connection or not self.connection.is_open:
+        if not self.ensure_connection():
             logger.error("Not connected to RabbitMQ")
             return False
         
@@ -227,7 +304,24 @@ class EvolutionAPIClient:
             )
             
             logger.info(f"Started consuming messages from queue: {self.queue_name}")
-            self.channel.start_consuming()
+            self.is_consuming = True
+            
+            # Start consuming in a loop that handles connection issues
+            while self.is_consuming:
+                try:
+                    self.connection.process_data_events(time_limit=1)  # Process events but allow for loop to run
+                    time.sleep(0.1)  # Small sleep to prevent CPU hogging
+                except pika.exceptions.AMQPError as e:
+                    logger.error(f"AMQP error while consuming: {e}")
+                    if self.ensure_connection():
+                        logger.info("Reconnected to RabbitMQ after error")
+                    else:
+                        logger.error("Failed to reconnect to RabbitMQ after error")
+                        time.sleep(5)  # Wait a bit before retry
+                except Exception as e:
+                    logger.error(f"Unexpected error while consuming: {e}", exc_info=True)
+                    time.sleep(5)  # Wait a bit before retry
+            
             return True
         
         except Exception as e:
@@ -236,6 +330,7 @@ class EvolutionAPIClient:
     
     def stop(self):
         """Stop consuming messages and close the connection."""
+        self.is_consuming = False
         try:
             if self.channel and self.channel.is_open:
                 if self._consumer_tag:
