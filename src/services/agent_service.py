@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
 from src.channels.whatsapp.client import whatsapp_client
-from src.agent.agent import AgentImplementation
+from src.services.agent_api_client import agent_api_client
 from src.db.engine import get_session
 from src.db.repositories import (
     UserRepository,
@@ -30,7 +30,6 @@ class AgentService:
     
     def __init__(self):
         """Initialize the service."""
-        self.agent = AgentImplementation()
         self.lock = threading.Lock()
         # Track active sessions for simple caching
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
@@ -58,6 +57,7 @@ class AgentService:
                 version="0.1.0",
                 active=True,
                 config={
+                    "name": agent_api_client.default_agent_name,
                     "system_prompt": """
                     You are a friendly and helpful AI assistant on WhatsApp.
                     Your goal is to provide helpful, accurate, and friendly responses to user inquiries.

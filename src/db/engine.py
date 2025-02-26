@@ -13,6 +13,7 @@ from src.config import config
 logger = logging.getLogger("src.db.engine")
 
 # Create engine with connection pooling
+# We use the regular database for user/session management
 engine = create_engine(
     str(config.database.uri),
     pool_size=config.database.pool_size,

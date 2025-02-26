@@ -19,7 +19,7 @@ from src.db.repositories import (
     ChatMessageRepository,
     AgentRepository
 )
-from src.agent.agent import AgentImplementation
+from src.services.message_router import message_router
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
 
 # Configure logging
@@ -32,7 +32,6 @@ class WhatsAppMessageHandler:
         self.message_queue = queue.Queue()
         self.processing_thread = None
         self.is_running = False
-        self.agent = AgentImplementation()
         self.send_response_callback = None
         self.audio_transcriber = AudioTranscriptionService()
     
@@ -76,189 +75,100 @@ class WhatsAppMessageHandler:
                 logger.error(f"Error processing message: {e}", exc_info=True)
     
     def _process_message(self, message: Dict[str, Any]):
-        """Process a single message."""
+        """
+        Process a WhatsApp message.
+        """
         try:
-            # Only process messages_upsert events
-            if message.get('event') != 'messages.upsert':
-                logger.debug(f"Ignoring non-message event: {message.get('event')}")
-                return
-            
-            # Extract the sender's WhatsApp ID
+            # The message from Evolution API has a different structure from our previous code
+            # Message data is usually in the 'data' field
             data = message.get('data', {})
-            key = data.get('key', {})
-            sender_id = key.get('remoteJid')
             
-            # Skip messages sent by us
-            if key.get('fromMe', False):
-                logger.debug(f"Ignoring message sent by us to {sender_id}")
-                return
-            
-            # Skip messages without a sender
-            if not sender_id:
-                logger.warning("Message has no sender ID, skipping")
-                return
-            
-            # Check if this is an audio message and try to transcribe
-            message_type = message.get('messageType', '')
-            message_content = data.get('message', {})
-            is_audio_message = message_type == 'audioMessage' or 'audioMessage' in message_content
-            
-            if is_audio_message and self.audio_transcriber.is_configured():
-                logger.info("Audio message detected, attempting transcription")
-                
-                # First, get the message ID
-                message_id = key.get('id')
-                if not message_id:
-                    logger.warning("Audio message has no ID, cannot process for transcription")
+            # Extract sender information from the proper location
+            if 'key' in data and 'remoteJid' in data['key']:
+                sender_id = data['key']['remoteJid']
+            else:
+                logger.warning("Message does not contain remoteJid in the expected location")
+                # Try to get it from the sender field directly
+                sender_id = message.get('sender')
+                if not sender_id:
+                    logger.error("Could not find sender ID in message")
+                    return
                 else:
-                    # Add delay before retrieving from Evolution DB
-                    # to ensure message has been fully persisted
-                    delay_seconds = 0
-                    logger.info(f"Waiting {delay_seconds} seconds before retrieving message from Evolution DB...")
-                    time.sleep(delay_seconds)
-                    
-                    # Retrieve the full message from Evolution database
-                    logger.info(f"Retrieving message details from Evolution DB for ID: {message_id}")
-                    evolution_message = self._retrieve_message_from_evolution_db(message_id)
-                    
-                    if not evolution_message:
-                        logger.warning(f"Could not retrieve message {message_id} from Evolution DB")
-                        # Fallback to processing with payload data
-                        media_url = self._extract_media_url_from_payload(data)
-                    else:
-                        logger.info(f"Successfully retrieved message from Evolution DB: {message_id}")
-                        # Extract media URL from the retrieved message
-                        media_url = self._extract_media_url_from_evolution_message(evolution_message)
-                        
-                    if media_url:
-                        # Log the URL we're using for transcription (without any modifications)
-                        logger.info(f"Using URL for transcription: {self._truncate_url_for_logging(media_url)}")
-                        
-                        # Try to transcribe the audio with fallback methods
-                        transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
-                        
-                        if transcription:
-                            logger.info(f"\033[92mSuccessfully transcribed audio: {transcription[:100]}...\033[0m")
-                            
-                            # Save the transcription in the data dict to be stored with the message
-                            data['transcription'] = transcription
-                        else:
-                            logger.warning("\033[93mFailed to transcribe audio message\033[0m")
-                    else:
-                        logger.warning("\033[93mAudio message detected but no media URL found\033[0m")
+                    logger.info(f"Using sender ID from message: {sender_id}")
             
-            # Process the message in the database
+            # Log the received message structure for debugging
+            logger.debug(f"Processing message from {sender_id}")
+            
+            # Skip messages from ourselves
+            if data.get('key', {}).get('fromMe', False):
+                logger.info(f"Skipping message from ourselves to {sender_id}")
+                return
+            
+            # Get the message content
+            message_content = self._extract_message_content(message)
+            if not message_content:
+                logger.warning("No message content found")
+                return
+
+            # Extract message type
+            message_type = self._extract_message_type(message)
+            if not message_type:
+                logger.warning("Unable to determine message type")
+                return
+            
+            # Get or create user
             with get_session() as db:
-                try:
-                    # Get or create user
-                    user_repo = UserRepository(db)
-                    user = user_repo.get_or_create_by_whatsapp(sender_id)
+                user_repo = UserRepository(db)
+                user = user_repo.get_or_create_by_whatsapp(
+                    whatsapp_id=sender_id
+                )
+                
+                # Get current active agent
+                agent_repo = AgentRepository(db)
+                agent = agent_repo.get_active_agent(agent_type="whatsapp")
+                
+                if not agent:
+                    logger.warning("No active WhatsApp agent found")
+                    return
+                
+                # Extract any media URL from the message
+                media_url = self._extract_media_url_from_payload(data)
+                if media_url:
+                    logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url)}")
                     
-                    # Ensure user has an ID
-                    if not user.id:
-                        logger.warning(f"\033[93mUser has no ID after creation/retrieval: {user}\033[0m")
-                        db.refresh(user)  # Try to refresh from DB
-                        if not user.id:
-                            logger.error("\033[91mFailed to get valid user ID, cannot process message\033[0m")
-                            return
-                    
-                    # Log user details for debugging
-                    logger.info(f"\033[96mProcessing message for user: id={user.id}, phone={user.phone_number}\033[0m")
-                    
-                    # Get or create session
-                    session_repo = SessionRepository(db)
-                    session = session_repo.get_or_create_for_user(user.id, 'whatsapp')
-                    
-                    # Save the message
-                    msg_repo = ChatMessageRepository(db)
-                    
-                    # For audio messages with transcription, set the transcription as text content
-                    if is_audio_message and 'transcription' in data:
-                        logger.info("\033[92mStoring audio message with transcription\033[0m")
-                        chat_message = msg_repo.create_from_whatsapp(
-                            session.id, 
-                            user.id, 
-                            message, 
-                            override_text=data['transcription']
-                        )
-                        # Note that we're storing the transcription directly in the text_content field
-                        # This allows the audio message to have the actual transcribed text instead of "[Audio]"
-                        # The message type remains "audio" to indicate it's an audio file
-                        logger.info(f"\033[92mStored audio transcription in message text_content\033[0m")
-                    else:
-                        chat_message = msg_repo.create_from_whatsapp(session.id, user.id, message)
-                        
-                    logger.info(f"\033[92mCreated chat message: id={chat_message.id}, user_id={chat_message.user_id}\033[0m")
-                    
-                    # Get active agent
-                    agent_repo = AgentRepository(db)
-                    agent = agent_repo.get_active_agent(agent_type='whatsapp')
-                    
-                    if not agent:
-                        logger.warning("No active WhatsApp agent found")
-                        return
-                    
-                    # Ensure agent has an ID
-                    if not agent.id:
-                        logger.warning("Agent has no ID, cannot process message")
-                        return
-                    
-                    # Get conversation history
-                    conversation_messages = msg_repo.get_by_session(session.id, limit=20)
-                    
-                    # Generate agent response
-                    agent_response = self.agent.generate_response(
-                        user_id=user.id,
-                        session_id=session.id,
-                        message_text=chat_message.text_content or "",
-                        message_type=chat_message.message_type,
-                        conversation_history=conversation_messages,
-                        agent=agent
-                    )
-                    
-                    # First send the response via WhatsApp to get the message ID
-                    response_result = self._send_whatsapp_response(
-                        recipient=sender_id,
-                        text=agent_response
-                    )
-                    
-                    # Get the message ID from the response payload or generate one if not available
-                    wpp_message_id = None
-                    if response_result and isinstance(response_result, dict):
-                        # Try to extract message ID from the response payload
-                        if 'raw_response' in response_result and response_result['raw_response']:
-                            raw_response = response_result['raw_response']
-                            if isinstance(raw_response, dict) and 'key' in raw_response:
-                                wpp_message_id = raw_response['key'].get('id')
-                            elif isinstance(raw_response, dict) and 'id' in raw_response:
-                                wpp_message_id = raw_response['id']
-                    
-                    # If we couldn't extract a message ID, use a timestamp-based ID
-                    if not wpp_message_id:
-                        import uuid
-                        # Create a deterministic ID similar to WhatsApp format
-                        wpp_message_id = f"AGENT{int(time.time())}{str(uuid.uuid4())[:8]}"
-                    
-                    # Now create the agent message with the WhatsApp message ID
-                    agent_message = agent_repo.create_agent_response(
-                        session_id=session.id,
-                        user_id=user.id,  # Ensure user ID is set
-                        agent_id=agent.id,  # Ensure agent ID is set
-                        text_content=agent_response,
-                        id=wpp_message_id  # Use WhatsApp message ID
-                    )
-                    
-                    logger.info(f"Created agent response with ID={wpp_message_id} for user_id={user.id}, session_id={session.id}")
-                    
-                    # Update the agent message with the response payload if available
-                    if response_result:
-                        msg_repo = ChatMessageRepository(db)
-                        msg_repo.update(agent_message.id, raw_payload=response_result)
-                        logger.info(f"Updated agent message with response payload: {agent_message.id}")
-                    
-                except Exception as e:
-                    logger.error(f"Database error processing message: {e}", exc_info=True)
-                    db.rollback()
+                    # If media URL is from minio, convert to accessible URL
+                    if "minio:" in media_url:
+                        media_url = self._convert_minio_url(media_url)
+                        logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
+                
+                # Get or create a session for this user
+                session_repo = SessionRepository(db)
+                session = session_repo.get_or_create_for_user(user.id, 'whatsapp')
+                
+                # Check for transcription
+                transcription = data.get('transcription')
+                if transcription and message_type == 'audioMessage':
+                    logger.info(f"Using transcription: {transcription}")
+                    message_content = transcription
+                
+                # Generate agent response without saving the user message to DB
+                logger.info(f"Routing message to API for user {user.id}, session {session.id}: {message_content}")
+                agent_response = message_router.route_message(
+                    user_id=user.id,
+                    session_id=session.id,
+                    message_text=message_content,
+                    message_type=message_type,
+                    conversation_history=None,  # Don't need this anymore
+                    agent_config=agent.config
+                )
+                
+                # Send the response via WhatsApp
+                response_result = self._send_whatsapp_response(
+                    recipient=sender_id,
+                    text=agent_response
+                )
+                
+                logger.info(f"Sent agent response to user_id={user.id}, session_id={session.id}")
                 
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
@@ -477,6 +387,128 @@ class WhatsAppMessageHandler:
         except Exception:
             # If parsing fails, do a simple truncation
             return url[:30] + '...' + url[-30:]
+
+    def _extract_message_content(self, message: Dict[str, Any]) -> str:
+        """
+        Extract the text content from a WhatsApp message.
+        
+        Args:
+            message: The WhatsApp message payload
+            
+        Returns:
+            Extracted text content or empty string if not found
+        """
+        try:
+            data = message.get('data', {})
+            
+            # Check for transcription first (for audio messages)
+            if 'transcription' in data:
+                return data['transcription']
+            
+            # Check if we have a conversation message
+            message_obj = data.get('message', {})
+            
+            # Try to find the message content in common places
+            if isinstance(message_obj, dict):
+                # Check for text message
+                if 'conversation' in message_obj:
+                    return message_obj['conversation']
+                
+                # Check for extended text message
+                elif 'extendedTextMessage' in message_obj:
+                    return message_obj['extendedTextMessage'].get('text', '')
+                
+                # Check for button response
+                elif 'buttonsResponseMessage' in message_obj:
+                    return message_obj['buttonsResponseMessage'].get('selectedDisplayText', '')
+                
+                # Check for list response
+                elif 'listResponseMessage' in message_obj:
+                    return message_obj['listResponseMessage'].get('title', '')
+            
+            # If no text content found but it's an audio message
+            message_type = data.get('messageType', '')
+            if message_type == 'audioMessage':
+                return "[Audio Message]"
+            
+            # If no text content found but it's an image message
+            if message_type == 'imageMessage':
+                return "[Image Message]"
+                
+            # If we have raw text content directly in the data
+            if 'body' in data:
+                return data['body']
+                
+            # Could not find any text content
+            logger.warning(f"Could not extract message content from payload: {message}")
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error extracting message content: {e}", exc_info=True)
+            return ""
+            
+    def _extract_message_type(self, message: Dict[str, Any]) -> str:
+        """
+        Determine the message type from a WhatsApp message.
+        
+        Args:
+            message: The WhatsApp message payload
+            
+        Returns:
+            Message type (text, audio, image, etc.) or empty string if not determined
+        """
+        try:
+            data = message.get('data', {})
+            
+            # First check if the messageType is already provided by Evolution API
+            if 'messageType' in data:
+                return data['messageType']
+            
+            # Otherwise try to determine from the message object
+            message_obj = data.get('message', {})
+            
+            if not message_obj or not isinstance(message_obj, dict):
+                return ""
+                
+            # Check for common message types
+            if 'conversation' in message_obj:
+                return 'text'
+                
+            elif 'extendedTextMessage' in message_obj:
+                return 'text'
+                
+            elif 'audioMessage' in message_obj:
+                return 'audio'
+                
+            elif 'imageMessage' in message_obj:
+                return 'image'
+                
+            elif 'videoMessage' in message_obj:
+                return 'video'
+                
+            elif 'documentMessage' in message_obj:
+                return 'document'
+                
+            elif 'stickerMessage' in message_obj:
+                return 'sticker'
+                
+            elif 'contactMessage' in message_obj:
+                return 'contact'
+                
+            elif 'locationMessage' in message_obj:
+                return 'location'
+                
+            # Fallback to the event type if available
+            if 'event' in message:
+                return message['event']
+                
+            # Could not determine message type
+            logger.warning(f"Could not determine message type from payload: {message}")
+            return 'unknown'
+            
+        except Exception as e:
+            logger.error(f"Error determining message type: {e}", exc_info=True)
+            return 'unknown'
 
 # Singleton instance
 message_handler = WhatsAppMessageHandler() 

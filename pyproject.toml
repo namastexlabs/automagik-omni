@@ -1,11 +1,10 @@
 [project]
-name = "omnichannel-agent"
+name = "omni-hub"
 version = "0.1.0"
-description = "AI agent integration for OminiChannels"
+description = "A hub for multiple chat channels"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "pydantic-ai>=0.0.26",
     "pydantic>=2.10.6",
     "pika>=1.3.2",
     "python-dotenv>=1.0.1",
@@ -13,6 +12,7 @@ dependencies = [
     "sqlalchemy>=2.0.38",
     "psycopg2-binary>=2.9.10",
     "boto3>=1.34.0",
+    "httpx>=0.28.0",
 ]
 
 [build-system]
