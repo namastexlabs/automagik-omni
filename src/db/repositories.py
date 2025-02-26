@@ -480,10 +480,10 @@ class AgentRepository(BaseRepository[Agent]):
         """Get the first agent (used when there's only one agent)."""
         return self.db.query(Agent).first()
     
-    def get_active_agent(self, agent_type: str = "whatsapp") -> Optional[Agent]:
+    def get_active_agent(self, agent_name: str = "simple_agent") -> Optional[Agent]:
         """Get the active agent of a specific type."""
         return self.db.query(Agent).filter(
-            Agent.type == agent_type,
+            Agent.name == agent_name,
             Agent.active == True
         ).first()
     

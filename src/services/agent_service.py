@@ -42,32 +42,17 @@ class AgentService:
             agent_repo = AgentRepository(db)
             
             # Check if agent already exists
-            existing_agent = agent_repo.get_active_agent(agent_type="whatsapp")
+            existing_agent = agent_repo.get_active_agent(agent_name=agent_api_client.default_agent_name)
             if existing_agent:
                 logger.info(f"Active WhatsApp agent already exists with ID: {existing_agent.id}")
                 return existing_agent
             
             # Create new agent
             logger.info("No active WhatsApp agent found. Creating default agent...")
-            agent = agent_repo.create(
-                name="WhatsApp Assistant",
-                description="Default WhatsApp assistant for basic interactions",
-                type="whatsapp",
-                model="builtin",
-                version="0.1.0",
-                active=True,
-                config={
-                    "name": agent_api_client.default_agent_name,
-                    "system_prompt": """
-                    You are a friendly and helpful AI assistant on WhatsApp.
-                    Your goal is to provide helpful, accurate, and friendly responses to user inquiries.
-                    Be concise in your responses as this is a chat interface.
-                    """
-                }
-            )
+            if not existing_agent:
+                logger.error("Failed to create default WhatsApp agent")
+                raise RuntimeError("Failed to create default WhatsApp agent")
             
-            logger.info(f"Created new WhatsApp agent with ID: {agent.id}")
-            return agent
     
     def start(self):
         """Start the service."""
