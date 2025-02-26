@@ -10,6 +10,7 @@ import threading
 import queue
 import time
 import os
+import hashlib
 
 from src.config import config
 from src.db.engine import get_session
@@ -166,9 +167,37 @@ class WhatsAppMessageHandler:
                             else:
                                 logger.warning("Failed to transcribe audio message")
                 
-                # Get or create a session for this user
+                # MODIFIED: Get existing session or use a fixed format session ID without creating a new record
                 session_repo = SessionRepository(db)
-                session = session_repo.get_or_create_for_user(user_id, 'whatsapp')
+                session = None
+                
+                if user_id:
+                    # Try to get the latest session for this user
+                    session = session_repo.get_latest_for_user(user_id)
+                
+                if not session:
+                    # If no session exists, create a session object with a fixed ID format
+                    # but don't save it to the database
+                    session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
+                    # Use WhatsApp instance name as part of the session ID
+                    instance_name = config.rabbitmq.instance_name
+                    # Create a deterministic session ID based on the user's WhatsApp ID
+                    hash_obj = hashlib.md5(sender_id.encode())
+                    hash_digest = hash_obj.hexdigest()[:8]
+                    session_id = f"{session_id_prefix}{instance_name}-{hash_digest}"
+                    
+                    # Check if this session already exists
+                    session = session_repo.get(session_id)
+                    
+                    if not session:
+                        # Create a session object but don't add it to the database
+                        from src.db.models import Session as DbSession
+                        session = DbSession(
+                            id=session_id,
+                            user_id=user_id,
+                            platform='whatsapp'
+                        )
+                        logger.info(f"Using temporary session with ID: {session_id} (not saved to DB)")
                 
                 # Check for transcription
                 transcription = data.get('transcription')

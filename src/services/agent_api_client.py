@@ -36,6 +36,7 @@ class AgentApiClient:
                  session_id: Optional[str] = None,
                  user_id: str = "default_user",
                  message_limit: int = 10,
+                 session_origin: Optional[str] = None,
                  context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Run an agent with the provided parameters.
@@ -50,6 +51,7 @@ class AgentApiClient:
             session_id: Optional session ID for conversation continuity
             user_id: User ID
             message_limit: Maximum number of messages to return
+            session_origin: Origin of the session
             context: Additional context for the agent
             
         Returns:
@@ -88,6 +90,9 @@ class AgentApiClient:
             
         if context:
             payload["context"] = context
+            
+        if session_origin:
+            payload["session_origin"] = session_origin
         
         # Log the request (without sensitive information)
         logger.info(f"Making API request to {endpoint}")
