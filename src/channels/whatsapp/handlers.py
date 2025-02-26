@@ -123,13 +123,11 @@ class WhatsAppMessageHandler:
                     whatsapp_id=sender_id
                 )
                 
-                # Get current active agent
-                agent_repo = AgentRepository(db)
-                agent = agent_repo.get_active_agent(agent_type="whatsapp")
-                
-                if not agent:
-                    logger.warning("No active WhatsApp agent found")
-                    return
+                # Instead of getting the agent from the database, create a simple config with the default agent name
+                agent_config = {
+                    "name": config.agent_api.default_agent_name,
+                    "type": "whatsapp"
+                }
                 
                 # Extract any media URL from the message
                 media_url = self._extract_media_url_from_payload(data)
@@ -159,7 +157,7 @@ class WhatsAppMessageHandler:
                     message_text=message_content,
                     message_type=message_type,
                     conversation_history=None,  # Don't need this anymore
-                    agent_config=agent.config
+                    agent_config=agent_config
                 )
                 
                 # Send the response via WhatsApp

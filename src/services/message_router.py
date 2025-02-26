@@ -47,8 +47,9 @@ class MessageRouter:
             logger.info(f"Message text: {message_text}")
             logger.info(f"Message type: {message_type}")
             
-            # Get agent name from config if available
-            agent_name = agent_config.get("name", agent_api_client.default_agent_name) if agent_config else agent_api_client.default_agent_name
+            # Always use the default agent name from the API client
+            agent_name = agent_api_client.default_agent_name
+            logger.info(f"Using agent name: {agent_name}")
             
             # Use API client to call the agent API
             result = agent_api_client.run_agent(
