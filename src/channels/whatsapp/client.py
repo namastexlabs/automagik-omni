@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 import base64
 import tempfile
 
-from src.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
+from src.channels.whatsapp.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
 from src.channels.whatsapp.handlers import message_handler
 

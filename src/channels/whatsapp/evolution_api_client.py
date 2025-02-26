@@ -15,7 +15,7 @@ import time
 import random
 
 # Configure logging
-logger = logging.getLogger("src.evolution_api_client")
+logger = logging.getLogger("src.channels.whatsapp.evolution_api_client")
 
 class EventType(str, Enum):
     """Event types supported by Evolution API."""
