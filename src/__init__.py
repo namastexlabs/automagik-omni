@@ -1,5 +1,7 @@
 """
-Agent - WhatsApp AI assistant integration package.
+Omnichannel Agent package.
+
+This package provides an AI agent system for multiple communication channels.
 """
 
-from version import __version__ 
+__version__ = "0.1.0" 

@@ -1,6 +1,6 @@
 [project]
 name = "omnichannel-agent"
-dynamic = ["version"]
+version = "0.1.0"
 description = "AI agent integration for OminiChannels"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,4 +20,4 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {file = "version.py", pattern = "__version__ = \"(.+)\""}
+version = {attr = "src.__version__"}

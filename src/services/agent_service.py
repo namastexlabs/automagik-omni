@@ -23,7 +23,7 @@ from src.db.models import User, Session, ChatMessage, Agent, Memory
 from sqlalchemy.orm import Session as DbSession
 
 # Configure logging
-logger = logging.getLogger("src.service")
+logger = logging.getLogger("src.services.agent_service")
 
 class AgentService:
     """Service layer for Agent application."""

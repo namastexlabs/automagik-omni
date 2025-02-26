@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import after loading environment variables
-from src.service import agent_service
+from src.services.agent_service import agent_service
 from src.db.engine import init_db, create_tables
 from src.config import config
 
@@ -25,7 +25,7 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-logger = logging.getLogger("src.main")
+logger = logging.getLogger("src.cli.main")
 
 def handle_shutdown(signal_number, frame):
     """Handle shutdown signals."""
