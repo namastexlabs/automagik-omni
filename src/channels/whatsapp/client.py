@@ -5,7 +5,7 @@ WhatsApp client using Evolution API and RabbitMQ.
 import logging
 import json
 import requests
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 import threading
 from datetime import datetime
 import time
@@ -14,6 +14,8 @@ import mimetypes
 from urllib.parse import urlparse
 import boto3
 from botocore.client import Config
+import base64
+import tempfile
 
 from src.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
@@ -49,6 +51,36 @@ class WhatsAppClient:
         # Connection monitoring
         self._connection_monitor_thread = None
         self._should_monitor = False
+        
+        # Initialize the temp directory to ensure it exists
+        self._ensure_temp_directory()
+        
+        # Log using the actual URI instead of constructing it from parts
+        logger.info(f"Connecting to Evolution API RabbitMQ at {config.rabbitmq.uri}")
+        logger.info(f"Using WhatsApp instance: {self.evolution_config.instance_name}")
+    
+    def _ensure_temp_directory(self):
+        """Ensure the temporary directory exists and has proper permissions."""
+        temp_dir = os.path.join(os.getcwd(), 'temp')
+        try:
+            # Create the directory if it doesn't exist
+            if not os.path.exists(temp_dir):
+                os.makedirs(temp_dir, exist_ok=True)
+                logger.info(f"Created temporary directory at {temp_dir}")
+            
+            # Check if the directory is writable
+            test_file_path = os.path.join(temp_dir, '_test_write.tmp')
+            with open(test_file_path, 'w') as f:
+                f.write('test')
+            os.remove(test_file_path)
+            logger.info(f"Temporary directory {temp_dir} is ready for media downloads")
+            return temp_dir
+        except Exception as e:
+            logger.error(f"Error configuring temporary directory: {e}", exc_info=True)
+            # Try to use system temp directory as fallback
+            temp_dir = tempfile.gettempdir()
+            logger.info(f"Using system temp directory as fallback: {temp_dir}")
+            return temp_dir
     
     def _get_api_base_url(self) -> str:
         """Extract the API base URL from the RabbitMQ URI."""
@@ -310,13 +342,20 @@ class WhatsAppClient:
         # Extract message content
         data = message.get('data', {})
         message_content = data.get('message', {})
+        message_type = self.detect_message_type(message)
         
-        # Check for direct mediaUrl in data
+        # Skip sticker messages as requested
+        if message_type == 'sticker':
+            logger.info("Skipping URL extraction for sticker message")
+            return None
+        
+        # Check for direct mediaUrl in data - prioritize this as it may be already processed
         if 'mediaUrl' in data:
             url = data.get('mediaUrl')
             # If it's a generic WhatsApp URL, we'll handle it differently
-            if url != "https://web.whatsapp.net":
-                return self._convert_minio_to_public_url(url)
+            if url and url != "https://web.whatsapp.net":
+                # Don't convert internal URLs here - that's handled in process_incoming_media
+                return url
         
         # Check for specific message types
         if 'imageMessage' in message_content and 'url' in message_content['imageMessage']:
@@ -325,12 +364,6 @@ class WhatsAppClient:
             return message_content['audioMessage']['url']
         elif 'videoMessage' in message_content and 'url' in message_content['videoMessage']:
             return message_content['videoMessage']['url']
-        elif 'stickerMessage' in message_content:
-            # For stickers, first try to get the URL
-            if 'url' in message_content['stickerMessage']:
-                return message_content['stickerMessage']['url']
-            # Otherwise, we'll just return a placeholder and let download_and_save_media construct the real URL
-            return "https://web.whatsapp.net"
         elif 'documentMessage' in message_content and 'url' in message_content['documentMessage']:
             return message_content['documentMessage']['url']
         
@@ -374,11 +407,11 @@ class WhatsAppClient:
                         region_name=config.minio.region
                     )
                     
-                    # Create a presigned URL that expires in 7 days
+                    # Create a presigned URL that expires in 1 hour
                     presigned_url = s3_client.generate_presigned_url(
                         'get_object',
                         Params={'Bucket': bucket, 'Key': key},
-                        ExpiresIn=604800  # 7 days in seconds
+                        ExpiresIn=3600  # 1 hour in seconds
                     )
                     
                     logger.info(f"Created presigned URL for MinIO object: {presigned_url}")
@@ -470,11 +503,12 @@ class WhatsAppClient:
             logger.error(f"Failed to send {media_type}: {e}")
             return False, None
 
-    def download_and_save_media(self, message: Dict[str, Any]) -> Optional[str]:
+    def download_and_save_media(self, message: Dict[str, Any], base64_encode: bool = False) -> Optional[str]:
         """Download and save media (stickers, images, etc.) from WhatsApp messages to MinIO.
         
         Args:
             message: The WhatsApp message data
+            base64_encode: Whether to also provide the media as base64 (added to the message)
             
         Returns:
             Optional[str]: The public URL of the saved media or None if failed
@@ -524,9 +558,8 @@ class WhatsAppClient:
                 # Get message ID
                 message_id = key.get('id', f"manual_{int(time.time())}")
                 
-                # Create a temporary file to store the media
-                temp_dir = os.path.join(os.getcwd(), 'temp')
-                os.makedirs(temp_dir, exist_ok=True)
+                # Ensure we have a proper temp directory
+                temp_dir = self._ensure_temp_directory()
                 
                 # Determine file extension from mime type or URL
                 message_content = data.get('message', {})
@@ -549,7 +582,7 @@ class WhatsAppClient:
                     mime_type = 'image/webp'
                 
                 # Get extension from mime type
-                extension = mimetypes.guess_extension(mime_type) if mime_type else ''
+                extension = self._get_extension_from_mime_type(mime_type) if mime_type else ''
                 if not extension:
                     # Try to get extension from URL
                     parsed_url = urlparse(media_url)
@@ -630,6 +663,21 @@ class WhatsAppClient:
                 
                 logger.info(f"Media downloaded to {temp_file_path}")
                 
+                # If base64 encoding is requested, encode the file and add to message
+                if base64_encode:
+                    try:
+                        # Read the file and convert to base64
+                        with open(temp_file_path, 'rb') as f:
+                            file_content = f.read()
+                            base64_data = base64.b64encode(file_content).decode('utf-8')
+                        
+                        # Add base64 data to the message
+                        if 'data' in message:
+                            message['data']['media_base64'] = base64_data
+                            logger.info("Added base64 encoded media to message")
+                    except Exception as e:
+                        logger.error(f"Error encoding media as base64: {e}")
+                
                 # Upload to MinIO
                 s3_client = boto3.client('s3',
                     endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
@@ -647,6 +695,17 @@ class WhatsAppClient:
                 logger.info(f"Uploading media to S3: endpoint={config.minio.endpoint}:{config.minio.port}, bucket={bucket}, key={s3_key}")
                 logger.info(f"Using access key: {config.minio.access_key[:4]}...")
                 
+                # If mime_type is empty or None, try to detect it from the file
+                if not mime_type:
+                    detected_mime = self._detect_mime_type_from_file(temp_file_path)
+                    if detected_mime:
+                        mime_type = detected_mime
+                        logger.info(f"Detected MIME type from file content: {mime_type}")
+                    else:
+                        # Fall back to guessing from extension
+                        mime_type = mimetypes.guess_type(temp_file_path)[0]
+                        logger.info(f"Guessed MIME type from extension: {mime_type}")
+                
                 # Upload the file
                 s3_client.upload_file(
                     temp_file_path, 
@@ -660,11 +719,11 @@ class WhatsAppClient:
                 
                 logger.info(f"Media uploaded to S3: bucket={bucket}, key={s3_key}")
                 
-                # Create a presigned URL that expires in 7 days
+                # Create a presigned URL that expires in 1 hour instead of 7 days
                 presigned_url = s3_client.generate_presigned_url(
                     'get_object',
                     Params={'Bucket': bucket, 'Key': s3_key},
-                    ExpiresIn=604800  # 7 days in seconds
+                    ExpiresIn=3600  # 1 hour in seconds
                 )
                 
                 logger.info(f"Created presigned URL for media: {presigned_url}")
@@ -680,53 +739,255 @@ class WhatsAppClient:
         return media_url
 
     def process_incoming_media(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """Process incoming media messages to ensure they are saved to MinIO.
+        """Process incoming media messages to ensure they have valid URLs.
         
         Args:
             message: The WhatsApp message
             
         Returns:
-            Dict[str, Any]: The updated message with saved media URL
+            Dict[str, Any]: The updated message
         """
         # Only process if it's a media message
         message_type = self.detect_message_type(message)
-        if message_type in ['image', 'audio', 'video', 'sticker', 'document']:
-            # Check if we need to save the media
+        
+        # Skip sticker messages as requested
+        if message_type == 'sticker':
+            logger.info(f"Skipping sticker message as requested")
+            return message
+            
+        if message_type in ['image', 'audio', 'video', 'document']:
+            logger.info(f"Processing incoming {message_type} message")
+            
+            # Extract media URL directly from the message
             media_url = self.extract_media_url(message)
             
             if media_url:
-                # Special handling for stickers (always save them)
-                if message_type == 'sticker' or not media_url.startswith("http://minio:9000"):
-                    # Download and save to MinIO
-                    saved_url = self.download_and_save_media(message)
+                # Use the direct URL from Evolution API
+                # Only convert internal MinIO URLs to public URLs if needed
+                if "minio:9000" in media_url:
+                    public_url = self._convert_minio_to_public_url(media_url)
                     
-                    if saved_url:
+                    if public_url:
                         # Update the message with the new URL
                         data = message.get('data', {})
                         
                         # Add mediaUrl to the data
-                        data['mediaUrl'] = saved_url
+                        data['mediaUrl'] = public_url
                         
-                        # Update the message content based on the type
-                        message_content = data.get('message', {})
-                        if message_type == 'image' and 'imageMessage' in message_content:
-                            message_content['imageMessage']['url'] = saved_url
-                        elif message_type == 'audio' and 'audioMessage' in message_content:
-                            message_content['audioMessage']['url'] = saved_url
-                        elif message_type == 'video' and 'videoMessage' in message_content:
-                            message_content['videoMessage']['url'] = saved_url
-                        elif message_type == 'sticker' and 'stickerMessage' in message_content:
-                            message_content['stickerMessage']['url'] = saved_url
-                        elif message_type == 'document' and 'documentMessage' in message_content:
-                            message_content['documentMessage']['url'] = saved_url
-                        
-                        # Update the message data
-                        data['message'] = message_content
+                        # Update the message
                         message['data'] = data
                         
-                        logger.info(f"Updated {message_type} message with saved media URL: {saved_url}")
+                        logger.info(f"Updated {message_type} message with public URL: {public_url}")
         
         return message
+
+    def _get_media_as_base64(self, media_url: str) -> Optional[str]:
+        """Download media from URL and convert to base64 encoding.
+        
+        Args:
+            media_url: URL of the media to download
+            
+        Returns:
+            Optional[str]: Base64 encoded media string or None if failed
+        """
+        try:
+            # Create a temporary file in a reliable temp directory
+            temp_dir = self._ensure_temp_directory()
+            temp_path = os.path.join(temp_dir, f"base64_tmp_{int(time.time())}.bin")
+            
+            # Check if this is a MinIO URL
+            if "minio:9000" in media_url or config.minio.endpoint in media_url:
+                # Parse the URL to get bucket and key
+                parsed_url = urlparse(media_url)
+                path_parts = parsed_url.path.split('/', 2)
+                
+                if len(path_parts) >= 3:
+                    bucket = path_parts[1]
+                    key = path_parts[2]
+                    
+                    # Create S3 client
+                    s3_client = boto3.client('s3',
+                        endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
+                        aws_access_key_id=config.minio.access_key,
+                        aws_secret_access_key=config.minio.secret_key,
+                        config=Config(signature_version='s3v4'),
+                        region_name=config.minio.region
+                    )
+                    
+                    # Download file
+                    s3_client.download_file(bucket, key, temp_path)
+                else:
+                    logger.error(f"Invalid MinIO URL format: {media_url}")
+                    return None
+            else:
+                # Regular HTTP download
+                response = requests.get(media_url, stream=True)
+                response.raise_for_status()
+                
+                with open(temp_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            
+            # Read the file and convert to base64
+            with open(temp_path, 'rb') as f:
+                file_content = f.read()
+                base64_data = base64.b64encode(file_content).decode('utf-8')
+            
+            # Clean up
+            os.remove(temp_path)
+            
+            return base64_data
+            
+        except Exception as e:
+            logger.error(f"Error converting media to base64: {e}", exc_info=True)
+            # Attempt to clean up if possible
+            try:
+                if 'temp_path' in locals():
+                    os.remove(temp_path)
+            except:
+                pass
+            return None
+
+    def get_media_as_base64(self, message_or_url: Union[Dict[str, Any], str]) -> Optional[str]:
+        """Retrieve base64 encoded media from a message or media URL.
+        
+        Args:
+            message_or_url: The message or direct media URL
+            
+        Returns:
+            Optional[str]: Base64 encoded media or None if failed
+        """
+        # Check if we already have base64 encoded data in the message
+        if isinstance(message_or_url, dict) and 'data' in message_or_url and 'media_base64' in message_or_url['data']:
+            return message_or_url['data']['media_base64']
+        
+        # Get the media URL
+        media_url = message_or_url
+        if isinstance(message_or_url, dict):
+            media_url = self.extract_media_url(message_or_url)
+        
+        if media_url:
+            # Use the helper method to get the base64 data
+            return self._get_media_as_base64(media_url)
+        
+        return None
+
+    def _get_extension_from_mime_type(self, mime_type: str) -> str:
+        """Get file extension from MIME type with explicit mappings for common types.
+        
+        Args:
+            mime_type: The MIME type string
+            
+        Returns:
+            str: The appropriate file extension including the dot
+        """
+        # Common image MIME types mapping
+        mime_map = {
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/webp': '.webp',
+            'image/bmp': '.bmp',
+            'image/tiff': '.tiff',
+            'image/svg+xml': '.svg',
+            'image/heic': '.heic',
+            'image/heif': '.heif',
+            # Audio types
+            'audio/mpeg': '.mp3',
+            'audio/mp4': '.m4a',
+            'audio/ogg': '.ogg',
+            'audio/wav': '.wav',
+            'audio/webm': '.webm',
+            'audio/aac': '.aac',
+            'audio/opus': '.opus',
+            # Video types
+            'video/mp4': '.mp4',
+            'video/webm': '.webm',
+            'video/ogg': '.ogv',
+            'video/quicktime': '.mov',
+            'video/x-matroska': '.mkv',
+            'video/x-msvideo': '.avi',
+            # Document types
+            'application/pdf': '.pdf',
+            'application/msword': '.doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+            'application/vnd.ms-excel': '.xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx'
+        }
+        
+        # Return the extension directly if it's in our map
+        if mime_type in mime_map:
+            return mime_map[mime_type]
+        
+        # Fall back to the system's mime types
+        extension = mimetypes.guess_extension(mime_type)
+        if extension:
+            return extension
+            
+        # Log the unknown mime type
+        logger.warning(f"Unknown MIME type encountered: {mime_type}")
+        
+        # Return default extensions based on general MIME type categories
+        if mime_type.startswith('image/'):
+            return '.jpg'
+        elif mime_type.startswith('audio/'):
+            return '.mp3'
+        elif mime_type.startswith('video/'):
+            return '.mp4'
+        elif mime_type.startswith('text/'):
+            return '.txt'
+        else:
+            return '.bin'
+
+    def _detect_mime_type_from_file(self, file_path: str) -> str:
+        """Detect the MIME type by examining the file content.
+        
+        Args:
+            file_path: Path to the file
+            
+        Returns:
+            str: Detected MIME type or empty string if detection fails
+        """
+        try:
+            # First try to use the magic library if available
+            try:
+                import magic
+                return magic.from_file(file_path, mime=True)
+            except ImportError:
+                # If magic is not available, use a simpler approach based on file signatures
+                with open(file_path, 'rb') as f:
+                    header = f.read(12)  # Read first 12 bytes for file signature
+                
+                # Check file signatures
+                if header.startswith(b'\xFF\xD8\xFF'):  # JPEG starts with these bytes
+                    return 'image/jpeg'
+                elif header.startswith(b'\x89PNG\r\n\x1A\n'):  # PNG signature
+                    return 'image/png'
+                elif header.startswith(b'GIF87a') or header.startswith(b'GIF89a'):  # GIF signature
+                    return 'image/gif'
+                elif header.startswith(b'RIFF') and header[8:12] == b'WEBP':  # WEBP signature
+                    return 'image/webp'
+                elif header.startswith(b'\x42\x4D'):  # BMP signature
+                    return 'image/bmp'
+                
+                # If signature detection fails, fall back to extension-based detection
+                ext = os.path.splitext(file_path)[1].lower()
+                mime_map = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.webp': 'image/webp',
+                    '.bmp': 'image/bmp',
+                    '.mp3': 'audio/mpeg',
+                    '.mp4': 'video/mp4',
+                    '.pdf': 'application/pdf',
+                }
+                return mime_map.get(ext, '')
+        except Exception as e:
+            logger.error(f"Error detecting MIME type: {e}")
+            return ''
 
 # Singleton instance
 whatsapp_client = WhatsAppClient() 

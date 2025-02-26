@@ -250,11 +250,11 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
                         region_name=config.minio.region
                     )
                     
-                    # Create a presigned URL that expires in 7 days
+                    # Create a presigned URL that expires in 1 hour
                     presigned_url = s3_client.generate_presigned_url(
                         'get_object',
                         Params={'Bucket': bucket, 'Key': key},
-                        ExpiresIn=604800  # 7 days in seconds
+                        ExpiresIn=3600  # 1 hour in seconds
                     )
                     
                     logger.info(f"Created presigned URL for MinIO object: {presigned_url}")
@@ -336,12 +336,10 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             mime_type = message_content.get('videoMessage', {}).get('mimetype', '')
             text_content = message_content.get('videoMessage', {}).get('caption', '')
         elif 'stickerMessage' in message_content:
+            # Skip sticker messages for now as requested
             message_type = 'sticker'
-            if not media_url:
-                media_url = message_content.get('stickerMessage', {}).get('url', '')
-            mime_type = message_content.get('stickerMessage', {}).get('mimetype', 'image/webp')
-            # Log sticker details for debugging
-            logger.info(f"Processing sticker message: id={message_id}, media_url={media_url}")
+            logger.info(f"Skipping processing of sticker message: id={message_id}")
+            # We're not setting the media_url for stickers as requested
         elif 'documentMessage' in message_content:
             message_type = 'document'
             if not media_url:
@@ -360,8 +358,8 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             else:
                 message_type = 'unknown'
             
-        # Convert Minio URL to public URL if needed
-        if media_url:
+        # Convert Minio URL to public URL if needed (only for non-sticker media)
+        if media_url and message_type != 'sticker':
             media_url = self._convert_minio_to_public_url(media_url)
             logger.info(f"Final media URL after conversion: {media_url}")
         
