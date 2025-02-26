@@ -208,6 +208,59 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             ChatMessage.session_id == session_id
         ).order_by(ChatMessage.message_timestamp.asc()).limit(limit).all()
     
+    def _convert_minio_to_public_url(self, url: str) -> str:
+        """Convert Minio internal URL to public-facing URL.
+        
+        Args:
+            url: The internal Minio URL
+            
+        Returns:
+            str: The public-facing URL
+        """
+        if not url:
+            return url
+            
+        # If the URL is already a public URL, return as is
+        if url.startswith("https://mmg.whatsapp.net") or url.startswith("https://web.whatsapp.net"):
+            return url
+            
+        from src.config import config
+        
+        # Check if this is a MinIO URL (either internal or IP-based)
+        is_minio_url = "minio:9000" in url or config.minio.endpoint in url
+        
+        if is_minio_url:
+            # Extract the path from the URL
+            from urllib.parse import urlparse
+            parsed_url = urlparse(url)
+            
+            # Get the path component
+            path = parsed_url.path
+            
+            # Format: /bucket_name/path/to/object
+            # We need to extract the path after bucket name
+            parts = path.split('/', 2)  # Split into ['', 'bucket_name', 'rest/of/path']
+            
+            if len(parts) >= 3:
+                # Bucket name is parts[1], rest of path is parts[2]
+                bucket_name = parts[1]
+                object_path = parts[2]
+                
+                # Construct the public URL using the configured public URL
+                public_url = f"{config.public_media_url}/media/{object_path}"
+                
+                # Remove query parameters if they exist
+                if '?' in public_url:
+                    public_url = public_url.split('?')[0]
+                
+                logger.info(f"Converted MinIO URL to public URL: {public_url}")
+                return public_url
+            else:
+                logger.warning(f"Could not extract path components from MinIO URL: {url}")
+        
+        # If we couldn't convert it, return the original URL
+        return url
+    
     def create_from_whatsapp(self, session_id: str, user_id: Any, whatsapp_message: Dict[str, Any]) -> ChatMessage:
         """Create a chat message from a WhatsApp message."""
         # Extract key information from WhatsApp message
@@ -227,6 +280,11 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         media_url = None
         mime_type = None
         
+        # Check for direct mediaUrl in the data (our saved media URL)
+        if 'mediaUrl' in data:
+            media_url = data.get('mediaUrl')
+            logger.info(f"Found media URL in data: {media_url}")
+        
         # Extract based on message structure
         if 'conversation' in message_content:
             message_type = 'text'
@@ -236,18 +294,50 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             text_content = message_content.get('extendedTextMessage', {}).get('text', '')
         elif 'imageMessage' in message_content:
             message_type = 'image'
-            media_url = message_content.get('imageMessage', {}).get('url', '')
+            if not media_url:
+                media_url = message_content.get('imageMessage', {}).get('url', '')
             mime_type = message_content.get('imageMessage', {}).get('mimetype', '')
             text_content = message_content.get('imageMessage', {}).get('caption', '')
         elif 'audioMessage' in message_content:
             message_type = 'audio'
-            media_url = message_content.get('audioMessage', {}).get('url', '')
+            if not media_url:
+                media_url = message_content.get('audioMessage', {}).get('url', '')
             mime_type = message_content.get('audioMessage', {}).get('mimetype', '')
+        elif 'videoMessage' in message_content:
+            message_type = 'video'
+            if not media_url:
+                media_url = message_content.get('videoMessage', {}).get('url', '')
+            mime_type = message_content.get('videoMessage', {}).get('mimetype', '')
+            text_content = message_content.get('videoMessage', {}).get('caption', '')
+        elif 'stickerMessage' in message_content:
+            message_type = 'sticker'
+            if not media_url:
+                media_url = message_content.get('stickerMessage', {}).get('url', '')
+            mime_type = message_content.get('stickerMessage', {}).get('mimetype', 'image/webp')
+            # Log sticker details for debugging
+            logger.info(f"Processing sticker message: id={message_id}, media_url={media_url}")
+        elif 'documentMessage' in message_content:
+            message_type = 'document'
+            if not media_url:
+                media_url = message_content.get('documentMessage', {}).get('url', '')
+            mime_type = message_content.get('documentMessage', {}).get('mimetype', '')
+            text_content = message_content.get('documentMessage', {}).get('fileName', '')
         
         # Fallback for unknown message types
         if not message_type:
-            message_type = 'unknown'
-            logger.warning(f"Unknown message type: {message_content}")
+            # Log the message content to help with debugging
+            logger.warning(f"Unknown message type structure: {message_content}")
+            
+            # Try to determine type from messageType field
+            if 'messageType' in data:
+                message_type = data.get('messageType')
+            else:
+                message_type = 'unknown'
+            
+        # Convert Minio URL to public URL if needed
+        if media_url:
+            media_url = self._convert_minio_to_public_url(media_url)
+            logger.info(f"Final media URL after conversion: {media_url}")
         
         # Get timestamp
         timestamp_ms = data.get('messageTimestamp', 0) * 1000

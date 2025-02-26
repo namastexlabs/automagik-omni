@@ -12,6 +12,7 @@ dependencies = [
     "requests>=2.32.3",
     "sqlalchemy>=2.0.38",
     "psycopg2-binary>=2.9.10",
+    "boto3>=1.34.0",
 ]
 
 [build-system]
@@ -19,4 +20,4 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "version.__version__"}
+version = {file = "version.py", pattern = "__version__ = \"(.+)\""}
