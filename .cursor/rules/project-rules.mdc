@@ -3,7 +3,7 @@ description: Overall project rules
 globs: 
 ---
 
-# Stan Agent Project
+# Omni Router
 
 
 We are in a python envirionment, and we are using ´uv` as our package manager. 
