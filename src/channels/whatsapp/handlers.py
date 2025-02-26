@@ -184,6 +184,7 @@ class WhatsAppMessageHandler:
                     message_text=message_content,
                     message_type=message_type,
                     whatsapp_raw_payload=message,
+                    session_origin="whatsapp",
                     agent_config=agent_config
                 )
                 

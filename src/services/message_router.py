@@ -27,6 +27,7 @@ class MessageRouter:
                       message_text: str, 
                       message_type: str,
                       whatsapp_raw_payload: Dict[str, Any],
+                      session_origin: str,
                       agent_config: Optional[Dict[str, Any]] = None) -> str:
                       
         """
@@ -45,8 +46,7 @@ class MessageRouter:
         try:
             logger.info(f"Routing message to API for user {user_id}, session {session_id}")
             logger.info(f"Message text: {message_text}")
-            logger.info(f"Message type: {message_type}")
-            
+            logger.info(f"Session origin: {session_origin}")
             # Always use the default agent name from the API client
             agent_name = agent_api_client.default_agent_name
             logger.info(f"Using agent name: {agent_name}")
@@ -61,7 +61,8 @@ class MessageRouter:
                 context={
                     "agent_config": agent_config or {}
                 },
-                channel_payload=whatsapp_raw_payload
+                channel_payload=whatsapp_raw_payload,
+                session_origin=session_origin
             )
             
             # Check for errors
