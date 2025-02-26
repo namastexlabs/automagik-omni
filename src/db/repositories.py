@@ -360,11 +360,11 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             
         # Convert to datetime
         try:
-            timestamp = datetime.fromtimestamp(timestamp_ms / 1000.0)
+            timestamp = datetime.fromtimestamp(timestamp_ms / 1000.0, tz=timezone.utc)
             logger.info(f"Using message timestamp: {timestamp}")
         except Exception as e:
             logger.error(f"Error converting timestamp {timestamp_ms}: {e}, using current time")
-            timestamp = datetime.now()
+            timestamp = datetime.now(timezone.utc)
         
         # Get the active agent ID to associate with this message
         agent_id = None
