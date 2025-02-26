@@ -169,7 +169,7 @@ class SessionRepository(BaseRepository[DbSession]):
         super().__init__(db, DbSession)
         # Get session ID prefix from environment
         import os
-        self.session_id_prefix = os.getenv("AGENT_SESSION_ID_PREFIX", "")
+        self.session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
     
     def get_latest_for_user(self, user_id: str) -> Optional[DbSession]:
         """Get the latest session for a user."""
