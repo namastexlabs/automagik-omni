@@ -173,5 +173,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Cloned repositories
+pydantic-ai/
+agentic-ai-design-patterns/
 
 temp/*

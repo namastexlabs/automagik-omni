@@ -19,11 +19,7 @@ Copy the `.env.example` file (if available) to `.env` and fill in the required c
 ## Running the Application
 
 ```bash
-# Run using the Python module syntax
-python -m src
-
-# Alternatively, you can run the CLI module directly
-python -m src.cli.main
+python -m src.main
 ```
 
 ## Development
@@ -40,6 +36,4 @@ uv add <package-name>
   - `agent/` - Agent implementation
   - `channels/` - Communication channel integrations
   - `db/` - Database models and repositories
-  - `services/` - Service layer components
-  - `cli/` - Command-line interfaces
 - `tests/` - Test directory (to be implemented) 
