@@ -12,8 +12,6 @@ import time
 import os
 import mimetypes
 from urllib.parse import urlparse
-import boto3
-from botocore.client import Config
 import base64
 import tempfile
 
@@ -44,6 +42,10 @@ class WhatsAppClient:
         self.client = EvolutionAPIClient(self.evolution_config)
         self.api_base_url = self._get_api_base_url()
         self.api_key = self._get_api_key()
+        
+        # Store the server URL and API key from incoming messages
+        self.dynamic_server_url = None
+        self.dynamic_api_key = None
         
         # Set up message handler to use our send_text_message method
         message_handler.set_send_response_callback(self.send_text_message)
@@ -122,6 +124,15 @@ class WhatsAppClient:
     def _handle_message(self, message: Dict[str, Any]):
         """Handle incoming WhatsApp messages from RabbitMQ."""
         logger.debug(f"Received message: {message.get('event', 'unknown')}")
+        
+        # Extract server_url and apikey from the message if available
+        if 'server_url' in message and message['server_url']:
+            self.dynamic_server_url = message['server_url']
+            logger.info(f"Updated server URL from message: {self.dynamic_server_url}")
+            
+        if 'apikey' in message and message['apikey']:
+            self.dynamic_api_key = message['apikey']
+            logger.info(f"Updated API key from message")
         
         # Process media if present
         message_type = self.detect_message_type(message)
@@ -264,36 +275,87 @@ class WhatsAppClient:
         Returns:
             Tuple[bool, Optional[Dict]]: Success flag and response data if successful
         """
-        url = f"{self.api_base_url}/message/sendText/{config.rabbitmq.instance_name}"
+        # Use dynamic server URL if available, otherwise fall back to configured URL
+        server_url = self.dynamic_server_url or self.api_base_url
+        
+        # Use dynamic API key if available, otherwise fall back to configured key
+        api_key = self.dynamic_api_key or self.api_key
+        
+        url = f"{server_url}/message/sendText/{config.rabbitmq.instance_name}"
+        
+        # Format the recipient number correctly for Evolution API
+        # - Remove @s.whatsapp.net suffix if present (this is critical)
+        formatted_recipient = recipient
+        if "@" in formatted_recipient:
+            formatted_recipient = formatted_recipient.split("@")[0]
+        
+        # Remove any + at the beginning
+        if formatted_recipient.startswith("+"):
+            formatted_recipient = formatted_recipient[1:]
+            
+        logger.info(f"Formatted recipient from {recipient} to {formatted_recipient}")
         
         headers = {
-            "apikey": self.api_key,
+            "apikey": api_key,
             "Content-Type": "application/json"
         }
         
         payload = {
-            "number": recipient,
+            "number": formatted_recipient,  # This must be just the number without @s.whatsapp.net
             "text": text
         }
         
         try:
+            # Log the request details (without sensitive data)
+            logger.info(f"Sending message to {formatted_recipient} using URL: {url}")
+            logger.info(f"Headers: {{'apikey': '*****', 'Content-Type': '{headers['Content-Type']}'}}")
+            logger.info(f"Payload: {{'number': '{formatted_recipient}', 'text': '{text[:30]}...' if len(text) > 30 else text}}")
+            
+            # Make the API request
             response = requests.post(url, headers=headers, json=payload)
+            
+            # Log response status
+            logger.info(f"Response status: {response.status_code}")
+            
+            # Log response content for debugging
+            try:
+                response_text = response.text[:200] + "..." if len(response.text) > 200 else response.text
+                logger.info(f"Response content: {response_text}")
+            except Exception as e:
+                logger.info(f"Could not log response content: {str(e)}")
+            
+            # Raise for HTTP errors
             response.raise_for_status()
-            logger.info(f"Message sent to {recipient}")
+            
+            logger.info(f"Message sent to {formatted_recipient}")
             
             # Parse response data
             response_data = {
                 "direction": "outbound",
                 "status": "sent",
                 "timestamp": datetime.now().isoformat(),
-                "recipient": recipient,
+                "recipient": formatted_recipient,
                 "text": text,
                 "raw_response": response.json() if response.content else None
             }
             
             return True, response_data
         except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to send message: {e}")
+            # More detailed error logging
+            error_msg = f"Failed to send message: {str(e)}"
+            
+            if hasattr(e, 'response') and e.response is not None:
+                status_code = e.response.status_code
+                error_msg += f" | Status Code: {status_code}"
+                
+                # Try to get response content
+                try:
+                    content = e.response.text
+                    error_msg += f" | Response: {content[:200]}..."
+                except:
+                    pass
+            
+            logger.error(error_msg)
             return False, None
     
     def detect_message_type(self, message: Dict[str, Any]) -> str:
@@ -309,10 +371,16 @@ class WhatsAppClient:
         data = message.get('data', {})
         message_content = data.get('message', {})
         
-        # Check for specific message types
+        # First, check if the message has a specific messageType field
+        if 'messageType' in data:
+            logger.info(f"Using messageType from data: {data.get('messageType')}")
+            return data.get('messageType')
+            
+        # Check for specific message types in the message structure
         if 'conversation' in message_content or 'extendedTextMessage' in message_content:
             return 'text'
         elif 'imageMessage' in message_content:
+            logger.info(f"Detected image message from message structure")
             return 'image'
         elif 'audioMessage' in message_content:
             return 'audio'
@@ -323,41 +391,55 @@ class WhatsAppClient:
         elif 'documentMessage' in message_content:
             return 'document'
         
-        # Try to get from messageType field
-        if 'messageType' in data:
-            return data.get('messageType')
+        # Check for media URL as a last resort
+        if 'mediaUrl' in data and data.get('mediaUrl'):
+            # Try to guess type from media URL
+            media_url = data.get('mediaUrl')
+            if '.jpg' in media_url or '.jpeg' in media_url or '.png' in media_url:
+                logger.info(f"Detected image from mediaUrl extension: {media_url}")
+                return 'image'
+            elif '.mp3' in media_url or '.ogg' in media_url or '.opus' in media_url:
+                return 'audio'
+            elif '.mp4' in media_url or '.webm' in media_url:
+                return 'video'
+            elif '.pdf' in media_url or '.doc' in media_url:
+                return 'document'
+            else:
+                # If URL exists but can't determine type, default to image
+                logger.info(f"Unknown media type but URL exists, defaulting to image: {media_url}")
+                return 'image'
         
         # Default to unknown
+        logger.warning(f"Could not determine message type from data: {data}")
         return 'unknown'
     
     def extract_media_url(self, message: Dict[str, Any]) -> Optional[str]:
         """Extract media URL from a message.
         
         Args:
-            message: The message data
+            message: Message data
             
         Returns:
-            Optional[str]: The media URL or None if not found
+            Optional[str]: Media URL if found, None otherwise
         """
-        # Extract message content
+        # Get the message content and determine message type
         data = message.get('data', {})
         message_content = data.get('message', {})
-        message_type = self.detect_message_type(message)
         
-        # Skip sticker messages as requested
+        # Skip URL extraction for sticker messages
+        message_type = self.detect_message_type(message)
         if message_type == 'sticker':
             logger.info("Skipping URL extraction for sticker message")
             return None
         
-        # Check for direct mediaUrl in data - prioritize this as it may be already processed
+        # Check mediaUrl in the data
         if 'mediaUrl' in data:
             url = data.get('mediaUrl')
-            # If it's a generic WhatsApp URL, we'll handle it differently
             if url and url != "https://web.whatsapp.net":
-                # Don't convert internal URLs here - that's handled in process_incoming_media
+                logger.info(f"Found URL in data: {url}")
                 return url
         
-        # Check for specific message types
+        # Check message content for URLs
         if 'imageMessage' in message_content and 'url' in message_content['imageMessage']:
             return message_content['imageMessage']['url']
         elif 'audioMessage' in message_content and 'url' in message_content['audioMessage']:
@@ -368,75 +450,6 @@ class WhatsAppClient:
             return message_content['documentMessage']['url']
         
         return None
-    
-    def _convert_minio_to_public_url(self, url: str) -> str:
-        """Convert Minio internal URL to public-facing URL.
-        
-        Args:
-            url: The internal Minio URL
-            
-        Returns:
-            str: The public-facing URL
-        """
-        if not url:
-            return url
-            
-        # If the URL is already a public URL, return as is
-        if url.startswith("https://mmg.whatsapp.net") or url.startswith("https://web.whatsapp.net"):
-            return url
-            
-        # If the URL is a S3/MinIO URL, try to create a presigned URL
-        if "minio:9000" in url or config.minio.endpoint in url:
-            try:
-                # Extract bucket and key from the MinIO URL
-                # Format: http://minio:9000/evolution/evolution-api/{instance}/{remotejid}/{type}/{id}.{ext}
-                parsed_url = urlparse(url)
-                path_parts = parsed_url.path.split('/', 2)
-                
-                if len(path_parts) >= 3:
-                    bucket = path_parts[1]  # evolution
-                    key = path_parts[2]  # rest of the path
-                    
-                    # Create a new S3 client with the configured credentials
-                    s3_client = boto3.client(
-                        's3',
-                        endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
-                        aws_access_key_id=config.minio.access_key,
-                        aws_secret_access_key=config.minio.secret_key,
-                        config=Config(signature_version='s3v4'),
-                        region_name=config.minio.region
-                    )
-                    
-                    # Create a presigned URL that expires in 1 hour
-                    presigned_url = s3_client.generate_presigned_url(
-                        'get_object',
-                        Params={'Bucket': bucket, 'Key': key},
-                        ExpiresIn=3600  # 1 hour in seconds
-                    )
-                    
-                    logger.info(f"Created presigned URL for MinIO object: {presigned_url}")
-                    return presigned_url
-            except Exception as e:
-                logger.error(f"Failed to create presigned URL for MinIO object: {e}")
-                
-                # Fallback to the direct public URL approach
-                server_url = config.public_media_url
-                
-                # Extract path - handle both "minio:9000" and actual endpoint formats
-                if "minio:9000" in url:
-                    path_parts = url.split('minio:9000', 1)[1]
-                else:
-                    # Handle when actual endpoint is in URL
-                    endpoint_with_port = f"{config.minio.endpoint}:{config.minio.port}"
-                    path_parts = url.split(endpoint_with_port, 1)[1] if endpoint_with_port in url else url
-                
-                public_url = f"{server_url}/media{path_parts}"
-                if '?' in public_url:
-                    public_url = public_url.split('?')[0]
-                logger.info(f"Using direct public URL: {public_url}")
-                return public_url
-                
-        return url
     
     def send_media(self, recipient: str, media_url: str, caption: Optional[str] = None, media_type: str = 'image'):
         """Send a media message via Evolution API.
@@ -450,9 +463,6 @@ class WhatsAppClient:
         Returns:
             Tuple[bool, Optional[Dict]]: Success flag and response data if successful
         """
-        # Convert Minio URLs to public URLs if needed
-        media_url = self._convert_minio_to_public_url(media_url)
-        
         # Determine the appropriate endpoint based on media type
         if media_type == 'audio':
             endpoint = 'sendAudio'
@@ -504,348 +514,108 @@ class WhatsAppClient:
             return False, None
 
     def download_and_save_media(self, message: Dict[str, Any], base64_encode: bool = False) -> Optional[str]:
-        """Download and save media (stickers, images, etc.) from WhatsApp messages to MinIO.
+        """Download and save media (stickers, images, etc.) from WhatsApp messages.
         
         Args:
-            message: The WhatsApp message data
-            base64_encode: Whether to also provide the media as base64 (added to the message)
+            message: Message data
+            base64_encode: Whether to return a base64-encoded string instead of URL
             
         Returns:
-            Optional[str]: The public URL of the saved media or None if failed
+            Optional[str]: Media URL if successful, None otherwise
         """
-        # First determine the message type and extract the media URL
-        message_type = self.detect_message_type(message)
+        # Extract the media URL from the message
         media_url = self.extract_media_url(message)
-        
         if not media_url:
-            logger.warning(f"No media URL found in {message_type} message")
+            logger.warning("Could not extract media URL from message")
             return None
             
-        # Check for specific case of stickers with non-working URL
-        if message_type == 'sticker' and (media_url == 'https://web.whatsapp.net' or not media_url.startswith('http')):
-            # Try to construct a working URL for stickers
-            try:
-                data = message.get('data', {})
-                message_content = data.get('message', {})
-                sticker_message = message_content.get('stickerMessage', {})
-                
-                # Extract direct path which contains the actual file path
-                direct_path = sticker_message.get('directPath')
-                
-                if direct_path:
-                    # Construct a proper WhatsApp download URL
-                    media_url = f"https://mmg.whatsapp.net{direct_path}"
-                    logger.info(f"Constructed sticker download URL: {media_url}")
-                else:
-                    logger.warning("Could not extract directPath from sticker message")
-                    return None
-            except Exception as e:
-                logger.error(f"Error constructing sticker URL: {e}")
-                return None
-        
-        # Check if this is a WhatsApp URL or already a Minio URL
-        if media_url.startswith("https://mmg.whatsapp.net") or media_url.startswith("https://web.whatsapp.net") or "minio:9000" in media_url:
-            try:
-                # Extract necessary information
-                data = message.get('data', {})
-                key = data.get('key', {})
-                
-                # Get remote JID (sender/recipient)
-                remote_jid = key.get('remoteJid', 'unknown')
-                if '@' in remote_jid:
-                    remote_jid = remote_jid.split('@')[0]  # Remove the @s.whatsapp.net part
-                
-                # Get message ID
-                message_id = key.get('id', f"manual_{int(time.time())}")
-                
-                # Ensure we have a proper temp directory
-                temp_dir = self._ensure_temp_directory()
-                
-                # Determine file extension from mime type or URL
-                message_content = data.get('message', {})
-                mime_type = None
-                
-                # Try to get mime type from the message content based on media type
-                if message_type == 'image':
-                    mime_type = message_content.get('imageMessage', {}).get('mimetype')
-                elif message_type == 'audio':
-                    mime_type = message_content.get('audioMessage', {}).get('mimetype')
-                elif message_type == 'video':
-                    mime_type = message_content.get('videoMessage', {}).get('mimetype')
-                elif message_type == 'sticker':
-                    mime_type = message_content.get('stickerMessage', {}).get('mimetype', 'image/webp')
-                elif message_type == 'document':
-                    mime_type = message_content.get('documentMessage', {}).get('mimetype')
-                
-                # Default to webp for stickers if no mime type
-                if not mime_type and message_type == 'sticker':
-                    mime_type = 'image/webp'
-                
-                # Get extension from mime type
-                extension = self._get_extension_from_mime_type(mime_type) if mime_type else ''
-                if not extension:
-                    # Try to get extension from URL
-                    parsed_url = urlparse(media_url)
-                    path = parsed_url.path
-                    extension = os.path.splitext(path)[1]
-                    
-                # If still no extension, use default based on type
-                if not extension:
-                    if message_type == 'image':
-                        extension = '.jpg'
-                    elif message_type == 'audio':
-                        extension = '.mp3'
-                    elif message_type == 'video':
-                        extension = '.mp4'
-                    elif message_type == 'sticker':
-                        extension = '.webp'
-                    else:
-                        extension = '.bin'
-                
-                # Create a temporary file path
-                temp_file_path = os.path.join(temp_dir, f"{message_id}{extension}")
-                
-                # Download the file
-                if "minio:9000" in media_url or config.minio.endpoint in media_url:
-                    # This is an internal URL, we need to use the S3 client
-                    s3_client = boto3.client('s3',
-                        endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
-                        aws_access_key_id=config.minio.access_key,
-                        aws_secret_access_key=config.minio.secret_key,
-                        config=Config(signature_version='s3v4'),
-                        region_name=config.minio.region
-                    )
-                    
-                    # Parse the URL to get bucket and key
-                    parsed_url = urlparse(media_url)
-                    path_parts = parsed_url.path.split('/', 2)
-                    if len(path_parts) >= 3:
-                        bucket = path_parts[1]  # evolution
-                        key = path_parts[2]  # rest of the path
-                        
-                        # Download the file from S3
-                        logger.info(f"Downloading from S3: bucket={bucket}, key={key}")
-                        s3_client.download_file(bucket, key, temp_file_path)
-                    else:
-                        logger.error(f"Invalid MinIO URL format: {media_url}")
-                        return None
-                else:
-                    # Special handling for stickers
-                    if message_type == 'sticker':
-                        headers = {}
-                        # For stickers, we might need special headers
-                        if 'mmg.whatsapp.net' in media_url:
-                            headers = {
-                                'User-Agent': 'WhatsApp/2.23.24.82 A',
-                                'Accept': '*/*'
-                            }
-                        
-                        # Log the download attempt for stickers
-                        logger.info(f"Attempting to download sticker from: {media_url}")
-                        
-                        # Direct download with special headers for stickers
-                        response = requests.get(media_url, headers=headers, stream=True)
-                    else:
-                        # Regular download for other media types
-                        response = requests.get(media_url, stream=True)
-                    
-                    # Check status
-                    if response.status_code != 200:
-                        logger.error(f"Failed to download media, status code: {response.status_code}")
-                        logger.error(f"Response: {response.text[:200]}")
-                        return None
-                    
-                    # Save to file
-                    response.raise_for_status()
-                    with open(temp_file_path, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                
-                logger.info(f"Media downloaded to {temp_file_path}")
-                
-                # If base64 encoding is requested, encode the file and add to message
-                if base64_encode:
-                    try:
-                        # Read the file and convert to base64
-                        with open(temp_file_path, 'rb') as f:
-                            file_content = f.read()
-                            base64_data = base64.b64encode(file_content).decode('utf-8')
-                        
-                        # Add base64 data to the message
-                        if 'data' in message:
-                            message['data']['media_base64'] = base64_data
-                            logger.info("Added base64 encoded media to message")
-                    except Exception as e:
-                        logger.error(f"Error encoding media as base64: {e}")
-                
-                # Upload to MinIO
-                s3_client = boto3.client('s3',
-                    endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
-                    aws_access_key_id=config.minio.access_key,
-                    aws_secret_access_key=config.minio.secret_key,
-                    config=Config(signature_version='s3v4'),
-                    region_name=config.minio.region
-                )
-                
-                # Define the S3 key (path in the bucket)
-                s3_key = f"evolution-api/{config.rabbitmq.instance_name}/{remote_jid}/{message_type}/{message_id}{extension}"
-                bucket = config.minio.bucket
-                
-                # Log upload details for troubleshooting
-                logger.info(f"Uploading media to S3: endpoint={config.minio.endpoint}:{config.minio.port}, bucket={bucket}, key={s3_key}")
-                logger.info(f"Using access key: {config.minio.access_key[:4]}...")
-                
-                # If mime_type is empty or None, try to detect it from the file
-                if not mime_type:
-                    detected_mime = self._detect_mime_type_from_file(temp_file_path)
-                    if detected_mime:
-                        mime_type = detected_mime
-                        logger.info(f"Detected MIME type from file content: {mime_type}")
-                    else:
-                        # Fall back to guessing from extension
-                        mime_type = mimetypes.guess_type(temp_file_path)[0]
-                        logger.info(f"Guessed MIME type from extension: {mime_type}")
-                
-                # Upload the file
-                s3_client.upload_file(
-                    temp_file_path, 
-                    bucket,
-                    s3_key,
-                    ExtraArgs={
-                        'ContentType': mime_type,
-                        'ACL': 'public-read'  # Set ACL to public-read to make it publicly accessible
-                    } if mime_type else {'ACL': 'public-read'}
-                )
-                
-                logger.info(f"Media uploaded to S3: bucket={bucket}, key={s3_key}")
-                
-                # Create a presigned URL that expires in 1 hour instead of 7 days
-                presigned_url = s3_client.generate_presigned_url(
-                    'get_object',
-                    Params={'Bucket': bucket, 'Key': s3_key},
-                    ExpiresIn=3600  # 1 hour in seconds
-                )
-                
-                logger.info(f"Created presigned URL for media: {presigned_url}")
-                
-                # Clean up the temporary file
-                os.remove(temp_file_path)
-                
-                return presigned_url
-                
-            except Exception as e:
-                logger.error(f"Error downloading and saving media: {e}", exc_info=True)
-                return None
-        return media_url
+        # If we just need the media URL, return it directly
+        if not base64_encode:
+            return media_url
+            
+        # For base64 encoding, download the media and encode it
+        try:
+            response = requests.get(media_url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            # Read the content and encode it to base64
+            content = response.content
+            encoded_content = base64.b64encode(content).decode('utf-8')
+            return encoded_content
+            
+        except Exception as e:
+            logger.error(f"Failed to download and encode media: {str(e)}")
+            return None
 
     def process_incoming_media(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """Process incoming media messages to ensure they have valid URLs.
+        """Process incoming media message to extract and format URLs and other data.
+        
+        This will extract the most appropriate media URL and return a cleaned version
+        of the message with consistent media fields.
         
         Args:
-            message: The WhatsApp message
+            message: Raw message data
             
         Returns:
-            Dict[str, Any]: The updated message
+            Dict[str, Any]: Processed message with consistent media fields
         """
-        # Only process if it's a media message
+        # Extract and detect the message type
         message_type = self.detect_message_type(message)
+        data = message.get('data', {})
         
-        # Skip sticker messages as requested
-        if message_type == 'sticker':
-            logger.info(f"Skipping sticker message as requested")
+        if message_type not in ['image', 'video', 'audio', 'document', 'sticker']:
+            # Not a media message, return unchanged
             return message
             
-        if message_type in ['image', 'audio', 'video', 'document']:
-            logger.info(f"Processing incoming {message_type} message")
-            
-            # Extract media URL directly from the message
-            media_url = self.extract_media_url(message)
-            
-            if media_url:
-                # Use the direct URL from Evolution API
-                # Only convert internal MinIO URLs to public URLs if needed
-                if "minio:9000" in media_url:
-                    public_url = self._convert_minio_to_public_url(media_url)
-                    
-                    if public_url:
-                        # Update the message with the new URL
-                        data = message.get('data', {})
-                        
-                        # Add mediaUrl to the data
-                        data['mediaUrl'] = public_url
-                        
-                        # Update the message
-                        message['data'] = data
-                        
-                        logger.info(f"Updated {message_type} message with public URL: {public_url}")
+        # Extract media URL
+        media_url = self.extract_media_url(message)
         
+        # If we found a media URL, add it to the message data
+        if media_url:
+            # Add or update the mediaUrl field in the data dictionary
+            data['mediaUrl'] = media_url
+            
+            # Also update the top-level message with updated data
+            message['data'] = data
+            logger.info(f"Updated {message_type} message with URL: {media_url}")
+            
         return message
 
     def _get_media_as_base64(self, media_url: str) -> Optional[str]:
-        """Download media from URL and convert to base64 encoding.
+        """Download media from URL and convert to base64 string.
         
         Args:
-            media_url: URL of the media to download
+            media_url: URL of the media
             
         Returns:
-            Optional[str]: Base64 encoded media string or None if failed
+            Optional[str]: Base64-encoded string or None if failed
         """
-        try:
-            # Create a temporary file in a reliable temp directory
-            temp_dir = self._ensure_temp_directory()
-            temp_path = os.path.join(temp_dir, f"base64_tmp_{int(time.time())}.bin")
+        if not media_url:
+            logger.error("No media URL provided")
+            return None
             
-            # Check if this is a MinIO URL
-            if "minio:9000" in media_url or config.minio.endpoint in media_url:
-                # Parse the URL to get bucket and key
-                parsed_url = urlparse(media_url)
-                path_parts = parsed_url.path.split('/', 2)
-                
-                if len(path_parts) >= 3:
-                    bucket = path_parts[1]
-                    key = path_parts[2]
-                    
-                    # Create S3 client
-                    s3_client = boto3.client('s3',
-                        endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
-                        aws_access_key_id=config.minio.access_key,
-                        aws_secret_access_key=config.minio.secret_key,
-                        config=Config(signature_version='s3v4'),
-                        region_name=config.minio.region
-                    )
-                    
-                    # Download file
-                    s3_client.download_file(bucket, key, temp_path)
-                else:
-                    logger.error(f"Invalid MinIO URL format: {media_url}")
-                    return None
-            else:
-                # Regular HTTP download
-                response = requests.get(media_url, stream=True)
+        try:
+            # For WhatsApp URLs, use requests to download the content
+            if media_url.startswith("https://mmg.whatsapp.net") or media_url.startswith("https://web.whatsapp.net"):
+                response = requests.get(media_url, stream=True, timeout=30)
                 response.raise_for_status()
                 
-                with open(temp_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                # Read the content and encode it to base64
+                content = response.content
+                encoded_content = base64.b64encode(content).decode('utf-8')
+                return encoded_content
+                
+            # For other URLs, just download normally
+            response = requests.get(media_url, stream=True, timeout=30)
+            response.raise_for_status()
             
-            # Read the file and convert to base64
-            with open(temp_path, 'rb') as f:
-                file_content = f.read()
-                base64_data = base64.b64encode(file_content).decode('utf-8')
-            
-            # Clean up
-            os.remove(temp_path)
-            
-            return base64_data
+            # Read the content and encode it to base64
+            content = response.content
+            encoded_content = base64.b64encode(content).decode('utf-8')
+            return encoded_content
             
         except Exception as e:
-            logger.error(f"Error converting media to base64: {e}", exc_info=True)
-            # Attempt to clean up if possible
-            try:
-                if 'temp_path' in locals():
-                    os.remove(temp_path)
-            except:
-                pass
+            logger.error(f"Failed to download and encode media: {str(e)}")
             return None
 
     def get_media_as_base64(self, message_or_url: Union[Dict[str, Any], str]) -> Optional[str]:

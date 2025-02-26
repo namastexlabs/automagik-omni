@@ -1,0 +1,54 @@
+{
+  "data": {
+    "key": {
+      "id": "3EB0C6A63DE753C9D3F7B1",
+      "fromMe": false,
+      "remoteJid": "555197285829@s.whatsapp.net"
+    },
+    "source": "web",
+    "status": "DELIVERY_ACK",
+    "message": {
+      "mediaUrl": "http://minio:9000/evolution/evolution-api/b621deac-a229-4666-824b-9f909c8756c4/555197285829%40s.whatsapp.net/audioMessage/3EB0C6A63DE753C9D3F7B1.oga?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minio_access%2F20250226%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250226T042603Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=c52c5669a08dff549c830073ed5f0943ee1cb5ab64a36909b283ec752db71937",
+      "audioMessage": {
+        "ptt": false,
+        "url": "https://mmg.whatsapp.net/v/t62.7117-24/35284677_609912561858258_2525584701754404440_n.enc?ccb=11-4&oh=01_Q5AaIAuQFgA5djY8-AeukActJAiHkZHn1RCYhE4q4HJVFOl4&oe=67E60AD9&_nc_sid=5e03e0&mms3=true",
+        "seconds": 4,
+        "mediaKey": "LdjbiuCRHmzTKKSQurjRhBLovjRDSxVdYQ4xUFkrlfw=",
+        "mimetype": "audio/ogg; codecs=opus",
+        "viewOnce": false,
+        "waveform": "AAwdNDIqJCIjISc+Qz4nGRkaIDA9SElJSEA3NjtGPTUxNj0sJy44QkhFPDs6Ojw9Ni0kJCYsLiwcEQ0QFBohKQ==",
+        "directPath": "/v/t62.7117-24/35284677_609912561858258_2525584701754404440_n.enc?ccb=11-4&oh=01_Q5AaIAuQFgA5djY8-AeukActJAiHkZHn1RCYhE4q4HJVFOl4&oe=67E60AD9&_nc_sid=5e03e0",
+        "fileLength": "9748",
+        "fileSha256": "cEfif9kZloEZMpREFMzACTnMSUWNbL4ThSLYTpKTyOc=",
+        "contextInfo": {
+          "disappearingMode": { "initiator": "CHANGED_IN_CHAT" }
+        },
+        "fileEncSha256": "ImiMv/5ds5F7Fh08432qbfHhsDzKNWP6+pYBNlhTjNU=",
+        "mediaKeyTimestamp": "1740539646"
+      },
+      "messageContextInfo": {
+        "messageSecret": "NNw8RKe7Z5kfOFTClCWCmZ4BsGcAyAjZfqJhcOIc1t8=",
+        "deviceListMetadata": {
+          "senderKeyHash": "jhjzJ6OgAdOKEA==",
+          "senderTimestamp": "1740395453",
+          "recipientKeyHash": "PISsdsnVO9SExQ==",
+          "senderAccountType": "E2EE",
+          "recipientTimestamp": "1740413763",
+          "receiverAccountType": "E2EE"
+        },
+        "deviceListMetadataVersion": 2
+      }
+    },
+    "pushName": "Cezar Vasconcelos",
+    "instanceId": "b621deac-a229-4666-824b-9f909c8756c4",
+    "contextInfo": { "disappearingMode": { "initiator": "CHANGED_IN_CHAT" } },
+    "messageType": "audioMessage",
+    "messageTimestamp": 1740543962
+  },
+  "event": "messages.upsert",
+  "apikey": "12F534F49225-40A6-A609-CB4ABA04B6AE",
+  "sender": "555198882486@s.whatsapp.net",
+  "instance": "nmstx-dev",
+  "date_time": "2025-02-26T01:26:03.319Z",
+  "server_url": "http://evo.namastex.io:8080"
+}

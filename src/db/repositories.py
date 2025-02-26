@@ -6,6 +6,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, TypeVar, Generic, Type
+import time
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -167,7 +168,6 @@ class SessionRepository(BaseRepository[DbSession]):
     def __init__(self, db: Session):
         super().__init__(db, DbSession)
         # Get session ID prefix from environment
-        from src.config import config
         import os
         self.session_id_prefix = os.getenv("AGENT_SESSION_ID_PREFIX", "")
     
@@ -203,102 +203,15 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         super().__init__(db, ChatMessage)
     
     def get_by_session(self, session_id: str, limit: int = 50) -> List[ChatMessage]:
-        """Get messages for a session with optional limit."""
-        return self.db.query(ChatMessage).filter(
-            ChatMessage.session_id == session_id
-        ).order_by(ChatMessage.message_timestamp.asc()).limit(limit).all()
+        """Get chat messages by session ID."""
+        return self.db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.message_timestamp).limit(limit).all()
     
-    def _convert_minio_to_public_url(self, url: str) -> str:
-        """Convert Minio internal URL to public-facing URL.
+    def create_from_whatsapp(self, session_id: str, user_id: int, data: Dict[str, Any], override_text: Optional[str] = None) -> ChatMessage:
+        """Create a chat message from a WhatsApp message payload."""
+        logger.info(f"Creating WhatsApp message with user_id: {user_id} (type: {type(user_id)})")
         
-        Args:
-            url: The internal Minio URL
-            
-        Returns:
-            str: The public-facing URL
-        """
-        if not url:
-            return url
-            
-        # If the URL is already a public URL, return as is
-        if url.startswith("https://mmg.whatsapp.net") or url.startswith("https://web.whatsapp.net"):
-            return url
-            
-        from src.config import config
-        import boto3
-        from botocore.client import Config
-        
-        # If the URL is a S3/MinIO URL, try to create a presigned URL
-        if "minio:9000" in url or config.minio.endpoint in url:
-            try:
-                # Extract bucket and key from the MinIO URL
-                from urllib.parse import urlparse
-                parsed_url = urlparse(url)
-                path_parts = parsed_url.path.split('/', 2)
-                
-                if len(path_parts) >= 3:
-                    bucket = path_parts[1]  # evolution
-                    key = path_parts[2]  # rest of the path
-                    
-                    # Create a new S3 client with the configured credentials
-                    s3_client = boto3.client(
-                        's3',
-                        endpoint_url=f"{'https' if config.minio.use_https else 'http'}://{config.minio.endpoint}:{config.minio.port}",
-                        aws_access_key_id=config.minio.access_key,
-                        aws_secret_access_key=config.minio.secret_key,
-                        config=Config(signature_version='s3v4'),
-                        region_name=config.minio.region
-                    )
-                    
-                    # Create a presigned URL that expires in 1 hour
-                    presigned_url = s3_client.generate_presigned_url(
-                        'get_object',
-                        Params={'Bucket': bucket, 'Key': key},
-                        ExpiresIn=3600  # 1 hour in seconds
-                    )
-                    
-                    logger.info(f"Created presigned URL for MinIO object: {presigned_url}")
-                    return presigned_url
-                    
-            except Exception as e:
-                logger.error(f"Failed to create presigned URL for MinIO object: {e}")
-            
-            # Fallback to the direct public URL approach
-            server_url = config.public_media_url
-            
-            # Extract path based on what's in the URL
-            if "minio:9000" in url:
-                # Extract path after minio:9000
-                path_parts = url.split('minio:9000', 1)[1]
-            else:
-                # Handle when the actual endpoint is in the URL
-                endpoint_with_port = f"{config.minio.endpoint}:{config.minio.port}"
-                path_parts = url.split(endpoint_with_port, 1)[1] if endpoint_with_port in url else ""
-            
-            # Construct the public URL using the server URL as configured in environment
-            public_url = f"{server_url}/media{path_parts}"
-            
-            # Remove query parameters if they exist
-            if '?' in public_url:
-                public_url = public_url.split('?')[0]
-            
-            logger.info(f"Using direct public URL: {public_url}")
-            return public_url
-            
-        return url
-    
-    def create_from_whatsapp(self, session_id: str, user_id: Any, whatsapp_message: Dict[str, Any]) -> ChatMessage:
-        """Create a chat message from a WhatsApp message."""
-        # Extract key information from WhatsApp message
-        data = whatsapp_message.get('data', {})
-        key = data.get('key', {})
-        message_id = key.get('id', str(uuid.uuid4()))
-        
-        # Log the user_id for debugging
-        logger.info(f"Creating WhatsApp message with user_id: {user_id} (type: {type(user_id).__name__})")
-        
-        # Message content and type
-        message_content = data.get('message', {})
+        # Process the message payload
+        message_content = data.get('data', {}).get('message', {})
         
         # Determine message type and content
         message_type = None
@@ -306,66 +219,152 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         media_url = None
         mime_type = None
         
-        # Check for direct mediaUrl in the data (our saved media URL)
-        if 'mediaUrl' in data:
-            media_url = data.get('mediaUrl')
-            logger.info(f"Found media URL in data: {media_url}")
+        # Get the message ID from the data
+        message_id = data.get('data', {}).get('key', {}).get('id', str(uuid.uuid4()))
         
-        # Extract based on message structure
-        if 'conversation' in message_content:
-            message_type = 'text'
-            text_content = message_content.get('conversation', '')
-        elif 'extendedTextMessage' in message_content:
-            message_type = 'text'
-            text_content = message_content.get('extendedTextMessage', {}).get('text', '')
-        elif 'imageMessage' in message_content:
-            message_type = 'image'
-            if not media_url:
-                media_url = message_content.get('imageMessage', {}).get('url', '')
-            mime_type = message_content.get('imageMessage', {}).get('mimetype', '')
-            text_content = message_content.get('imageMessage', {}).get('caption', '')
-        elif 'audioMessage' in message_content:
-            message_type = 'audio'
-            if not media_url:
-                media_url = message_content.get('audioMessage', {}).get('url', '')
-            mime_type = message_content.get('audioMessage', {}).get('mimetype', '')
-        elif 'videoMessage' in message_content:
-            message_type = 'video'
-            if not media_url:
-                media_url = message_content.get('videoMessage', {}).get('url', '')
-            mime_type = message_content.get('videoMessage', {}).get('mimetype', '')
-            text_content = message_content.get('videoMessage', {}).get('caption', '')
-        elif 'stickerMessage' in message_content:
-            # Skip sticker messages for now as requested
+        # Log raw message structure for debugging
+        logger.info(f"Message structure keys: {list(message_content.keys())}")
+        logger.info(f"Message type from data: {data.get('messageType')}")
+        
+        # First try to identify if this is a sticker - if so, handle specially
+        if 'stickerMessage' in message_content:
             message_type = 'sticker'
-            logger.info(f"Skipping processing of sticker message: id={message_id}")
-            # We're not setting the media_url for stickers as requested
-        elif 'documentMessage' in message_content:
-            message_type = 'document'
-            if not media_url:
-                media_url = message_content.get('documentMessage', {}).get('url', '')
-            mime_type = message_content.get('documentMessage', {}).get('mimetype', '')
-            text_content = message_content.get('documentMessage', {}).get('fileName', '')
-        
-        # Fallback for unknown message types
-        if not message_type:
-            # Log the message content to help with debugging
-            logger.warning(f"Unknown message type structure: {message_content}")
+            logger.info(f"Identified sticker message (id={message_id}), treating as text-only")
+            # Set to empty text to ensure it's included but without media processing
+            text_content = "[Sticker]"
+            # Add mime type for stickers
+            mime_type = message_content.get('stickerMessage', {}).get('mimetype', 'image/webp')
+        else:
+            # Check for mediaUrl in data - this is where Evolution API's media URL is stored
+            if 'mediaUrl' in data.get('data', {}):
+                media_url = data.get('data', {}).get('mediaUrl')
+                logger.info(f"Found media URL in data: {media_url}")
             
-            # Try to determine type from messageType field
+            # Determine message type from structure or messageType field
             if 'messageType' in data:
-                message_type = data.get('messageType')
-            else:
-                message_type = 'unknown'
+                # Convert Evolution API message types to our internal types
+                msg_type = data.get('messageType')
+                logger.info(f"Using messageType from data: {msg_type}")
+                
+                # Normalize message type names (Evolution API uses camelCase with "Message" suffix)
+                if msg_type.endswith('Message'):
+                    base_type = msg_type.replace('Message', '')
+                    message_type = base_type.lower()
+                    logger.info(f"Normalized message type from {msg_type} to {message_type}")
+                else:
+                    message_type = msg_type.lower()
+                    logger.info(f"Using lowercase message type: {message_type}")
             
-        # Convert Minio URL to public URL if needed (only for non-sticker media)
-        if media_url and message_type != 'sticker':
-            media_url = self._convert_minio_to_public_url(media_url)
-            logger.info(f"Final media URL after conversion: {media_url}")
+            # Extract based on message structure
+            if 'conversation' in message_content:
+                message_type = 'text'
+                text_content = message_content.get('conversation', '')
+            elif 'extendedTextMessage' in message_content:
+                message_type = 'text'
+                text_content = message_content.get('extendedTextMessage', {}).get('text', '')
+            elif 'imageMessage' in message_content:
+                message_type = 'image'
+                logger.info(f"Identified image message from structure")
+                # Extract text content from caption if available
+                text_content = message_content.get('imageMessage', {}).get('caption', '[Image]')
+                mime_type = message_content.get('imageMessage', {}).get('mimetype', 'image/jpeg')
+                # Only use the URL from imageMessage if we don't already have a mediaUrl
+                if not media_url:
+                    media_url = message_content.get('imageMessage', {}).get('url', '')
+                    logger.info(f"Extracted image URL from message: {media_url}")
+            elif 'audioMessage' in message_content:
+                message_type = 'audio'
+                text_content = '[Audio]'
+                mime_type = message_content.get('audioMessage', {}).get('mimetype', 'audio/ogg')
+                if not media_url:
+                    media_url = message_content.get('audioMessage', {}).get('url', '')
+            elif 'videoMessage' in message_content:
+                message_type = 'video'
+                text_content = message_content.get('videoMessage', {}).get('caption', '[Video]')
+                mime_type = message_content.get('videoMessage', {}).get('mimetype', 'video/mp4')
+                if not media_url:
+                    media_url = message_content.get('videoMessage', {}).get('url', '')
+            elif 'documentMessage' in message_content:
+                message_type = 'document'
+                text_content = message_content.get('documentMessage', {}).get('fileName', '[Document]')
+                mime_type = message_content.get('documentMessage', {}).get('mimetype', 'application/octet-stream')
+                if not media_url:
+                    media_url = message_content.get('documentMessage', {}).get('url', '')
+            
+            # Fallback for unknown message types
+            if not message_type:
+                # Double check specifically for image messages which may not be caught above
+                if any(key for key in message_content.keys() if 'imageMessage' in key):
+                    message_type = 'image'
+                    logger.info(f"Fallback detected image message from key name")
+                    text_content = text_content or '[Image]'
+                # If we have a mediaUrl but no message type, check if we can determine from the URL
+                elif media_url:
+                    if any(ext in media_url.lower() for ext in ['.jpg', '.jpeg', '.png']):
+                        message_type = 'image'
+                        text_content = text_content or '[Image]'
+                        mime_type = mime_type or 'image/jpeg'
+                    elif any(ext in media_url.lower() for ext in ['.mp3', '.ogg', '.opus']):
+                        message_type = 'audio'
+                        text_content = text_content or '[Audio]'
+                        mime_type = mime_type or 'audio/mpeg'
+                    elif any(ext in media_url.lower() for ext in ['.mp4', '.webm']):
+                        message_type = 'video'
+                        text_content = text_content or '[Video]'
+                        mime_type = mime_type or 'video/mp4'
+                    elif any(ext in media_url.lower() for ext in ['.pdf', '.doc']):
+                        message_type = 'document'
+                        text_content = text_content or '[Document]'
+                        mime_type = mime_type or 'application/pdf'
+                    else:
+                        # If URL contains "imageMessage", default to image
+                        if "imageMessage" in media_url:
+                            message_type = 'image'
+                            text_content = text_content or '[Image]'
+                            mime_type = mime_type or 'image/jpeg'
+                            logger.info(f"Detected image message from URL pattern: {media_url}")
+                        else:
+                            # If URL exists but can't determine type, default to image
+                            message_type = 'image'
+                            text_content = text_content or '[Image]'
+                            mime_type = mime_type or 'image/jpeg'
+                    logger.info(f"Determined message type from URL: {message_type}")
+                else:
+                    # Default to unknown but attach a descriptive text
+                    message_type = 'unknown'
+                    text_content = text_content or "[Media message]"
+                    logger.warning(f"Unknown message type structure: {message_content}")
         
         # Get timestamp
-        timestamp_ms = data.get('messageTimestamp', 0) * 1000
-        timestamp = datetime.fromtimestamp(timestamp_ms / 1000.0)
+        # First, check the data structure to correctly extract the timestamp
+        # Timestamps from WhatsApp are typically seconds since epoch
+        if 'messageTimestamp' in data:
+            # Timestamp directly in the message object
+            timestamp_ms = data.get('messageTimestamp', 0) * 1000
+        elif 'data' in data and 'messageTimestamp' in data['data']:
+            # Timestamp in the data sub-object
+            timestamp_ms = data['data'].get('messageTimestamp', 0) * 1000
+        else:
+            # If no timestamp found, check inside data.message
+            if 'data' in data and 'message' in data['data'] and isinstance(data['data']['message'], dict):
+                timestamp_ms = data['data']['message'].get('messageTimestamp', 0) * 1000
+            else:
+                # Default to current time if no timestamp found
+                logger.warning("No messageTimestamp found in WhatsApp message, using current time")
+                timestamp_ms = time.time() * 1000
+        
+        # If timestamp is 0 or very low (indicating an error), use current time
+        if timestamp_ms < 1000000000000:  # Sanity check for valid timestamps (after 2001)
+            logger.warning(f"Invalid timestamp found: {timestamp_ms/1000}, using current time")
+            timestamp_ms = time.time() * 1000
+            
+        # Convert to datetime
+        try:
+            timestamp = datetime.fromtimestamp(timestamp_ms / 1000.0)
+            logger.info(f"Using message timestamp: {timestamp}")
+        except Exception as e:
+            logger.error(f"Error converting timestamp {timestamp_ms}: {e}, using current time")
+            timestamp = datetime.now()
         
         # Get the active agent ID to associate with this message
         agent_id = None
@@ -385,11 +384,11 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
             user_id=user_id,
             agent_id=agent_id,  # Add the agent ID
             role='user',
-            text_content=text_content,
+            text_content=override_text if override_text is not None else text_content,
             media_url=media_url,
             mime_type=mime_type,
             message_type=message_type,
-            raw_payload=whatsapp_message,
+            raw_payload=data,
             message_timestamp=timestamp
         )
 
