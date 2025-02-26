@@ -26,8 +26,9 @@ class MessageRouter:
                       session_id: str, 
                       message_text: str, 
                       message_type: str,
-                      conversation_history=None,  # Not used anymore with the API approach
+                      whatsapp_raw_payload: Dict[str, Any],
                       agent_config: Optional[Dict[str, Any]] = None) -> str:
+                      
         """
         Route a message to the agent API service and get a response.
         
@@ -36,7 +37,6 @@ class MessageRouter:
             session_id: The session ID
             message_text: The message text
             message_type: The message type (text, audio, etc.)
-            conversation_history: List of previous messages (not used with API approach)
             agent_config: Optional configuration from the agent in the database
             
         Returns:
@@ -60,7 +60,8 @@ class MessageRouter:
                 user_id=user_id,
                 context={
                     "agent_config": agent_config or {}
-                }
+                },
+                channel_payload=whatsapp_raw_payload
             )
             
             # Check for errors

@@ -17,7 +17,7 @@ import tempfile
 
 from src.channels.whatsapp.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
-from src.channels.whatsapp.handlers import message_handler
+from src.channels.whatsapp.handlers import message_handler, WhatsAppMessageHandler
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.client")
@@ -48,7 +48,11 @@ class WhatsAppClient:
         self.dynamic_api_key = None
         
         # Set up message handler to use our send_text_message method
-        message_handler.set_send_response_callback(self.send_text_message)
+        global message_handler
+        message_handler = WhatsAppMessageHandler(send_response_callback=self.send_text_message)
+        
+        # Start the message handler
+        message_handler.start()
         
         # Connection monitoring
         self._connection_monitor_thread = None

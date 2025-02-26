@@ -28,12 +28,18 @@ logger = logging.getLogger("src.channels.whatsapp.handlers")
 class WhatsAppMessageHandler:
     """Handler for WhatsApp messages."""
     
-    def __init__(self):
+    def __init__(self, send_response_callback=None):
+        """Initialize the WhatsApp message handler.
+        
+        Args:
+            send_response_callback: Callback function to send responses
+        """
         self.message_queue = queue.Queue()
         self.processing_thread = None
         self.is_running = False
-        self.send_response_callback = None
+        self.send_response_callback = send_response_callback
         self.audio_transcriber = AudioTranscriptionService()
+        logger.info("WhatsApp message handler initialized with audio transcription service")
     
     def start(self):
         """Start the message processing thread."""
@@ -50,10 +56,6 @@ class WhatsAppMessageHandler:
         if self.processing_thread and self.processing_thread.is_alive():
             self.processing_thread.join(timeout=5.0)
             logger.info("WhatsApp message handler stopped")
-    
-    def set_send_response_callback(self, callback: Callable[[str, str], bool]):
-        """Set the callback function for sending responses."""
-        self.send_response_callback = callback
     
     def handle_message(self, message: Dict[str, Any]):
         """Queue a message for processing."""
@@ -123,6 +125,14 @@ class WhatsAppMessageHandler:
                     whatsapp_id=sender_id
                 )
                 
+                # Ensure we have a valid user ID
+                if user and user.id:
+                    user_id = user.id
+                    logger.info(f"Using user ID: {user_id}")
+                else:
+                    logger.warning("Could not get valid user ID, proceeding with None")
+                    user_id = None
+                
                 # Instead of getting the agent from the database, create a simple config with the default agent name
                 agent_config = {
                     "name": config.agent_api.default_agent_name,
@@ -138,25 +148,42 @@ class WhatsAppMessageHandler:
                     if "minio:" in media_url:
                         media_url = self._convert_minio_url(media_url)
                         logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
+                    
+                    # If this is an audio message, attempt to transcribe it
+                    if message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt':
+                        logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
+                        
+                        # Check if the audio transcription service is configured
+                        if not self.audio_transcriber.is_configured():
+                            logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
+                        else:
+                            transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
+                            if transcription:
+                                logger.info(f"Successfully transcribed audio: {transcription}")
+                                message_content = transcription
+                                # Store transcription in data for later use
+                                data['transcription'] = transcription
+                            else:
+                                logger.warning("Failed to transcribe audio message")
                 
                 # Get or create a session for this user
                 session_repo = SessionRepository(db)
-                session = session_repo.get_or_create_for_user(user.id, 'whatsapp')
+                session = session_repo.get_or_create_for_user(user_id, 'whatsapp')
                 
                 # Check for transcription
                 transcription = data.get('transcription')
-                if transcription and message_type == 'audioMessage':
+                if transcription and (message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt'):
                     logger.info(f"Using transcription: {transcription}")
                     message_content = transcription
                 
                 # Generate agent response without saving the user message to DB
-                logger.info(f"Routing message to API for user {user.id}, session {session.id}: {message_content}")
+                logger.info(f"Routing message to API for user {user_id}, session {session.id}: {message_content}")
                 agent_response = message_router.route_message(
-                    user_id=user.id,
+                    user_id=user_id,
                     session_id=session.id,
                     message_text=message_content,
                     message_type=message_type,
-                    conversation_history=None,  # Don't need this anymore
+                    whatsapp_raw_payload=message,
                     agent_config=agent_config
                 )
                 
@@ -166,7 +193,7 @@ class WhatsAppMessageHandler:
                     text=agent_response
                 )
                 
-                logger.info(f"Sent agent response to user_id={user.id}, session_id={session.id}")
+                logger.info(f"Sent agent response to user_id={user_id}, session_id={session.id}")
                 
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
@@ -460,7 +487,15 @@ class WhatsAppMessageHandler:
             
             # First check if the messageType is already provided by Evolution API
             if 'messageType' in data:
-                return data['messageType']
+                msg_type = data['messageType']
+                # Normalize message types
+                if msg_type == 'pttMessage':
+                    return 'ptt'
+                elif msg_type == 'voiceMessage':
+                    return 'voice'
+                elif msg_type == 'audioMessage':
+                    return 'audio'
+                return msg_type
             
             # Otherwise try to determine from the message object
             message_obj = data.get('message', {})
@@ -477,6 +512,12 @@ class WhatsAppMessageHandler:
                 
             elif 'audioMessage' in message_obj:
                 return 'audio'
+                
+            elif 'pttMessage' in message_obj:
+                return 'ptt'
+                
+            elif 'voiceMessage' in message_obj:
+                return 'voice'
                 
             elif 'imageMessage' in message_obj:
                 return 'image'

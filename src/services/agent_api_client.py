@@ -91,7 +91,7 @@ class AgentApiClient:
         
         # Log the request (without sensitive information)
         logger.info(f"Making API request to {endpoint}")
-        logger.debug(f"Request payload: {json.dumps({k:v for k,v in payload.items() if k != 'channel_payload'})}")
+        logger.debug(f"Request payload: {json.dumps({k:v for k,v in payload.items()})}")
         
         try:
             # Make the request

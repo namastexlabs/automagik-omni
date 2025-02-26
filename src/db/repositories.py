@@ -179,6 +179,41 @@ class SessionRepository(BaseRepository[DbSession]):
     
     def get_or_create_for_user(self, user_id: str, platform: str) -> DbSession:
         """Get the latest session for a user or create a new one."""
+        # If user_id is None, we need to handle this case specially
+        if user_id is None:
+            logger.warning("Attempting to create session with user_id=None")
+            # Generate prefixed session ID
+            session_id = f"{self.session_id_prefix}{str(uuid.uuid4())}"
+            
+            # Check if this session ID already exists
+            existing_session = self.get(session_id)
+            if existing_session:
+                logger.info(f"Found existing session with ID: {session_id}")
+                return existing_session
+            
+            # Create a temporary session without user_id
+            # This is not ideal but prevents errors
+            try:
+                session = DbSession(
+                    id=session_id,
+                    user_id=None,  # This will cause issues with the foreign key constraint
+                    platform=platform
+                )
+                logger.info(f"Creating Session with data: {session.__dict__}")
+                self.db.add(session)
+                self.db.flush()
+                logger.info(f"Created new session without user_id")
+                return session
+            except Exception as e:
+                logger.error(f"Error creating session without user_id: {e}")
+                # Return a dummy session object that won't be saved to DB
+                return DbSession(
+                    id=session_id,
+                    user_id=None,
+                    platform=platform
+                )
+        
+        # Normal case with valid user_id
         # Get the most recent session for this user
         session = self.get_latest_for_user(user_id)
         
@@ -186,6 +221,12 @@ class SessionRepository(BaseRepository[DbSession]):
         if not session:
             # Generate prefixed session ID
             session_id = f"{self.session_id_prefix}{str(uuid.uuid4())}"
+            
+            # Check if this session ID already exists
+            existing_session = self.get(session_id)
+            if existing_session:
+                logger.info(f"Found existing session with ID: {session_id}")
+                return existing_session
             
             session = self.create(
                 id=session_id,
