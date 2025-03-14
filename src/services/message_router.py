@@ -3,9 +3,12 @@ Message Router Service
 Handles routing messages to the appropriate agent system.
 """
 
+import json
 import logging
-from typing import Dict, Any, List, Optional
+import uuid
+from typing import Dict, Any, Optional
 
+from src.config import config
 from src.services.agent_api_client import agent_api_client
 
 # Configure logging
@@ -19,83 +22,77 @@ class MessageRouter:
     
     def __init__(self):
         """Initialize the MessageRouter."""
-        pass
+        logger.info("Message router initialized")
     
-    def route_message(self, 
-                      user_id: str, 
-                      session_id: str, 
-                      message_text: str, 
-                      message_type: str,
-                      whatsapp_raw_payload: Dict[str, Any],
-                      session_origin: str,
-                      agent_config: Optional[Dict[str, Any]] = None) -> str:
-                      
-        """
-        Route a message to the agent API service and get a response.
+    def route_message(
+        self,
+        message_text: str,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        message_type: str = "text",
+        whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
+        session_origin: str = "whatsapp",
+        agent_config: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Route a message to the appropriate handler.
         
         Args:
-            user_id: The user ID
-            session_id: The session ID
-            message_text: The message text
-            message_type: The message type (text, audio, etc.)
-            agent_config: Optional configuration from the agent in the database
+            message_text: Message text
+            user_id: User ID (optional)
+            session_id: Session ID (optional)
+            message_type: Message type (default: "text")
+            whatsapp_raw_payload: Raw WhatsApp payload (optional)
+            session_origin: Session origin (default: "whatsapp")
+            agent_config: Agent configuration (optional)
             
         Returns:
-            The agent's response as a string
+            Response from the handler
         """
-        try:
-            logger.info(f"Routing message to API for user {user_id}, session {session_id}")
-            logger.info(f"Message text: {message_text}")
-            logger.info(f"Session origin: {session_origin}")
-            # Always use the default agent name from the API client
-            agent_name = agent_api_client.default_agent_name
-            logger.info(f"Using agent name: {agent_name}")
+        logger.info(f"Routing message to API for user {user_id}, session {session_id}")
+        logger.info(f"Message text: {message_text}")
+        logger.info(f"Session origin: {session_origin}")
+        
+        # Determine the agent name to use
+        agent_name = "stan_agent"
+        if agent_config and "name" in agent_config:
+            agent_name = agent_config["name"]
+        logger.info(f"Using agent name: {agent_name}")
+        
+        # If user_id is None, use a default value
+        if user_id is None:
+            logger.warning(f"Using default user_id=0 as no user_id was provided")
+            user_id = "0"
+        
+        # Convert UUID to string for serialization
+        if isinstance(session_id, uuid.UUID):
+            session_id = str(session_id)
             
-            # Use API client to call the agent API
+        try:
+            # Get agent response from API
             result = agent_api_client.run_agent(
                 agent_name=agent_name,
                 message_content=message_text,
-                message_type=message_type,
-                session_id=session_id,
                 user_id=user_id,
-                context={
-                    "agent_config": agent_config or {}
-                },
-                channel_payload=whatsapp_raw_payload,
-                session_origin=session_origin
+                session_id=session_id,
+                message_type=message_type,
+                session_origin=session_origin,
+                channel_payload=whatsapp_raw_payload
             )
             
-            # Check for errors
-            if "error" in result and result["error"] is not None:
-                logger.error(f"Error from agent API: {result['error']}")
-                if "details" in result:
-                    logger.error(f"Error details: {result['details']}")
-                return "I'm sorry, I encountered an error processing your request. Please try again later."
-            
-            # Extract the response text from the result
-            # The API format might vary, so adjust this based on the actual response structure
+            # Extract the response from the result
             if isinstance(result, dict):
-                # Try to find the response in the standard formats
-                if "response" in result:
-                    return result["response"]
-                elif "message" in result:
-                    return result["message"]
-                elif "content" in result:
-                    return result["content"]
-                elif "text" in result:
-                    return result["text"]
+                if "error" in result:
+                    return result.get("error", "I'm sorry, I encountered an error.")
+                elif "response" in result:
+                    return result.get("response", "")
                 else:
-                    # If we can't find a standard format, return the raw response
-                    logger.warning(f"Unexpected response format: {result}")
                     return str(result)
             else:
-                # If it's not a dict, just convert to string and return
                 return str(result)
-            
+                
         except Exception as e:
             logger.error(f"Error routing message: {e}", exc_info=True)
-            return "I'm sorry, I encountered an error processing your request. Please try again later."
+            return "I'm sorry, I encountered an error processing your request."
 
-
-# Singleton instance
+# Create a singleton instance
 message_router = MessageRouter() 

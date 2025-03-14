@@ -11,6 +11,7 @@ import queue
 import time
 import os
 import hashlib
+import uuid
 
 from src.config import config
 from src.db.engine import get_session
@@ -93,26 +94,11 @@ class WhatsAppMessageHandler:
                 logger.warning("Message does not contain remoteJid in the expected location")
                 # Try to get it from the sender field directly
                 sender_id = message.get('sender')
-                if not sender_id:
-                    logger.error("Could not find sender ID in message")
-                    return
-                else:
-                    logger.info(f"Using sender ID from message: {sender_id}")
-            
-            # Log the received message structure for debugging
-            logger.debug(f"Processing message from {sender_id}")
-            
-            # Skip messages from ourselves
-            if data.get('key', {}).get('fromMe', False):
-                logger.info(f"Skipping message from ourselves to {sender_id}")
+                
+            if not sender_id:
+                logger.error("No sender ID found in message, unable to process")
                 return
-            
-            # Get the message content
-            message_content = self._extract_message_content(message)
-            if not message_content:
-                logger.warning("No message content found")
-                return
-
+                
             # Extract message type
             message_type = self._extract_message_type(message)
             if not message_type:
@@ -120,111 +106,135 @@ class WhatsAppMessageHandler:
                 return
             
             # Get or create user
-            with get_session() as db:
-                user_repo = UserRepository(db)
-                user = user_repo.get_or_create_by_whatsapp(
-                    whatsapp_id=sender_id
-                )
-                
-                # Ensure we have a valid user ID
-                if user and user.id:
-                    user_id = user.id
-                    logger.info(f"Using user ID: {user_id}")
-                else:
-                    logger.warning("Could not get valid user ID, proceeding with None")
-                    user_id = None
-                
-                # Instead of getting the agent from the database, create a simple config with the default agent name
-                agent_config = {
-                    "name": config.agent_api.default_agent_name,
-                    "type": "whatsapp"
-                }
-                
-                # Extract any media URL from the message
-                media_url = self._extract_media_url_from_payload(data)
-                if media_url:
-                    logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url)}")
-                    
-                    # If media URL is from minio, convert to accessible URL
-                    if "minio:" in media_url:
-                        media_url = self._convert_minio_url(media_url)
-                        logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
-                    
-                    # If this is an audio message, attempt to transcribe it
-                    if message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt':
-                        logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
+            max_retries = 3
+            retry_count = 0
+            user = None
+            user_id = None
+            
+            while retry_count < max_retries:
+                try:
+                    with get_session() as db:
+                        user_repo = UserRepository(db)
+                        user = user_repo.get_or_create_by_whatsapp(
+                            whatsapp_id=sender_id
+                        )
                         
-                        # Check if the audio transcription service is configured
-                        if not self.audio_transcriber.is_configured():
-                            logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
+                        # Ensure we have a valid user ID
+                        if user and user.id:
+                            user_id = user.id
+                            logger.info(f"Using user ID: {user_id}")
+                            break  # Success, exit retry loop
                         else:
-                            transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
-                            if transcription:
-                                logger.info(f"Successfully transcribed audio: {transcription}")
-                                message_content = transcription
-                                # Store transcription in data for later use
-                                data['transcription'] = transcription
-                            else:
-                                logger.warning("Failed to transcribe audio message")
+                            logger.warning("Could not get valid user ID, will retry")
+                            retry_count += 1
+                            time.sleep(0.5)  # Small delay before retry
+                except Exception as e:
+                    logger.error(f"Error creating/getting user (attempt {retry_count + 1}): {e}", exc_info=True)
+                    retry_count += 1
+                    time.sleep(0.5)  # Small delay before retry
+            
+            if not user_id:
+                logger.error("Failed to get valid user ID after multiple attempts, proceeding with None")
+                user_id = None
                 
-                # MODIFIED: Get existing session or use a fixed format session ID without creating a new record
-                session_repo = SessionRepository(db)
-                session = None
+            # Extract message content
+            message_content = self._extract_message_content(message)
+            
+            # Instead of getting the agent from the database, create a simple config with the default agent name
+            agent_config = {
+                "name": config.agent_api.default_agent_name,
+                "type": "whatsapp"
+            }
+            
+            # Extract any media URL from the message
+            media_url = self._extract_media_url_from_payload(data)
+            if media_url:
+                logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url)}")
                 
-                if user_id:
-                    # Try to get the latest session for this user
-                    session = session_repo.get_latest_for_user(user_id)
+                # If media URL is from minio, convert to accessible URL
+                if "minio:" in media_url:
+                    media_url = self._convert_minio_url(media_url)
+                    logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
+                
+                # If this is an audio message, attempt to transcribe it
+                if message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt':
+                    logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
+                    
+                    # Check if the audio transcription service is configured
+                    if not self.audio_transcriber.is_configured():
+                        logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
+                    else:
+                        transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
+                        if transcription:
+                            logger.info(f"Successfully transcribed audio: {transcription}")
+                            message_content = transcription
+                            # Store transcription in data for later use
+                            data['transcription'] = transcription
+                        else:
+                            logger.warning("Failed to transcribe audio message")
+            
+            # MODIFIED: Get existing session or use a fixed format session ID without creating a new record
+            session_repo = SessionRepository(db)
+            session = None
+            
+            if user_id:
+                # Try to get the latest session for this user
+                session = session_repo.get_latest_for_user(user_id)
+            
+            if not session:
+                # If no session exists, create a session object with a fixed ID format
+                # but don't save it to the database
+                session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
+                # Use WhatsApp instance name as part of the session ID
+                instance_name = config.rabbitmq.instance_name
+                # Create a deterministic hash from the sender's WhatsApp ID
+                hash_obj = hashlib.md5(sender_id.encode())
+                hash_digest = hash_obj.hexdigest()
+                
+                # Generate a namespace UUID based on the hash (using UUID5 with DNS namespace)
+                # This ensures we get the same UUID for the same WhatsApp ID consistently
+                namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace
+                session_id = uuid.uuid5(namespace, f"{session_id_prefix}{instance_name}-{hash_digest}")
+                
+                # Check if this session already exists
+                session = session_repo.get(session_id)
                 
                 if not session:
-                    # If no session exists, create a session object with a fixed ID format
-                    # but don't save it to the database
-                    session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
-                    # Use WhatsApp instance name as part of the session ID
-                    instance_name = config.rabbitmq.instance_name
-                    # Create a deterministic session ID based on the user's WhatsApp ID
-                    hash_obj = hashlib.md5(sender_id.encode())
-                    hash_digest = hash_obj.hexdigest()[:8]
-                    session_id = f"{session_id_prefix}{instance_name}-{hash_digest}"
-                    
-                    # Check if this session already exists
-                    session = session_repo.get(session_id)
-                    
-                    if not session:
-                        # Create a session object but don't add it to the database
-                        from src.db.models import Session as DbSession
-                        session = DbSession(
-                            id=session_id,
-                            user_id=user_id,
-                            platform='whatsapp'
-                        )
-                        logger.info(f"Using temporary session with ID: {session_id} (not saved to DB)")
-                
-                # Check for transcription
-                transcription = data.get('transcription')
-                if transcription and (message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt'):
-                    logger.info(f"Using transcription: {transcription}")
-                    message_content = transcription
-                
-                # Generate agent response without saving the user message to DB
-                logger.info(f"Routing message to API for user {user_id}, session {session.id}: {message_content}")
-                agent_response = message_router.route_message(
-                    user_id=user_id,
-                    session_id=session.id,
-                    message_text=message_content,
-                    message_type=message_type,
-                    whatsapp_raw_payload=message,
-                    session_origin="whatsapp",
-                    agent_config=agent_config
-                )
-                
-                # Send the response via WhatsApp
-                response_result = self._send_whatsapp_response(
-                    recipient=sender_id,
-                    text=agent_response
-                )
-                
-                logger.info(f"Sent agent response to user_id={user_id}, session_id={session.id}")
-                
+                    # Create a session object but don't add it to the database
+                    from src.db.models import Session as DbSession
+                    session = DbSession(
+                        id=session_id,
+                        user_id=user_id,
+                        platform='whatsapp'
+                    )
+                    logger.info(f"Using temporary session with ID: {session_id} (not saved to DB)")
+            
+            # Check for transcription
+            transcription = data.get('transcription')
+            if transcription and (message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt'):
+                logger.info(f"Using transcription: {transcription}")
+                message_content = transcription
+            
+            # Generate agent response without saving the user message to DB
+            logger.info(f"Routing message to API for user {user_id}, session {session.id}: {message_content}")
+            agent_response = message_router.route_message(
+                user_id=user_id,
+                session_id=session.id,
+                message_text=message_content,
+                message_type=message_type,
+                whatsapp_raw_payload=message,
+                session_origin="whatsapp",
+                agent_config=agent_config
+            )
+            
+            # Send the response via WhatsApp
+            response_result = self._send_whatsapp_response(
+                recipient=sender_id,
+                text=agent_response
+            )
+            
+            logger.info(f"Sent agent response to user_id={user_id}, session_id={session.id}")
+            
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
     

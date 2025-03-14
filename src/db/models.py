@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Index, JSON, Text, Integer
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -17,7 +18,7 @@ class User(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String, nullable=True)
-    phone_number = Column(String(20), nullable=True)
+    phone_number = Column(String(20), nullable=True, unique=True)
     user_data = Column(JSON, nullable=True)  # Will store WhatsApp ID in user_data
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -30,14 +31,14 @@ class User(Base):
     # Index
     __table_args__ = (
         Index("idx_users_email", email),
-        Index("idx_users_phone_number", phone_number),
+        Index("idx_users_phone_number", phone_number, unique=True),
     )
 
 class Session(Base):
     """Session model."""
     __tablename__ = "sessions"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     platform = Column(String, nullable=False, default="whatsapp")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -100,7 +101,7 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_id = Column(String, ForeignKey("sessions.id"), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     agent_id = Column(Integer, ForeignKey("agents.id"), nullable=True)
     role = Column(String, nullable=False)  # 'user', 'assistant', 'system'

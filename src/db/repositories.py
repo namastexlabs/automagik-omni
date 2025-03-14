@@ -126,40 +126,94 @@ class UserRepository(BaseRepository[User]):
         return users[0] if users else None
     
     def extract_phone_from_whatsapp_id(self, whatsapp_id: str) -> str:
-        """Extract phone number from WhatsApp ID."""
+        """
+        Extract and standardize phone number from WhatsApp ID.
+        Handles various formats like:
+        - 1234567890@s.whatsapp.net
+        - 1234567890@c.us
+        - 1234567890:12@g.us (group IDs)
+        - 1234567890
+        """
+        if not whatsapp_id:
+            return ""
+            
+        # Strip any whitespace
+        whatsapp_id = whatsapp_id.strip()
+        
+        # Handle various formats
         if '@' in whatsapp_id:
-            return whatsapp_id.split('@')[0]
+            # Split at @ and take the first part
+            phone_part = whatsapp_id.split('@')[0]
+            
+            # If it's a group format with :, take just the number part
+            if ':' in phone_part:
+                phone_part = phone_part.split(':')[0]
+                
+            return phone_part
+            
+        # If no @ found, assume it's already just the phone number
         return whatsapp_id
     
     def get_or_create_by_whatsapp(self, whatsapp_id: str) -> User:
-        """Get or create a user by WhatsApp ID."""
-        # First try to find by phone number (extracted from WhatsApp ID)
+        """Get or create a user by WhatsApp ID in an atomic way to prevent duplicates."""
+        # First extract phone number from WhatsApp ID
         phone_number = self.extract_phone_from_whatsapp_id(whatsapp_id)
-        user = self.get_by_phone(phone_number)
         
-        if user:
-            # If found by phone but WhatsApp ID not stored, update it
-            if not user.user_data or 'whatsapp_id' not in user.user_data:
-                user.user_data = user.user_data or {}
-                user.user_data['whatsapp_id'] = whatsapp_id
-                user.user_data['source'] = 'whatsapp'
-                self.db.flush()
-            return user
+        # Try to find and update in a single transaction
+        user = None
         
-        # Next try to find by WhatsApp ID in user_data
-        user = self.get_by_whatsapp_id(whatsapp_id)
-        
-        if not user:
-            # Create new user with both phone_number and WhatsApp ID
-            user = self.create(
-                phone_number=phone_number,
-                user_data={
-                    "whatsapp_id": whatsapp_id,
-                    "source": "whatsapp"
-                }
-            )
-            logger.info(f"Created new user with WhatsApp ID: {whatsapp_id} and phone: {phone_number}")
-        
+        try:
+            # First try by phone number
+            user = self.get_by_phone(phone_number)
+            
+            if user:
+                # If found by phone but WhatsApp ID not stored, update it
+                if not user.user_data or 'whatsapp_id' not in user.user_data:
+                    user.user_data = user.user_data or {}
+                    user.user_data['whatsapp_id'] = whatsapp_id
+                    user.user_data['source'] = 'whatsapp'
+                    self.db.flush()
+                return user
+            
+            # Next try by WhatsApp ID
+            user = self.get_by_whatsapp_id(whatsapp_id)
+            
+            if user:
+                # Found by WhatsApp ID, update phone if needed
+                if not user.phone_number:
+                    user.phone_number = phone_number
+                    self.db.flush()
+                return user
+            
+            # User doesn't exist, create it with proper error handling for duplicates
+            try:
+                user = self.create(
+                    phone_number=phone_number,
+                    user_data={
+                        "whatsapp_id": whatsapp_id,
+                        "source": "whatsapp"
+                    }
+                )
+                self.db.flush()  # Try to flush to catch constraint violations early
+                logger.info(f"Created new user with WhatsApp ID: {whatsapp_id} and phone: {phone_number}")
+            except IntegrityError as e:
+                # Handle the case where another process created the user
+                logger.warning(f"IntegrityError while creating user with phone {phone_number}: {e}")
+                self.db.rollback()
+                
+                # Try again to get the user (now it should exist)
+                user = self.get_by_phone(phone_number)
+                if not user:
+                    user = self.get_by_whatsapp_id(whatsapp_id)
+                
+                # If still not found (unlikely but possible), raise an exception
+                if not user:
+                    logger.error(f"Failed to get or create user with WhatsApp ID: {whatsapp_id}")
+                    raise
+        except Exception as e:
+            logger.error(f"Error in get_or_create_by_whatsapp: {e}", exc_info=True)
+            raise
+            
         return user
 
 class SessionRepository(BaseRepository[DbSession]):
@@ -182,8 +236,8 @@ class SessionRepository(BaseRepository[DbSession]):
         # If user_id is None, we need to handle this case specially
         if user_id is None:
             logger.warning("Attempting to create session with user_id=None")
-            # Generate prefixed session ID
-            session_id = f"{self.session_id_prefix}{str(uuid.uuid4())}"
+            # Generate a UUID for the session
+            session_id = uuid.uuid4()
             
             # Check if this session ID already exists
             existing_session = self.get(session_id)
@@ -219,8 +273,8 @@ class SessionRepository(BaseRepository[DbSession]):
         
         # If no session exists, create a new one
         if not session:
-            # Generate prefixed session ID
-            session_id = f"{self.session_id_prefix}{str(uuid.uuid4())}"
+            # Generate a UUID for the session
+            session_id = uuid.uuid4()
             
             # Check if this session ID already exists
             existing_session = self.get(session_id)
@@ -480,12 +534,25 @@ class AgentRepository(BaseRepository[Agent]):
         """Get the first agent (used when there's only one agent)."""
         return self.db.query(Agent).first()
     
-    def get_active_agent(self, agent_name: str = "simple_agent") -> Optional[Agent]:
-        """Get the active agent of a specific type."""
-        return self.db.query(Agent).filter(
-            Agent.name == agent_name,
-            Agent.active == True
-        ).first()
+    def get_active_agent(self, agent_name: str = None, agent_type: str = None) -> Optional[Agent]:
+        """Get the active agent by name or type.
+        
+        Args:
+            agent_name: Optional agent name to filter by
+            agent_type: Optional agent type to filter by
+            
+        Returns:
+            The active agent matching the criteria, or None if not found
+        """
+        query = self.db.query(Agent).filter(Agent.active == True)
+        
+        if agent_name:
+            query = query.filter(Agent.name == agent_name)
+            
+        if agent_type:
+            query = query.filter(Agent.type == agent_type)
+            
+        return query.first()
     
     def create_agent_response(self, session_id: str, user_id: int, agent_id: int, 
                          text_content: str, tool_calls=None, tool_outputs=None, message_type="text",

@@ -35,7 +35,7 @@ class AgentService:
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
     
     def _initialize_default_agent(self):
-        """Initialize the default WhatsApp agent if it doesn't exist."""
+        """Check for default WhatsApp agent but don't require it."""
         logger.info("Checking for default WhatsApp agent...")
         
         with get_session() as db:
@@ -47,18 +47,15 @@ class AgentService:
                 logger.info(f"Active WhatsApp agent already exists with ID: {existing_agent.id}")
                 return existing_agent
             
-            # Create new agent
-            logger.info("No active WhatsApp agent found. Creating default agent...")
-            if not existing_agent:
-                logger.error("Failed to create default WhatsApp agent")
-                raise RuntimeError("Failed to create default WhatsApp agent")
-            
+            # No agent needed, just log and continue
+            logger.info("No active WhatsApp agent found. Continuing without default agent...")
+            return None
     
     def start(self):
         """Start the service."""
         logger.info("Starting Agent service...")
         
-        # Initialize default agent
+        # Initialize default agent (optional)
         self._initialize_default_agent()
         
         # Start the WhatsApp client
