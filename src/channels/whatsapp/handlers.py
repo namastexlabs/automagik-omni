@@ -4,20 +4,24 @@ Processes incoming messages from the Evolution API.
 Uses the Automagik API for user and session management.
 """
 
-import logging
-import json
-from typing import Dict, Any, Optional, Callable, List
-import threading
-import queue
-import time
-import os
 import hashlib
+import json
+import logging
+import os
+import re
+import threading
+import time
 import uuid
+from typing import Dict, Any, Optional, List
+import queue
 
 from src.config import config
 from src.services.automagik_api_client import automagik_api_client
 from src.services.message_router import message_router
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
+
+# Remove the circular import
+# from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.handlers")
@@ -100,111 +104,125 @@ class WhatsAppMessageHandler:
                 logger.warning("Unable to determine message type")
                 return
             
-            # Extract and normalize phone number
-            phone_number = self._extract_phone_number(sender_id)
-            
-            # Get or create user via the API
-            user = None
-            user_id = None
+            # Start showing typing indicator immediately
+            # Import the client and create PresenceUpdater here to avoid circular imports
+            from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
+            presence_updater = PresenceUpdater(whatsapp_client, sender_id)
+            presence_updater.start()
             
             try:
-                # Get or create user via the API with a normalized phone number
-                user = automagik_api_client.get_or_create_user_by_phone(
-                    phone_number=phone_number,
-                    user_data={
-                        "whatsapp_id": sender_id,
-                        "source": "whatsapp"
-                    }
+                # Extract and normalize phone number
+                phone_number = self._extract_phone_number(sender_id)
+                
+                # Get or create user via the API
+                user = None
+                user_id = None
+                
+                try:
+                    # Get or create user via the API with a normalized phone number
+                    user = automagik_api_client.get_or_create_user_by_phone(
+                        phone_number=phone_number,
+                        user_data={
+                            "whatsapp_id": sender_id,
+                            "source": "whatsapp"
+                        }
+                    )
+                    
+                    # Ensure we have a valid user ID
+                    if user and "id" in user:
+                        user_id = user["id"]
+                        logger.info(f"Using user ID: {user_id}")
+                    else:
+                        # If user lookup/creation failed, use the default user (ID 1)
+                        logger.warning(f"Could not get valid user for {phone_number}, using default user")
+                        user_id = 1
+                except Exception as e:
+                    logger.error(f"Error handling user for {phone_number}: {e}", exc_info=True)
+                    # Fallback to default user
+                    user_id = 1
+                    
+                # Extract message content
+                message_content = self._extract_message_content(message)
+                
+                # Instead of getting the agent from the database, create a simple config with the default agent name
+                agent_config = {
+                    "name": config.agent_api.default_agent_name,
+                    "type": "whatsapp"
+                }
+                
+                # Extract any media URL from the message
+                media_url = self._extract_media_url_from_payload(data)
+                if media_url:
+                    logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url)}")
+                    
+                    # If media URL is from minio, convert to accessible URL
+                    if "minio:" in media_url:
+                        media_url = self._convert_minio_url(media_url)
+                        logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
+                    
+                    # If this is an audio message, attempt to transcribe it
+                    if message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt':
+                        logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
+                        
+                        # Check if the audio transcription service is configured
+                        if not self.audio_transcriber.is_configured():
+                            logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
+                        else:
+                            transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
+                            if transcription:
+                                logger.info(f"Successfully transcribed audio: {transcription}")
+                                message_content = transcription
+                                # Store transcription in data for later use
+                                data['transcription'] = transcription
+                            else:
+                                logger.warning("Failed to transcribe audio message")
+                
+                # Generate a session ID based on the sender's WhatsApp ID
+                # Create a deterministic hash from the sender's WhatsApp ID
+                hash_obj = hashlib.md5(sender_id.encode())
+                hash_digest = hash_obj.hexdigest()
+                
+                # Generate a namespace UUID based on the hash (using UUID5 with DNS namespace)
+                # This ensures we get the same UUID for the same WhatsApp ID consistently
+                namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace
+                session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
+                instance_name = config.rabbitmq.instance_name
+                session_id = str(uuid.uuid5(namespace, f"{session_id_prefix}{instance_name}-{hash_digest}"))
+                
+                logger.info(f"Using deterministic session ID: {session_id}")
+                
+                # Check for transcription
+                transcription = data.get('transcription')
+                if transcription and (message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt'):
+                    logger.info(f"Using transcription: {transcription}")
+                    message_content = transcription
+                
+                # Generate agent response
+                logger.info(f"Routing message to API for user {user_id}, session {session_id}: {message_content}")
+                agent_response = message_router.route_message(
+                    user_id=user_id,
+                    session_id=session_id,
+                    message_text=message_content,
+                    message_type=message_type,
+                    whatsapp_raw_payload=message,
+                    session_origin="whatsapp",
+                    agent_config=agent_config
                 )
                 
-                # Ensure we have a valid user ID
-                if user and "id" in user:
-                    user_id = user["id"]
-                    logger.info(f"Using user ID: {user_id}")
-                else:
-                    # If user lookup/creation failed, use the default user (ID 1)
-                    logger.warning(f"Could not get valid user for {phone_number}, using default user")
-                    user_id = 1
-            except Exception as e:
-                logger.error(f"Error handling user for {phone_number}: {e}", exc_info=True)
-                # Fallback to default user
-                user_id = 1
+                # Stop the typing indicator before sending response
+                presence_updater.stop()
                 
-            # Extract message content
-            message_content = self._extract_message_content(message)
-            
-            # Instead of getting the agent from the database, create a simple config with the default agent name
-            agent_config = {
-                "name": config.agent_api.default_agent_name,
-                "type": "whatsapp"
-            }
-            
-            # Extract any media URL from the message
-            media_url = self._extract_media_url_from_payload(data)
-            if media_url:
-                logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url)}")
+                # Send the response via WhatsApp
+                response_result = self._send_whatsapp_response(
+                    recipient=sender_id,
+                    text=agent_response
+                )
                 
-                # If media URL is from minio, convert to accessible URL
-                if "minio:" in media_url:
-                    media_url = self._convert_minio_url(media_url)
-                    logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
-                
-                # If this is an audio message, attempt to transcribe it
-                if message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt':
-                    logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
-                    
-                    # Check if the audio transcription service is configured
-                    if not self.audio_transcriber.is_configured():
-                        logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
-                    else:
-                        transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
-                        if transcription:
-                            logger.info(f"Successfully transcribed audio: {transcription}")
-                            message_content = transcription
-                            # Store transcription in data for later use
-                            data['transcription'] = transcription
-                        else:
-                            logger.warning("Failed to transcribe audio message")
+                logger.info(f"Sent agent response to user_id={user_id}, session_id={session_id}")
             
-            # Generate a session ID based on the sender's WhatsApp ID
-            # Create a deterministic hash from the sender's WhatsApp ID
-            hash_obj = hashlib.md5(sender_id.encode())
-            hash_digest = hash_obj.hexdigest()
-            
-            # Generate a namespace UUID based on the hash (using UUID5 with DNS namespace)
-            # This ensures we get the same UUID for the same WhatsApp ID consistently
-            namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace
-            session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
-            instance_name = config.rabbitmq.instance_name
-            session_id = str(uuid.uuid5(namespace, f"{session_id_prefix}{instance_name}-{hash_digest}"))
-            
-            logger.info(f"Using deterministic session ID: {session_id}")
-            
-            # Check for transcription
-            transcription = data.get('transcription')
-            if transcription and (message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt'):
-                logger.info(f"Using transcription: {transcription}")
-                message_content = transcription
-            
-            # Generate agent response
-            logger.info(f"Routing message to API for user {user_id}, session {session_id}: {message_content}")
-            agent_response = message_router.route_message(
-                user_id=user_id,
-                session_id=session_id,
-                message_text=message_content,
-                message_type=message_type,
-                whatsapp_raw_payload=message,
-                session_origin="whatsapp",
-                agent_config=agent_config
-            )
-            
-            # Send the response via WhatsApp
-            response_result = self._send_whatsapp_response(
-                recipient=sender_id,
-                text=agent_response
-            )
-            
-            logger.info(f"Sent agent response to user_id={user_id}, session_id={session_id}")
+            finally:
+                # Make sure typing indicator is stopped even if processing fails
+                presence_updater.stop()
             
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
@@ -488,5 +506,6 @@ class WhatsAppMessageHandler:
         logger.info(f"Extracted phone number from {sender_id}: {phone}")
         return phone
 
-# Singleton instance
+# Singleton instance - initialized without a callback
+# The callback will be set later by the client
 message_handler = WhatsAppMessageHandler() 

@@ -17,7 +17,6 @@ import tempfile
 
 from src.channels.whatsapp.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
-from src.channels.whatsapp.handlers import message_handler, WhatsAppMessageHandler
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.client")
@@ -47,13 +46,6 @@ class WhatsAppClient:
         self.dynamic_server_url = None
         self.dynamic_api_key = None
         
-        # Set up message handler to use our send_text_message method
-        global message_handler
-        message_handler = WhatsAppMessageHandler(send_response_callback=self.send_text_message)
-        
-        # Start the message handler
-        message_handler.start()
-        
         # Connection monitoring
         self._connection_monitor_thread = None
         self._should_monitor = False
@@ -64,7 +56,7 @@ class WhatsAppClient:
         # Log using the actual URI instead of constructing it from parts
         logger.info(f"Connecting to Evolution API RabbitMQ at {config.rabbitmq.uri}")
         logger.info(f"Using WhatsApp instance: {self.evolution_config.instance_name}")
-    
+
     def _ensure_temp_directory(self):
         """Ensure the temporary directory exists and has proper permissions."""
         temp_dir = os.path.join(os.getcwd(), 'temp')
@@ -145,6 +137,8 @@ class WhatsAppClient:
             message = self.process_incoming_media(message)
         
         # Pass the message to the message handler for processing
+        # Import here to avoid circular imports
+        from src.channels.whatsapp.handlers import message_handler
         message_handler.handle_message(message)
     
     def _monitor_connection(self):
@@ -172,6 +166,12 @@ class WhatsAppClient:
     
     def start(self) -> bool:
         """Start the WhatsApp client."""
+        # Import here to avoid circular imports
+        from src.channels.whatsapp.handlers import message_handler
+        
+        # Set up the message handler callback
+        message_handler.send_response_callback = self.send_text_message
+        
         # Start the message handler
         message_handler.start()
         
@@ -243,6 +243,9 @@ class WhatsAppClient:
         self._should_monitor = False
         if self._connection_monitor_thread and self._connection_monitor_thread.is_alive():
             self._connection_monitor_thread.join(timeout=5.0)
+        
+        # Import here to avoid circular imports
+        from src.channels.whatsapp.handlers import message_handler
         
         # Stop the message handler
         message_handler.stop()
@@ -741,5 +744,135 @@ class WhatsAppClient:
             logger.error(f"Error detecting MIME type: {e}")
             return ''
 
+    def send_presence(self, recipient: str, presence_type: str = "composing", refresh_seconds: int = 25) -> bool:
+        """Send a presence update (typing indicator) to a WhatsApp user.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            presence_type: Type of presence ('composing', 'recording', 'available', etc.)
+            refresh_seconds: How long the presence should last in seconds
+            
+        Returns:
+            bool: Success status
+        """
+        # Use dynamic server URL if available, otherwise fall back to configured URL
+        server_url = self.dynamic_server_url or self.api_base_url
+        
+        # Use dynamic API key if available, otherwise fall back to configured key
+        api_key = self.dynamic_api_key or self.api_key
+        
+        url = f"{server_url}/chat/sendPresence/{config.rabbitmq.instance_name}"
+        
+        # Format the recipient number correctly for Evolution API
+        # - Remove @s.whatsapp.net suffix if present
+        formatted_recipient = recipient
+        if "@" in formatted_recipient:
+            formatted_recipient = formatted_recipient.split("@")[0]
+        
+        # Remove any + at the beginning
+        if formatted_recipient.startswith("+"):
+            formatted_recipient = formatted_recipient[1:]
+        
+        headers = {
+            "apikey": api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "number": formatted_recipient,
+            "options": {
+                "delay": refresh_seconds * 1000,  # Convert to milliseconds
+                "presence": presence_type
+            }
+        }
+        
+        try:
+            # Log the request details (without sensitive data)
+            logger.info(f"Sending presence '{presence_type}' to {formatted_recipient}")
+            
+            # Make the API request
+            response = requests.post(url, headers=headers, json=payload)
+            
+            # Log response status
+            success = response.status_code in [200, 201, 202]
+            if success:
+                logger.info(f"Presence update sent to {formatted_recipient}")
+            else:
+                logger.warning(f"Failed to send presence update: {response.status_code} {response.text}")
+            
+            return success
+        except Exception as e:
+            logger.error(f"Error sending presence update: {e}")
+            return False
+
+class PresenceUpdater:
+    """Manages continuous presence updates for WhatsApp conversations."""
+    
+    def __init__(self, client, recipient: str, presence_type: str = "composing"):
+        """Initialize the presence updater.
+        
+        Args:
+            client: WhatsApp client instance
+            recipient: WhatsApp ID to send presence to
+            presence_type: Type of presence status
+        """
+        self.client = client
+        self.recipient = recipient
+        self.presence_type = presence_type
+        self.should_update = False
+        self.update_thread = None
+        
+    def start(self):
+        """Start sending continuous presence updates."""
+        if self.update_thread and self.update_thread.is_alive():
+            # Already running
+            return
+            
+        self.should_update = True
+        self.update_thread = threading.Thread(target=self._presence_loop)
+        self.update_thread.daemon = True
+        self.update_thread.start()
+        logger.info(f"Started presence updates for {self.recipient}")
+        
+    def stop(self):
+        """Stop sending presence updates."""
+        self.should_update = False
+        # Send one more presence update with "paused" to clear the typing indicator
+        try:
+            self.client.send_presence(self.recipient, "paused", 1)
+        except Exception as e:
+            logger.debug(f"Error clearing presence: {e}")
+            
+        if self.update_thread and self.update_thread.is_alive():
+            self.update_thread.join(timeout=1.0)
+        
+        logger.info(f"Stopped presence updates for {self.recipient}")
+        
+    def _presence_loop(self):
+        """Thread method to continuously update presence."""
+        # Initial delay before starting presence updates
+        time.sleep(0.5)
+        
+        while self.should_update:
+            try:
+                # Send presence update with a 15-second refresh
+                # We'll refresh every 10 seconds to ensure continuous display
+                self.client.send_presence(self.recipient, self.presence_type, 15)
+                
+                # Wait 10 seconds before refreshing
+                for _ in range(10):
+                    if not self.should_update:
+                        break
+                    time.sleep(1)
+                    
+            except Exception as e:
+                logger.error(f"Error updating presence: {e}")
+                # Wait a bit before retrying
+                time.sleep(2)
+
 # Singleton instance
-whatsapp_client = WhatsAppClient() 
+whatsapp_client = WhatsAppClient()
+
+# The following lines caused a circular import issue, so they've been removed:
+# from src.channels.whatsapp.handlers import message_handler
+# message_handler = whatsapp_client.message_handler 
