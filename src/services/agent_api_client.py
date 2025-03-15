@@ -250,7 +250,6 @@ class AgentApiClient:
     def process_message(self, 
                        message: str,
                        user_id: Optional[Union[str, int]] = None,
-                       session_id: Optional[str] = None,
                        session_name: Optional[str] = None,
                        agent_name: Optional[str] = None,
                        message_type: str = "text",
@@ -263,7 +262,6 @@ class AgentApiClient:
         Args:
             message: The message to process
             user_id: User ID
-            session_id: Session ID (legacy)
             session_name: Session name (preferred over session_id)
             agent_name: Optional agent name (defaults to self.default_agent_name)
             message_type: Message type (text, image, etc.)
@@ -281,7 +279,6 @@ class AgentApiClient:
             agent_name=agent_name,
             message_content=message,
             user_id=user_id,
-            session_id=session_id,
             session_name=session_name,
             message_type=message_type,
             media_url=media_url,

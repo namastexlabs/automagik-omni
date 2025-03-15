@@ -4,12 +4,9 @@ Handles routing messages to the appropriate agent system.
 Uses the Automagik API for user and session management.
 """
 
-import json
 import logging
-import uuid
 from typing import Dict, Any, Optional, Union
 
-from src.config import config
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
 
@@ -30,8 +27,7 @@ class MessageRouter:
         self,
         message_text: str,
         user_id: Optional[Union[str, int]] = None,
-        session_id: Optional[str] = None,
-        session_name: Optional[str] = None,
+        session_name: str = None,
         message_type: str = "text",
         whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
         session_origin: str = "whatsapp",
@@ -42,8 +38,7 @@ class MessageRouter:
         Args:
             message_text: Message text
             user_id: User ID (optional)
-            session_id: Session ID (optional, legacy)
-            session_name: Human-readable session name (optional, preferred)
+            session_name: Human-readable session name (required)
             message_type: Message type (default: "text")
             whatsapp_raw_payload: Raw WhatsApp payload (optional)
             session_origin: Session origin (default: "whatsapp")
@@ -52,8 +47,8 @@ class MessageRouter:
         Returns:
             Response from the handler
         """
-        # Use session_name if provided, otherwise use session_id
-        session_identifier = session_name or session_id
+        # Use session_name if provided
+        session_identifier = session_name 
         
         logger.info(f"Routing message to API for user {user_id}, session {session_identifier}")
         logger.info(f"Message text: {message_text}")
@@ -64,11 +59,6 @@ class MessageRouter:
         if agent_config and "name" in agent_config:
             agent_name = agent_config["name"]
         logger.info(f"Using agent name: {agent_name}")
-        
-        # If no session identifier provided, generate one
-        if not session_identifier:
-            session_identifier = str(uuid.uuid4())
-            logger.info(f"Generated new session identifier: {session_identifier}")
         
         # If no user ID provided, try to create a user or use default
         if not user_id:
@@ -94,7 +84,7 @@ class MessageRouter:
             response = agent_api_client.process_message(
                 message=message_text,
                 user_id=user_id,
-                session_id=session_identifier,
+                session_name=session_identifier,
                 agent_name=agent_name
             )
             

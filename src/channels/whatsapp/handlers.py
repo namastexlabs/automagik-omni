@@ -185,7 +185,6 @@ class WhatsAppMessageHandler:
                 
                 # Get the session ID prefix from environment
                 session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
-                instance_name = config.rabbitmq.instance_name
                 
                 # Create a readable session name instead of UUID
                 # Format: prefix + phone_number (cleaned)
@@ -203,7 +202,7 @@ class WhatsAppMessageHandler:
                 logger.info(f"Routing message to API for user {user_id}, session {session_name}: {message_content}")
                 agent_response = message_router.route_message(
                     user_id=user_id,
-                    session_name=session_name,  # Use session_name instead of session_id
+                    session_name=session_name, 
                     message_text=message_content,
                     message_type=message_type,
                     whatsapp_raw_payload=message,
