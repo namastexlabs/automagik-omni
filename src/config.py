@@ -5,7 +5,7 @@ Loads configuration from environment variables.
 
 import os
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, PostgresDsn
+from pydantic import BaseModel, Field
 from typing import Optional
 
 # Load environment variables from .env file
@@ -24,13 +24,6 @@ class AgentApiConfig(BaseModel):
     api_key: str = Field(default_factory=lambda: os.getenv("AGENT_API_KEY", ""))
     default_agent_name: str = Field(default_factory=lambda: os.getenv("DEFAULT_AGENT_NAME", "default"))
 
-class EvolutionDatabaseConfig(BaseModel):
-    """Evolution messages database configuration."""
-    uri: PostgresDsn = Field(default_factory=lambda: os.getenv("EVOLUTION_MESSAGES_DB", ""))
-    pool_size: int = 5
-    max_overflow: int = 10
-    pool_timeout: int = 30
-
 class EvolutionTranscriptConfig(BaseModel):
     """Evolution transcript API configuration."""
     api_url: str = Field(default_factory=lambda: os.getenv("EVOLUTION_TRANSCRIPT_API", ""))
@@ -45,7 +38,6 @@ class Config(BaseModel):
     """Main application configuration."""
     rabbitmq: RabbitMQConfig = RabbitMQConfig()
     agent_api: AgentApiConfig = AgentApiConfig()
-    evolution_database: EvolutionDatabaseConfig = EvolutionDatabaseConfig()
     evolution_transcript: EvolutionTranscriptConfig = EvolutionTranscriptConfig()
     logging: LoggingConfig = LoggingConfig()
     

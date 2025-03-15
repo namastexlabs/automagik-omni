@@ -31,6 +31,7 @@ class MessageRouter:
         message_text: str,
         user_id: Optional[Union[str, int]] = None,
         session_id: Optional[str] = None,
+        session_name: Optional[str] = None,
         message_type: str = "text",
         whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
         session_origin: str = "whatsapp",
@@ -41,7 +42,8 @@ class MessageRouter:
         Args:
             message_text: Message text
             user_id: User ID (optional)
-            session_id: Session ID (optional)
+            session_id: Session ID (optional, legacy)
+            session_name: Human-readable session name (optional, preferred)
             message_type: Message type (default: "text")
             whatsapp_raw_payload: Raw WhatsApp payload (optional)
             session_origin: Session origin (default: "whatsapp")
@@ -50,7 +52,10 @@ class MessageRouter:
         Returns:
             Response from the handler
         """
-        logger.info(f"Routing message to API for user {user_id}, session {session_id}")
+        # Use session_name if provided, otherwise use session_id
+        session_identifier = session_name or session_id
+        
+        logger.info(f"Routing message to API for user {user_id}, session {session_identifier}")
         logger.info(f"Message text: {message_text}")
         logger.info(f"Session origin: {session_origin}")
         
@@ -60,10 +65,10 @@ class MessageRouter:
             agent_name = agent_config["name"]
         logger.info(f"Using agent name: {agent_name}")
         
-        # If no session ID provided, generate one
-        if not session_id:
-            session_id = str(uuid.uuid4())
-            logger.info(f"Generated new session ID: {session_id}")
+        # If no session identifier provided, generate one
+        if not session_identifier:
+            session_identifier = str(uuid.uuid4())
+            logger.info(f"Generated new session identifier: {session_identifier}")
         
         # If no user ID provided, try to create a user or use default
         if not user_id:
@@ -89,43 +94,11 @@ class MessageRouter:
             response = agent_api_client.process_message(
                 message=message_text,
                 user_id=user_id,
-                session_id=session_id,
+                session_id=session_identifier,
                 agent_name=agent_name
             )
             
-            # Store the message and response as a memory
-            try:
-                # Convert user_id to int if it's a string digit, otherwise pass None for the user_id
-                memory_user_id = None
-                if user_id:
-                    if isinstance(user_id, int):
-                        memory_user_id = user_id
-                    elif isinstance(user_id, str) and user_id.isdigit():
-                        memory_user_id = int(user_id)
-                    # If it's not a digit string or int, try to convert
-                    elif isinstance(user_id, str):
-                        try:
-                            memory_user_id = int(user_id)
-                        except (ValueError, TypeError):
-                            # If conversion fails, use default
-                            memory_user_id = 1
-                    # If all else fails, use 1 as default
-                    if memory_user_id is None:
-                        memory_user_id = 1
-                
-                automagik_api_client.create_memory(
-                    name=f"Message from {session_origin}",
-                    content=f"User: {message_text}\nAgent: {response}",
-                    user_id=memory_user_id,
-                    session_id=session_id,
-                    metadata={
-                        "source": session_origin,
-                        "message_type": message_type
-                    }
-                )
-            except Exception as mem_err:
-                logger.warning(f"Failed to create memory: {mem_err}")
-                
+            # Memory creation is handled by the Automagik Agents API, no need to create it here
             return response
         except Exception as e:
             logger.error(f"Error routing message: {e}", exc_info=True)

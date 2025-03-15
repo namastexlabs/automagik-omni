@@ -853,17 +853,30 @@ class PresenceUpdater:
         # Initial delay before starting presence updates
         time.sleep(0.5)
         
+        # Set minimum display time for typing indicator (in seconds)
+        minimum_typing_duration = 10  # Increased to 10 seconds as requested
+        start_time = time.time()
+        
         while self.should_update:
             try:
                 # Send presence update with a 15-second refresh
-                # We'll refresh every 10 seconds to ensure continuous display
+                # We'll refresh every 5 seconds to ensure continuous display
                 self.client.send_presence(self.recipient, self.presence_type, 15)
                 
-                # Wait 10 seconds before refreshing
-                for _ in range(10):
-                    if not self.should_update:
-                        break
-                    time.sleep(1)
+                # Check if we've displayed the typing indicator for the minimum duration
+                elapsed_time = time.time() - start_time
+                if elapsed_time < minimum_typing_duration:
+                    # Continue showing the typing indicator until minimum time reached
+                    for _ in range(5):  # 5 second refresh cycle
+                        if not self.should_update:
+                            break
+                        time.sleep(1)
+                else:
+                    # After minimum duration, use normal refresh cycle
+                    for _ in range(10):  # 10 second refresh cycle
+                        if not self.should_update:
+                            break
+                        time.sleep(1)
                     
             except Exception as e:
                 logger.error(f"Error updating presence: {e}")

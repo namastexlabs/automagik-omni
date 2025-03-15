@@ -151,39 +151,7 @@ class AgentService:
             
             if message_response:
                 logger.info(f"Agent response: {message_response}")
-                # Optionally store the message as a memory
-                try:
-                    # Handle user_id properly based on type
-                    memory_user_id = None
-                    if user_id:
-                        if isinstance(user_id, int):
-                            memory_user_id = user_id
-                        elif isinstance(user_id, str) and user_id.isdigit():
-                            memory_user_id = int(user_id)
-                        else:
-                            # If not a valid integer, convert if possible
-                            try:
-                                memory_user_id = int(user_id)
-                            except (ValueError, TypeError):
-                                memory_user_id = 1  # Default user ID
-                    
-                    # If memory_user_id is still None, use default
-                    if memory_user_id is None:
-                        memory_user_id = 1
-                    
-                    automagik_api_client.create_memory(
-                        name=f"Conversation {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                        content=f"User: {text_content}\nAgent: {message_response}",
-                        user_id=memory_user_id,
-                        session_id=session_id,
-                        metadata={
-                            "source": "whatsapp",
-                            "message_type": data.get("messageType", "text")
-                        }
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to create memory: {e}")
-                    
+                # Memory creation is handled by the Automagik Agents API
                 return message_response
             else:
                 logger.warning("No response from agent")

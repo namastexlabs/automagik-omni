@@ -109,6 +109,7 @@ class WhatsAppMessageHandler:
             from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
             presence_updater = PresenceUpdater(whatsapp_client, sender_id)
             presence_updater.start()
+            processing_start_time = time.time()  # Record when processing started
             
             try:
                 # Extract and normalize phone number
@@ -182,14 +183,15 @@ class WhatsAppMessageHandler:
                 hash_obj = hashlib.md5(sender_id.encode())
                 hash_digest = hash_obj.hexdigest()
                 
-                # Generate a namespace UUID based on the hash (using UUID5 with DNS namespace)
-                # This ensures we get the same UUID for the same WhatsApp ID consistently
-                namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace
+                # Get the session ID prefix from environment
                 session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
                 instance_name = config.rabbitmq.instance_name
-                session_id = str(uuid.uuid5(namespace, f"{session_id_prefix}{instance_name}-{hash_digest}"))
                 
-                logger.info(f"Using deterministic session ID: {session_id}")
+                # Create a readable session name instead of UUID
+                # Format: prefix + phone_number (cleaned)
+                session_name = f"{session_id_prefix}{phone_number}"
+                
+                logger.info(f"Using session name: {session_name}")
                 
                 # Check for transcription
                 transcription = data.get('transcription')
@@ -198,10 +200,10 @@ class WhatsAppMessageHandler:
                     message_content = transcription
                 
                 # Generate agent response
-                logger.info(f"Routing message to API for user {user_id}, session {session_id}: {message_content}")
+                logger.info(f"Routing message to API for user {user_id}, session {session_name}: {message_content}")
                 agent_response = message_router.route_message(
                     user_id=user_id,
-                    session_id=session_id,
+                    session_name=session_name,  # Use session_name instead of session_id
                     message_text=message_content,
                     message_type=message_type,
                     whatsapp_raw_payload=message,
@@ -209,16 +211,29 @@ class WhatsAppMessageHandler:
                     agent_config=agent_config
                 )
                 
-                # Stop the typing indicator before sending response
-                presence_updater.stop()
+                # Calculate elapsed time since processing started
+                elapsed_time = time.time() - processing_start_time
                 
-                # Send the response via WhatsApp
+                # Set minimum display time for typing indicator (in seconds)
+                minimum_typing_duration = 10  # Updated to match client.py (10 seconds)
+                
+                # If processing completed too quickly, add a delay before sending response
+                # (but keep the typing indicator active)
+                if elapsed_time < minimum_typing_duration:
+                    additional_delay = minimum_typing_duration - elapsed_time
+                    logger.info(f"Processing completed in {elapsed_time:.2f}s, maintaining typing indicator for {additional_delay:.2f}s more")
+                    time.sleep(additional_delay)
+                
+                # Send the response via WhatsApp while the typing indicator is still active
                 response_result = self._send_whatsapp_response(
                     recipient=sender_id,
                     text=agent_response
                 )
                 
-                logger.info(f"Sent agent response to user_id={user_id}, session_id={session_id}")
+                # Only stop the typing indicator after the message has been sent
+                presence_updater.stop()
+                
+                logger.info(f"Sent agent response to user_id={user_id}, session_id={session_name}")
             
             finally:
                 # Make sure typing indicator is stopped even if processing fails
@@ -503,7 +518,11 @@ class WhatsAppMessageHandler:
         # Remove any spaces, dashes, or other non-numeric characters
         phone = ''.join(filter(str.isdigit, phone))
         
-        logger.info(f"Extracted phone number from {sender_id}: {phone}")
+        # For Brazilian numbers, ensure it includes the country code (55)
+        if len(phone) <= 11 and not phone.startswith("55"):
+            phone = f"55{phone}"
+            
+        logger.info(f"Extracted and normalized phone number from {sender_id}: {phone}")
         return phone
 
 # Singleton instance - initialized without a callback

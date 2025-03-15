@@ -75,6 +75,7 @@ class AgentApiClient:
                  mime_type: Optional[str] = None,
                  channel_payload: Optional[Dict[str, Any]] = None,
                  session_id: Optional[str] = None,
+                 session_name: Optional[str] = None,
                  user_id: Optional[Union[str, int]] = None,
                  message_limit: int = 10,
                  session_origin: Optional[str] = None,
@@ -89,7 +90,8 @@ class AgentApiClient:
             media_url: URL to media if present
             mime_type: MIME type of the media
             channel_payload: Additional channel-specific payload
-            session_id: Optional session ID for conversation continuity
+            session_id: Optional session ID for conversation continuity (legacy)
+            session_name: Optional readable session name (preferred over session_id)
             user_id: User ID
             message_limit: Maximum number of messages to return
             session_origin: Origin of the session
@@ -142,8 +144,11 @@ class AgentApiClient:
             
         if channel_payload:
             payload["channel_payload"] = channel_payload
-            
-        if session_id:
+        
+        # Prefer session_name over session_id if both are provided
+        if session_name:
+            payload["session_name"] = session_name
+        elif session_id:
             payload["session_id"] = session_id
             
         if context:
@@ -246,6 +251,7 @@ class AgentApiClient:
                        message: str,
                        user_id: Optional[Union[str, int]] = None,
                        session_id: Optional[str] = None,
+                       session_name: Optional[str] = None,
                        agent_name: Optional[str] = None,
                        message_type: str = "text",
                        media_url: Optional[str] = None,
@@ -257,7 +263,8 @@ class AgentApiClient:
         Args:
             message: The message to process
             user_id: User ID
-            session_id: Session ID
+            session_id: Session ID (legacy)
+            session_name: Session name (preferred over session_id)
             agent_name: Optional agent name (defaults to self.default_agent_name)
             message_type: Message type (text, image, etc.)
             media_url: URL to media if present
@@ -275,6 +282,7 @@ class AgentApiClient:
             message_content=message,
             user_id=user_id,
             session_id=session_id,
+            session_name=session_name,
             message_type=message_type,
             media_url=media_url,
             context=context
