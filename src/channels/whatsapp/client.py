@@ -778,12 +778,12 @@ class WhatsAppClient:
             "Content-Type": "application/json"
         }
         
+        # Update the payload structure to match the API's expected format
+        # The API expects presence and delay directly in the payload, not nested under options
         payload = {
             "number": formatted_recipient,
-            "options": {
-                "delay": refresh_seconds * 1000,  # Convert to milliseconds
-                "presence": presence_type
-            }
+            "presence": presence_type,
+            "delay": refresh_seconds * 1000  # Convert to milliseconds
         }
         
         try:
