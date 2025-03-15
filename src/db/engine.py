@@ -1,59 +1,26 @@
 """
-Database connection and session management.
+Database connection and session management placeholder.
+No actual database functionality remains in this file.
 """
 
 import logging
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from typing import Iterator
 
-from src.config import config
-
 logger = logging.getLogger("src.db.engine")
 
-# Create engine with connection pooling
-# We use the regular database for user/session management
-engine = create_engine(
-    str(config.database.uri),
-    pool_size=config.database.pool_size,
-    max_overflow=config.database.max_overflow,
-    pool_timeout=config.database.pool_timeout,
-    pool_pre_ping=True  # Verify connections before using them
-)
-
-# Create sessionmaker
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Create a scoped session to handle thread safety
-Session = scoped_session(SessionLocal)
-
 @contextmanager
-def get_session() -> Iterator[scoped_session]:
+def get_session() -> Iterator:
     """
-    Get a database session as a context manager.
-    Usage:
-        with get_session() as db:
-            # Use db session
-            user = db.query(User).filter(User.id == user_id).first()
+    Placeholder for database session.
+    This function is kept as a placeholder but will raise an error if used.
     """
-    db = Session()
-    try:
-        yield db
-        db.commit()
-    except Exception as e:
-        logger.error(f"Database error: {e}", exc_info=True)
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    raise NotImplementedError("Database functionality has been removed")
 
 def init_db() -> None:
-    """Initialize the database connection."""
-    logger.info("Initializing database connection")
+    """Initialize the database connection (placeholder)."""
+    logger.info("Database functionality has been removed")
 
 def create_tables() -> None:
-    """Create all tables defined in the models."""
-    logger.info("Creating database tables")
-    from src.db.models import Base
-    Base.metadata.create_all(bind=engine) 
+    """Create all tables defined in the models (placeholder)."""
+    logger.info("Database functionality has been removed") 

@@ -14,7 +14,8 @@ load_dotenv()
 
 # Import after loading environment variables
 from src.services.agent_service import agent_service
-from src.db.engine import init_db, create_tables
+from src.services.agent_api_client import agent_api_client
+from src.services.automagik_api_client import automagik_api_client
 from src.config import config
 
 # Configure logging
@@ -37,6 +38,17 @@ def handle_shutdown(signal_number, frame):
     logger.info("Shutdown complete")
     sys.exit(0)
 
+def check_api_availability() -> bool:
+    """Check if required APIs are available."""
+    api_healthy = agent_api_client.health_check()
+    
+    if api_healthy:
+        logger.info("Agent API is available")
+    else:
+        logger.error("Agent API is not available. Service may not function correctly.")
+    
+    return api_healthy
+
 def run():
     """Run the Agent application."""
     try:
@@ -47,11 +59,8 @@ def run():
             logger.error("Invalid configuration. Please check your .env file.")
             sys.exit(1)
         
-        # Initialize the database
-        init_db()
-        
-        # Create database tables if they don't exist
-        create_tables()
+        # Check API availability (warn but continue if not available)
+        check_api_availability()
         
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, handle_shutdown)

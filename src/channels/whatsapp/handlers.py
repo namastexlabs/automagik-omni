@@ -1,6 +1,7 @@
 """
 WhatsApp message handlers.
 Processes incoming messages from the Evolution API.
+Uses the Automagik API for user and session management.
 """
 
 import logging
@@ -14,13 +15,7 @@ import hashlib
 import uuid
 
 from src.config import config
-from src.db.engine import get_session
-from src.db.repositories import (
-    UserRepository,
-    SessionRepository,
-    ChatMessageRepository,
-    AgentRepository
-)
+from src.services.automagik_api_client import automagik_api_client
 from src.services.message_router import message_router
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
 
@@ -105,37 +100,35 @@ class WhatsAppMessageHandler:
                 logger.warning("Unable to determine message type")
                 return
             
-            # Get or create user
-            max_retries = 3
-            retry_count = 0
+            # Extract and normalize phone number
+            phone_number = self._extract_phone_number(sender_id)
+            
+            # Get or create user via the API
             user = None
             user_id = None
             
-            while retry_count < max_retries:
-                try:
-                    with get_session() as db:
-                        user_repo = UserRepository(db)
-                        user = user_repo.get_or_create_by_whatsapp(
-                            whatsapp_id=sender_id
-                        )
-                        
-                        # Ensure we have a valid user ID
-                        if user and user.id:
-                            user_id = user.id
-                            logger.info(f"Using user ID: {user_id}")
-                            break  # Success, exit retry loop
-                        else:
-                            logger.warning("Could not get valid user ID, will retry")
-                            retry_count += 1
-                            time.sleep(0.5)  # Small delay before retry
-                except Exception as e:
-                    logger.error(f"Error creating/getting user (attempt {retry_count + 1}): {e}", exc_info=True)
-                    retry_count += 1
-                    time.sleep(0.5)  # Small delay before retry
-            
-            if not user_id:
-                logger.error("Failed to get valid user ID after multiple attempts, proceeding with None")
-                user_id = None
+            try:
+                # Get or create user via the API with a normalized phone number
+                user = automagik_api_client.get_or_create_user_by_phone(
+                    phone_number=phone_number,
+                    user_data={
+                        "whatsapp_id": sender_id,
+                        "source": "whatsapp"
+                    }
+                )
+                
+                # Ensure we have a valid user ID
+                if user and "id" in user:
+                    user_id = user["id"]
+                    logger.info(f"Using user ID: {user_id}")
+                else:
+                    # If user lookup/creation failed, use the default user (ID 1)
+                    logger.warning(f"Could not get valid user for {phone_number}, using default user")
+                    user_id = 1
+            except Exception as e:
+                logger.error(f"Error handling user for {phone_number}: {e}", exc_info=True)
+                # Fallback to default user
+                user_id = 1
                 
             # Extract message content
             message_content = self._extract_message_content(message)
@@ -173,41 +166,19 @@ class WhatsAppMessageHandler:
                         else:
                             logger.warning("Failed to transcribe audio message")
             
-            # MODIFIED: Get existing session or use a fixed format session ID without creating a new record
-            session_repo = SessionRepository(db)
-            session = None
+            # Generate a session ID based on the sender's WhatsApp ID
+            # Create a deterministic hash from the sender's WhatsApp ID
+            hash_obj = hashlib.md5(sender_id.encode())
+            hash_digest = hash_obj.hexdigest()
             
-            if user_id:
-                # Try to get the latest session for this user
-                session = session_repo.get_latest_for_user(user_id)
+            # Generate a namespace UUID based on the hash (using UUID5 with DNS namespace)
+            # This ensures we get the same UUID for the same WhatsApp ID consistently
+            namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace
+            session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
+            instance_name = config.rabbitmq.instance_name
+            session_id = str(uuid.uuid5(namespace, f"{session_id_prefix}{instance_name}-{hash_digest}"))
             
-            if not session:
-                # If no session exists, create a session object with a fixed ID format
-                # but don't save it to the database
-                session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
-                # Use WhatsApp instance name as part of the session ID
-                instance_name = config.rabbitmq.instance_name
-                # Create a deterministic hash from the sender's WhatsApp ID
-                hash_obj = hashlib.md5(sender_id.encode())
-                hash_digest = hash_obj.hexdigest()
-                
-                # Generate a namespace UUID based on the hash (using UUID5 with DNS namespace)
-                # This ensures we get the same UUID for the same WhatsApp ID consistently
-                namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace
-                session_id = uuid.uuid5(namespace, f"{session_id_prefix}{instance_name}-{hash_digest}")
-                
-                # Check if this session already exists
-                session = session_repo.get(session_id)
-                
-                if not session:
-                    # Create a session object but don't add it to the database
-                    from src.db.models import Session as DbSession
-                    session = DbSession(
-                        id=session_id,
-                        user_id=user_id,
-                        platform='whatsapp'
-                    )
-                    logger.info(f"Using temporary session with ID: {session_id} (not saved to DB)")
+            logger.info(f"Using deterministic session ID: {session_id}")
             
             # Check for transcription
             transcription = data.get('transcription')
@@ -215,11 +186,11 @@ class WhatsAppMessageHandler:
                 logger.info(f"Using transcription: {transcription}")
                 message_content = transcription
             
-            # Generate agent response without saving the user message to DB
-            logger.info(f"Routing message to API for user {user_id}, session {session.id}: {message_content}")
+            # Generate agent response
+            logger.info(f"Routing message to API for user {user_id}, session {session_id}: {message_content}")
             agent_response = message_router.route_message(
                 user_id=user_id,
-                session_id=session.id,
+                session_id=session_id,
                 message_text=message_content,
                 message_type=message_type,
                 whatsapp_raw_payload=message,
@@ -233,7 +204,7 @@ class WhatsAppMessageHandler:
                 text=agent_response
             )
             
-            logger.info(f"Sent agent response to user_id={user_id}, session_id={session.id}")
+            logger.info(f"Sent agent response to user_id={user_id}, session_id={session_id}")
             
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
@@ -257,100 +228,6 @@ class WhatsAppMessageHandler:
         
         return response_payload
 
-    def _retrieve_message_from_evolution_db(self, message_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve message details from Evolution database."""
-        try:
-            # Only import SQLAlchemy when needed
-            from sqlalchemy import create_engine, text
-            
-            # Get the database URI from config
-            db_uri = config.evolution_database.uri
-            
-            if not db_uri:
-                logger.error("Evolution database URI not configured")
-                return None
-                
-            # Create database engine
-            engine = create_engine(
-                db_uri,
-                echo=False,
-                pool_size=5,
-                max_overflow=10,
-                pool_timeout=30,
-                pool_recycle=3600,
-                pool_pre_ping=True
-            )
-            
-            # Query to get message by ID
-            query = '''
-                SELECT id, "messageTimestamp", "messageType", message, "pushName", key
-                FROM public."Message"
-                WHERE id = :message_id
-                LIMIT 1
-            '''
-            
-            # Execute query
-            with engine.connect() as conn:
-                result = conn.execute(text(query), {"message_id": message_id})
-                message = result.fetchone()
-                
-            if not message:
-                logger.warning(f"No message found in Evolution DB with ID: {message_id}")
-                return None
-                
-            # Convert row to dict
-            message_dict = {column: value for column, value in zip(result.keys(), message)}
-            
-            # Parse JSON fields
-            if 'message' in message_dict and message_dict['message']:
-                try:
-                    message_dict['message'] = json.loads(message_dict['message'])
-                except:
-                    pass
-                    
-            if 'key' in message_dict and message_dict['key']:
-                try:
-                    message_dict['key'] = json.loads(message_dict['key'])
-                except:
-                    pass
-            
-            return message_dict
-            
-        except Exception as e:
-            logger.error(f"Error retrieving message from Evolution DB: {str(e)}")
-            return None
-            
-    def _extract_media_url_from_evolution_message(self, message: Dict[str, Any]) -> Optional[str]:
-        """Extract media URL from Evolution database message."""
-        try:
-            # First check for mediaUrl at the top level
-            media_url = message.get('mediaUrl')
-            if media_url:
-                # Return as-is, no conversion needed
-                return media_url
-                
-            # Check in the message content if it's a dict
-            message_content = message.get('message')
-            if isinstance(message_content, dict):
-                # Check for audioMessage
-                audio_message = message_content.get('audioMessage')
-                if isinstance(audio_message, dict):
-                    url = audio_message.get('url')
-                    if url:
-                        return url  # WhatsApp URL doesn't need conversion
-                        
-                # Check for mediaUrl in message content
-                media_url = message_content.get('mediaUrl')
-                if media_url:
-                    # Return as-is, no conversion needed
-                    return media_url
-                
-            return None
-            
-        except Exception as e:
-            logger.error(f"\033[91mError extracting media URL from Evolution message: {str(e)}\033[0m")
-            return None
-            
     def _convert_minio_url(self, url: str) -> str:
         """Convert internal minio URLs to use the configured external Minio URL."""
         if not url or "minio:9000" not in url:
@@ -588,6 +465,28 @@ class WhatsAppMessageHandler:
         except Exception as e:
             logger.error(f"Error determining message type: {e}", exc_info=True)
             return 'unknown'
+
+    def _extract_phone_number(self, sender_id: str) -> str:
+        """Extract and normalize a phone number from WhatsApp ID.
+        
+        Args:
+            sender_id: The WhatsApp ID (e.g., 123456789@s.whatsapp.net)
+            
+        Returns:
+            Normalized phone number without prefixes or suffixes
+        """
+        # Remove @s.whatsapp.net suffix if present
+        phone = sender_id.split("@")[0] if "@" in sender_id else sender_id
+        
+        # Remove any + at the beginning
+        if phone.startswith("+"):
+            phone = phone[1:]
+            
+        # Remove any spaces, dashes, or other non-numeric characters
+        phone = ''.join(filter(str.isdigit, phone))
+        
+        logger.info(f"Extracted phone number from {sender_id}: {phone}")
+        return phone
 
 # Singleton instance
 message_handler = WhatsAppMessageHandler() 

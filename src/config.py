@@ -24,13 +24,6 @@ class AgentApiConfig(BaseModel):
     api_key: str = Field(default_factory=lambda: os.getenv("AGENT_API_KEY", ""))
     default_agent_name: str = Field(default_factory=lambda: os.getenv("DEFAULT_AGENT_NAME", "default"))
 
-class DatabaseConfig(BaseModel):
-    """Database configuration for user/session management."""
-    uri: PostgresDsn = Field(default_factory=lambda: os.getenv("AGENT_MESSAGE_DB", ""))
-    pool_size: int = 5
-    max_overflow: int = 10
-    pool_timeout: int = 30
-
 class EvolutionDatabaseConfig(BaseModel):
     """Evolution messages database configuration."""
     uri: PostgresDsn = Field(default_factory=lambda: os.getenv("EVOLUTION_MESSAGES_DB", ""))
@@ -52,7 +45,6 @@ class Config(BaseModel):
     """Main application configuration."""
     rabbitmq: RabbitMQConfig = RabbitMQConfig()
     agent_api: AgentApiConfig = AgentApiConfig()
-    database: DatabaseConfig = DatabaseConfig()  # For user/session management
     evolution_database: EvolutionDatabaseConfig = EvolutionDatabaseConfig()
     evolution_transcript: EvolutionTranscriptConfig = EvolutionTranscriptConfig()
     logging: LoggingConfig = LoggingConfig()
@@ -61,8 +53,7 @@ class Config(BaseModel):
     def is_valid(self) -> bool:
         """Check if the configuration is valid."""
         return bool(self.rabbitmq.uri and self.rabbitmq.instance_name and 
-                   self.agent_api.url and self.agent_api.api_key and
-                   self.database.uri and self.evolution_database.uri)
+                   self.agent_api.url and self.agent_api.api_key)
 
 # Singleton instance
 config = Config() 

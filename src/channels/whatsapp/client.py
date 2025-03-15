@@ -185,12 +185,12 @@ class WhatsAppClient:
             
             try:
                 logger.info("Starting to consume WhatsApp messages")
-                self.client.start_consuming()
+                # Start consuming in a separate thread to avoid blocking
+                thread = threading.Thread(target=self.client.start_consuming)
+                thread.daemon = True
+                thread.start()
+                
                 return True
-            except KeyboardInterrupt:
-                logger.info("Received keyboard interrupt")
-                self.stop()
-                return False
             except Exception as e:
                 logger.error(f"Error while consuming messages: {e}")
                 self.stop()
@@ -198,32 +198,10 @@ class WhatsAppClient:
         else:
             return False
     
+    # start_async is now an alias for start since both are non-blocking
     def start_async(self) -> bool:
-        """Start the WhatsApp client in a separate thread."""
-        # Start the message handler
-        message_handler.start()
-        
-        # Connect to RabbitMQ
-        if self.connect():
-            logger.info("Starting to consume WhatsApp messages asynchronously")
-            
-            # Print diagnostics about the queue
-            self._check_queue_status()
-            
-            # Start connection monitor
-            self._should_monitor = True
-            self._connection_monitor_thread = threading.Thread(target=self._monitor_connection)
-            self._connection_monitor_thread.daemon = True
-            self._connection_monitor_thread.start()
-            
-            # Start consuming in a separate thread
-            thread = threading.Thread(target=self.client.start_consuming)
-            thread.daemon = True
-            thread.start()
-            
-            return True
-        else:
-            return False
+        """Start the WhatsApp client in a separate thread (alias for start)."""
+        return self.start()
     
     def _check_queue_status(self):
         """Check the status of RabbitMQ queues and log diagnostic information."""

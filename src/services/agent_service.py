@@ -1,26 +1,18 @@
 """
 Service layer for Agent application.
-This handles the coordination between the WhatsApp client, agent, and database.
+This handles the coordination between the WhatsApp client and the agent API.
+Database operations have been removed and replaced with API calls.
 """
 
 import logging
 import threading
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 from src.channels.whatsapp.client import whatsapp_client
 from src.services.agent_api_client import agent_api_client
-from src.db.engine import get_session
-from src.db.repositories import (
-    UserRepository,
-    SessionRepository,
-    ChatMessageRepository,
-    AgentRepository,
-    MemoryRepository
-)
-from src.db.models import User, Session, ChatMessage, Agent, Memory
-from sqlalchemy.orm import Session as DbSession
+from src.services.automagik_api_client import automagik_api_client
 
 # Configure logging
 logger = logging.getLogger("src.services.agent_service")
@@ -34,47 +26,174 @@ class AgentService:
         # Track active sessions for simple caching
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
     
-    def _initialize_default_agent(self):
-        """Check for default WhatsApp agent but don't require it."""
-        logger.info("Checking for default WhatsApp agent...")
-        
-        with get_session() as db:
-            agent_repo = AgentRepository(db)
-            
-            # Check if agent already exists
-            existing_agent = agent_repo.get_active_agent(agent_name=agent_api_client.default_agent_name)
-            if existing_agent:
-                logger.info(f"Active WhatsApp agent already exists with ID: {existing_agent.id}")
-                return existing_agent
-            
-            # No agent needed, just log and continue
-            logger.info("No active WhatsApp agent found. Continuing without default agent...")
-            return None
-    
-    def start(self):
+    def start(self) -> bool:
         """Start the service."""
-        logger.info("Starting Agent service...")
+        logger.info("Starting agent service")
         
-        # Initialize default agent (optional)
-        self._initialize_default_agent()
-        
-        # Start the WhatsApp client
-        success = whatsapp_client.start_async()
-        if not success:
-            logger.error("Failed to start WhatsApp client")
+        try:
+            # Start the WhatsApp client
+            whatsapp_client.start()
+            
+            # Check if API is available
+            if not automagik_api_client.health_check():
+                logger.warning("Automagik API health check failed. Service may have limited functionality.")
+            else:
+                logger.info("Automagik API health check successful.")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error starting agent service: {e}", exc_info=True)
             return False
-        
-        logger.info("Agent service started successfully")
-        return True
-        
-    def stop(self):
+    
+    def stop(self) -> None:
         """Stop the service."""
-        logger.info("Stopping Agent service...")
+        logger.info("Stopping agent service")
         
         # Stop the WhatsApp client
         whatsapp_client.stop()
+    
+    def process_whatsapp_message(self, data: Dict[str, Any]) -> Optional[str]:
+        """Process a WhatsApp message and generate a response.
         
-        logger.info("Agent service stopped successfully")
-
-# Singleton instance
+        Args:
+            data: WhatsApp message data
+            
+        Returns:
+            Optional response text
+        """
+        logger.info("Processing WhatsApp message")
+        logger.debug(f"Message data: {data}")
+        
+        # Handle system messages
+        if data.get("messageType") in ["systemMessage"]:
+            logger.info(f"Ignoring system message: {data.get('messageType')}")
+            return None
+        
+        # Extract the sender ID (WhatsApp phone number)
+        sender = data.get("data", {}).get("key", {}).get("remoteJid", "")
+        if not sender:
+            logger.warning("Message missing remoteJid")
+            return None
+        
+        # Remove @s.whatsapp.net suffix if present
+        if "@" in sender:
+            phone_number = sender.split("@")[0]
+        else:
+            phone_number = sender
+            
+        # Remove any + at the beginning
+        if phone_number.startswith("+"):
+            phone_number = phone_number[1:]
+        
+        logger.info(f"Extracted phone number: {phone_number}")
+            
+        # Get message content
+        message_content = data.get("data", {}).get("message", {})
+        if not message_content:
+            logger.warning("Message missing content")
+            return None
+            
+        # Extract text from various message types
+        text_content = None
+        
+        if "conversation" in message_content:
+            text_content = message_content.get("conversation", "")
+        elif "extendedTextMessage" in message_content:
+            text_content = message_content.get("extendedTextMessage", {}).get("text", "")
+        elif "imageMessage" in message_content:
+            # Handle image with caption
+            text_content = message_content.get("imageMessage", {}).get("caption", "[Image]")
+        elif "audioMessage" in message_content:
+            # For audio messages, set a placeholder
+            text_content = "[Audio]"
+        
+        # If we couldn't extract text, log and return
+        if not text_content:
+            logger.info("No text content found in message")
+            text_content = "[Media message received]"
+            
+        logger.info(f"Extracted message text: {text_content}")
+        
+        # Handle empty messages
+        if not text_content.strip():
+            logger.info("Empty message received, ignoring")
+            return None
+            
+        # Get or create user using the API
+        user_info = automagik_api_client.get_or_create_user_by_phone(
+            phone_number,
+            user_data={
+                "whatsapp_id": sender,
+                "source": "whatsapp"
+            }
+        )
+        
+        if not user_info:
+            logger.warning(f"Failed to get or create user for phone: {phone_number}, using default user")
+            # Use default user ID instead of returning error
+            user_id = 1 
+        else:
+            user_id = user_info["id"]
+            logger.info(f"Using user ID: {user_id}")
+        
+        # Generate or reuse session ID
+        session_id = str(uuid.uuid4())
+        logger.info(f"Using session ID: {session_id}")
+        
+        # Process message through agent API
+        try:
+            # Process the message, ensuring user_id is passed correctly
+            message_response = agent_api_client.process_message(
+                message=text_content,
+                user_id=user_id,
+                session_id=session_id
+            )
+            
+            if message_response:
+                logger.info(f"Agent response: {message_response}")
+                # Optionally store the message as a memory
+                try:
+                    # Handle user_id properly based on type
+                    memory_user_id = None
+                    if user_id:
+                        if isinstance(user_id, int):
+                            memory_user_id = user_id
+                        elif isinstance(user_id, str) and user_id.isdigit():
+                            memory_user_id = int(user_id)
+                        else:
+                            # If not a valid integer, convert if possible
+                            try:
+                                memory_user_id = int(user_id)
+                            except (ValueError, TypeError):
+                                memory_user_id = 1  # Default user ID
+                    
+                    # If memory_user_id is still None, use default
+                    if memory_user_id is None:
+                        memory_user_id = 1
+                    
+                    automagik_api_client.create_memory(
+                        name=f"Conversation {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                        content=f"User: {text_content}\nAgent: {message_response}",
+                        user_id=memory_user_id,
+                        session_id=session_id,
+                        metadata={
+                            "source": "whatsapp",
+                            "message_type": data.get("messageType", "text")
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to create memory: {e}")
+                    
+                return message_response
+            else:
+                logger.warning("No response from agent")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error processing message with agent: {e}", exc_info=True)
+            return "Sorry, I encountered an error processing your message."
+            
+        return None
+        
+# Create a singleton instance
 agent_service = AgentService() 

@@ -1,15 +1,17 @@
 """
 Message Router Service
 Handles routing messages to the appropriate agent system.
+Uses the Automagik API for user and session management.
 """
 
 import json
 import logging
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 
 from src.config import config
 from src.services.agent_api_client import agent_api_client
+from src.services.automagik_api_client import automagik_api_client
 
 # Configure logging
 logger = logging.getLogger("src.services.message_router")
@@ -27,7 +29,7 @@ class MessageRouter:
     def route_message(
         self,
         message_text: str,
-        user_id: Optional[str] = None,
+        user_id: Optional[Union[str, int]] = None,
         session_id: Optional[str] = None,
         message_type: str = "text",
         whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
@@ -58,41 +60,76 @@ class MessageRouter:
             agent_name = agent_config["name"]
         logger.info(f"Using agent name: {agent_name}")
         
-        # If user_id is None, use a default value
-        if user_id is None:
-            logger.warning(f"Using default user_id=0 as no user_id was provided")
-            user_id = "0"
+        # If no session ID provided, generate one
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            logger.info(f"Generated new session ID: {session_id}")
         
-        # Convert UUID to string for serialization
-        if isinstance(session_id, uuid.UUID):
-            session_id = str(session_id)
-            
+        # If no user ID provided, try to create a user or use default
+        if not user_id:
+            try:
+                # Create an anonymous user with minimal information
+                user_response = automagik_api_client.create_user(
+                    user_data={"source": session_origin}
+                )
+                if user_response:
+                    user_id = user_response["id"]
+                    logger.info(f"Created new user with ID: {user_id}")
+                else:
+                    # Fallback to a default user ID (1 is typically admin/system user)
+                    user_id = 1
+                    logger.warning(f"Failed to create user, using default ID: {user_id}")
+            except Exception as e:
+                # If user creation fails, use default user ID
+                user_id = 1
+                logger.error(f"Error creating user: {e}")
+        
+        # Process the message through the Agent API
         try:
-            # Get agent response from API
-            result = agent_api_client.run_agent(
-                agent_name=agent_name,
-                message_content=message_text,
+            response = agent_api_client.process_message(
+                message=message_text,
                 user_id=user_id,
                 session_id=session_id,
-                message_type=message_type,
-                session_origin=session_origin,
-                channel_payload=whatsapp_raw_payload
+                agent_name=agent_name
             )
             
-            # Extract the response from the result
-            if isinstance(result, dict):
-                if "error" in result:
-                    return result.get("error", "I'm sorry, I encountered an error.")
-                elif "response" in result:
-                    return result.get("response", "")
-                else:
-                    return str(result)
-            else:
-                return str(result)
+            # Store the message and response as a memory
+            try:
+                # Convert user_id to int if it's a string digit, otherwise pass None for the user_id
+                memory_user_id = None
+                if user_id:
+                    if isinstance(user_id, int):
+                        memory_user_id = user_id
+                    elif isinstance(user_id, str) and user_id.isdigit():
+                        memory_user_id = int(user_id)
+                    # If it's not a digit string or int, try to convert
+                    elif isinstance(user_id, str):
+                        try:
+                            memory_user_id = int(user_id)
+                        except (ValueError, TypeError):
+                            # If conversion fails, use default
+                            memory_user_id = 1
+                    # If all else fails, use 1 as default
+                    if memory_user_id is None:
+                        memory_user_id = 1
                 
+                automagik_api_client.create_memory(
+                    name=f"Message from {session_origin}",
+                    content=f"User: {message_text}\nAgent: {response}",
+                    user_id=memory_user_id,
+                    session_id=session_id,
+                    metadata={
+                        "source": session_origin,
+                        "message_type": message_type
+                    }
+                )
+            except Exception as mem_err:
+                logger.warning(f"Failed to create memory: {mem_err}")
+                
+            return response
         except Exception as e:
             logger.error(f"Error routing message: {e}", exc_info=True)
-            return "I'm sorry, I encountered an error processing your request."
+            return "Sorry, I encountered an error processing your message."
 
 # Create a singleton instance
 message_router = MessageRouter() 

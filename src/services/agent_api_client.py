@@ -50,13 +50,9 @@ class AgentApiClient:
     def _make_headers(self) -> Dict[str, str]:
         """Make headers for API requests."""
         headers = {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-api-key': self.api_key
         }
-        
-        # Add API key if available
-        if self.api_key:
-            headers['X-API-Key'] = self.api_key
-            
         return headers
         
     def health_check(self) -> bool:
@@ -79,7 +75,7 @@ class AgentApiClient:
                  mime_type: Optional[str] = None,
                  channel_payload: Optional[Dict[str, Any]] = None,
                  session_id: Optional[str] = None,
-                 user_id: Optional[Union[str, int]] = "default_user",
+                 user_id: Optional[Union[str, int]] = None,
                  message_limit: int = 10,
                  session_origin: Optional[str] = None,
                  context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -94,7 +90,7 @@ class AgentApiClient:
             mime_type: MIME type of the media
             channel_payload: Additional channel-specific payload
             session_id: Optional session ID for conversation continuity
-            user_id: User ID (will be converted to integer if not None)
+            user_id: User ID
             message_limit: Maximum number of messages to return
             session_origin: Origin of the session
             context: Additional context for the agent
@@ -102,24 +98,37 @@ class AgentApiClient:
         Returns:
             The agent's response as a dictionary
         """
-        endpoint = f"{self.api_url}/api/v1/pyagent/{agent_name}/run"
+        endpoint = f"{self.api_url}/api/v1/agent/{agent_name}/run"
         
         # Prepare headers
         headers = self._make_headers()
         
-        # Convert user_id to integer if it's not None
-        if user_id is not None and user_id != "default_user":
-            try:
-                user_id = int(user_id)
-            except (ValueError, TypeError):
-                logger.warning(f"Could not convert user_id '{user_id}' to integer, using as is")
-        
         # Prepare payload
         payload = {
             "message_content": message_content,
-            "user_id": user_id,
             "message_limit": message_limit
         }
+        
+        # Add user_id if provided - make sure it's an integer
+        if user_id is not None:
+            # Try to convert user_id to integer if it's a string
+            if isinstance(user_id, str):
+                if user_id.isdigit():
+                    # Convert string to integer
+                    user_id = int(user_id)
+                elif user_id.lower() == "anonymous":
+                    # Use a default user ID for anonymous users
+                    user_id = 1
+                else:
+                    try:
+                        # Last attempt to convert
+                        user_id = int(user_id)
+                    except (ValueError, TypeError):
+                        # If all else fails, use default admin user ID
+                        logger.warning(f"Invalid user_id format: {user_id}, using default user")
+                        user_id = 1
+                        
+            payload["user_id"] = user_id
         
         # Add optional parameters if provided
         if message_type:
@@ -145,7 +154,7 @@ class AgentApiClient:
         
         # Log the request (without sensitive information)
         logger.info(f"Making API request to {endpoint}")
-        logger.debug(f"Request payload: {json.dumps({k:v for k,v in payload.items()}, cls=UUIDEncoder)}")
+        logger.debug(f"Request payload: {json.dumps({k:v for k,v in payload.items() if k != 'channel_payload'}, cls=UUIDEncoder)}")
         
         try:
             # Send request to the agent API
@@ -156,17 +165,38 @@ class AgentApiClient:
                 timeout=self.timeout
             )
             
+            # Log the response status
+            logger.info(f"API response status: {response.status_code}")
+            
             if response.status_code == 200:
                 # Parse the response
-                response_data = response.json()
-                
-                # Extract message from response
-                agent_message = response_data.get('message', 'No response from agent')
-                
-                # Log success
-                logger.info(f"Received response from agent ({len(agent_message)} chars)")
-                
-                return {"response": agent_message}
+                try:
+                    response_data = response.json()
+                    
+                    # Extract message from response - API returns either 'message' or directly the message content
+                    if isinstance(response_data, dict) and 'message' in response_data:
+                        agent_message = response_data.get('message')
+                    else:
+                        agent_message = response_data
+                        
+                    # Handle the case where agent_message might be a dict
+                    if isinstance(agent_message, dict):
+                        if 'content' in agent_message:
+                            agent_message = agent_message.get('content', 'No response content')
+                        else:
+                            # Convert the dict to a string 
+                            agent_message = json.dumps(agent_message)
+                    
+                    # Log success
+                    message_length = len(agent_message) if isinstance(agent_message, str) else "non-string response"
+                    logger.info(f"Received response from agent ({message_length} chars)")
+                    
+                    return {"response": agent_message}
+                except json.JSONDecodeError:
+                    # Not a JSON response, try to use the raw text
+                    text_response = response.text
+                    logger.warning(f"Response was not valid JSON, using raw text: {text_response[:100]}...")
+                    return {"response": text_response}
             else:
                 # Log error
                 logger.error(f"Error from agent API: {response.status_code} {response.text}")
@@ -193,18 +223,13 @@ class AgentApiClient:
         """
         endpoint = f"{self.api_url}/api/v1/agent/list"
         
-        # Prepare headers
-        headers = {
-            "x-api-key": self.api_key
-        }
-        
         try:
             # Make the request
-            with requests.Session() as session:
-                response = session.get(
-                    endpoint,
-                    headers=headers
-                )
+            response = requests.get(
+                endpoint,
+                headers=self._make_headers(),
+                timeout=self.timeout
+            )
                 
             # Check for successful response
             response.raise_for_status()
@@ -216,6 +241,55 @@ class AgentApiClient:
         except Exception as e:
             logger.error(f"Error listing agents: {str(e)}", exc_info=True)
             return []
+            
+    def process_message(self, 
+                       message: str,
+                       user_id: Optional[Union[str, int]] = None,
+                       session_id: Optional[str] = None,
+                       agent_name: Optional[str] = None,
+                       message_type: str = "text",
+                       media_url: Optional[str] = None,
+                       context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Process a message using the agent API.
+        This is a simplified wrapper around run_agent that returns just the response text.
+        
+        Args:
+            message: The message to process
+            user_id: User ID
+            session_id: Session ID
+            agent_name: Optional agent name (defaults to self.default_agent_name)
+            message_type: Message type (text, image, etc.)
+            media_url: URL to media if present
+            context: Additional context
+            
+        Returns:
+            The response text from the agent
+        """
+        if not agent_name:
+            agent_name = self.default_agent_name
+            
+        # Call run_agent
+        result = self.run_agent(
+            agent_name=agent_name,
+            message_content=message,
+            user_id=user_id,
+            session_id=session_id,
+            message_type=message_type,
+            media_url=media_url,
+            context=context
+        )
+        
+        # Extract response
+        if isinstance(result, dict):
+            if "error" in result:
+                return result.get("error", "I'm sorry, I encountered an error.")
+            elif "response" in result:
+                return result.get("response", "")
+            else:
+                return str(result)
+        else:
+            return str(result)
 
 # Singleton instance
 agent_api_client = AgentApiClient() 
