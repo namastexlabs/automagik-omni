@@ -34,7 +34,10 @@ class EvolutionTranscriptConfig(BaseModel):
 class LoggingConfig(BaseModel):
     """Logging configuration."""
     level: str = Field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
-    format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format: str = "%(asctime)s - \033[36m%(name)s\033[0m - %(levelname)s - %(message)s"
+    date_format: str = "%H:%M:%S"  # Shorter time format without date
+    use_colors: bool = True
+    shorten_paths: bool = Field(default_factory=lambda: os.getenv("LOG_VERBOSITY", "short").lower() != "full")
 
 class WhatsAppConfig(BaseModel):
     """WhatsApp configuration."""

@@ -242,15 +242,17 @@ class WhatsAppMessageHandler:
             try:
                 success, response_data = self.send_response_callback(recipient, text)
                 if success:
-                    logger.info(f"Sent response to {recipient}")
+                    # Extract just the phone number without the suffix for logging
+                    clean_recipient = recipient.split('@')[0] if '@' in recipient else recipient
+                    logger.info(f"➤ Sent response to {clean_recipient}")
                     # Store the response payload for later use
                     response_payload = response_data
                 else:
-                    logger.error(f"Failed to send response to {recipient}")
+                    logger.error(f"❌ Failed to send response to {recipient}")
             except Exception as e:
-                logger.error(f"Error sending response: {e}", exc_info=True)
+                logger.error(f"❌ Error sending response: {e}", exc_info=True)
         else:
-            logger.warning(f"No send response callback set, message to {recipient} not sent")
+            logger.warning(f"⚠️ No send response callback set, message not sent")
         
         return response_payload
 

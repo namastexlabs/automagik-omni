@@ -11,19 +11,18 @@ import time
 # Import configuration first to ensure environment variables are loaded
 from src.config import config
 
-# Import other modules after configuration is loaded
+# Import and set up logging
+from src.logger import setup_logging
+
+# Set up logging with defaults from config
+setup_logging()
+
+# Import other modules after logging is configured
 from src.services.agent_service import agent_service
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, str(config.logging.level).upper()),
-    format=config.logging.format,
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+# Get a logger for this module
 logger = logging.getLogger("src.cli.main")
 
 def handle_shutdown(signal_number, frame):
