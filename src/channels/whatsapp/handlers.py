@@ -183,8 +183,8 @@ class WhatsAppMessageHandler:
                 hash_obj = hashlib.md5(sender_id.encode())
                 hash_digest = hash_obj.hexdigest()
                 
-                # Get the session ID prefix from environment
-                session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
+                # Get the session ID prefix from config
+                session_id_prefix = config.whatsapp.session_id_prefix
                 
                 # Create a readable session name instead of UUID
                 # Format: prefix + phone_number (cleaned)
@@ -213,24 +213,18 @@ class WhatsAppMessageHandler:
                 # Calculate elapsed time since processing started
                 elapsed_time = time.time() - processing_start_time
                 
-                # Set minimum display time for typing indicator (in seconds)
-                minimum_typing_duration = 10  # Updated to match client.py (10 seconds)
+                # Note: We're not using sleep anymore, just log the time
+                logger.info(f"Processing completed in {elapsed_time:.2f}s")
                 
-                # If processing completed too quickly, add a delay before sending response
-                # (but keep the typing indicator active)
-                if elapsed_time < minimum_typing_duration:
-                    additional_delay = minimum_typing_duration - elapsed_time
-                    logger.info(f"Processing completed in {elapsed_time:.2f}s, maintaining typing indicator for {additional_delay:.2f}s more")
-                    time.sleep(additional_delay)
-                
-                # Send the response via WhatsApp while the typing indicator is still active
+                # Send the response immediately while the typing indicator is still active
                 response_result = self._send_whatsapp_response(
                     recipient=sender_id,
                     text=agent_response
                 )
                 
-                # Only stop the typing indicator after the message has been sent
-                presence_updater.stop()
+                # Mark message as sent but let the typing indicator continue for a short time
+                # This creates a more natural transition
+                presence_updater.mark_message_sent()
                 
                 logger.info(f"Sent agent response to user_id={user_id}, session_id={session_name}")
             
@@ -265,8 +259,8 @@ class WhatsAppMessageHandler:
         if not url or "minio:9000" not in url:
             return url
             
-        # Get the external Minio URL from environment
-        minio_ext_url = os.getenv("EVOLUTION_MINIO_URL", "")
+        # Get the external Minio URL from config
+        minio_ext_url = config.whatsapp.minio_url
         if not minio_ext_url:
             return url
             

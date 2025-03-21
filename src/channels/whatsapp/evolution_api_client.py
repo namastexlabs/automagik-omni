@@ -164,8 +164,11 @@ class EvolutionAPIClient:
             
             # Reset reconnect delay on successful connection
             self.reconnect_delay = 0
-            
-            logger.info(f"Connected to RabbitMQ at {self.config.uri}")
+            from urllib.parse import urlparse
+            # Parse the URI to extract only the host and port, hiding credentials
+            parsed_uri = urlparse(self.config.uri)
+            safe_uri = f"{parsed_uri.scheme}://{parsed_uri.hostname}:{parsed_uri.port}"
+            logger.info(f"Connected to RabbitMQ at {safe_uri}")
             return True
         
         except Exception as e:
