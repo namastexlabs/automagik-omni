@@ -826,6 +826,7 @@ class PresenceUpdater:
         self.presence_type = presence_type
         self.should_update = False
         self.update_thread = None
+        self.message_sent = False  # New flag to indicate if message was sent
         
     def start(self):
         """Start sending continuous presence updates."""
@@ -834,6 +835,7 @@ class PresenceUpdater:
             return
             
         self.should_update = True
+        self.message_sent = False
         self.update_thread = threading.Thread(target=self._presence_loop)
         self.update_thread.daemon = True
         self.update_thread.start()
@@ -842,6 +844,8 @@ class PresenceUpdater:
     def stop(self):
         """Stop sending presence updates."""
         self.should_update = False
+        self.message_sent = True
+        
         # Send one more presence update with "paused" to clear the typing indicator
         try:
             self.client.send_presence(self.recipient, "paused", 1)
@@ -853,35 +857,40 @@ class PresenceUpdater:
         
         logger.info(f"Stopped presence updates for {self.recipient}")
         
+    def mark_message_sent(self):
+        """Mark that the message has been sent, but keep typing indicator for a short time."""
+        self.message_sent = True
+        # We'll let the _presence_loop handle stopping after a short delay
+        
     def _presence_loop(self):
         """Thread method to continuously update presence."""
         # Initial delay before starting presence updates
         time.sleep(0.5)
         
-        # Set minimum display time for typing indicator (in seconds)
-        minimum_typing_duration = 10  # Increased to 10 seconds as requested
         start_time = time.time()
+        post_send_cooldown = 1.0  # Short cooldown after message sent (in seconds)
+        message_sent_time = None
         
         while self.should_update:
             try:
                 # Send presence update with a 15-second refresh
-                # We'll refresh every 5 seconds to ensure continuous display
                 self.client.send_presence(self.recipient, self.presence_type, 15)
                 
-                # Check if we've displayed the typing indicator for the minimum duration
-                elapsed_time = time.time() - start_time
-                if elapsed_time < minimum_typing_duration:
-                    # Continue showing the typing indicator until minimum time reached
-                    for _ in range(5):  # 5 second refresh cycle
-                        if not self.should_update:
-                            break
-                        time.sleep(1)
-                else:
-                    # After minimum duration, use normal refresh cycle
-                    for _ in range(10):  # 10 second refresh cycle
-                        if not self.should_update:
-                            break
-                        time.sleep(1)
+                # If message was sent, start the post-send cooldown
+                if self.message_sent and message_sent_time is None:
+                    message_sent_time = time.time()
+                
+                # Check if we've reached the post-send cooldown time
+                if message_sent_time and (time.time() - message_sent_time > post_send_cooldown):
+                    logger.info(f"Typing indicator cooldown completed after message sent")
+                    self.should_update = False
+                    break
+                
+                # Normal refresh cycle (shorter now for responsiveness)
+                for _ in range(5):  # 5 second refresh cycle
+                    if not self.should_update:
+                        break
+                    time.sleep(1)
                     
             except Exception as e:
                 logger.error(f"Error updating presence: {e}")

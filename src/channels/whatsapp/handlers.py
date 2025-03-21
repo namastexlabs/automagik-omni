@@ -213,24 +213,18 @@ class WhatsAppMessageHandler:
                 # Calculate elapsed time since processing started
                 elapsed_time = time.time() - processing_start_time
                 
-                # Set minimum display time for typing indicator (in seconds)
-                minimum_typing_duration = config.whatsapp.typing_indicator_duration
+                # Note: We're not using sleep anymore, just log the time
+                logger.info(f"Processing completed in {elapsed_time:.2f}s")
                 
-                # If processing completed too quickly, add a delay before sending response
-                # (but keep the typing indicator active)
-                if elapsed_time < minimum_typing_duration:
-                    additional_delay = minimum_typing_duration - elapsed_time
-                    logger.info(f"Processing completed in {elapsed_time:.2f}s, maintaining typing indicator for {additional_delay:.2f}s more")
-                    time.sleep(additional_delay)
-                
-                # Send the response via WhatsApp while the typing indicator is still active
+                # Send the response immediately while the typing indicator is still active
                 response_result = self._send_whatsapp_response(
                     recipient=sender_id,
                     text=agent_response
                 )
                 
-                # Only stop the typing indicator after the message has been sent
-                presence_updater.stop()
+                # Mark message as sent but let the typing indicator continue for a short time
+                # This creates a more natural transition
+                presence_updater.mark_message_sent()
                 
                 logger.info(f"Sent agent response to user_id={user_id}, session_id={session_name}")
             
