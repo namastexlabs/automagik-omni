@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, Union
 
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
+from src.config import config
 
 # Configure logging
 logger = logging.getLogger("src.services.message_router")
@@ -55,7 +56,7 @@ class MessageRouter:
         logger.info(f"Session origin: {session_origin}")
         
         # Determine the agent name to use
-        agent_name = "stan_agent"
+        agent_name = config.agent_api.default_agent_name
         if agent_config and "name" in agent_config:
             agent_name = agent_config["name"]
         logger.info(f"Using agent name: {agent_name}")

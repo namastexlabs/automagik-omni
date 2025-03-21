@@ -73,13 +73,15 @@ class AgentApiClient:
                  message_type: Optional[str] = None,
                  media_url: Optional[str] = None,
                  mime_type: Optional[str] = None,
+                 media_contents: Optional[List[Dict[str, Any]]] = None,
                  channel_payload: Optional[Dict[str, Any]] = None,
                  session_id: Optional[str] = None,
                  session_name: Optional[str] = None,
                  user_id: Optional[Union[str, int]] = None,
                  message_limit: int = 10,
                  session_origin: Optional[str] = None,
-                 context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                 context: Optional[Dict[str, Any]] = None,
+                 preserve_system_prompt: bool = False) -> Dict[str, Any]:
         """
         Run an agent with the provided parameters.
         
@@ -89,6 +91,7 @@ class AgentApiClient:
             message_type: The message type (text, image, etc.)
             media_url: URL to media if present
             mime_type: MIME type of the media
+            media_contents: List of media content objects
             channel_payload: Additional channel-specific payload
             session_id: Optional session ID for conversation continuity (legacy)
             session_name: Optional readable session name (preferred over session_id)
@@ -96,6 +99,7 @@ class AgentApiClient:
             message_limit: Maximum number of messages to return
             session_origin: Origin of the session
             context: Additional context for the agent
+            preserve_system_prompt: Whether to preserve the system prompt
             
         Returns:
             The agent's response as a dictionary
@@ -142,6 +146,9 @@ class AgentApiClient:
         if mime_type:
             payload["mime_type"] = mime_type
             
+        if media_contents:
+            payload["media_contents"] = media_contents
+            
         if channel_payload:
             payload["channel_payload"] = channel_payload
         
@@ -156,6 +163,9 @@ class AgentApiClient:
             
         if session_origin:
             payload["session_origin"] = session_origin
+            
+        # Add preserve_system_prompt flag
+        payload["preserve_system_prompt"] = preserve_system_prompt
         
         # Log the request (without sensitive information)
         logger.info(f"Making API request to {endpoint}")
@@ -254,7 +264,12 @@ class AgentApiClient:
                        agent_name: Optional[str] = None,
                        message_type: str = "text",
                        media_url: Optional[str] = None,
-                       context: Optional[Dict[str, Any]] = None) -> str:
+                       media_contents: Optional[List[Dict[str, Any]]] = None,
+                       mime_type: Optional[str] = None,
+                       context: Optional[Dict[str, Any]] = None,
+                       channel_payload: Optional[Dict[str, Any]] = None,
+                       session_origin: Optional[str] = None,
+                       preserve_system_prompt: bool = False) -> str:
         """
         Process a message using the agent API.
         This is a simplified wrapper around run_agent that returns just the response text.
@@ -266,7 +281,12 @@ class AgentApiClient:
             agent_name: Optional agent name (defaults to self.default_agent_name)
             message_type: Message type (text, image, etc.)
             media_url: URL to media if present
+            media_contents: List of media content objects
+            mime_type: MIME type of the media
             context: Additional context
+            channel_payload: Additional channel-specific payload
+            session_origin: Origin of the session
+            preserve_system_prompt: Whether to preserve the system prompt
             
         Returns:
             The response text from the agent
@@ -282,7 +302,12 @@ class AgentApiClient:
             session_name=session_name,
             message_type=message_type,
             media_url=media_url,
-            context=context
+            media_contents=media_contents,
+            mime_type=mime_type,
+            context=context,
+            channel_payload=channel_payload,
+            session_origin=session_origin,
+            preserve_system_prompt=preserve_system_prompt
         )
         
         # Extract response

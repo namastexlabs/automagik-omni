@@ -183,8 +183,8 @@ class WhatsAppMessageHandler:
                 hash_obj = hashlib.md5(sender_id.encode())
                 hash_digest = hash_obj.hexdigest()
                 
-                # Get the session ID prefix from environment
-                session_id_prefix = os.getenv("SESSION_ID_PREFIX", "")
+                # Get the session ID prefix from config
+                session_id_prefix = config.whatsapp.session_id_prefix
                 
                 # Create a readable session name instead of UUID
                 # Format: prefix + phone_number (cleaned)
@@ -214,7 +214,7 @@ class WhatsAppMessageHandler:
                 elapsed_time = time.time() - processing_start_time
                 
                 # Set minimum display time for typing indicator (in seconds)
-                minimum_typing_duration = 10  # Updated to match client.py (10 seconds)
+                minimum_typing_duration = config.whatsapp.typing_indicator_duration
                 
                 # If processing completed too quickly, add a delay before sending response
                 # (but keep the typing indicator active)
@@ -265,8 +265,8 @@ class WhatsAppMessageHandler:
         if not url or "minio:9000" not in url:
             return url
             
-        # Get the external Minio URL from environment
-        minio_ext_url = os.getenv("EVOLUTION_MINIO_URL", "")
+        # Get the external Minio URL from config
+        minio_ext_url = config.whatsapp.minio_url
         if not minio_ext_url:
             return url
             

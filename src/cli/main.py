@@ -7,16 +7,14 @@ import sys
 import signal
 import logging
 import time
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Import configuration first to ensure environment variables are loaded
+from src.config import config
 
-# Import after loading environment variables
+# Import other modules after configuration is loaded
 from src.services.agent_service import agent_service
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
-from src.config import config
 
 # Configure logging
 logging.basicConfig(

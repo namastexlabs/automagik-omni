@@ -1,5 +1,6 @@
 """
-WhatsApp client using Evolution API and RabbitMQ.
+WhatsApp client for Agent application.
+Handles interaction with the Evolution API for WhatsApp.
 """
 
 import logging
@@ -14,9 +15,13 @@ import mimetypes
 from urllib.parse import urlparse
 import base64
 import tempfile
+import re
+import uuid
 
 from src.channels.whatsapp.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
+import pika
+from pika.exceptions import AMQPConnectionError, ChannelClosedByBroker
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.client")
@@ -89,7 +94,7 @@ class WhatsAppClient:
             if '@' in uri:
                 host = uri.split('@')[1].split(':')[0]
                 # Determine protocol based on config
-                protocol = "https" if os.getenv("API_USE_HTTPS", "").lower() == "true" else "http"
+                protocol = "https" if config.whatsapp.api_use_https else "http"
                 return f"{protocol}://{host}:8080"
             else:
                 logger.warning("RabbitMQ URI is not in expected format")

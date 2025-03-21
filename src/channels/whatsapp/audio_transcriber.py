@@ -27,10 +27,9 @@ class AudioTranscriptionService:
         self.api_url = config.evolution_transcript.api_url
         self.api_key = config.evolution_transcript.api_key
         
-        # Get Minio URL from environment variable
-        self.minio_url = os.getenv("EVOLUTION_MINIO_URL", "")
-        if self.minio_url:
-            logger.info(f"\033[96mUsing Minio URL from environment: {self.minio_url}\033[0m")
+        # Get Minio URL from environment
+        self.minio_url = config.whatsapp.minio_url
+        logger.info(f"Using Minio URL from environment: {self.minio_url}")
         
         # Validate required configuration is present
         if not self.api_url or not self.api_key:
