@@ -70,10 +70,10 @@ def run():
         
         logger.info("Agent application started successfully")
         
-        # Keep the main thread alive
-        while True:
-            time.sleep(1)
-            
+        # Start the FastAPI server instead of keeping the main thread alive with a sleep loop
+        from src.api.app import start_api
+        start_api()
+        
     except Exception as e:
         logger.error(f"Error running Agent application: {e}", exc_info=True)
         sys.exit(1)
