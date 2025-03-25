@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import config
 from src.services.agent_service import agent_service
+from src.channels.whatsapp.evolution_api_sender import evolution_api_sender, PresenceUpdater
 
 # Configure logging
 logger = logging.getLogger("src.api.app")
@@ -45,11 +46,42 @@ async def evolution_webhook(request: Request):
         logger.info(f"Received webhook from Evolution API")
         logger.debug(f"Webhook data: {data}")
         
-        # Process the message
-        response = agent_service.process_whatsapp_message(data)
+        # Update the Evolution API sender with the webhook data
+        evolution_api_sender.update_from_webhook(data)
         
-        # Return response
-        return {"status": "success", "response": response}
+        # Extract the sender (for responses)
+        sender = None
+        if "data" in data and "key" in data["data"] and "remoteJid" in data["data"]["key"]:
+            sender = data["data"]["key"]["remoteJid"]
+        
+        # Start typing indicator if we have a sender
+        presence_updater = None
+        if sender:
+            presence_updater = PresenceUpdater(evolution_api_sender, sender)
+            presence_updater.start()
+        
+        try:
+            # Process the message
+            response = agent_service.process_whatsapp_message(data)
+            
+            # Send response back if we have one
+            if response and sender:
+                # Send message
+                evolution_api_sender.send_text_message(sender, response)
+                
+                # Stop typing indicator
+                if presence_updater:
+                    presence_updater.mark_message_sent()
+                    presence_updater.stop()
+            
+            # Return response
+            return {"status": "success", "response": response}
+            
+        finally:
+            # Ensure typing indicator is stopped if it exists
+            if presence_updater:
+                presence_updater.stop()
+                
     except Exception as e:
         logger.error(f"Error processing webhook: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
