@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional, List, Tuple, Union
 # from src.channels.whatsapp.client import whatsapp_client
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
+from src.config import config
 
 # Configure logging
 logger = logging.getLogger("src.services.agent_service")
@@ -140,8 +141,9 @@ class AgentService:
             user_id = user_info["id"]
             logger.info(f"Using user ID: {user_id}")
         
-        # Generate or reuse session ID
-        session_id = str(uuid.uuid4())
+        # Use session ID prefix from config + phone number
+        session_id_prefix = config.whatsapp.session_id_prefix
+        session_id = f"{session_id_prefix}{phone_number}"
         logger.info(f"Using session ID: {session_id}")
         
         # Process message through agent API
