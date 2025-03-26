@@ -152,7 +152,9 @@ class AgentService:
             message_response = agent_api_client.process_message(
                 message=text_content,
                 user_id=user_id,
-                session_name=session_id
+                session_name=session_id,
+                session_origin="whatsapp",
+                channel_payload=data
             )
             
             if message_response:

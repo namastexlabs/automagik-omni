@@ -86,7 +86,8 @@ class MessageRouter:
                 message=message_text,
                 user_id=user_id,
                 session_name=session_identifier,
-                agent_name=agent_name
+                agent_name=agent_name,
+                channel_payload=whatsapp_raw_payload
             )
             
             # Memory creation is handled by the Automagik Agents API, no need to create it here
