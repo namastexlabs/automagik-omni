@@ -34,7 +34,10 @@ class EvolutionTranscriptConfig(BaseModel):
 class LoggingConfig(BaseModel):
     """Logging configuration."""
     level: str = Field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
-    format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format: str = "%(asctime)s - \033[36m%(name)s\033[0m - %(levelname)s - %(message)s"
+    date_format: str = "%H:%M:%S"  # Shorter time format without date
+    use_colors: bool = True
+    shorten_paths: bool = Field(default_factory=lambda: os.getenv("LOG_VERBOSITY", "short").lower() != "full")
 
 class WhatsAppConfig(BaseModel):
     """WhatsApp configuration."""
@@ -43,6 +46,11 @@ class WhatsAppConfig(BaseModel):
     api_use_https: bool = Field(default_factory=lambda: os.getenv("API_USE_HTTPS", "").lower() == "true")
     typing_indicator_duration: int = Field(default_factory=lambda: int(os.getenv("TYPING_INDICATOR_DURATION", "10")))
 
+class ApiConfig(BaseModel):
+    """API Server configuration."""
+    host: str = Field(default_factory=lambda: os.getenv("API_HOST", "0.0.0.0"))
+    port: int = Field(default_factory=lambda: int(os.getenv("API_PORT", "8000")))
+
 class Config(BaseModel):
     """Main application configuration."""
     rabbitmq: RabbitMQConfig = RabbitMQConfig()
@@ -50,12 +58,13 @@ class Config(BaseModel):
     evolution_transcript: EvolutionTranscriptConfig = EvolutionTranscriptConfig()
     logging: LoggingConfig = LoggingConfig()
     whatsapp: WhatsAppConfig = WhatsAppConfig()
+    api: ApiConfig = ApiConfig()
     
     @property
     def is_valid(self) -> bool:
         """Check if the configuration is valid."""
-        return bool(self.rabbitmq.uri and self.rabbitmq.instance_name and 
-                   self.agent_api.url and self.agent_api.api_key)
+        # Remove RabbitMQ URI check since we're not using it anymore
+        return bool(self.agent_api.url and self.agent_api.api_key)
     
     def get_env(self, key: str, default: Any = "") -> Any:
         """Get environment variable with fallback to default."""

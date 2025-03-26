@@ -10,9 +10,11 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple, Union
 
-from src.channels.whatsapp.client import whatsapp_client
+# We no longer need to import the WhatsApp client that uses RabbitMQ
+# from src.channels.whatsapp.client import whatsapp_client
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
+from src.config import config
 
 # Configure logging
 logger = logging.getLogger("src.services.agent_service")
@@ -31,8 +33,8 @@ class AgentService:
         logger.info("Starting agent service")
         
         try:
-            # Start the WhatsApp client
-            whatsapp_client.start()
+            # We no longer use the WhatsApp client with RabbitMQ
+            # whatsapp_client.start()
             
             # Check if API is available
             if not automagik_api_client.health_check():
@@ -49,8 +51,11 @@ class AgentService:
         """Stop the service."""
         logger.info("Stopping agent service")
         
-        # Stop the WhatsApp client
-        whatsapp_client.stop()
+        # We no longer use the WhatsApp client with RabbitMQ
+        # whatsapp_client.stop()
+        
+        # No explicit cleanup needed for FastAPI-based service
+        pass
     
     def process_whatsapp_message(self, data: Dict[str, Any]) -> Optional[str]:
         """Process a WhatsApp message and generate a response.
@@ -136,8 +141,9 @@ class AgentService:
             user_id = user_info["id"]
             logger.info(f"Using user ID: {user_id}")
         
-        # Generate or reuse session ID
-        session_id = str(uuid.uuid4())
+        # Use session ID prefix from config + phone number
+        session_id_prefix = config.whatsapp.session_id_prefix
+        session_id = f"{session_id_prefix}{phone_number}"
         logger.info(f"Using session ID: {session_id}")
         
         # Process message through agent API
@@ -146,7 +152,7 @@ class AgentService:
             message_response = agent_api_client.process_message(
                 message=text_content,
                 user_id=user_id,
-                session_id=session_id
+                session_name=session_id
             )
             
             if message_response:
