@@ -78,7 +78,7 @@ class AgentApiClient:
                  session_id: Optional[str] = None,
                  session_name: Optional[str] = None,
                  user_id: Optional[Union[str, int]] = None,
-                 message_limit: int = 10,
+                 message_limit: int = 100,
                  session_origin: Optional[str] = None,
                  context: Optional[Dict[str, Any]] = None,
                  preserve_system_prompt: bool = False) -> Dict[str, Any]:
