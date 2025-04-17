@@ -216,17 +216,21 @@ class WhatsAppMessageHandler:
                 # Note: We're not using sleep anymore, just log the time
                 logger.info(f"Processing completed in {elapsed_time:.2f}s")
                 
-                # Send the response immediately while the typing indicator is still active
-                response_result = self._send_whatsapp_response(
-                    recipient=sender_id,
-                    text=agent_response
-                )
-                
-                # Mark message as sent but let the typing indicator continue for a short time
-                # This creates a more natural transition
-                presence_updater.mark_message_sent()
-                
-                logger.info(f"Sent agent response to user_id={user_id}, session_id={session_name}")
+                # Check if the response should be ignored
+                if isinstance(agent_response, str) and agent_response.startswith("AUTOMAGIK:"):
+                    logger.warning(f"Ignoring AUTOMAGIK message for user {user_id}, session {session_name}: {agent_response}")
+                else:
+                    # Send the response immediately while the typing indicator is still active
+                    response_result = self._send_whatsapp_response(
+                        recipient=sender_id,
+                        text=agent_response
+                    )
+                    
+                    # Mark message as sent but let the typing indicator continue for a short time
+                    # This creates a more natural transition
+                    presence_updater.mark_message_sent()
+                    
+                    logger.info(f"Sent agent response to user_id={user_id}, session_id={session_name}")
             
             finally:
                 # Make sure typing indicator is stopped even if processing fails
