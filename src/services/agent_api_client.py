@@ -78,7 +78,7 @@ class AgentApiClient:
                  session_id: Optional[str] = None,
                  session_name: Optional[str] = None,
                  user_id: Optional[Union[str, int]] = None,
-                 message_limit: int = 10,
+                 message_limit: int = 100,
                  session_origin: Optional[str] = None,
                  context: Optional[Dict[str, Any]] = None,
                  preserve_system_prompt: bool = False) -> Dict[str, Any]:
@@ -115,26 +115,34 @@ class AgentApiClient:
             "message_limit": message_limit
         }
         
-        # Add user_id if provided - make sure it's an integer
+        # Add user_id if provided
         if user_id is not None:
-            # Try to convert user_id to integer if it's a string
             if isinstance(user_id, str):
-                if user_id.isdigit():
-                    # Convert string to integer
-                    user_id = int(user_id)
-                elif user_id.lower() == "anonymous":
-                    # Use a default user ID for anonymous users
-                    user_id = 1
-                else:
-                    try:
-                        # Last attempt to convert
+                # First, check if it's a valid UUID string
+                try:
+                    uuid.UUID(user_id)
+                    # If it's a valid UUID string, keep it as is
+                    logger.debug(f"Using UUID string for user_id: {user_id}")
+                except ValueError:
+                    # If not a UUID, proceed with existing integer/anonymous logic
+                    if user_id.isdigit():
                         user_id = int(user_id)
-                    except (ValueError, TypeError):
-                        # If all else fails, use default admin user ID
-                        logger.warning(f"Invalid user_id format: {user_id}, using default user")
+                    elif user_id.lower() == "anonymous":
+                        user_id = 1 # Default anonymous user ID
+                    else:
+                        # If it's not a digit or "anonymous", log warning and use default
+                        logger.warning(f"Invalid user_id format: {user_id}, using default user ID 1")
                         user_id = 1
-                        
+            elif not isinstance(user_id, int):
+                # If it's not a string or int, log warning and use default
+                logger.warning(f"Unexpected user_id type: {type(user_id)}, using default user ID 1")
+                user_id = 1
+
             payload["user_id"] = user_id
+        else:
+            # Handle case where user_id is None (optional: assign default or raise error)
+            logger.warning("user_id is None, using default user ID 1")
+            payload["user_id"] = 1 # Assign a default if None is not allowed by API
         
         # Add optional parameters if provided
         if message_type:

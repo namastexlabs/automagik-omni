@@ -64,15 +64,20 @@ async def evolution_webhook(request: Request):
             # Process the message
             response = agent_service.process_whatsapp_message(data)
             
-            # Send response back if we have one
+            # Send response back if we have one and it's not an internal message
             if response and sender:
-                # Send message
-                evolution_api_sender.send_text_message(sender, response)
-                
-                # Stop typing indicator
-                if presence_updater:
-                    presence_updater.mark_message_sent()
-                    presence_updater.stop()
+                if isinstance(response, str) and response.startswith("AUTOMAGIK:"):
+                    logger.warning(f"Ignoring AUTOMAGIK message from agent service: {response}")
+                    # Set response to None so it's not returned in the HTTP response either
+                    response = None
+                else:
+                    # Send message
+                    evolution_api_sender.send_text_message(sender, response)
+                    
+                    # Stop typing indicator after sending
+                    if presence_updater:
+                        presence_updater.mark_message_sent()
+                        presence_updater.stop()
             
             # Return response
             return {"status": "success", "response": response}
