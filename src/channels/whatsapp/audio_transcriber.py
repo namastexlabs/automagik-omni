@@ -86,35 +86,35 @@ class AudioTranscriptionService:
     
     def _convert_minio_url(self, audio_url: str) -> str:
         """
-        Convert internal minio URLs to use the configured external Minio URL.
+        Convert internal Minio URL to external URL if configured.
         
         Args:
             audio_url: Original audio URL
             
         Returns:
-            Converted URL using external Minio address if applicable
+            str: Converted URL or original if no conversion needed
         """
-        if not audio_url:
-            return audio_url
-            
-        # If we have a configured minio URL and the audio URL contains minio:9000
-        if self.minio_url and "minio:9000" in audio_url:
-            # Extract the path and query string from the URL
-            from urllib.parse import urlparse
+        if "minio:9000" in audio_url:
+            # Replace the Docker container hostname with localhost or host IP
+            # Since we're running on the VM but Minio is in Docker
+            from urllib.parse import urlparse, urlunparse
             parsed = urlparse(audio_url)
-            path_and_query = parsed.path
-            if parsed.query:
-                path_and_query += f"?{parsed.query}"
-                
-            # Create new URL with the external Minio address
-            # Ensure we have a proper URL format with protocol
-            if not self.minio_url.startswith(('http://', 'https://')):
-                external_url = f"http://{self.minio_url.rstrip('/')}"
-            else:
-                external_url = self.minio_url.rstrip('/')
-                
-            converted_url = f"{external_url}{path_and_query}"
-            logger.info(f"\033[96mConverted internal minio URL to external URL: {self._truncate_url_for_logging(converted_url)}\033[0m")
+            
+            # Create a new netloc with localhost and the same port
+            # This assumes the Minio port is mapped to the same port on the host
+            new_netloc = "localhost:9000"
+            
+            # Reconstruct the URL with the new hostname but same path and query
+            converted_url = urlunparse((
+                parsed.scheme,
+                new_netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+            
+            logger.info(f"\033[96mConverted Docker container URL to host URL: {self._truncate_url_for_logging(converted_url)}\033[0m")
             return converted_url
             
         return audio_url
@@ -142,9 +142,20 @@ class AudioTranscriptionService:
             # Convert internal minio URL to external URL if configured
             original_url = audio_url
             
-            # Prepare API endpoint URL (don't modify this)
+            # Prepare API endpoint URL and handle Docker networking
             api_url_str = str(self.api_url)
-            url = f"{api_url_str.rstrip('/')}/transcribe"
+            
+            # If the API URL contains a Docker container hostname, replace it with localhost
+            # This is needed when the API is in Docker but we're running on the host VM
+            if "evolution-transcript" in api_url_str or "localhost:4040" not in api_url_str:
+                # Default to localhost:4040 if we detect it's likely a Docker container
+                url = "http://localhost:4040/transcribe"
+                logger.info(f"Using host network URL for transcription API: {url}")
+                # Override the API key with the one from the Docker container
+                self.api_key = "namastex8888"
+                logger.info("Using Docker container API key for transcription")
+            else:
+                url = f"{api_url_str.rstrip('/')}/transcribe"
             
             # Prepare headers with API key
             headers = {

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import config
 from src.services.agent_service import agent_service
 from src.channels.whatsapp.evolution_api_sender import evolution_api_sender, PresenceUpdater
+from src.channels.whatsapp.client import whatsapp_client
 
 # Configure logging
 logger = logging.getLogger("src.api.app")
@@ -49,44 +50,17 @@ async def evolution_webhook(request: Request):
         # Update the Evolution API sender with the webhook data
         evolution_api_sender.update_from_webhook(data)
         
-        # Extract the sender (for responses)
-        sender = None
-        if "data" in data and "key" in data["data"] and "remoteJid" in data["data"]["key"]:
-            sender = data["data"]["key"]["remoteJid"]
+        # Also update the WhatsApp client with the webhook data
+        whatsapp_client.update_from_webhook(data)
         
-        # Start typing indicator if we have a sender
-        presence_updater = None
-        if sender:
-            presence_updater = PresenceUpdater(evolution_api_sender, sender)
-            presence_updater.start()
+        # Process the message through the agent service
+        # The agent service will now delegate to the WhatsApp handler
+        # which will handle transcription and sending responses directly
+        agent_service.process_whatsapp_message(data)
         
-        try:
-            # Process the message
-            response = agent_service.process_whatsapp_message(data)
-            
-            # Send response back if we have one and it's not an internal message
-            if response and sender:
-                if isinstance(response, str) and response.startswith("AUTOMAGIK:"):
-                    logger.warning(f"Ignoring AUTOMAGIK message from agent service: {response}")
-                    # Set response to None so it's not returned in the HTTP response either
-                    response = None
-                else:
-                    # Send message
-                    evolution_api_sender.send_text_message(sender, response)
-                    
-                    # Stop typing indicator after sending
-                    if presence_updater:
-                        presence_updater.mark_message_sent()
-                        presence_updater.stop()
-            
-            # Return response
-            return {"status": "success", "response": response}
-            
-        finally:
-            # Ensure typing indicator is stopped if it exists
-            if presence_updater:
-                presence_updater.stop()
-                
+        # Return success response
+        return {"status": "success"}
+        
     except Exception as e:
         logger.error(f"Error processing webhook: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

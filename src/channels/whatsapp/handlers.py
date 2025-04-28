@@ -104,6 +104,14 @@ class WhatsAppMessageHandler:
                 logger.warning("Unable to determine message type")
                 return
             
+            # Only process text and audio messages, ignore other types
+            is_text_message = message_type in ['text', 'conversation', 'extendedTextMessage']
+            is_audio_message = message_type in ['audioMessage', 'audio', 'voice', 'ptt']
+            
+            if not (is_text_message or is_audio_message):
+                logger.info(f"Ignoring message of type {message_type} - only handling text and audio messages")
+                return
+            
             # Start showing typing indicator immediately
             # Import the client and create PresenceUpdater here to avoid circular imports
             from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
@@ -141,42 +149,54 @@ class WhatsAppMessageHandler:
                     logger.error(f"Error handling user for {phone_number}: {e}", exc_info=True)
                     # Fallback to default user
                     user_id = 1
-                    
-                # Extract message content
-                message_content = self._extract_message_content(message)
                 
-                # Instead of getting the agent from the database, create a simple config with the default agent name
-                agent_config = {
-                    "name": config.agent_api.default_agent_name,
-                    "type": "whatsapp"
-                }
-                
-                # Extract any media URL from the message
-                media_url = self._extract_media_url_from_payload(data)
-                if media_url:
-                    logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url)}")
-                    
-                    # If media URL is from minio, convert to accessible URL
-                    if "minio:" in media_url:
-                        media_url = self._convert_minio_url(media_url)
-                        logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
-                    
-                    # If this is an audio message, attempt to transcribe it
-                    if message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt':
-                        logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
+                # Handle audio messages - attempt transcription first
+                transcription_successful = False
+                if is_audio_message:
+                    # Extract any media URL from the message
+                    media_url = self._extract_media_url_from_payload(data)
+                    if media_url:
+                        logger.info(f"Audio URL found in message: {self._truncate_url_for_logging(media_url)}")
+                        
+                        # If media URL is from minio, convert to accessible URL
+                        if "minio:" in media_url:
+                            media_url = self._convert_minio_url(media_url)
+                            logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
                         
                         # Check if the audio transcription service is configured
                         if not self.audio_transcriber.is_configured():
                             logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
                         else:
+                            logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
                             transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
                             if transcription:
                                 logger.info(f"Successfully transcribed audio: {transcription}")
-                                message_content = transcription
                                 # Store transcription in data for later use
                                 data['transcription'] = transcription
+                                transcription_successful = True
                             else:
                                 logger.warning("Failed to transcribe audio message")
+                    else:
+                        logger.warning("No media URL found for audio message")
+                
+                # Extract message content (will use transcription if available)
+                message_content = self._extract_message_content(message)
+                
+                # If it's an audio message and transcription failed, don't proceed
+                if is_audio_message and not transcription_successful and not message_content.strip():
+                    logger.info("Skipping audio message processing as transcription failed and no content available")
+                    response_result = self._send_whatsapp_response(
+                        recipient=sender_id,
+                        text="Recebi seu áudio, mas não consegui transcrever o conteúdo. Poderia enviar sua mensagem em texto?"
+                    )
+                    presence_updater.mark_message_sent()
+                    return
+                
+                # Create a simple config with the default agent name
+                agent_config = {
+                    "name": config.agent_api.default_agent_name,
+                    "type": "whatsapp"
+                }
                 
                 # Generate a session ID based on the sender's WhatsApp ID
                 # Create a deterministic hash from the sender's WhatsApp ID
@@ -192,19 +212,13 @@ class WhatsAppMessageHandler:
                 
                 logger.info(f"Using session name: {session_name}")
                 
-                # Check for transcription
-                transcription = data.get('transcription')
-                if transcription and (message_type == 'audioMessage' or message_type == 'audio' or message_type == 'voice' or message_type == 'ptt'):
-                    logger.info(f"Using transcription: {transcription}")
-                    message_content = transcription
-                
                 # Generate agent response
                 logger.info(f"Routing message to API for user {user_id}, session {session_name}: {message_content}")
                 agent_response = message_router.route_message(
                     user_id=user_id,
                     session_name=session_name, 
                     message_text=message_content,
-                    message_type=message_type,
+                    message_type="text",  # Always send as text since we've transcribed audio
                     whatsapp_raw_payload=message,
                     session_origin="whatsapp",
                     agent_config=agent_config
@@ -244,13 +258,12 @@ class WhatsAppMessageHandler:
         response_payload = None
         if self.send_response_callback:
             try:
-                success, response_data = self.send_response_callback(recipient, text)
+                # The Evolution API sender returns a boolean
+                success = self.send_response_callback(recipient, text)
                 if success:
                     # Extract just the phone number without the suffix for logging
                     clean_recipient = recipient.split('@')[0] if '@' in recipient else recipient
                     logger.info(f"➤ Sent response to {clean_recipient}")
-                    # Store the response payload for later use
-                    response_payload = response_data
                 else:
                     logger.error(f"❌ Failed to send response to {recipient}")
             except Exception as e:
@@ -400,20 +413,17 @@ class WhatsAppMessageHandler:
                 elif 'listResponseMessage' in message_obj:
                     return message_obj['listResponseMessage'].get('title', '')
             
-            # If no text content found but it's an audio message
-            message_type = data.get('messageType', '')
-            if message_type == 'audioMessage':
-                return "[Audio Message]"
-            
-            # If no text content found but it's an image message
-            if message_type == 'imageMessage':
-                return "[Image Message]"
-                
             # If we have raw text content directly in the data
             if 'body' in data:
                 return data['body']
                 
-            # Could not find any text content
+            # For audio messages, return empty string instead of placeholder
+            # This allows the calling code to handle audio messages properly
+            message_type = data.get('messageType', '')
+            if message_type in ['audioMessage', 'audio', 'voice', 'ptt']:
+                return ""
+                
+            # For other message types, return empty string
             logger.warning(f"Could not extract message content from payload: {message}")
             return ""
             
@@ -526,4 +536,7 @@ class WhatsAppMessageHandler:
 
 # Singleton instance - initialized without a callback
 # The callback will be set later by the client
-message_handler = WhatsAppMessageHandler() 
+message_handler = WhatsAppMessageHandler()
+
+# Start the message processing thread immediately
+message_handler.start()

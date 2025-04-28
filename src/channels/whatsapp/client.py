@@ -122,18 +122,31 @@ class WhatsAppClient:
             logger.error("Failed to connect to Evolution API RabbitMQ")
             return False
     
+    def update_from_webhook(self, webhook_data: Dict[str, Any]) -> None:
+        """Update client configuration from webhook data.
+        
+        Args:
+            webhook_data: Webhook payload containing server_url, apikey, and instance
+        """
+        if 'server_url' in webhook_data and webhook_data['server_url']:
+            self.dynamic_server_url = webhook_data['server_url']
+            logger.info(f"Updated server URL from webhook: {self.dynamic_server_url}")
+            
+        if 'apikey' in webhook_data and webhook_data['apikey']:
+            self.dynamic_api_key = webhook_data['apikey']
+            logger.info(f"Updated API key from webhook")
+            
+        if 'instance' in webhook_data and webhook_data['instance']:
+            # Update the instance name in the config
+            config.whatsapp.instance = webhook_data['instance']
+            logger.info(f"Updated instance name from webhook: {config.whatsapp.instance}")
+    
     def _handle_message(self, message: Dict[str, Any]):
         """Handle incoming WhatsApp messages from RabbitMQ."""
         logger.debug(f"Received message: {message.get('event', 'unknown')}")
         
-        # Extract server_url and apikey from the message if available
-        if 'server_url' in message and message['server_url']:
-            self.dynamic_server_url = message['server_url']
-            logger.info(f"Updated server URL from message: {self.dynamic_server_url}")
-            
-        if 'apikey' in message and message['apikey']:
-            self.dynamic_api_key = message['apikey']
-            logger.info(f"Updated API key from message")
+        # Update client configuration from the message
+        self.update_from_webhook(message)
         
         # Process media if present
         message_type = self.detect_message_type(message)
@@ -766,7 +779,13 @@ class WhatsAppClient:
         # Use dynamic API key if available, otherwise fall back to configured key
         api_key = self.dynamic_api_key or self.api_key
         
-        url = f"{server_url}/chat/sendPresence/{config.rabbitmq.instance_name}"
+        # Use the instance name from config.whatsapp.instance instead of rabbitmq.instance_name
+        instance_name = config.whatsapp.instance
+        url = f"{server_url}/chat/sendPresence/{instance_name}"
+        
+        # Use the dynamic API key from the webhook data if available
+        if hasattr(self, 'dynamic_api_key') and self.dynamic_api_key:
+            api_key = self.dynamic_api_key
         
         # Format the recipient number correctly for Evolution API
         # - Remove @s.whatsapp.net suffix if present

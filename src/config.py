@@ -45,6 +45,7 @@ class WhatsAppConfig(BaseModel):
     minio_url: str = Field(default_factory=lambda: os.getenv("EVOLUTION_MINIO_URL", ""))
     api_use_https: bool = Field(default_factory=lambda: os.getenv("API_USE_HTTPS", "").lower() == "true")
     typing_indicator_duration: int = Field(default_factory=lambda: int(os.getenv("TYPING_INDICATOR_DURATION", "10")))
+    instance: str = Field(default_factory=lambda: os.getenv("WHATSAPP_INSTANCE", "dev_wpp"))
 
 class ApiConfig(BaseModel):
     """API Server configuration."""
