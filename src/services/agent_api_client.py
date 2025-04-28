@@ -223,19 +223,19 @@ class AgentApiClient:
             else:
                 # Log error
                 logger.error(f"Error from agent API: {response.status_code} {response.text}")
-                return {"error": f"I'm sorry, I encountered an error (status {response.status_code}).", "details": response.text}
+                return {"error": f"Desculpe, encontrei um erro (status {response.status_code}).", "details": response.text}
                 
         except Timeout:
             logger.error(f"Timeout calling agent API after {self.timeout}s")
-            return {"error": "I'm sorry, it's taking me longer than expected to respond. Please try again."}
+            return {"error": "Desculpe, está demorando mais do que o esperado para responder. Por favor, tente novamente."}
             
         except RequestException as e:
             logger.error(f"Error calling agent API: {e}")
-            return {"error": "I'm sorry, I encountered an error communicating with my brain. Please try again."}
+            return {"error": "Desculpe, encontrei um erro ao me comunicar com meu cérebro. Por favor, tente novamente."}
             
         except Exception as e:
             logger.error(f"Unexpected error calling agent API: {e}", exc_info=True)
-            return {"error": "I'm sorry, I encountered an unexpected error. Please try again."}
+            return {"error": "Desculpe, encontrei um erro inesperado. Por favor, tente novamente."}
     
     def list_agents(self) -> List[Dict[str, Any]]:
         """
@@ -321,7 +321,7 @@ class AgentApiClient:
         # Extract response
         if isinstance(result, dict):
             if "error" in result:
-                return result.get("error", "I'm sorry, I encountered an error.")
+                return result.get("error", "Desculpe, encontrei um erro.")
             elif "response" in result:
                 return result.get("response", "")
             else:
