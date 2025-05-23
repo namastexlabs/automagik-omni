@@ -104,13 +104,13 @@ class WhatsAppMessageHandler:
                 logger.warning("Unable to determine message type")
                 return
             
-            # Only process text, audio and image messages, ignore other types
+            # Only process text, audio and media messages, ignore other types
             is_text_message = message_type in ['text', 'conversation', 'extendedTextMessage']
             is_audio_message = message_type in ['audioMessage', 'audio', 'voice', 'ptt']
-            is_image_message = message_type in ['imageMessage', 'image']
+            is_media_message = message_type in ['imageMessage', 'image', 'videoMessage', 'video', 'documentMessage', 'document']
             
-            if not (is_text_message or is_audio_message or is_image_message):
-                logger.info(f"Ignoring message of type {message_type} - only handling text, image and audio messages")
+            if not (is_text_message or is_audio_message or is_media_message):
+                logger.info(f"Ignoring message of type {message_type} - only handling text, media and audio messages")
                 return
             
             # Start showing typing indicator immediately
@@ -189,40 +189,49 @@ class WhatsAppMessageHandler:
                 # Extract message content (will use transcription if available)
                 message_content = self._extract_message_content(message)
                 
-                # ================= Image Handling =================
-                media_url_to_send: Optional[str] = None  # still used internally for conversion but not sent directly
-                mime_type_to_send: Optional[str] = None  # used for media_contents construction only
+                # ================= Media Handling (Images, Videos, Documents) =================
                 media_contents_to_send: Optional[List[Dict[str, Any]]] = None
 
-                if is_image_message:
-                    # Extract media URL for the image
+                if is_media_message:
+                    # Extract media URL for any media type
                     media_url_to_send = self._extract_media_url_from_payload(data)
                     if media_url_to_send:
-                        logger.info(f"Image URL found in message: {self._truncate_url_for_logging(media_url_to_send)}")
+                        logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url_to_send)}")
 
                         # Convert Minio URL to external if necessary
                         if "minio:" in media_url_to_send:
                             media_url_to_send = self._convert_minio_url(media_url_to_send)
                             logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url_to_send)}")
 
-                    # Extract additional image metadata (mime type, width, height)
-                    message_obj = data.get('message', {})
-                    image_meta = message_obj.get('imageMessage', {}) if isinstance(message_obj, dict) else {}
-                    mime_type_to_send = image_meta.get('mimetype')
-                    width = image_meta.get('width')
-                    height = image_meta.get('height')
-
-                    # Build media_contents payload as expected by Agent API
-                    if media_url_to_send:
-                        media_contents_to_send = [{
-                            "alt_text": message_content or "image",
+                        # Extract metadata based on media type
+                        message_obj = data.get('message', {})
+                        media_meta = {}
+                        
+                        if 'imageMessage' in message_obj:
+                            media_meta = message_obj.get('imageMessage', {})
+                        elif 'videoMessage' in message_obj:
+                            media_meta = message_obj.get('videoMessage', {})
+                        elif 'documentMessage' in message_obj:
+                            media_meta = message_obj.get('documentMessage', {})
+                        
+                        # Build media_contents payload as expected by Agent API
+                        media_item = {
+                            "alt_text": message_content or message_type,
                             "media_url": media_url_to_send,
-                            "mime_type": mime_type_to_send or "image/",
-                            "width": width or 0,
-                            "height": height or 0
-                        }]
+                            "mime_type": media_meta.get('mimetype', f"{message_type}/")
+                        }
+                        
+                        # Add type-specific metadata
+                        if 'imageMessage' in message_obj or 'videoMessage' in message_obj:
+                            media_item["width"] = media_meta.get('width', 0)
+                            media_item["height"] = media_meta.get('height', 0)
+                        elif 'documentMessage' in message_obj:
+                            media_item["name"] = media_meta.get('fileName', 'document')
+                            media_item["size_bytes"] = media_meta.get('fileLength', 0)
+                        
+                        media_contents_to_send = [media_item]
 
-                # ================= End Image Handling =============
+                # ================= End Media Handling =============
 
                 # If it's an audio message and transcription failed, don't proceed
                 if is_audio_message and not transcription_successful and not message_content.strip():
@@ -255,8 +264,16 @@ class WhatsAppMessageHandler:
                 logger.info(f"Using session name: {session_name}")
                 
                 # Determine message_type parameter for Agent API
-                if is_image_message:
-                    message_type_param = "image"
+                if is_media_message:
+                    # For all media types (images, videos, documents), use the specific type
+                    if message_type in ['imageMessage', 'image']:
+                        message_type_param = "image"
+                    elif message_type in ['videoMessage', 'video']:
+                        message_type_param = "video"
+                    elif message_type in ['documentMessage', 'document']:
+                        message_type_param = "document"
+                    else:
+                        message_type_param = "media"  # fallback
                 elif is_audio_message:
                     # We use "text" because we've transcribed the audio
                     message_type_param = "text"
@@ -396,12 +413,15 @@ class WhatsAppMessageHandler:
                     logger.warning(f"\033[93mFalling back to WhatsApp encrypted URL (may not work): {self._truncate_url_for_logging(whatsapp_url)}\033[0m")
                     media_url = whatsapp_url
 
-            # Also check for image messages
-            if not media_url and 'imageMessage' in message_content:
-                whatsapp_url = message_content.get('imageMessage', {}).get('url', '')
-                if whatsapp_url:
-                    logger.warning(f"\033[93mFalling back to WhatsApp encrypted URL (may not work): {self._truncate_url_for_logging(whatsapp_url)}\033[0m")
-                    media_url = whatsapp_url
+            # Check for other media messages (images, videos, documents)
+            if not media_url:
+                for media_type in ['imageMessage', 'videoMessage', 'documentMessage']:
+                    if media_type in message_content:
+                        whatsapp_url = message_content.get(media_type, {}).get('url', '')
+                        if whatsapp_url:
+                            logger.warning(f"\033[93mFalling back to WhatsApp encrypted URL for {media_type} (may not work): {self._truncate_url_for_logging(whatsapp_url)}\033[0m")
+                            media_url = whatsapp_url
+                            break
             
             return media_url
             
@@ -490,9 +510,15 @@ class WhatsAppMessageHandler:
                 elif 'listResponseMessage' in message_obj:
                     return message_obj['listResponseMessage'].get('title', '')
                 
-                # Check for image caption
+                # Check for media captions (images, videos, documents)
                 elif 'imageMessage' in message_obj:
                     return message_obj['imageMessage'].get('caption', '')
+                
+                elif 'videoMessage' in message_obj:
+                    return message_obj['videoMessage'].get('caption', '')
+                    
+                elif 'documentMessage' in message_obj:
+                    return message_obj['documentMessage'].get('caption', '')
             
             # If we have raw text content directly in the data
             if 'body' in data:

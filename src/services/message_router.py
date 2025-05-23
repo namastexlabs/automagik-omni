@@ -5,7 +5,7 @@ Uses the Automagik API for user and session management.
 """
 
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
@@ -32,7 +32,8 @@ class MessageRouter:
         message_type: str = "text",
         whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
         session_origin: str = "whatsapp",
-        agent_config: Optional[Dict[str, Any]] = None
+        agent_config: Optional[Dict[str, Any]] = None,
+        media_contents: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """Route a message to the appropriate handler.
         
@@ -44,6 +45,7 @@ class MessageRouter:
             whatsapp_raw_payload: Raw WhatsApp payload (optional)
             session_origin: Session origin (default: "whatsapp")
             agent_config: Agent configuration (optional)
+            media_contents: List of media content objects (optional)
             
         Returns:
             Response from the handler
@@ -87,6 +89,8 @@ class MessageRouter:
                 user_id=user_id,
                 session_name=session_identifier,
                 agent_name=agent_name,
+                message_type=message_type,
+                media_contents=media_contents,
                 channel_payload=whatsapp_raw_payload
             )
             
