@@ -139,27 +139,15 @@ class AudioTranscriptionService:
             return None
         
         try:
-            # Convert internal minio URL to external URL if configured
-            original_url = audio_url
+            # Use the configured API URL and key from environment variables
+            url = f"{self.api_url.rstrip('/')}/transcribe"
+            api_key = self.api_key
             
-            # Prepare API endpoint URL and handle Docker networking
-            api_url_str = str(self.api_url)
-            
-            # If the API URL contains a Docker container hostname, replace it with localhost
-            # This is needed when the API is in Docker but we're running on the host VM
-            if "evolution-transcript" in api_url_str or "localhost:4040" not in api_url_str:
-                # Default to localhost:4040 if we detect it's likely a Docker container
-                url = "http://localhost:4040/transcribe"
-                logger.info(f"Using host network URL for transcription API: {url}")
-                # Override the API key with the one from the Docker container
-                self.api_key = "namastex8888"
-                logger.info("Using Docker container API key for transcription")
-            else:
-                url = f"{api_url_str.rstrip('/')}/transcribe"
+            logger.info(f"Using configured transcription API: {self._truncate_url_for_logging(url)}")
             
             # Prepare headers with API key
             headers = {
-                "apikey": self.api_key,
+                "apikey": api_key,
             }
             
             # Prepare payload as form data - don't modify the URL further, use it as is
@@ -337,36 +325,51 @@ class AudioTranscriptionService:
         try:
             logger.info(f"\033[94mAttempting transcription with base64 data (length: {len(base64_data)} chars)\033[0m")
             
-            # Create payload with "base64" parameter
+            # Use the configured API URL and key from environment variables
+            url = f"{self.api_url.rstrip('/')}/transcribe"
+            api_key = self.api_key
+            
+            logger.info(f"Using configured transcription API for base64: {self._truncate_url_for_logging(url)}")
+            
+            # Create payload with "base64" parameter instead of "url"
             payload = {"base64": base64_data}
             if language:
                 payload["language"] = language
                 
-            # Prepare API endpoint URL
-            api_url_str = str(self.api_url)
-            api_endpoint = f"{api_url_str}/speech-to-text/transcribe"
-            logger.info(f"\033[94mSending base64 transcription request to: {self._truncate_url_for_logging(api_endpoint)}\033[0m")
+            # Use the same headers structure as the main method
+            headers = {
+                "apikey": api_key,
+            }
+                
+            logger.info(f"\033[94mSending base64 transcription request to: {self._truncate_url_for_logging(url)}\033[0m")
             
-            # Make API call without Content-Type header (let requests determine it)
+            # Make API call with form data payload (same as main method)
             response = requests.post(
-                api_endpoint,
-                data=payload,
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                url,
+                headers=headers,
+                data=payload,  # Use data parameter for form-encoded data
                 timeout=60
             )
             
             # Log response status
             logger.info(f"\033[94mBase64 transcription response status: {response.status_code}\033[0m")
             
+            # Try to log response content for debugging
+            try:
+                logger.info(f"Base64 response content: {response.text[:200]}...")
+            except Exception:
+                logger.info("Could not log base64 response content")
+            
             # Check if successful
             if response.status_code == 200:
                 result = response.json()
-                text = result.get("text")
+                # Use the same field name as the main method
+                text = result.get("transcription", "")
                 if text:
                     logger.info(f"\033[92mBase64 transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
                     return text
                 else:
-                    logger.warning("\033[93mBase64 transcription response didn't contain text field\033[0m")
+                    logger.warning("\033[93mBase64 transcription response didn't contain transcription field\033[0m")
             else:
                 # Log error details
                 logger.error(f"\033[91mBase64 transcription failed with status {response.status_code}\033[0m")
@@ -386,13 +389,19 @@ class AudioTranscriptionService:
         try:
             logger.info(f"\033[94mAttempting transcription with multipart file upload (size: {len(audio_data)} bytes)\033[0m")
             
+            # Use the configured API URL and key from environment variables
+            url = f"{self.api_url.rstrip('/')}/transcribe"
+            api_key = self.api_key
+            
+            logger.info(f"Using configured transcription API for multipart: {self._truncate_url_for_logging(url)}")
+            
             # Create a temporary file to hold the audio data
             with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_file:
                 temp_path = temp_file.name
                 temp_file.write(audio_data)
                 
             try:
-                # Create multipart form data
+                # Create multipart form data - use "file" parameter instead of "url"
                 files = {'file': ('audio.ogg', open(temp_path, 'rb'), 'audio/ogg')}
                 
                 # Add language if provided
@@ -400,32 +409,41 @@ class AudioTranscriptionService:
                 if language:
                     data["language"] = language
                 
-                # Prepare API endpoint URL
-                api_url_str = str(self.api_url)
-                api_endpoint = f"{api_url_str}/speech-to-text/transcribe"
-                logger.info(f"\033[94mSending multipart transcription request to: {self._truncate_url_for_logging(api_endpoint)}\033[0m")
+                # Use the same headers structure as the main method
+                headers = {
+                    "apikey": api_key,
+                }
+                
+                logger.info(f"\033[94mSending multipart transcription request to: {self._truncate_url_for_logging(url)}\033[0m")
                 
                 # Make API call
                 response = requests.post(
-                    api_endpoint,
+                    url,
                     files=files,
                     data=data,
-                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    headers=headers,
                     timeout=60
                 )
                 
                 # Log response status
                 logger.info(f"\033[94mMultipart transcription response status: {response.status_code}\033[0m")
                 
+                # Try to log response content for debugging
+                try:
+                    logger.info(f"Multipart response content: {response.text[:200]}...")
+                except Exception:
+                    logger.info("Could not log multipart response content")
+                
                 # Check if successful
                 if response.status_code == 200:
                     result = response.json()
-                    text = result.get("text")
+                    # Use the same field name as the main method
+                    text = result.get("transcription", "")
                     if text:
                         logger.info(f"\033[92mMultipart transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
                         return text
                     else:
-                        logger.warning("\033[93mMultipart transcription response didn't contain text field\033[0m")
+                        logger.warning("\033[93mMultipart transcription response didn't contain transcription field\033[0m")
                 else:
                     # Log error details
                     logger.error(f"\033[91mMultipart transcription failed with status {response.status_code}\033[0m")
@@ -440,6 +458,21 @@ class AudioTranscriptionService:
                 # Clean up the temp file
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
+                    
+                # Clean up the file handle
+                try:
+                    if 'files' in locals() and files:
+                        for file_obj in files.values():
+                            if hasattr(file_obj, 'close'):
+                                file_obj.close()
+                            elif isinstance(file_obj, tuple) and len(file_obj) >= 2:
+                                # file_obj is (filename, file_handle, content_type)
+                                file_handle = file_obj[1]
+                                if hasattr(file_handle, 'close'):
+                                    file_handle.close()
+                except Exception as e:
+                    logger.debug(f"Error closing file handle: {e}")
+                    
         except Exception as e:
             logger.error(f"\033[91mError during multipart transcription: {str(e)}\033[0m")
             return None 

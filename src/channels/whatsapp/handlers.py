@@ -104,12 +104,13 @@ class WhatsAppMessageHandler:
                 logger.warning("Unable to determine message type")
                 return
             
-            # Only process text and audio messages, ignore other types
+            # Only process text, audio and image messages, ignore other types
             is_text_message = message_type in ['text', 'conversation', 'extendedTextMessage']
             is_audio_message = message_type in ['audioMessage', 'audio', 'voice', 'ptt']
+            is_image_message = message_type in ['imageMessage', 'image']
             
-            if not (is_text_message or is_audio_message):
-                logger.info(f"Ignoring message of type {message_type} - only handling text and audio messages")
+            if not (is_text_message or is_audio_message or is_image_message):
+                logger.info(f"Ignoring message of type {message_type} - only handling text, image and audio messages")
                 return
             
             # Start showing typing indicator immediately
@@ -153,10 +154,16 @@ class WhatsAppMessageHandler:
                 # Handle audio messages - attempt transcription first
                 transcription_successful = False
                 if is_audio_message:
-                    # Extract any media URL from the message
+                    # Extract any media URL from the message - prioritize Evolution API mediaUrl
                     media_url = self._extract_media_url_from_payload(data)
                     if media_url:
-                        logger.info(f"Audio URL found in message: {self._truncate_url_for_logging(media_url)}")
+                        # Log which URL is being used for debugging
+                        if "api.bucket.namastex.ai" in media_url:
+                            logger.info(f"✅ Using Evolution API processed URL: {self._truncate_url_for_logging(media_url)}")
+                        elif "mmg.whatsapp.net" in media_url:
+                            logger.warning(f"⚠️ Using WhatsApp encrypted URL (may not work): {self._truncate_url_for_logging(media_url)}")
+                        else:
+                            logger.info(f"Audio URL found in message: {self._truncate_url_for_logging(media_url)}")
                         
                         # If media URL is from minio, convert to accessible URL
                         if "minio:" in media_url:
@@ -171,8 +178,8 @@ class WhatsAppMessageHandler:
                             transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
                             if transcription:
                                 logger.info(f"Successfully transcribed audio: {transcription}")
-                                # Store transcription in data for later use
-                                data['transcription'] = transcription
+                                # Store transcription in data for later use with [Audio] prefix
+                                data['transcription'] = f"[Audio]: {transcription}"
                                 transcription_successful = True
                             else:
                                 logger.warning("Failed to transcribe audio message")
@@ -182,6 +189,41 @@ class WhatsAppMessageHandler:
                 # Extract message content (will use transcription if available)
                 message_content = self._extract_message_content(message)
                 
+                # ================= Image Handling =================
+                media_url_to_send: Optional[str] = None  # still used internally for conversion but not sent directly
+                mime_type_to_send: Optional[str] = None  # used for media_contents construction only
+                media_contents_to_send: Optional[List[Dict[str, Any]]] = None
+
+                if is_image_message:
+                    # Extract media URL for the image
+                    media_url_to_send = self._extract_media_url_from_payload(data)
+                    if media_url_to_send:
+                        logger.info(f"Image URL found in message: {self._truncate_url_for_logging(media_url_to_send)}")
+
+                        # Convert Minio URL to external if necessary
+                        if "minio:" in media_url_to_send:
+                            media_url_to_send = self._convert_minio_url(media_url_to_send)
+                            logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url_to_send)}")
+
+                    # Extract additional image metadata (mime type, width, height)
+                    message_obj = data.get('message', {})
+                    image_meta = message_obj.get('imageMessage', {}) if isinstance(message_obj, dict) else {}
+                    mime_type_to_send = image_meta.get('mimetype')
+                    width = image_meta.get('width')
+                    height = image_meta.get('height')
+
+                    # Build media_contents payload as expected by Agent API
+                    if media_url_to_send:
+                        media_contents_to_send = [{
+                            "alt_text": message_content or "image",
+                            "media_url": media_url_to_send,
+                            "mime_type": mime_type_to_send or "image/",
+                            "width": width or 0,
+                            "height": height or 0
+                        }]
+
+                # ================= End Image Handling =============
+
                 # If it's an audio message and transcription failed, don't proceed
                 if is_audio_message and not transcription_successful and not message_content.strip():
                     logger.info("Skipping audio message processing as transcription failed and no content available")
@@ -212,17 +254,39 @@ class WhatsAppMessageHandler:
                 
                 logger.info(f"Using session name: {session_name}")
                 
-                # Generate agent response
+                # Determine message_type parameter for Agent API
+                if is_image_message:
+                    message_type_param = "image"
+                elif is_audio_message:
+                    # We use "text" because we've transcribed the audio
+                    message_type_param = "text"
+                else:
+                    message_type_param = "text"
+
                 logger.info(f"Routing message to API for user {user_id}, session {session_name}: {message_content}")
-                agent_response = message_router.route_message(
-                    user_id=user_id,
-                    session_name=session_name, 
-                    message_text=message_content,
-                    message_type="text",  # Always send as text since we've transcribed audio
-                    whatsapp_raw_payload=message,
-                    session_origin="whatsapp",
-                    agent_config=agent_config
-                )
+                try:
+                    agent_response = message_router.route_message(
+                        user_id=user_id,
+                        session_name=session_name,
+                        message_text=message_content,
+                        message_type=message_type_param,
+                        whatsapp_raw_payload=message,
+                        session_origin="whatsapp",
+                        agent_config=agent_config,
+                        media_contents=media_contents_to_send
+                    )
+                except TypeError as te:
+                    # Fallback for older versions of MessageRouter without media parameters
+                    logger.warning(f"Route_message did not accept media_contents parameter, retrying without it: {te}")
+                    agent_response = message_router.route_message(
+                        user_id=user_id,
+                        session_name=session_name,
+                        message_text=message_content,
+                        message_type=message_type_param,
+                        whatsapp_raw_payload=message,
+                        session_origin="whatsapp",
+                        agent_config=agent_config
+                    )
                 
                 # Calculate elapsed time since processing started
                 elapsed_time = time.time() - processing_start_time
@@ -308,24 +372,37 @@ class WhatsAppMessageHandler:
     def _extract_media_url_from_payload(self, data: Dict[str, Any]) -> Optional[str]:
         """Extract media URL from the webhook payload."""
         try:
-            # First check for mediaUrl at the data root level (usually the Minio URL)
+            # First check for mediaUrl at the data root level (usually the Evolution API's processed URL)
             media_url = data.get('mediaUrl')
             
-            # If there's no media URL at the root level, check in the message content
-            if not media_url:
-                message_content = data.get('message', {})
-                if 'audioMessage' in message_content:
-                    whatsapp_url = message_content.get('audioMessage', {}).get('url', '')
-                    if whatsapp_url:
-                        media_url = whatsapp_url
-                
-                # Get mediaUrl directly from the 'message' object if it exists
-                if isinstance(message_content, dict) and 'mediaUrl' in message_content:
-                    minio_url = message_content.get('mediaUrl')
-                    if minio_url:
-                        media_url = minio_url
+            if media_url:
+                logger.info(f"\033[96mUsing Evolution API mediaUrl: {self._truncate_url_for_logging(media_url)}\033[0m")
+                return media_url
+
+            # Always get the message content dict for fallback checks
+            message_content = data.get('message', {})
+
+            # If there's no media URL at the root level, check for a direct mediaUrl field inside the message content
+            if isinstance(message_content, dict) and 'mediaUrl' in message_content:
+                minio_url = message_content.get('mediaUrl')
+                if minio_url:
+                    logger.info(f"\033[96mUsing mediaUrl from message content: {self._truncate_url_for_logging(minio_url)}\033[0m")
+                    return minio_url
+
+            # Last resort: check WhatsApp's encrypted URLs (these may not work for transcription)
+            if 'audioMessage' in message_content:
+                whatsapp_url = message_content.get('audioMessage', {}).get('url', '')
+                if whatsapp_url:
+                    logger.warning(f"\033[93mFalling back to WhatsApp encrypted URL (may not work): {self._truncate_url_for_logging(whatsapp_url)}\033[0m")
+                    media_url = whatsapp_url
+
+            # Also check for image messages
+            if not media_url and 'imageMessage' in message_content:
+                whatsapp_url = message_content.get('imageMessage', {}).get('url', '')
+                if whatsapp_url:
+                    logger.warning(f"\033[93mFalling back to WhatsApp encrypted URL (may not work): {self._truncate_url_for_logging(whatsapp_url)}\033[0m")
+                    media_url = whatsapp_url
             
-            # Do NOT convert internal minio URLs - the transcription service expects this format
             return media_url
             
         except Exception as e:
@@ -412,6 +489,10 @@ class WhatsAppMessageHandler:
                 # Check for list response
                 elif 'listResponseMessage' in message_obj:
                     return message_obj['listResponseMessage'].get('title', '')
+                
+                # Check for image caption
+                elif 'imageMessage' in message_obj:
+                    return message_obj['imageMessage'].get('caption', '')
             
             # If we have raw text content directly in the data
             if 'body' in data:
