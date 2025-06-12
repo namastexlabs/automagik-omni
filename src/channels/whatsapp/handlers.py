@@ -98,6 +98,13 @@ class WhatsAppMessageHandler:
                 logger.error("No sender ID found in message, unable to process")
                 return
                 
+            # Extract user name from pushName field if available
+            user_name = data.get('pushName', '')
+            if user_name:
+                logger.info(f"User name extracted: {user_name}")
+            else:
+                logger.info("No pushName found in message data")
+                
             # Extract message type
             message_type = self._extract_message_type(message)
             if not message_type:
@@ -188,6 +195,15 @@ class WhatsAppMessageHandler:
                 
                 # Extract message content (will use transcription if available)
                 message_content = self._extract_message_content(message)
+                
+                # Prepend user name to message content if available
+                if user_name and message_content:
+                    message_content = f"[{user_name}]: {message_content}"
+                    logger.info(f"Appended user name to message content")
+                elif user_name and not message_content:
+                    # For media messages without text content
+                    message_content = f"[{user_name}]: "
+                    logger.info(f"Added user name prefix for media message")
                 
                 # ================= Media Handling (Images, Videos, Documents) =================
                 media_contents_to_send: Optional[List[Dict[str, Any]]] = None
