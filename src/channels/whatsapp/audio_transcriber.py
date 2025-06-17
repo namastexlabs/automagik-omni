@@ -15,6 +15,7 @@ import tempfile
 import os
 
 from src.config import config
+from src.channels.whatsapp.whatsapp_media_decrypt import whatsapp_media_decryptor
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.audio_transcriber")
@@ -40,6 +41,57 @@ class AudioTranscriptionService:
     def is_configured(self) -> bool:
         """Check if the service is properly configured."""
         return bool(self.api_url and self.api_key)
+    
+    def transcribe_encrypted_audio(self, encrypted_url: str, media_key_b64: str) -> Optional[str]:
+        """
+        Transcribe encrypted WhatsApp audio by first decrypting it.
+        
+        Args:
+            encrypted_url: URL to the encrypted .enc audio file
+            media_key_b64: Base64 encoded media key from WhatsApp
+            
+        Returns:
+            Optional[str]: Transcribed text or None if failed
+        """
+        try:
+            logger.info(f"🔓 Starting decryption and transcription of encrypted audio")
+            
+            # Decrypt the audio using the WhatsApp media decryptor
+            decrypted_temp_path = whatsapp_media_decryptor.decrypt_and_save_temp(
+                encrypted_url=encrypted_url,
+                media_key_b64=media_key_b64,
+                media_type=whatsapp_media_decryptor.MEDIA_TYPE_AUDIO
+            )
+            
+            if not decrypted_temp_path:
+                logger.error("❌ Failed to decrypt WhatsApp audio file")
+                return None
+            
+            try:
+                logger.info(f"✅ Successfully decrypted audio to: {decrypted_temp_path}")
+                
+                                 # Now transcribe the decrypted audio file using multipart upload
+                transcription = self._transcribe_multipart_upload(decrypted_temp_path)
+                
+                if transcription:
+                    logger.info(f"🎯 Successfully transcribed decrypted WhatsApp audio: {transcription}")
+                    return transcription
+                else:
+                    logger.error("❌ Failed to transcribe decrypted audio")
+                    return None
+                    
+            finally:
+                # Clean up the temporary decrypted file
+                try:
+                    if os.path.exists(decrypted_temp_path):
+                        os.unlink(decrypted_temp_path)
+                        logger.info(f"🗑️ Cleaned up temporary decrypted file: {decrypted_temp_path}")
+                except Exception as cleanup_error:
+                    logger.warning(f"⚠️ Failed to clean up temp file: {cleanup_error}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Error during encrypted audio transcription: {e}", exc_info=True)
+            return None
     
     def _truncate_url_for_logging(self, url: str, max_length: int = 60) -> str:
         """Truncate a URL for logging to reduce verbosity.
@@ -150,7 +202,7 @@ class AudioTranscriptionService:
                 "apikey": api_key,
             }
             
-            # Prepare payload as form data - don't modify the URL further, use it as is
+            # Prepare payload as form data
             payload = {
                 "url": audio_url
             }
@@ -161,7 +213,7 @@ class AudioTranscriptionService:
             
             # Log the request (excluding sensitive data)
             request_info = {
-                "url": self._truncate_url_for_logging(url),
+                "url": url,
                 "headers": {
                     "apikey": "***hidden***"
                 },
@@ -173,39 +225,60 @@ class AudioTranscriptionService:
             response = requests.post(
                 url, 
                 headers=headers,
-                data=payload  # Use data parameter for form-encoded data
+                data=payload,  # Use data parameter for form-encoded data
+                timeout=30
             )
             
             logger.info(f"\033[94mTranscription response status code: {response.status_code}\033[0m")
             
             # Try to log response content for debugging
             try:
-                logger.info(f"Response content: {response.text[:200]}...")
+                logger.info(f"Response content: {response.text[:500]}...")
             except Exception:
                 logger.info("Could not log response content")
             
             # Check for successful response
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    # Look for text in the response
+                    if isinstance(result, dict):
+                        text = result.get("text") or result.get("transcription") or result.get("result")
+                        if text:
+                            logger.info(f"\033[92mTranscription successful: {text[:100]}{'...' if len(text) > 100 else ''}\033[0m")
+                            return text
+                        else:
+                            logger.warning(f"\033[93mTranscription response didn't contain expected text field. Response: {result}\033[0m")
+                    else:
+                        # If response is a string, use it directly
+                        if isinstance(result, str) and result.strip():
+                            logger.info(f"\033[92mTranscription successful: {result[:100]}{'...' if len(result) > 100 else ''}\033[0m")
+                            return result.strip()
+                        
+                except json.JSONDecodeError:
+                    # If it's not JSON, check if it's plain text
+                    text = response.text.strip()
+                    if text and not text.startswith('{"error"'):
+                        logger.info(f"\033[92mTranscription successful (plain text): {text[:100]}{'...' if len(text) > 100 else ''}\033[0m")
+                        return text
+            
+            # If we get here, transcription failed
+            try:
+                error_response = response.json()
+                error_msg = error_response.get("error", "Unknown error")
+                logger.error(f"\033[91mTranscription failed: {error_msg}\033[0m")
+            except json.JSONDecodeError:
+                logger.error(f"\033[91mTranscription failed with status {response.status_code}: {response.text[:200]}\033[0m")
+            
+            # Raise the exception to trigger fallback
             response.raise_for_status()
-            
-            # Parse response
-            data = response.json()
-            
-            # Extract transcription
-            transcription = data.get("transcription", "")
-            if not transcription:
-                logger.warning("\033[93mNo transcription found in response\033[0m")
-                return None
-            
-            logger.info("\033[92mSuccessfully extracted transcription\033[0m")
-            return transcription
+            return None
             
         except requests.exceptions.RequestException as e:
-            error_msg = f"Transcription API request failed: {str(e)}"
-            logger.error(f"\033[91m{error_msg}\033[0m")
+            logger.error(f"\033[91mTranscription API request failed: {str(e)}\033[0m")
             return None
         except Exception as e:
-            error_msg = f"Unexpected error during transcription: {str(e)}"
-            logger.error(f"\033[91m{error_msg}\033[0m")
+            logger.error(f"\033[91mError during transcription: {str(e)}\033[0m")
             return None
             
     def download_and_encode_audio(self, audio_url: str) -> Optional[str]:
@@ -362,14 +435,21 @@ class AudioTranscriptionService:
             
             # Check if successful
             if response.status_code == 200:
-                result = response.json()
-                # Use the same field name as the main method
-                text = result.get("transcription", "")
-                if text:
-                    logger.info(f"\033[92mBase64 transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
-                    return text
-                else:
-                    logger.warning("\033[93mBase64 transcription response didn't contain transcription field\033[0m")
+                try:
+                    result = response.json()
+                    # Look for text in various possible fields
+                    text = result.get("text") or result.get("transcription") or result.get("result")
+                    if text:
+                        logger.info(f"\033[92mBase64 transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
+                        return text
+                    else:
+                        logger.warning(f"\033[93mBase64 transcription response didn't contain text field: {result}\033[0m")
+                except json.JSONDecodeError:
+                    # Try plain text response
+                    text = response.text.strip()
+                    if text and not text.startswith('{"error"'):
+                        logger.info(f"\033[92mBase64 transcription successful (plain text): {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
+                        return text
             else:
                 # Log error details
                 logger.error(f"\033[91mBase64 transcription failed with status {response.status_code}\033[0m")
@@ -436,14 +516,21 @@ class AudioTranscriptionService:
                 
                 # Check if successful
                 if response.status_code == 200:
-                    result = response.json()
-                    # Use the same field name as the main method
-                    text = result.get("transcription", "")
-                    if text:
-                        logger.info(f"\033[92mMultipart transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
-                        return text
-                    else:
-                        logger.warning("\033[93mMultipart transcription response didn't contain transcription field\033[0m")
+                    try:
+                        result = response.json()
+                        # Look for text in various possible fields
+                        text = result.get("text") or result.get("transcription") or result.get("result")
+                        if text:
+                            logger.info(f"\033[92mMultipart transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
+                            return text
+                        else:
+                            logger.warning(f"\033[93mMultipart transcription response didn't contain text field: {result}\033[0m")
+                    except json.JSONDecodeError:
+                        # Try plain text response
+                        text = response.text.strip()
+                        if text and not text.startswith('{"error"'):
+                            logger.info(f"\033[92mMultipart transcription successful (plain text): {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
+                            return text
                 else:
                     # Log error details
                     logger.error(f"\033[91mMultipart transcription failed with status {response.status_code}\033[0m")

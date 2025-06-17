@@ -156,6 +156,19 @@ class EvolutionApiSender:
             logger.error(f"Error sending presence update: {e}")
             return False
 
+    def get_presence_updater(self, recipient: str, presence_type: str = "composing") -> 'PresenceUpdater':
+        """
+        Get a PresenceUpdater instance for the given recipient.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            presence_type: Type of presence status
+            
+        Returns:
+            PresenceUpdater: Instance for managing presence updates
+        """
+        return PresenceUpdater(self, recipient, presence_type)
+
 class PresenceUpdater:
     """Manages continuous presence updates for WhatsApp conversations."""
     
