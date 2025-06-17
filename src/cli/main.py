@@ -22,8 +22,11 @@ from src.services.agent_service import agent_service
 from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
 
-# Import WhatsApp components initialization
+# Import WhatsApp components initialization to set up HTTP webhook processing
 from src.channels.whatsapp import init as whatsapp_init
+
+# Removed: Import WhatsApp components initialization
+# from src.channels.whatsapp import init as whatsapp_init
 
 # Get a logger for this module
 logger = logging.getLogger("src.cli.main")

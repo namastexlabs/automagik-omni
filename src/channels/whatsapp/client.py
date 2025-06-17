@@ -916,9 +916,5 @@ class PresenceUpdater:
                 # Wait a bit before retrying
                 time.sleep(2)
 
-# Singleton instance
-whatsapp_client = WhatsAppClient()
-
-# The following lines caused a circular import issue, so they've been removed:
-# from src.channels.whatsapp.handlers import message_handler
-# message_handler = whatsapp_client.message_handler 
+# Global instance (DISABLED - using HTTP webhooks only)
+# whatsapp_client = WhatsAppClient() 

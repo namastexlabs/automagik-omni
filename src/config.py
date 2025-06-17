@@ -4,6 +4,7 @@ Loads configuration from environment variables.
 """
 
 import os
+import logging
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
@@ -12,8 +13,11 @@ from typing import Optional, Dict, Any
 # This should be the ONLY place where load_dotenv is called in the entire application
 load_dotenv(override=True)  
 
+# Get logger for this module
+logger = logging.getLogger("src.config")
+
 class RabbitMQConfig(BaseModel):
-    """RabbitMQ configuration."""
+    """RabbitMQ configuration (DISABLED - HTTP webhooks only)."""
     uri: str = Field(default_factory=lambda: os.getenv("RABBITMQ_URI", ""))
     exchange_name: str = Field(default_factory=lambda: os.getenv("RABBITMQ_EXCHANGE", "evolution_exchange"))
     instance_name: str = Field(default_factory=lambda: os.getenv("WHATSAPP_INSTANCE", ""))
@@ -64,12 +68,15 @@ class Config(BaseModel):
     @property
     def is_valid(self) -> bool:
         """Check if the configuration is valid."""
-        # Remove RabbitMQ URI check since we're not using it anymore
-        return bool(self.agent_api.url and self.agent_api.api_key)
+        # RabbitMQ is now disabled - only check API configuration
+        valid = bool(self.agent_api.url and self.agent_api.api_key)
+        if valid:
+            logger.info("✅ Configuration valid - RabbitMQ disabled, using HTTP webhooks only")
+        return valid
     
     def get_env(self, key: str, default: Any = "") -> Any:
         """Get environment variable with fallback to default."""
         return os.getenv(key, default)
 
-# Singleton instance
+# Create the global config instance
 config = Config() 

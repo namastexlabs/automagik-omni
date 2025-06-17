@@ -14,6 +14,8 @@ import time
 import uuid
 from typing import Dict, Any, Optional, List
 import queue
+import requests
+import time
 
 from src.config import config
 from src.services.automagik_api_client import automagik_api_client
@@ -31,7 +33,7 @@ class WhatsAppMessageHandler:
     
     def __init__(self, send_response_callback=None):
         """Initialize the WhatsApp message handler.
-        
+
         Args:
             send_response_callback: Callback function to send responses
         """
@@ -113,9 +115,9 @@ class WhatsAppMessageHandler:
                 return
             
             # Start showing typing indicator immediately
-            # Import the client and create PresenceUpdater here to avoid circular imports
-            from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
-            presence_updater = PresenceUpdater(whatsapp_client, sender_id)
+            # Use evolution_api_sender for presence updates (RabbitMQ disabled)
+            from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
+            presence_updater = evolution_api_sender.get_presence_updater(sender_id)
             presence_updater.start()
             processing_start_time = time.time()  # Record when processing started
             
@@ -153,29 +155,63 @@ class WhatsAppMessageHandler:
                 # Handle audio messages - attempt transcription first
                 transcription_successful = False
                 if is_audio_message:
-                    # Extract any media URL from the message
+                    # Extract media URL and media key from the message
                     media_url = self._extract_media_url_from_payload(data)
+                    media_key = self._extract_media_key_from_payload(data)
+                    
                     if media_url:
                         logger.info(f"Audio URL found in message: {self._truncate_url_for_logging(media_url)}")
                         
-                        # If media URL is from minio, convert to accessible URL
-                        if "minio:" in media_url:
-                            media_url = self._convert_minio_url(media_url)
-                            logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
-                        
-                        # Check if the audio transcription service is configured
-                        if not self.audio_transcriber.is_configured():
-                            logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
-                        else:
-                            logger.info(f"Attempting to transcribe audio message from URL: {self._truncate_url_for_logging(media_url)}")
-                            transcription = self.audio_transcriber.transcribe_with_fallback(media_url)
-                            if transcription:
-                                logger.info(f"Successfully transcribed audio: {transcription}")
-                                # Store transcription in data for later use
-                                data['transcription'] = transcription
-                                transcription_successful = True
+                        # PRIORITY 1: Use Evolution API processed mediaUrl (contains decrypted .oga file)
+                        # Check if this is a processed minio URL from Evolution API
+                        if "minio:9000" in media_url and ".oga" in media_url:
+                            logger.info(f"✅ Found Evolution API processed audio file: {self._truncate_url_for_logging(media_url)}")
+                            
+                            # Convert minio URL to external accessible URL
+                            external_media_url = self._convert_minio_url(media_url)
+                            logger.info(f"🔄 Converted to external URL: {self._truncate_url_for_logging(external_media_url)}")
+                            
+                            # Try to transcribe using the processed URL directly
+                            if not self.audio_transcriber.is_configured():
+                                logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
                             else:
-                                logger.warning("Failed to transcribe audio message")
+                                logger.info(f"🎯 Attempting to transcribe Evolution API processed audio")
+                                transcription = self.audio_transcriber.transcribe_with_fallback(external_media_url)
+                                
+                                if transcription:
+                                    logger.info(f"✅ Successfully transcribed processed audio: {transcription}")
+                                    data['transcription'] = transcription
+                                    transcription_successful = True
+                                else:
+                                    logger.warning("❌ Failed to transcribe processed audio message")
+                        
+                        # FALLBACK: If no processed mediaUrl, try the encrypted decryption approach
+                        elif media_key and not transcription_successful:
+                            logger.info(f"🔍 No processed audio file, trying encrypted decryption approach")
+                            # If media URL is from minio, convert to accessible URL
+                            if "minio:" in media_url:
+                                media_url = self._convert_minio_url(media_url)
+                                logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
+                            
+                            # Check if this is an encrypted WhatsApp URL that needs decryption
+                            is_encrypted_url = '.enc?' in media_url or media_url.endswith('.enc')
+                            logger.info(f"🔍 DEBUG: URL contains .enc: {is_encrypted_url}")
+                            logger.info(f"🔍 DEBUG: Media key present: {bool(media_key)}")
+                            logger.info(f"🔍 DEBUG: Media key value: {media_key if media_key else 'None'}")
+                            
+                            if is_encrypted_url and media_key:
+                                logger.info(f"🔓 Found encrypted WhatsApp audio with media key - attempting decryption")
+                                transcription = self.audio_transcriber.transcribe_encrypted_audio(media_url, media_key)
+                                
+                                if transcription:
+                                    logger.info(f"✅ Successfully transcribed encrypted audio: {transcription}")
+                                    data['transcription'] = transcription
+                                    transcription_successful = True
+                                else:
+                                    logger.warning("❌ Failed to transcribe encrypted audio message")
+                        
+                        else:
+                            logger.warning("❌ No processed audio file or media key available for transcription")
                     else:
                         logger.warning("No media URL found for audio message")
                 
@@ -305,32 +341,115 @@ class WhatsAppMessageHandler:
             logger.warning(f"\033[93mFailed to convert minio URL: {str(e)}\033[0m")
             return url
     
-    def _extract_media_url_from_payload(self, data: Dict[str, Any]) -> Optional[str]:
-        """Extract media URL from the webhook payload."""
+    def _extract_media_url_from_payload(self, data: dict) -> Optional[str]:
+        """Extract media URL from WhatsApp message payload with retry logic for file availability."""
         try:
-            # First check for mediaUrl at the data root level (usually the Minio URL)
-            media_url = data.get('mediaUrl')
+            logger.info(f"🔍 DEBUG: Full data structure: {data}")
             
-            # If there's no media URL at the root level, check in the message content
-            if not media_url:
-                message_content = data.get('message', {})
-                if 'audioMessage' in message_content:
-                    whatsapp_url = message_content.get('audioMessage', {}).get('url', '')
-                    if whatsapp_url:
-                        media_url = whatsapp_url
+            # PRIORITY 1: Check for Evolution API processed mediaUrl in message data
+            message_data = data.get("message", {})
+            if isinstance(message_data, dict) and 'mediaUrl' in message_data:
+                evolution_media_url = message_data['mediaUrl']
+                logger.info(f"✅ Found Evolution API processed mediaUrl: {self._truncate_url_for_logging(str(evolution_media_url))}")
+                if evolution_media_url:
+                    return self._check_and_wait_for_file_availability(evolution_media_url)
+                else:
+                    logger.warning("⚠️ Evolution mediaUrl exists but value is empty/None")
+            
+            # PRIORITY 2: Check for mediaUrl at top level (legacy)
+            logger.info(f"🔍 DEBUG: Checking for top-level 'mediaUrl' key: {'mediaUrl' in data}")
+            if 'mediaUrl' in data:
+                media_url = data['mediaUrl']
+                logger.info(f"✅ Found top-level mediaUrl with value: {self._truncate_url_for_logging(str(media_url))}")
+                if media_url:
+                    return self._check_and_wait_for_file_availability(media_url)
+                else:
+                    logger.warning("⚠️ Top-level mediaUrl key exists but value is empty/None")
+            else:
+                logger.warning("❌ No top-level 'mediaUrl' key found in data")
+            
+            # PRIORITY 3: Fallback to audioMessage URL (encrypted, needs decryption)
+            if isinstance(message_data, dict):
+                logger.info(f"🔍 DEBUG: Message data keys: {list(message_data.keys())}")
                 
-                # Get mediaUrl directly from the 'message' object if it exists
-                if isinstance(message_content, dict) and 'mediaUrl' in message_content:
-                    minio_url = message_content.get('mediaUrl')
-                    if minio_url:
-                        media_url = minio_url
-            
-            # Do NOT convert internal minio URLs - the transcription service expects this format
-            return media_url
+                # Check various message types for media URL
+                media_types = ["audioMessage", "videoMessage", "imageMessage", "documentMessage", "stickerMessage"]
+                
+                for media_type in media_types:
+                    if media_type in message_data:
+                        media_info = message_data[media_type]
+                        logger.info(f"🔍 DEBUG: Found {media_type}, keys: {list(media_info.keys()) if isinstance(media_info, dict) else 'Not a dict'}")
+                        if isinstance(media_info, dict) and "url" in media_info:
+                            url = media_info["url"]
+                            logger.info(f"✓ Found {media_type} URL in message structure: {self._truncate_url_for_logging(url)}")
+                            return self._check_and_wait_for_file_availability(url)
+                    
+            logger.warning("⚠️ No media URL found in any location")
+            return None
             
         except Exception as e:
-            logger.error(f"\033[91mError extracting media URL from payload: {str(e)}\033[0m")
+            logger.error(f"Error extracting media URL: {e}")
             return None
+
+    def _extract_media_key_from_payload(self, data: dict) -> Optional[str]:
+        """Extract media key from WhatsApp message payload for encrypted files."""
+        try:
+            # Check in message structure for media key
+            message_data = data.get("message", {})
+            if isinstance(message_data, dict):
+                
+                # Check various message types for media key
+                media_types = ["audioMessage", "videoMessage", "imageMessage", "documentMessage"]
+                
+                for media_type in media_types:
+                    if media_type in message_data:
+                        media_info = message_data[media_type]
+                        if isinstance(media_info, dict) and "mediaKey" in media_info:
+                            media_key = media_info["mediaKey"]
+                            logger.info(f"🔑 Found {media_type} mediaKey: {media_key[:20]}...")
+                            return media_key
+                    
+            logger.warning("⚠️ No media key found in message")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting media key: {e}")
+            return None
+
+    def _check_and_wait_for_file_availability(self, url: str) -> str:
+        """Check file availability with retry logic for Minio URLs."""
+        if not url:
+            return url
+            
+        # Add retry mechanism for file availability only for Minio URLs
+        if url and "minio:9000" in url:
+            logger.info(f"🔄 Found Minio URL, checking file availability with retries: {self._truncate_url_for_logging(url)}")
+            
+            # Wait and retry to ensure file upload is complete
+            max_retries = 3
+            retry_delay = 2  # seconds
+            
+            for attempt in range(max_retries):
+                if attempt > 0:
+                    logger.info(f"⏳ Waiting {retry_delay}s for file upload completion (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                
+                # Quick head request to check file availability
+                try:
+                    response = requests.head(url.replace("minio:9000", "localhost:9000"), timeout=5)
+                    if response.status_code == 200:
+                        logger.info(f"✅ File confirmed available after {attempt + 1} attempts")
+                        return url
+                    elif response.status_code == 404:
+                        logger.warning(f"⏳ File not yet available (404), attempt {attempt + 1}/{max_retries}")
+                    else:
+                        logger.warning(f"⚠️ Unexpected response {response.status_code}, attempt {attempt + 1}/{max_retries}")
+                except Exception as e:
+                    logger.warning(f"⚠️ File availability check failed: {e}, attempt {attempt + 1}/{max_retries}")
+            
+            logger.warning(f"⚠️ File still not available after {max_retries} attempts, proceeding anyway")
+        
+        return url
 
     def _truncate_url_for_logging(self, url: str, max_length: int = 60) -> str:
         """Truncate a URL for logging to reduce verbosity.

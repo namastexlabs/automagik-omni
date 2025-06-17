@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import config
 from src.services.agent_service import agent_service
 from src.channels.whatsapp.evolution_api_sender import evolution_api_sender, PresenceUpdater
-from src.channels.whatsapp.client import whatsapp_client
 
 # Configure logging
 logger = logging.getLogger("src.api.app")
@@ -49,9 +48,6 @@ async def evolution_webhook(request: Request):
         
         # Update the Evolution API sender with the webhook data
         evolution_api_sender.update_from_webhook(data)
-        
-        # Also update the WhatsApp client with the webhook data
-        whatsapp_client.update_from_webhook(data)
         
         # Process the message through the agent service
         # The agent service will now delegate to the WhatsApp handler
