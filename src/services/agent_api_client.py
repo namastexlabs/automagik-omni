@@ -78,6 +78,7 @@ class AgentApiClient:
                  session_id: Optional[str] = None,
                  session_name: Optional[str] = None,
                  user_id: Optional[Union[str, int]] = None,
+                 user: Optional[Dict[str, Any]] = None,
                  message_limit: int = 100,
                  session_origin: Optional[str] = None,
                  context: Optional[Dict[str, Any]] = None,
@@ -95,7 +96,8 @@ class AgentApiClient:
             channel_payload: Additional channel-specific payload
             session_id: Optional session ID for conversation continuity (legacy)
             session_name: Optional readable session name (preferred over session_id)
-            user_id: User ID
+            user_id: User ID (optional if user dict is provided)
+            user: User data dict with email, phone_number, and user_data for auto-creation
             message_limit: Maximum number of messages to return
             session_origin: Origin of the session
             context: Additional context for the agent
@@ -115,8 +117,13 @@ class AgentApiClient:
             "message_limit": message_limit
         }
         
-        # Add user_id if provided
-        if user_id is not None:
+        # Handle user identification - prefer user dict over user_id
+        if user:
+            # Use the user dict for automatic user creation
+            payload["user"] = user
+            logger.info(f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}")
+        elif user_id is not None:
+            # Fallback to existing user_id logic
             if isinstance(user_id, str):
                 # First, check if it's a valid UUID string
                 try:
@@ -140,8 +147,8 @@ class AgentApiClient:
 
             payload["user_id"] = user_id
         else:
-            # Handle case where user_id is None (optional: assign default or raise error)
-            logger.warning("user_id is None, using default user ID 1")
+            # Handle case where both user and user_id are None
+            logger.warning("Neither user dict nor user_id provided, using default user ID 1")
             payload["user_id"] = 1 # Assign a default if None is not allowed by API
         
         # Add optional parameters if provided
@@ -268,6 +275,7 @@ class AgentApiClient:
     def process_message(self, 
                        message: str,
                        user_id: Optional[Union[str, int]] = None,
+                       user: Optional[Dict[str, Any]] = None,
                        session_name: Optional[str] = None,
                        agent_name: Optional[str] = None,
                        message_type: str = "text",
@@ -284,7 +292,8 @@ class AgentApiClient:
         
         Args:
             message: The message to process
-            user_id: User ID
+            user_id: User ID (optional if user dict is provided)
+            user: User data dict with email, phone_number, and user_data for auto-creation
             session_name: Session name (preferred over session_id)
             agent_name: Optional agent name (defaults to self.default_agent_name)
             message_type: Message type (text, image, etc.)
@@ -307,6 +316,7 @@ class AgentApiClient:
             agent_name=agent_name,
             message_content=message,
             user_id=user_id,
+            user=user,
             session_name=session_name,
             message_type=message_type,
             media_url=media_url,

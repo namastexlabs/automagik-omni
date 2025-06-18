@@ -28,6 +28,7 @@ class MessageRouter:
         self,
         message_text: str,
         user_id: Optional[Union[str, int]] = None,
+        user: Optional[Dict[str, Any]] = None,
         session_name: str = None,
         message_type: str = "text",
         whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
@@ -39,7 +40,8 @@ class MessageRouter:
         
         Args:
             message_text: Message text
-            user_id: User ID (optional)
+            user_id: User ID (optional if user dict is provided)
+            user: User data dict with email, phone_number, and user_data for auto-creation
             session_name: Human-readable session name (required)
             message_type: Message type (default: "text")
             whatsapp_raw_payload: Raw WhatsApp payload (optional)
@@ -53,7 +55,7 @@ class MessageRouter:
         # Use session_name if provided
         session_identifier = session_name 
         
-        logger.info(f"Routing message to API for user {user_id}, session {session_identifier}")
+        logger.info(f"Routing message to API for user {user_id if user_id else 'new user'}, session {session_identifier}")
         logger.info(f"Message text: {message_text}")
         logger.info(f"Session origin: {session_origin}")
         
@@ -63,8 +65,12 @@ class MessageRouter:
             agent_name = agent_config["name"]
         logger.info(f"Using agent name: {agent_name}")
         
-        # If no user ID provided, try to create a user or use default
-        if not user_id:
+        # If user dict is provided, use it directly (skip user lookup)
+        if user:
+            logger.info(f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}")
+            user_id = None  # Let the API handle user creation
+        elif not user_id:
+            # Fallback to existing user creation logic only if no user dict provided
             try:
                 # Create an anonymous user with minimal information
                 user_response = automagik_api_client.create_user(
@@ -87,6 +93,7 @@ class MessageRouter:
             response = agent_api_client.process_message(
                 message=message_text,
                 user_id=user_id,
+                user=user,
                 session_name=session_identifier,
                 agent_name=agent_name,
                 message_type=message_type,

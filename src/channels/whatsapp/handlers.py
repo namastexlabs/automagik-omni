@@ -133,32 +133,21 @@ class WhatsAppMessageHandler:
                 # Extract and normalize phone number
                 phone_number = self._extract_phone_number(sender_id)
                 
-                # Get or create user via the API
-                user = None
-                user_id = None
+                # Create user dict for automatic user creation (skip user lookup)
+                user_dict = {
+                    "phone_number": f"+{phone_number}",  # Ensure + prefix for international format
+                    "email": "",  # WhatsApp doesn't provide email, leave empty
+                    "user_data": {
+                        "name": user_name or "WhatsApp User",  # Use pushName or fallback
+                        "whatsapp_id": sender_id,
+                        "source": "whatsapp"
+                    }
+                }
                 
-                try:
-                    # Get or create user via the API with a normalized phone number
-                    user = automagik_api_client.get_or_create_user_by_phone(
-                        phone_number=phone_number,
-                        user_data={
-                            "whatsapp_id": sender_id,
-                            "source": "whatsapp"
-                        }
-                    )
-                    
-                    # Ensure we have a valid user ID
-                    if user and "id" in user:
-                        user_id = user["id"]
-                        logger.info(f"Using user ID: {user_id}")
-                    else:
-                        # If user lookup/creation failed, use the default user (ID 1)
-                        logger.warning(f"Could not get valid user for {phone_number}, using default user")
-                        user_id = 1
-                except Exception as e:
-                    logger.error(f"Error handling user for {phone_number}: {e}", exc_info=True)
-                    # Fallback to default user
-                    user_id = 1
+                logger.info(f"Created user dict for automatic creation: phone={user_dict['phone_number']}, name={user_dict['user_data']['name']}")
+                
+                # Skip the user lookup entirely - let the API handle user creation
+                user_id = None  # Will be handled by the API via user dict
                 
                 # Handle audio messages - attempt transcription first
                 transcription_successful = False
@@ -332,10 +321,10 @@ class WhatsAppMessageHandler:
                 else:
                     message_type_param = "text"
 
-                logger.info(f"Routing message to API for user {user_id}, session {session_name}: {message_content}")
+                logger.info(f"Routing message to API for user {user_dict['phone_number']}, session {session_name}: {message_content}")
                 try:
                     agent_response = message_router.route_message(
-                        user_id=user_id,
+                        user=user_dict,
                         session_name=session_name,
                         message_text=message_content,
                         message_type=message_type_param,
@@ -348,7 +337,7 @@ class WhatsAppMessageHandler:
                     # Fallback for older versions of MessageRouter without media parameters
                     logger.warning(f"Route_message did not accept media_contents parameter, retrying without it: {te}")
                     agent_response = message_router.route_message(
-                        user_id=user_id,
+                        user=user_dict,
                         session_name=session_name,
                         message_text=message_content,
                         message_type=message_type_param,
@@ -365,7 +354,7 @@ class WhatsAppMessageHandler:
                 
                 # Check if the response should be ignored
                 if isinstance(agent_response, str) and agent_response.startswith("AUTOMAGIK:"):
-                    logger.warning(f"Ignoring AUTOMAGIK message for user {user_id}, session {session_name}: {agent_response}")
+                    logger.warning(f"Ignoring AUTOMAGIK message for user {user_dict['phone_number']}, session {session_name}: {agent_response}")
                 else:
                     # Send the response immediately while the typing indicator is still active
                     response_result = self._send_whatsapp_response(
@@ -377,7 +366,7 @@ class WhatsAppMessageHandler:
                     # This creates a more natural transition
                     presence_updater.mark_message_sent()
                     
-                    logger.info(f"Sent agent response to user_id={user_id}, session_id={session_name}")
+                    logger.info(f"Sent agent response to user_id={user_dict['phone_number']}, session_id={session_name}")
             
             finally:
                 # Make sure typing indicator is stopped even if processing fails
