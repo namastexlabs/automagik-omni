@@ -70,6 +70,25 @@ define print_info
 	@echo -e "$(FONT_CYAN)$(INFO) $(1)$(FONT_RESET)"
 endef
 
+define print_success_with_logo
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"
+	@$(call show_automagik_logo)
+endef
+
+define show_automagik_logo
+	@echo ""
+	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"
+	@echo ""
+endef
+
 define check_prerequisites
 	@if ! command -v uv >/dev/null 2>&1; then \
 		$(call print_error,Missing uv package manager); \
@@ -156,7 +175,7 @@ install: ## Install project dependencies
 	$(call ensure_env_file)
 	$(call print_status,Installing dependencies with uv)
 	@$(UV) sync
-	$(call print_success,Dependencies installed successfully)
+	$(call print_success_with_logo,Dependencies installed successfully)
 
 .PHONY: dev
 dev: ## Start development server with auto-reload
@@ -240,7 +259,7 @@ WantedBy=multi-user.target; \
 EOF \
 		sudo systemctl daemon-reload; \
 		sudo systemctl enable $(SERVICE_NAME); \
-		$(call print_success,Service installed and enabled); \
+		$(call print_success_with_logo,Service installed and enabled); \
 	else \
 		$(call print_warning,Service already installed); \
 	fi
@@ -335,7 +354,7 @@ publish: ## Publish to PyPI
 
 .PHONY: release
 release: quality test build ## Full release process (quality + test + build)
-	$(call print_success,Release build ready)
+	$(call print_success_with_logo,Release build ready)
 	$(call print_info,Run 'make publish-test' or 'make publish' to deploy)
 
 # ===========================================
@@ -378,6 +397,7 @@ check: quality test ## Quick check: quality + tests
 
 .PHONY: deploy-service
 deploy-service: install install-service start-service ## Deploy as service: install + service + start
+	$(call print_success_with_logo,Omni-Hub deployed as service and ready!)
 
 # ===========================================
 # 📊 Status & Info
