@@ -8,8 +8,8 @@ for WhatsApp messaging through RabbitMQ.
 import logging
 import json
 import pika
-from enum import Enum, auto
-from typing import Dict, Any, List, Optional, Callable, Union
+from enum import Enum
+from typing import Dict, Any, List, Optional, Callable
 from pydantic import BaseModel
 import time
 import random

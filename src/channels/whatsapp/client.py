@@ -4,24 +4,18 @@ Handles interaction with the Evolution API for WhatsApp.
 """
 
 import logging
-import json
 import requests
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, Union
 import threading
 from datetime import datetime, timezone
 import time
 import os
 import mimetypes
-from urllib.parse import urlparse
 import base64
 import tempfile
-import re
-import uuid
 
 from src.channels.whatsapp.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
-import pika
-from pika.exceptions import AMQPConnectionError, ChannelClosedByBroker
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.client")
@@ -137,7 +131,7 @@ class WhatsAppClient:
             
         if 'apikey' in webhook_data and webhook_data['apikey']:
             self.dynamic_api_key = webhook_data['apikey']
-            logger.info(f"Updated API key from webhook")
+            logger.info("Updated API key from webhook")
             
         if 'instance' in webhook_data and webhook_data['instance']:
             # Update the instance name in the config
@@ -358,7 +352,7 @@ class WhatsAppClient:
                 try:
                     content = e.response.text
                     error_msg += f" | Response: {content[:200]}..."
-                except:
+                except Exception:
                     pass
             
             logger.error(error_msg)
@@ -386,7 +380,7 @@ class WhatsAppClient:
         if 'conversation' in message_content or 'extendedTextMessage' in message_content:
             return 'text'
         elif 'imageMessage' in message_content:
-            logger.info(f"Detected image message from message structure")
+            logger.info("Detected image message from message structure")
             return 'image'
         elif 'audioMessage' in message_content:
             return 'audio'
@@ -904,7 +898,7 @@ class PresenceUpdater:
                 
                 # Check if we've reached the post-send cooldown time
                 if message_sent_time and (time.time() - message_sent_time > post_send_cooldown):
-                    logger.info(f"Typing indicator cooldown completed after message sent")
+                    logger.info("Typing indicator cooldown completed after message sent")
                     self.should_update = False
                     break
                 

@@ -5,20 +5,14 @@ Uses the Automagik API for user and session management.
 """
 
 import hashlib
-import json
 import logging
-import os
-import re
 import threading
 import time
-import uuid
 from typing import Dict, Any, Optional, List
 import queue
 import requests
-import time
 
 from src.config import config
-from src.services.automagik_api_client import automagik_api_client
 from src.services.message_router import message_router
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
 
@@ -147,7 +141,6 @@ class WhatsAppMessageHandler:
                 logger.info(f"Created user dict for automatic creation: phone={user_dict['phone_number']}, name={user_dict['user_data']['name']}")
                 
                 # Skip the user lookup entirely - let the API handle user creation
-                user_id = None  # Will be handled by the API via user dict
                 
                 # Handle audio messages - attempt transcription first
                 transcription_successful = False
@@ -178,7 +171,7 @@ class WhatsAppMessageHandler:
                             if not self.audio_transcriber.is_configured():
                                 logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
                             else:
-                                logger.info(f"🎯 Attempting to transcribe Evolution API processed audio")
+                                logger.info("🎯 Attempting to transcribe Evolution API processed audio")
                                 transcription = self.audio_transcriber.transcribe_with_fallback(external_media_url)
                                 
                                 if transcription:
@@ -190,7 +183,7 @@ class WhatsAppMessageHandler:
                         
                         # FALLBACK: If no processed mediaUrl, try the encrypted decryption approach
                         elif media_key and not transcription_successful:
-                            logger.info(f"🔍 No processed audio file, trying encrypted decryption approach")
+                            logger.info("🔍 No processed audio file, trying encrypted decryption approach")
                             # If media URL is from minio, convert to accessible URL
                             if "minio:" in media_url:
                                 media_url = self._convert_minio_url(media_url)
@@ -203,7 +196,7 @@ class WhatsAppMessageHandler:
                             logger.info(f"🔍 DEBUG: Media key value: {media_key if media_key else 'None'}")
                             
                             if is_encrypted_url and media_key:
-                                logger.info(f"🔓 Found encrypted WhatsApp audio with media key - attempting decryption")
+                                logger.info("🔓 Found encrypted WhatsApp audio with media key - attempting decryption")
                                 transcription = self.audio_transcriber.transcribe_encrypted_audio(media_url, media_key)
                                 
                                 if transcription:
@@ -224,11 +217,11 @@ class WhatsAppMessageHandler:
                 # Prepend user name to message content if available
                 if user_name and message_content:
                     message_content = f"[{user_name}]: {message_content}"
-                    logger.info(f"Appended user name to message content")
+                    logger.info("Appended user name to message content")
                 elif user_name and not message_content:
                     # For media messages without text content
                     message_content = f"[{user_name}]: "
-                    logger.info(f"Added user name prefix for media message")
+                    logger.info("Added user name prefix for media message")
                 
                 # ================= Media Handling (Images, Videos, Documents) =================
                 media_contents_to_send: Optional[List[Dict[str, Any]]] = None
@@ -293,7 +286,6 @@ class WhatsAppMessageHandler:
                 # Generate a session ID based on the sender's WhatsApp ID
                 # Create a deterministic hash from the sender's WhatsApp ID
                 hash_obj = hashlib.md5(sender_id.encode())
-                hash_digest = hash_obj.hexdigest()
                 
                 # Get the session ID prefix from config
                 session_id_prefix = config.whatsapp.session_id_prefix
@@ -391,7 +383,7 @@ class WhatsAppMessageHandler:
             except Exception as e:
                 logger.error(f"❌ Error sending response: {e}", exc_info=True)
         else:
-            logger.warning(f"⚠️ No send response callback set, message not sent")
+            logger.warning("⚠️ No send response callback set, message not sent")
         
         return response_payload
 

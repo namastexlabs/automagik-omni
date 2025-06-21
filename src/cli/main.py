@@ -2,11 +2,9 @@
 Main entry point for Agent application.
 """
 
-import os
 import sys
 import signal
 import logging
-import time
 
 # Import configuration first to ensure environment variables are loaded
 from src.config import config
@@ -20,13 +18,13 @@ setup_logging()
 # Import other modules after logging is configured
 from src.services.agent_service import agent_service
 from src.services.agent_api_client import agent_api_client
-from src.services.automagik_api_client import automagik_api_client
 
 # Import WhatsApp components initialization to set up HTTP webhook processing
-from src.channels.whatsapp import init as whatsapp_init
 
-# Removed: Import WhatsApp components initialization
-# from src.channels.whatsapp import init as whatsapp_init
+# Import database initialization
+from src.db.database import create_tables
+from src.db.bootstrap import ensure_default_instance
+from src.db.database import SessionLocal
 
 # Get a logger for this module
 logger = logging.getLogger("src.cli.main")
@@ -56,6 +54,18 @@ def run():
     """Run the Agent application."""
     try:
         logger.info("Starting Agent application...")
+        
+        # Initialize database
+        logger.info("Initializing database...")
+        create_tables()
+        
+        # Ensure default instance exists (backward compatibility)
+        db = SessionLocal()
+        try:
+            ensure_default_instance(db)
+            logger.info("Database initialization complete")
+        finally:
+            db.close()
         
         # Check if configuration is valid
         if not config.is_valid:

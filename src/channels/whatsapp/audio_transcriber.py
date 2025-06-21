@@ -6,11 +6,8 @@ Uses the Evolution Transcript API to transcribe audio content.
 import logging
 import json
 import requests
-import time
-import uuid
 import base64
-from typing import Dict, Any, Optional
-from datetime import datetime
+from typing import Optional
 import tempfile
 import os
 
@@ -54,7 +51,7 @@ class AudioTranscriptionService:
             Optional[str]: Transcribed text or None if failed
         """
         try:
-            logger.info(f"🔓 Starting decryption and transcription of encrypted audio")
+            logger.info("🔓 Starting decryption and transcription of encrypted audio")
             
             # Decrypt the audio using the WhatsApp media decryptor
             decrypted_temp_path = whatsapp_media_decryptor.decrypt_and_save_temp(
@@ -291,7 +288,6 @@ class AudioTranscriptionService:
         Returns:
             Optional[str]: Base64-encoded audio data or None if failed
         """
-        original_url = audio_url
         try:
             # Don't modify the audio_url - keep it as is for the transcription service
             

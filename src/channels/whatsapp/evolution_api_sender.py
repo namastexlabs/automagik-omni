@@ -5,7 +5,7 @@ Handles sending messages back to Evolution API using webhook payload information
 
 import logging
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import time
 import threading
 
@@ -15,11 +15,24 @@ logger = logging.getLogger("src.channels.whatsapp.evolution_api_sender")
 class EvolutionApiSender:
     """Client for sending messages to Evolution API."""
     
-    def __init__(self):
-        """Initialize the sender."""
-        self.server_url = None
-        self.api_key = None
-        self.instance_name = None
+    def __init__(self, config_override=None):
+        """
+        Initialize the sender.
+        
+        Args:
+            config_override: Optional InstanceConfig object for per-instance configuration
+        """
+        if config_override:
+            # Use per-instance configuration
+            self.server_url = config_override.evolution_url or None
+            self.api_key = config_override.evolution_key or None
+            self.instance_name = config_override.whatsapp_instance
+            logger.info(f"Evolution API sender initialized for instance '{config_override.name}'")
+        else:
+            # Initialize with empty values (will be set from webhook)
+            self.server_url = None
+            self.api_key = None
+            self.instance_name = None
     
     def update_from_webhook(self, webhook_data: Dict[str, Any]) -> None:
         """
@@ -241,7 +254,7 @@ class PresenceUpdater:
                 
                 # Check if we've reached the post-send cooldown time
                 if message_sent_time and (time.time() - message_sent_time > post_send_cooldown):
-                    logger.info(f"Typing indicator cooldown completed after message sent")
+                    logger.info("Typing indicator cooldown completed after message sent")
                     self.should_update = False
                     break
                 

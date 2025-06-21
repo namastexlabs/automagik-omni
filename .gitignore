@@ -178,3 +178,12 @@ temp_pydantic_ai/
 # temp_agentic_ai_patterns/
 
 temp/*
+
+# Omni-Hub specific
+omnihub.db
+logs/
+backups/
+*.tar.gz
+.env.production
+.env.staging
+nohup.out

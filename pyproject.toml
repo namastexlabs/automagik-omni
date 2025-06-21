@@ -1,6 +1,6 @@
 [project]
 name = "omni-hub"
-version = "0.1.0"
+version = "0.2.0"
 description = "A hub for multiple chat channels"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,9 +14,26 @@ dependencies = [
     "boto3>=1.34.0",
     "httpx>=0.28.0",
     "fastapi>=0.104.0",
-    "uvicorn>=0.23.2"
+    "uvicorn>=0.23.2",
+    "alembic>=1.16.2",
+    "typer>=0.16.0",
+    "rich>=14.0.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
 ]
+
+[project.scripts]
+omnihub = "src.cli.main:run"
+omnihub-instance = "src.cli.instance_cli:app"
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "mypy>=1.16.1",
+    "ruff>=0.12.0",
+]

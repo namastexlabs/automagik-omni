@@ -5,7 +5,7 @@ Provides colorful, emoji-decorated log formatting with customizable options.
 
 import logging
 import sys
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from src.config import config
 

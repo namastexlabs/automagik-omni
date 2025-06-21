@@ -4,11 +4,8 @@ Handles interactions with the Automagik API for users, sessions, and memories.
 """
 
 import logging
-import json
-import uuid
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional
 import requests
-from requests.exceptions import RequestException, Timeout
 import time
 
 from src.config import config
@@ -161,7 +158,7 @@ class AutomagikAPIClient:
         
         # If user creation failed due to conflict (already exists but we couldn't find it),
         # make one more attempt to find the user
-        logger.info(f"User creation failed, trying to search by phone again after conflict")
+        logger.info("User creation failed, trying to search by phone again after conflict")
         time.sleep(0.5)  # Small delay before retrying
         
         # Try direct lookup one more time

@@ -4,8 +4,6 @@ Handles interaction with the Automagik Agents API.
 """
 
 import logging
-import os
-import time
 import uuid
 import json
 from typing import Dict, Any, Optional, List, Union
@@ -29,23 +27,34 @@ class UUIDEncoder(json.JSONEncoder):
 class AgentApiClient:
     """Client for interacting with the Automagik Agents API."""
     
-    def __init__(self):
-        """Initialize the API client."""
-        self.api_url = config.agent_api.url
-        self.api_key = config.agent_api.api_key
-        self.default_agent_name = config.agent_api.default_agent_name
+    def __init__(self, config_override=None):
+        """
+        Initialize the API client.
+        
+        Args:
+            config_override: Optional InstanceConfig object for per-instance configuration
+        """
+        if config_override:
+            # Use per-instance configuration
+            self.api_url = config_override.agent_api_url
+            self.api_key = config_override.agent_api_key
+            self.default_agent_name = config_override.default_agent
+            self.timeout = config_override.agent_timeout
+            logger.info(f"Agent API client initialized for instance '{config_override.name}' with URL: {self.api_url}")
+        else:
+            # Use global configuration (backward compatibility)
+            self.api_url = config.agent_api.url
+            self.api_key = config.agent_api.api_key
+            self.default_agent_name = config.agent_api.default_agent_name
+            self.timeout = getattr(config.agent_api, 'timeout', 60)
+            logger.info(f"Agent API client initialized with global config, URL: {self.api_url}")
         
         # Verify required configuration
         if not self.api_key:
             logger.warning("Agent API key not set. API requests will likely fail.")
         
-        # Get timeout settings from config or use defaults
-        self.timeout = getattr(config.agent_api, 'timeout', 60)
-        
         # Flag for health check
         self.is_healthy = False
-        
-        logger.info(f"Agent API client initialized with URL: {self.api_url}")
     
     def _make_headers(self) -> Dict[str, str]:
         """Make headers for API requests."""

@@ -7,7 +7,7 @@ import os
 import logging
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Any
 
 # Load environment variables from .env file
 # This should be the ONLY place where load_dotenv is called in the entire application

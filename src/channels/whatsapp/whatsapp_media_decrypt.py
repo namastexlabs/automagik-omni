@@ -28,7 +28,6 @@ except ImportError:
         CRYPTO_AVAILABLE = False
 import requests
 import tempfile
-import os
 
 logger = logging.getLogger(__name__)
 

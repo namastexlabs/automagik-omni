@@ -6,15 +6,11 @@ Database operations have been removed and replaced with API calls.
 
 import logging
 import threading
-import uuid
-from datetime import datetime
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, Optional
 
 # We no longer need to import the WhatsApp client that uses RabbitMQ
 # from src.channels.whatsapp.client import whatsapp_client
-from src.services.agent_api_client import agent_api_client
 from src.services.automagik_api_client import automagik_api_client
-from src.config import config
 
 # Configure logging
 logger = logging.getLogger("src.services.agent_service")
