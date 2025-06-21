@@ -182,7 +182,7 @@ dev: ## Start development server with auto-reload
 	$(call check_prerequisites)
 	$(call ensure_env_file)
 	$(call print_status,Starting development server on $(HOST):$(PORT))
-	@$(UV) run uvicorn src.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(LOG_LEVEL)
+	@$(UV) run uvicorn src.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
 
 .PHONY: test
 test: ## Run the test suite
