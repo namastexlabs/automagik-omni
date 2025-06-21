@@ -18,6 +18,9 @@ os.environ["DEFAULT_AGENT_NAME"] = "test-agent"
 os.environ["WHATSAPP_INSTANCE"] = "test-instance"
 os.environ["SESSION_ID_PREFIX"] = "test-"
 os.environ["LOG_LEVEL"] = "ERROR"  # Reduce log noise in tests
+os.environ["OMNI_HUB_API_KEY"] = ""  # Disable API key for tests
+os.environ["EVOLUTION_API_URL"] = "http://test-evolution-api"
+os.environ["EVOLUTION_API_KEY"] = "test-evolution-key"
 
 # Override config for tests
 import sys
@@ -28,7 +31,7 @@ if 'src.config' in sys.modules:
 
 # Import after setting environment
 from src.db.database import Base
-from src.db.models import InstanceConfig
+from src.db.models import InstanceConfig  # Import models to register with Base
 
 
 @pytest.fixture(scope="function")
@@ -37,7 +40,8 @@ def test_db() -> Generator[Session, None, None]:
     # Create in-memory database
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     
-    # Create all tables
+    # Drop and recreate all tables to ensure fresh schema
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     
     # Create session
@@ -67,18 +71,80 @@ def override_get_db(test_db: Session):
 def test_client(override_get_db):
     """Create FastAPI test client with overridden database."""
     from src.api.app import app
-    return TestClient(app)
+    from src.api.deps import verify_api_key
+    
+    # Mock authentication for tests
+    def mock_verify_api_key():
+        return "test-api-key"
+    
+    app.dependency_overrides[verify_api_key] = mock_verify_api_key
+    
+    # Mock Evolution API calls to prevent external dependencies
+    with patch('src.channels.whatsapp.channel_handler.get_evolution_client') as mock_client:
+        mock_evolution = Mock()
+        
+        # Fixed mock for create_instance to return correct structure
+        mock_evolution.create_instance = AsyncMock(return_value={
+            "instance": {"instanceId": "test-123"},
+            "hash": {"apikey": "test-key"}
+        })
+        
+        # Fix the mock to handle parameters properly
+        async def mock_fetch_instances(instance_name=None):
+            return []
+        mock_evolution.fetch_instances = mock_fetch_instances
+        
+        # Add other methods that might be called
+        mock_evolution.set_webhook = AsyncMock(return_value={"status": "success"})
+        mock_evolution.connect_instance = AsyncMock(return_value={"qr": "test-qr"})
+        mock_evolution.get_connection_state = AsyncMock(return_value={"state": "open"})
+        mock_evolution.restart_instance = AsyncMock(return_value={"status": "success"})
+        mock_evolution.logout_instance = AsyncMock(return_value={"status": "success"})
+        mock_evolution.delete_instance = AsyncMock(return_value={"status": "success"})
+        
+        mock_client.return_value = mock_evolution
+        
+        # Mock startup database operations properly
+        with patch('src.db.database.get_db') as mock_startup_db:
+            mock_startup_db.return_value = iter([override_get_db])
+            
+            with patch('src.db.bootstrap.ensure_default_instance') as mock_bootstrap:
+                # Create default instance in test database
+                default_instance = InstanceConfig(
+                    name="test-default",
+                    channel_type="whatsapp",
+                    evolution_url="http://test.com",
+                    evolution_key="test-key",
+                    whatsapp_instance="test-default",
+                    agent_api_url="http://agent.com",
+                    agent_api_key="agent-key",
+                    default_agent="test_agent",
+                    is_default=True
+                )
+                override_get_db.add(default_instance)
+                override_get_db.commit()
+                mock_bootstrap.return_value = default_instance
+                
+                try:
+                    yield TestClient(app)
+                finally:
+                    # Clean up override
+                    app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def sample_instance_config() -> Dict[str, Any]:
-    """Sample instance configuration data."""
+    """Sample instance configuration data for InstanceConfigCreate schema."""
     return {
         "name": "test_instance",
+        "channel_type": "whatsapp",
         "evolution_url": "http://test-evolution.com",
         "evolution_key": "test-evolution-key",
         "whatsapp_instance": "test_whatsapp",
         "session_id_prefix": "test_",
+        "phone_number": "+5511999999999",
+        "auto_qr": True,
+        "integration": "WHATSAPP-BAILEYS",
         "agent_api_url": "http://test-agent.com",
         "agent_api_key": "test-agent-key",
         "default_agent": "test_agent",
@@ -92,6 +158,7 @@ def default_instance_config(test_db: Session) -> InstanceConfig:
     """Create a default instance in the test database."""
     instance = InstanceConfig(
         name="default",
+        channel_type="whatsapp",
         evolution_url="http://default-evolution.com",
         evolution_key="default-evolution-key",
         whatsapp_instance="default_whatsapp",

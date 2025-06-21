@@ -2,7 +2,6 @@
 Database configuration and session management.
 """
 
-import os
 import logging
 from pathlib import Path
 from sqlalchemy import create_engine

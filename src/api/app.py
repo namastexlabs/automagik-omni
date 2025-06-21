@@ -16,6 +16,8 @@ from src.api.routes.instances import router as instances_router
 from src.db.database import create_tables
 from src.db.bootstrap import ensure_default_instance
 
+# Initialize channel handlers
+
 # Configure logging
 logger = logging.getLogger("src.api.app")
 
@@ -33,7 +35,7 @@ app = FastAPI(
     openapi_tags=[
         {
             "name": "instances",
-            "description": "Multi-tenant instance management"
+            "description": "Omnichannel instance management (WhatsApp, Slack, Discord)"
         },
         {
             "name": "webhooks", 

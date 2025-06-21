@@ -2,6 +2,7 @@
 CRUD API for managing instance configurations.
 """
 
+import logging
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,18 +11,49 @@ from pydantic import BaseModel, Field
 
 from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig
+from src.channels.base import ChannelHandlerFactory, QRCodeResponse, ConnectionStatus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/instances/supported-channels")
+async def get_supported_channels(
+    api_key: str = Depends(verify_api_key)
+):
+    """Get list of supported channel types."""
+    try:
+        supported_channels = ChannelHandlerFactory.get_supported_channels()
+        return {
+            "supported_channels": supported_channels,
+            "total_channels": len(supported_channels)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get supported channels: {str(e)}"
+        )
 
 
 # Pydantic models for API
 class InstanceConfigCreate(BaseModel):
     """Schema for creating instance configuration."""
     name: str
-    evolution_url: str = ""
-    evolution_key: str = ""
-    whatsapp_instance: str
-    session_id_prefix: Optional[str] = None
+    channel_type: str = Field(default="whatsapp", description="Channel type: whatsapp, slack, discord")
+    
+    # Channel-specific fields (optional based on type)
+    evolution_url: Optional[str] = Field(None, description="Evolution API URL (WhatsApp)")
+    evolution_key: Optional[str] = Field(None, description="Evolution API key (WhatsApp)")
+    whatsapp_instance: Optional[str] = Field(None, description="WhatsApp instance name")
+    session_id_prefix: Optional[str] = Field(None, description="Session ID prefix (WhatsApp)")
+    
+    # WhatsApp-specific creation parameters (not stored in DB)
+    phone_number: Optional[str] = Field(None, description="Phone number for WhatsApp")
+    auto_qr: Optional[bool] = Field(True, description="Auto-generate QR code (WhatsApp)")
+    integration: Optional[str] = Field("WHATSAPP-BAILEYS", description="WhatsApp integration type")
+    
+    # Common agent configuration
     agent_api_url: str
     agent_api_key: str
     default_agent: str
@@ -31,6 +63,7 @@ class InstanceConfigCreate(BaseModel):
 
 class InstanceConfigUpdate(BaseModel):
     """Schema for updating instance configuration."""
+    channel_type: Optional[str] = None
     evolution_url: Optional[str] = None
     evolution_key: Optional[str] = None
     whatsapp_instance: Optional[str] = None
@@ -46,9 +79,10 @@ class InstanceConfigResponse(BaseModel):
     """Schema for instance configuration response."""
     id: int
     name: str
-    evolution_url: str
-    evolution_key: str
-    whatsapp_instance: str
+    channel_type: str
+    evolution_url: Optional[str]
+    evolution_key: Optional[str]
+    whatsapp_instance: Optional[str]
     session_id_prefix: Optional[str]
     agent_api_url: str
     agent_api_key: str
@@ -63,12 +97,12 @@ class InstanceConfigResponse(BaseModel):
 
 
 @router.post("/instances", response_model=InstanceConfigResponse, status_code=status.HTTP_201_CREATED)
-def create_instance(
+async def create_instance(
     instance_data: InstanceConfigCreate,
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key)
 ):
-    """Create a new instance configuration."""
+    """Create a new instance configuration with channel-specific setup."""
     
     # Check if instance name already exists
     existing = db.query(InstanceConfig).filter_by(name=instance_data.name).first()
@@ -78,15 +112,64 @@ def create_instance(
             detail=f"Instance '{instance_data.name}' already exists"
         )
     
+    # Validate channel type
+    try:
+        handler = ChannelHandlerFactory.get_handler(instance_data.channel_type)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
     # If setting as default, unset other defaults
     if instance_data.is_default:
         db.query(InstanceConfig).filter_by(is_default=True).update({"is_default": False})
     
-    # Create new instance
-    db_instance = InstanceConfig(**instance_data.dict())
+    # Create database instance first (without creation parameters)
+    db_instance_data = instance_data.dict(exclude={"phone_number", "auto_qr", "integration"})
+    
+    # Set channel-specific defaults for WhatsApp
+    if instance_data.channel_type == "whatsapp":
+        if not db_instance_data.get("whatsapp_instance"):
+            db_instance_data["whatsapp_instance"] = instance_data.name
+        if not db_instance_data.get("session_id_prefix"):
+            db_instance_data["session_id_prefix"] = f"{instance_data.name}-"
+    
+    db_instance = InstanceConfig(**db_instance_data)
     db.add(db_instance)
     db.commit()
     db.refresh(db_instance)
+    
+    # Create instance in external service if needed
+    try:
+        if instance_data.channel_type == "whatsapp":
+            creation_result = await handler.create_instance(
+                db_instance,
+                phone_number=instance_data.phone_number,
+                auto_qr=instance_data.auto_qr,
+                integration=instance_data.integration
+            )
+            
+            # Update instance with Evolution API details
+            if "evolution_apikey" in creation_result:
+                db_instance.evolution_key = creation_result["evolution_apikey"]
+                db.commit()
+                db.refresh(db_instance)
+            
+            # Log whether we used existing or created new
+            if creation_result.get("existing_instance"):
+                logger.info(f"Using existing Evolution instance for '{instance_data.name}'")
+            else:
+                logger.info(f"Created new Evolution instance for '{instance_data.name}'")
+    
+    except Exception as e:
+        # Rollback database if external service creation fails
+        db.delete(db_instance)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create {instance_data.channel_type} instance: {str(e)}"
+        )
     
     return db_instance
 
@@ -219,3 +302,184 @@ def set_default_instance(
     db.refresh(instance)
     
     return instance
+
+
+# Channel-specific operations
+@router.get("/instances/{instance_name}/qr", response_model=QRCodeResponse)
+async def get_instance_qr_code(
+    instance_name: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get QR code or connection info for any channel type."""
+    
+    # Get instance from database
+    instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found"
+        )
+    
+    try:
+        # Get channel-specific handler
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        
+        # Get QR code/connection info
+        result = await handler.get_qr_code(instance)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported channel type '{instance.channel_type}': {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get connection info: {str(e)}"
+        )
+
+
+@router.get("/instances/{instance_name}/status", response_model=ConnectionStatus)
+async def get_instance_status(
+    instance_name: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get connection status for any channel type."""
+    
+    # Get instance from database
+    instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found"
+        )
+    
+    try:
+        # Get channel-specific handler
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        
+        # Get status
+        result = await handler.get_status(instance)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported channel type '{instance.channel_type}': {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get status: {str(e)}"
+        )
+
+
+@router.post("/instances/{instance_name}/restart")
+async def restart_instance(
+    instance_name: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
+):
+    """Restart instance connection for any channel type."""
+    
+    # Get instance from database
+    instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found"
+        )
+    
+    try:
+        # Get channel-specific handler
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        
+        # Restart instance
+        result = await handler.restart_instance(instance)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported channel type '{instance.channel_type}': {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to restart instance: {str(e)}"
+        )
+
+
+@router.post("/instances/{instance_name}/logout")
+async def logout_instance(
+    instance_name: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
+):
+    """Logout/disconnect instance for any channel type."""
+    
+    # Get instance from database
+    instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found"
+        )
+    
+    try:
+        # Get channel-specific handler
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        
+        # Logout instance
+        result = await handler.logout_instance(instance)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported channel type '{instance.channel_type}': {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to logout instance: {str(e)}"
+        )
+
+
+@router.delete("/instances/{instance_name}/channel")
+async def delete_instance_from_channel(
+    instance_name: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
+):
+    """Delete instance from external channel service (but keep in database)."""
+    
+    # Get instance from database
+    instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found"
+        )
+    
+    try:
+        # Get channel-specific handler
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        
+        # Delete from external service
+        result = await handler.delete_instance(instance)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported channel type '{instance.channel_type}': {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete from channel service: {str(e)}"
+        )

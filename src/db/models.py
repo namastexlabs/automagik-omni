@@ -19,14 +19,21 @@ class InstanceConfig(Base):
     
     # Instance identification
     name = Column(String, unique=True, index=True, nullable=False)  # e.g., "flashinho_v2"
+    channel_type = Column(String, default="whatsapp", nullable=False)  # "whatsapp", "slack", "discord"
     
-    # Evolution API configuration
-    evolution_url = Column(String, nullable=False)
-    evolution_key = Column(String, nullable=False)
+    # Evolution API configuration (WhatsApp-specific)
+    evolution_url = Column(String, nullable=True)  # Made nullable for other channels
+    evolution_key = Column(String, nullable=True)  # Made nullable for other channels
     
-    # WhatsApp instance configuration
-    whatsapp_instance = Column(String, nullable=False)
-    session_id_prefix = Column(String, nullable=True)
+    # Channel-specific configuration  
+    whatsapp_instance = Column(String, nullable=True)  # WhatsApp: instance name
+    session_id_prefix = Column(String, nullable=True)  # WhatsApp: session prefix
+    
+    # Future channel-specific fields (to be added as needed)
+    # slack_bot_token = Column(String, nullable=True)
+    # slack_workspace = Column(String, nullable=True) 
+    # discord_token = Column(String, nullable=True)
+    # discord_guild_id = Column(String, nullable=True)
     
     # Agent API configuration
     agent_api_url = Column(String, nullable=False)

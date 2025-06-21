@@ -33,6 +33,7 @@ def ensure_default_instance(db: Session) -> InstanceConfig:
         # Create default instance from current config
         default_instance = InstanceConfig(
             name="default",
+            channel_type="whatsapp",  # Default to WhatsApp for backward compatibility
             evolution_url="",  # Evolution URL comes from webhook payload
             evolution_key="",  # Evolution key comes from webhook payload
             whatsapp_instance=config.whatsapp.instance,
@@ -85,6 +86,7 @@ def create_instance_from_env(db: Session, name: str, make_default: bool = False)
     
     instance = InstanceConfig(
         name=name,
+        channel_type="whatsapp",  # Default to WhatsApp for backward compatibility
         evolution_url="",  # Will be set from webhook payload
         evolution_key="",  # Will be set from webhook payload
         whatsapp_instance=config.whatsapp.instance,

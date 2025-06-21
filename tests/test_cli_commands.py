@@ -127,16 +127,17 @@ class TestInstanceCLI:
         assert result.exit_code == 0
         assert "Instance 'default' updated successfully" in result.stdout
         
-        # Verify updates
-        mock_db_session.refresh(default_instance_config)
-        assert default_instance_config.agent_timeout == 180
-        assert default_instance_config.session_id_prefix == "updated_"
+        # Verify updates - refetch from database instead of refresh
+        updated_instance = mock_db_session.query(InstanceConfig).filter_by(name="default").first()
+        assert updated_instance.agent_timeout == 180
+        assert updated_instance.session_id_prefix == "updated_"
     
     def test_update_instance_make_default(self, cli_runner, mock_db_session, test_db):
         """Test updating instance to make it default."""
         # Create two instances
         instance1 = InstanceConfig(
             name="update1",
+            channel_type="whatsapp",
             whatsapp_instance="test1",
             agent_api_url="http://agent1.com",
             agent_api_key="key1",
@@ -145,6 +146,7 @@ class TestInstanceCLI:
         )
         instance2 = InstanceConfig(
             name="update2",
+            channel_type="whatsapp",
             whatsapp_instance="test2",
             agent_api_url="http://agent2.com",
             agent_api_key="key2",
@@ -164,11 +166,11 @@ class TestInstanceCLI:
         assert "Instance 'update2' updated successfully" in result.stdout
         assert "Instance 'update2' set as default" in result.stdout
         
-        # Verify default change
-        test_db.refresh(instance1)
-        test_db.refresh(instance2)
-        assert instance1.is_default is False
-        assert instance2.is_default is True
+        # Verify default change - refetch from database instead of refresh
+        updated_instance1 = test_db.query(InstanceConfig).filter_by(name="update1").first()
+        updated_instance2 = test_db.query(InstanceConfig).filter_by(name="update2").first()
+        assert updated_instance1.is_default is False
+        assert updated_instance2.is_default is True
     
     def test_update_instance_not_found(self, cli_runner, mock_db_session):
         """Test updating non-existent instance."""
@@ -182,15 +184,26 @@ class TestInstanceCLI:
     
     def test_delete_instance_success(self, cli_runner, mock_db_session, test_db):
         """Test deleting instance with confirmation."""
-        # Create instance to delete (not default)
-        instance = InstanceConfig(
+        # Create two instances (need at least 2 to delete one)
+        instance1 = InstanceConfig(
+            name="keep_me",
+            channel_type="whatsapp",
+            whatsapp_instance="keep_test",
+            agent_api_url="http://keep.com",
+            agent_api_key="keep_key",
+            default_agent="keep_agent",
+            is_default=True
+        )
+        instance2 = InstanceConfig(
             name="delete_me",
+            channel_type="whatsapp",
             whatsapp_instance="delete_test",
             agent_api_url="http://delete.com",
             agent_api_key="delete_key",
             default_agent="delete_agent"
         )
-        test_db.add(instance)
+        test_db.add(instance1)
+        test_db.add(instance2)
         test_db.commit()
         
         # Delete with force flag (no confirmation)
@@ -207,15 +220,26 @@ class TestInstanceCLI:
     
     def test_delete_instance_with_confirmation(self, cli_runner, mock_db_session, test_db):
         """Test deleting instance with interactive confirmation."""
-        # Create instance to delete
-        instance = InstanceConfig(
+        # Create two instances (need at least 2 to delete one)
+        instance1 = InstanceConfig(
+            name="keep_confirm",
+            channel_type="whatsapp",
+            whatsapp_instance="keep_test",
+            agent_api_url="http://keep.com",
+            agent_api_key="keep_key",
+            default_agent="keep_agent",
+            is_default=True
+        )
+        instance2 = InstanceConfig(
             name="confirm_delete",
+            channel_type="whatsapp",
             whatsapp_instance="confirm_test",
             agent_api_url="http://confirm.com",
             agent_api_key="confirm_key",
             default_agent="confirm_agent"
         )
-        test_db.add(instance)
+        test_db.add(instance1)
+        test_db.add(instance2)
         test_db.commit()
         
         # Delete with confirmation (simulate 'y' input)
@@ -229,15 +253,26 @@ class TestInstanceCLI:
     
     def test_delete_instance_cancel_confirmation(self, cli_runner, mock_db_session, test_db):
         """Test canceling instance deletion."""
-        # Create instance
-        instance = InstanceConfig(
+        # Create two instances (need at least 2 to delete one)
+        instance1 = InstanceConfig(
+            name="keep_cancel",
+            channel_type="whatsapp",
+            whatsapp_instance="keep_test",
+            agent_api_url="http://keep.com",
+            agent_api_key="keep_key",
+            default_agent="keep_agent",
+            is_default=True
+        )
+        instance2 = InstanceConfig(
             name="cancel_delete",
+            channel_type="whatsapp",
             whatsapp_instance="cancel_test",
             agent_api_url="http://cancel.com",
             agent_api_key="cancel_key",
             default_agent="cancel_agent"
         )
-        test_db.add(instance)
+        test_db.add(instance1)
+        test_db.add(instance2)
         test_db.commit()
         
         # Cancel deletion (simulate 'n' input)
@@ -275,6 +310,7 @@ class TestInstanceCLI:
         # Create two instances
         instance1 = InstanceConfig(
             name="set_default1",
+            channel_type="whatsapp",
             whatsapp_instance="test1",
             agent_api_url="http://agent1.com",
             agent_api_key="key1",
@@ -283,6 +319,7 @@ class TestInstanceCLI:
         )
         instance2 = InstanceConfig(
             name="set_default2",
+            channel_type="whatsapp",
             whatsapp_instance="test2",
             agent_api_url="http://agent2.com",
             agent_api_key="key2",
@@ -298,11 +335,11 @@ class TestInstanceCLI:
         assert result.exit_code == 0
         assert "Instance 'set_default2' set as default" in result.stdout
         
-        # Verify default change
-        test_db.refresh(instance1)
-        test_db.refresh(instance2)
-        assert instance1.is_default is False
-        assert instance2.is_default is True
+        # Verify default change - refetch from database instead of refresh
+        updated_instance1 = test_db.query(InstanceConfig).filter_by(name="set_default1").first()
+        updated_instance2 = test_db.query(InstanceConfig).filter_by(name="set_default2").first()
+        assert updated_instance1.is_default is False
+        assert updated_instance2.is_default is True
     
     def test_set_default_instance_not_found(self, cli_runner, mock_db_session):
         """Test setting non-existent instance as default."""
@@ -329,7 +366,7 @@ class TestInstanceCLI:
         result = cli_runner.invoke(cli_app, [
             "bootstrap",
             "--name", "custom_env",
-            "--make-default", "false"
+            "--no-make-default"
         ])
         
         assert result.exit_code == 0
