@@ -51,10 +51,27 @@ class WhatsAppConfig(BaseModel):
     typing_indicator_duration: int = Field(default_factory=lambda: int(os.getenv("TYPING_INDICATOR_DURATION", "10")))
     instance: str = Field(default_factory=lambda: os.getenv("WHATSAPP_INSTANCE", "dev_wpp"))
 
+class DatabaseConfig(BaseModel):
+    """Database configuration."""
+    sqlite_path: str = Field(default_factory=lambda: os.getenv("SQLITE_DB_PATH", "./data/omnihub.db"))
+    url: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", ""))
+    
+    @property
+    def database_url(self) -> str:
+        """Get the complete database URL."""
+        if self.url:
+            return self.url
+        # Auto-construct SQLite URL from path
+        return f"sqlite:///{self.sqlite_path}"
+
 class ApiConfig(BaseModel):
     """API Server configuration."""
     host: str = Field(default_factory=lambda: os.getenv("API_HOST", "0.0.0.0"))
     port: int = Field(default_factory=lambda: int(os.getenv("API_PORT", "8000")))
+    api_key: str = Field(default_factory=lambda: os.getenv("OMNI_HUB_API_KEY", ""))
+    title: str = "Omni-Hub API"
+    description: str = "Multi-tenant WhatsApp instance management API"
+    version: str = "0.2.0"
 
 class Config(BaseModel):
     """Main application configuration."""
@@ -64,6 +81,7 @@ class Config(BaseModel):
     logging: LoggingConfig = LoggingConfig()
     whatsapp: WhatsAppConfig = WhatsAppConfig()
     api: ApiConfig = ApiConfig()
+    database: DatabaseConfig = DatabaseConfig()
     
     @property
     def is_valid(self) -> bool:

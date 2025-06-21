@@ -11,6 +11,7 @@ from src.config import config
 from src.services.agent_service import agent_service
 from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
 from src.api.deps import get_database, get_instance_by_name
+from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
 from src.db.database import create_tables
 from src.db.bootstrap import ensure_default_instance
@@ -21,11 +22,28 @@ logger = logging.getLogger("src.api.app")
 # Create database tables on startup
 create_tables()
 
-# Create FastAPI app
+# Create FastAPI app with authentication configuration
 app = FastAPI(
-    title="Omni Hub API",
-    description="Multi-tenant API for receiving webhooks from Evolution API",
-    version="0.2.0"
+    title=config.api.title,
+    description=config.api.description,
+    version=config.api.version,
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
+    openapi_url="/api/v1/openapi.json",
+    openapi_tags=[
+        {
+            "name": "instances",
+            "description": "Multi-tenant instance management"
+        },
+        {
+            "name": "webhooks", 
+            "description": "Webhook endpoints for receiving messages"
+        },
+        {
+            "name": "health",
+            "description": "Health check and status endpoints"
+        }
+    ]
 )
 
 # Include instance management routes
@@ -39,6 +57,63 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Custom OpenAPI schema with Bearer token authentication
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=config.api.title,
+        version=config.api.version,
+        description=config.api.description,
+        routes=app.routes,
+    )
+    
+    # Add Bearer token authentication scheme
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    if "securitySchemes" not in openapi_schema["components"]:
+        openapi_schema["components"]["securitySchemes"] = {}
+        
+    openapi_schema["components"]["securitySchemes"]["bearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your API key as a Bearer token"
+    }
+    
+    # Apply security globally to all /api/v1 endpoints (except health)
+    for path, path_item in openapi_schema.get("paths", {}).items():
+        if path.startswith("/api/v1/") and path != "/health":
+            for method, operation in path_item.items():
+                if method.lower() in ["get", "post", "put", "delete", "patch"]:
+                    if "security" not in operation:
+                        operation["security"] = [{"bearerAuth": []}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
+# Initialize default instance on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup."""
+    from src.db.database import get_db
+    from src.db.bootstrap import ensure_default_instance
+    
+    logger.info("Initializing application...")
+    
+    # Create default instance from .env if none exist
+    db = next(get_db())
+    try:
+        default_instance = ensure_default_instance(db)
+        logger.info(f"Default instance ready: {default_instance.name}")
+    except Exception as e:
+        logger.error(f"Failed to initialize default instance: {e}")
+    finally:
+        db.close()
 
 @app.get("/health")
 async def health_check():

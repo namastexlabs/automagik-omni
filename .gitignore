@@ -181,6 +181,7 @@ temp/*
 
 # Omni-Hub specific
 omnihub.db
+data/
 logs/
 backups/
 *.tar.gz

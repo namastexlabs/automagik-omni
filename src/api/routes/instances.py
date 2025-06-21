@@ -3,11 +3,12 @@ CRUD API for managing instance configurations.
 """
 
 from typing import List, Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from src.api.deps import get_database
+from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig
 
 router = APIRouter()
@@ -54,8 +55,8 @@ class InstanceConfigResponse(BaseModel):
     default_agent: str
     agent_timeout: int
     is_default: bool
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -64,7 +65,8 @@ class InstanceConfigResponse(BaseModel):
 @router.post("/instances", response_model=InstanceConfigResponse, status_code=status.HTTP_201_CREATED)
 def create_instance(
     instance_data: InstanceConfigCreate,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
 ):
     """Create a new instance configuration."""
     
@@ -93,7 +95,8 @@ def create_instance(
 def list_instances(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
 ):
     """List all instance configurations."""
     instances = db.query(InstanceConfig).offset(skip).limit(limit).all()
@@ -103,7 +106,8 @@ def list_instances(
 @router.get("/instances/{instance_name}", response_model=InstanceConfigResponse)
 def get_instance(
     instance_name: str,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
 ):
     """Get a specific instance configuration."""
     instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
@@ -119,7 +123,8 @@ def get_instance(
 def update_instance(
     instance_name: str,
     instance_data: InstanceConfigUpdate,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
 ):
     """Update an instance configuration."""
     
@@ -148,7 +153,8 @@ def update_instance(
 @router.delete("/instances/{instance_name}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_instance(
     instance_name: str,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
 ):
     """Delete an instance configuration."""
     
@@ -174,7 +180,10 @@ def delete_instance(
 
 
 @router.get("/instances/{instance_name}/default", response_model=InstanceConfigResponse)
-def get_default_instance(db: Session = Depends(get_database)):
+def get_default_instance(
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
+):
     """Get the default instance configuration."""
     default_instance = db.query(InstanceConfig).filter_by(is_default=True).first()
     if not default_instance:
@@ -188,7 +197,8 @@ def get_default_instance(db: Session = Depends(get_database)):
 @router.post("/instances/{instance_name}/set-default", response_model=InstanceConfigResponse)
 def set_default_instance(
     instance_name: str,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
 ):
     """Set an instance as the default."""
     
