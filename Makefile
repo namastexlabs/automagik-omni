@@ -42,7 +42,7 @@ SYSTEMCTL := systemctl
 -include .env
 export
 
-# Default values
+# Default values (will be overridden by .env if present)
 HOST ?= 127.0.0.1
 PORT ?= 8000
 LOG_LEVEL ?= info
@@ -181,8 +181,13 @@ install: ## Install project dependencies
 dev: ## Start development server with auto-reload
 	$(call check_prerequisites)
 	$(call ensure_env_file)
-	$(call print_status,Starting development server on $(HOST):$(PORT))
-	@$(UV) run uvicorn src.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
+	$(call print_status,Starting development server with auto-reload)
+	@if [ -f .env ]; then \
+		export $$(cat .env | grep -v '^#' | xargs) && \
+		$(UV) run uvicorn src.api.app:app --host $${API_HOST:-127.0.0.1} --port $${API_PORT:-8000} --reload --log-level $$(echo "$${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]'); \
+	else \
+		$(UV) run uvicorn src.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
+	fi
 
 .PHONY: test
 test: ## Run the test suite
