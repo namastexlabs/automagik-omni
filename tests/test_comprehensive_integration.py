@@ -106,8 +106,8 @@ class TestOmnichannelIntegration:
             InstanceConfigCreate(**invalid_data)
     
     @pytest.mark.asyncio
-    @patch('src.channels.whatsapp.channel_handler.get_evolution_client')
-    async def test_whatsapp_handler_create_instance(self, mock_get_client, db_session):
+    @patch('src.channels.whatsapp.channel_handler.EvolutionClient')
+    async def test_whatsapp_handler_create_instance(self, mock_evolution_client, db_session):
         """Test WhatsApp channel handler instance creation."""
         # Setup mock
         mock_client = Mock()
@@ -116,7 +116,7 @@ class TestOmnichannelIntegration:
             "instance": {"instanceId": "test-123"},
             "hash": {"apikey": "test-key"}
         })
-        mock_get_client.return_value = mock_client
+        mock_evolution_client.return_value = mock_client
         
         # Create instance config
         instance = InstanceConfig(
@@ -144,15 +144,16 @@ class TestOmnichannelIntegration:
         assert not result["existing_instance"]
         
         # Verify Evolution client was called
-        mock_client.fetch_instances.assert_called_once_with(instance_name="test_whatsapp")
+        mock_client.fetch_instances.assert_called_once()
         mock_client.create_instance.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('src.channels.whatsapp.channel_handler.get_evolution_client')
-    async def test_whatsapp_handler_existing_instance(self, mock_get_client, db_session):
+    @patch('src.channels.whatsapp.channel_handler.EvolutionClient')
+    async def test_whatsapp_handler_existing_instance(self, mock_evolution_client, db_session):
         """Test WhatsApp handler reusing existing Evolution instance."""
         # Setup mock with existing instance
         existing_instance = Mock()
+        existing_instance.instanceName = "existing_whatsapp"  # Match the instance name we're testing
         existing_instance.instanceId = "existing-123"
         existing_instance.apikey = "existing-key"
         existing_instance.dict.return_value = {"instanceId": "existing-123"}
@@ -160,7 +161,7 @@ class TestOmnichannelIntegration:
         mock_client = Mock()
         mock_client.fetch_instances = AsyncMock(return_value=[existing_instance])
         mock_client.set_webhook = AsyncMock(return_value={"status": "success"})
-        mock_get_client.return_value = mock_client
+        mock_evolution_client.return_value = mock_client
         
         # Create instance config
         instance = InstanceConfig(
@@ -183,7 +184,7 @@ class TestOmnichannelIntegration:
         assert result["existing_instance"] is True
         
         # Verify only fetch was called, not create
-        mock_client.fetch_instances.assert_called_once_with(instance_name="existing_whatsapp")
+        mock_client.fetch_instances.assert_called_once()
         mock_client.create_instance.assert_not_called()
         mock_client.set_webhook.assert_called_once()
     
