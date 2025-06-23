@@ -197,11 +197,19 @@ test: ## Run the test suite
 	$(call print_success,Tests completed)
 
 .PHONY: test-coverage
-test-coverage: ## Run tests with coverage report
+test-coverage: ## Run tests with detailed coverage report (HTML + terminal)
 	$(call check_prerequisites)
 	$(call print_status,Running tests with coverage)
-	@$(UV) run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing
+	@$(UV) run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing --cov-report=term:skip-covered
 	$(call print_info,Coverage report generated in htmlcov/)
+	$(call print_info,Open htmlcov/index.html in browser to view detailed report)
+
+.PHONY: test-coverage-summary
+test-coverage-summary: ## Show coverage summary only
+	$(call check_prerequisites)
+	$(call print_status,Running coverage summary)
+	@$(UV) run pytest tests/ --cov=src --cov-report=term --tb=no -q
+	$(call print_success,Coverage summary completed)
 
 .PHONY: lint
 lint: ## Run code linting with ruff
