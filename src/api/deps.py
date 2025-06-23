@@ -2,6 +2,7 @@
 FastAPI dependency injection for database and services.
 """
 
+import logging
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -14,6 +15,9 @@ from src.config import config
 
 # Security scheme for API key authentication
 security = HTTPBearer()
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 
 def get_database() -> Generator[Session, None, None]:
@@ -110,8 +114,6 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
         def protected_endpoint(api_key: str = Depends(verify_api_key)):
             return {"message": "Access granted"}
     """
-    import logging
-    logger = logging.getLogger(__name__)
     
     if not config.api.api_key:
         # If no API key is configured, allow access (development mode)

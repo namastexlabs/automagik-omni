@@ -14,7 +14,7 @@ from typing import Any
 load_dotenv(override=True)  
 
 # Get logger for this module
-logger = logging.getLogger("src.config")
+logger = logging.getLogger(__name__)
 
 class RabbitMQConfig(BaseModel):
     """RabbitMQ configuration (DISABLED - HTTP webhooks only)."""

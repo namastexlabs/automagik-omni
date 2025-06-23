@@ -5,7 +5,7 @@ WhatsApp channel handler using Evolution API.
 import logging
 from typing import Dict, Any
 from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
-from src.channels.whatsapp.evolution_client import get_evolution_client, EvolutionCreateRequest
+from src.channels.whatsapp.evolution_client import get_evolution_client, EvolutionCreateRequest, EvolutionClient
 from src.db.models import InstanceConfig
 from src.config import config
 
@@ -15,15 +15,39 @@ logger = logging.getLogger(__name__)
 class WhatsAppChannelHandler(ChannelHandler):
     """WhatsApp channel handler implementation."""
     
+    def _get_evolution_client(self, instance: InstanceConfig) -> EvolutionClient:
+        """Get Evolution client for this specific instance."""
+        # Use instance-specific credentials if available, otherwise fall back to global
+        evolution_url = instance.evolution_url or config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
+        evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
+        
+        logger.debug(f"Instance config - URL: {instance.evolution_url}, Key: {'*' * len(instance.evolution_key) if instance.evolution_key else 'NOT SET'}")
+        logger.debug(f"Final config - URL: {evolution_url}, Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}")
+        
+        if not evolution_key:
+            logger.error("Evolution API key not configured for instance and no global key available")
+            raise Exception("Evolution API key not configured for instance and no global key available")
+            
+        logger.debug(f"Creating Evolution client for instance '{instance.name}' - URL: {evolution_url}")
+        logger.debug(f"Using Evolution API key: {evolution_key[:8]}{'*' * (len(evolution_key)-8) if len(evolution_key) > 8 else evolution_key}")
+        
+        return EvolutionClient(evolution_url, evolution_key)
+    
     async def create_instance(self, instance: InstanceConfig, **kwargs) -> Dict[str, Any]:
         """Create a new WhatsApp instance in Evolution API or use existing one."""
         try:
-            evolution_client = get_evolution_client()
+            evolution_client = self._get_evolution_client(instance)
             
             # First, check if an Evolution instance with this name already exists
             logger.info(f"Checking if Evolution instance '{instance.name}' already exists...")
             
-            existing_instances = await evolution_client.fetch_instances(instance_name=instance.name)
+            # Fetch all instances and filter locally to avoid 404 errors
+            try:
+                all_instances = await evolution_client.fetch_instances()
+                existing_instances = [inst for inst in all_instances if inst.instanceName == instance.name]
+            except Exception as fetch_error:
+                logger.warning(f"Could not fetch existing instances: {fetch_error}")
+                existing_instances = []
             
             if existing_instances:
                 # Instance already exists, use it
@@ -58,33 +82,31 @@ class WhatsAppChannelHandler(ChannelHandler):
             # Set webhook URL automatically
             webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
             
-            # Prepare Evolution API request
+            # Prepare Evolution API request (without webhook initially to avoid 403 errors)
             evolution_request = EvolutionCreateRequest(
                 instanceName=instance.name,
                 integration=integration,
                 qrcode=auto_qr,
-                number=phone_number,
-                webhook={
-                    "url": webhook_url,
-                    "byEvents": True,
-                    "base64": True,
-                    "events": [
-                        "QRCODE_UPDATED",
-                        "CONNECTION_UPDATE", 
-                        "MESSAGES_UPSERT",
-                        "MESSAGES_UPDATE", 
-                        "SEND_MESSAGE"
-                    ]
-                }
+                number=phone_number
             )
             
             response = await evolution_client.create_instance(evolution_request)
             logger.info(f"WhatsApp instance created: {response}")
+            logger.debug(f"Response type: {type(response)}")
+            
+            # Handle different response formats from Evolution API
+            if isinstance(response, dict):
+                evolution_instance_id = response.get("instance", {}).get("instanceId") if isinstance(response.get("instance"), dict) else None
+                evolution_apikey = response.get("hash", {}).get("apikey") if isinstance(response.get("hash"), dict) else response.get("hash")
+            else:
+                logger.warning(f"Unexpected response format from Evolution API: {response}")
+                evolution_instance_id = None
+                evolution_apikey = None
             
             return {
                 "evolution_response": response,
-                "evolution_instance_id": response.get("instance", {}).get("instanceId"),
-                "evolution_apikey": response.get("hash", {}).get("apikey"),
+                "evolution_instance_id": evolution_instance_id,
+                "evolution_apikey": evolution_apikey,
                 "webhook_url": webhook_url,
                 "existing_instance": False
             }
@@ -96,18 +118,50 @@ class WhatsAppChannelHandler(ChannelHandler):
     async def get_qr_code(self, instance: InstanceConfig) -> QRCodeResponse:
         """Get QR code for WhatsApp connection."""
         try:
-            evolution_client = get_evolution_client()
+            logger.debug(f"=== QR CODE REQUEST START for {instance.name} ===")
+            logger.debug(f"Instance evolution_url: {instance.evolution_url}")
+            logger.debug(f"Instance evolution_key: {instance.evolution_key[:8] if instance.evolution_key else 'None'}...")
+            
+            evolution_client = self._get_evolution_client(instance)
+            logger.debug(f"Evolution client created successfully")
+            
+            logger.debug(f"Calling Evolution API connect for instance: {instance.name}")
             connect_response = await evolution_client.connect_instance(instance.name)
+            logger.debug(f"Evolution connect response type: {type(connect_response)}")
+            logger.debug(f"Evolution connect response: {connect_response}")
             
             qr_code = None
             message = "QR code not available"
             
             # Extract QR code from response
-            if "qrcode" in connect_response:
-                qr_code = connect_response["qrcode"].get("base64")
-                message = "QR code ready for scanning"
-            elif "message" in connect_response:
-                message = connect_response["message"]
+            if isinstance(connect_response, dict):
+                logger.debug(f"Response is dict with keys: {list(connect_response.keys())}")
+                
+                # Check for QR code in direct base64 field (Evolution API v2.x format)
+                if "base64" in connect_response and connect_response["base64"]:
+                    qr_code = connect_response["base64"]
+                    logger.debug(f"Found QR code in base64 field, length: {len(qr_code)}")
+                    message = "QR code ready for scanning"
+                # Check for QR code in nested qrcode object (older format)
+                elif "qrcode" in connect_response:
+                    qrcode_data = connect_response["qrcode"]
+                    logger.debug(f"QRCode data type: {type(qrcode_data)}")
+                    if isinstance(qrcode_data, dict) and "base64" in qrcode_data:
+                        qr_code = qrcode_data.get("base64")
+                        logger.debug(f"Found QR code in nested format, length: {len(qr_code) if qr_code else 0}")
+                        message = "QR code ready for scanning"
+                    else:
+                        logger.debug(f"QRCode data format unexpected: {qrcode_data}")
+                elif "message" in connect_response:
+                    message = connect_response["message"]
+                    logger.debug(f"Connect response message: {message}")
+                else:
+                    logger.debug(f"No base64, qrcode, or message field in response")
+            else:
+                logger.debug(f"Response is not dict: {connect_response}")
+            
+            logger.debug(f"Final QR code result: {'FOUND' if qr_code else 'NOT FOUND'}")
+            logger.debug(f"=== QR CODE REQUEST END ===")
             
             return QRCodeResponse(
                 instance_name=instance.name,
@@ -119,6 +173,9 @@ class WhatsAppChannelHandler(ChannelHandler):
             
         except Exception as e:
             logger.error(f"Failed to get QR code for {instance.name}: {e}")
+            logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return QRCodeResponse(
                 instance_name=instance.name,
                 channel_type="whatsapp",
@@ -129,7 +186,7 @@ class WhatsAppChannelHandler(ChannelHandler):
     async def get_status(self, instance: InstanceConfig) -> ConnectionStatus:
         """Get WhatsApp connection status."""
         try:
-            evolution_client = get_evolution_client()
+            evolution_client = self._get_evolution_client(instance)
             state_response = await evolution_client.get_connection_state(instance.name)
             
             # Map Evolution states to generic states

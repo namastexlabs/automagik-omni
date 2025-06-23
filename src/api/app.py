@@ -7,7 +7,15 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
+# Import configuration first to ensure environment variables are loaded
 from src.config import config
+
+# Import and set up logging
+from src.logger import setup_logging
+
+# Set up logging with defaults from config
+setup_logging()
+
 from src.services.agent_service import agent_service
 from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
 from src.api.deps import get_database, get_instance_by_name
@@ -106,6 +114,7 @@ async def startup_event():
     from src.db.bootstrap import ensure_default_instance
     
     logger.info("Initializing application...")
+    logger.info(f"Log level set to: {config.logging.level}")
     
     # Create default instance from .env if none exist
     db = next(get_db())
@@ -194,9 +203,55 @@ def start_api():
     port = config.api.port if hasattr(config, 'api') and hasattr(config.api, 'port') else 8000
     
     logger.info(f"Starting FastAPI server on {host}:{port}")
+    
+    # Create custom logging config for uvicorn that completely suppresses its formatters
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "()": "src.logger.ColoredFormatter",
+                "fmt": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                "datefmt": "%H:%M:%S",
+                "use_colors": True,
+                "use_emojis": True,
+                "shorten_paths": True
+            },
+        },
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+        },
+        "loggers": {
+            "uvicorn": {
+                "handlers": ["default"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "uvicorn.error": {
+                "handlers": ["default"],
+                "level": "WARNING",
+                "propagate": False,
+            },
+            "uvicorn.access": {
+                "handlers": ["default"], 
+                "level": "WARNING",
+                "propagate": False,
+            },
+        },
+        "root": {
+            "level": "DEBUG",
+            "handlers": ["default"],
+        },
+    }
+    
     uvicorn.run(
         "src.api.app:app",
         host=host,
         port=port,
-        reload=False
+        reload=False,
+        log_config=log_config
     ) 

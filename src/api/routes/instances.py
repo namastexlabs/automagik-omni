@@ -313,20 +313,28 @@ async def get_instance_qr_code(
 ):
     """Get QR code or connection info for any channel type."""
     
+    logger.debug(f"QR CODE API: Request for instance {instance_name}")
+    
     # Get instance from database
     instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
     if not instance:
+        logger.error(f"QR CODE API: Instance {instance_name} not found in database")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Instance '{instance_name}' not found"
         )
     
+    logger.debug(f"QR CODE API: Found instance {instance_name}, channel_type: {instance.channel_type}")
+    
     try:
         # Get channel-specific handler
         handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        logger.debug(f"QR CODE API: Got handler {type(handler).__name__}")
         
         # Get QR code/connection info
+        logger.debug(f"QR CODE API: Calling handler.get_qr_code()")
         result = await handler.get_qr_code(instance)
+        logger.debug(f"QR CODE API: Handler returned {result}")
         return result
         
     except ValueError as e:

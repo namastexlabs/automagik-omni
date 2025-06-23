@@ -162,6 +162,28 @@ def setup_logging(level: Optional[str] = None, use_colors: bool = None,
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
     
+    # Control HTTP client logging to prevent duplicates
+    # Set HTTP client libraries to WARNING level to reduce noise
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    
+    # Configure uvicorn loggers to use our custom formatter
+    uvicorn_logger = logging.getLogger("uvicorn")
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_error_logger = logging.getLogger("uvicorn.error")
+    
+    # Remove uvicorn's default handlers and use our formatter
+    for uvicorn_log in [uvicorn_logger, uvicorn_access_logger, uvicorn_error_logger]:
+        uvicorn_log.handlers.clear()
+        uvicorn_log.propagate = True  # Let our root logger handle it
+    
+    # Set uvicorn to INFO level to reduce noise but keep important messages
+    uvicorn_logger.setLevel(logging.INFO)
+    uvicorn_access_logger.setLevel(logging.WARNING)  # Reduce HTTP access logs
+    uvicorn_error_logger.setLevel(logging.WARNING)
+    
     # Log that logging has been set up
     logger = logging.getLogger(__name__)
     logger.debug("Logging initialized with level: %s", level)

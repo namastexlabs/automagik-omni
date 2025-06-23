@@ -65,6 +65,14 @@ class EvolutionClient:
         """Make HTTP request to Evolution API."""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         
+        # DEBUG logging for request details
+        logger.debug(f"Evolution API Request: {method} {url}")
+        logger.debug(f"Request headers: {self.headers}")
+        if 'json' in kwargs:
+            logger.debug(f"Request body: {kwargs['json']}")
+        if 'params' in kwargs:
+            logger.debug(f"Request params: {kwargs['params']}")
+        
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.request(
@@ -74,22 +82,36 @@ class EvolutionClient:
                     timeout=30.0,
                     **kwargs
                 )
+                
+                # DEBUG logging for response details
+                logger.debug(f"Evolution API Response: {response.status_code}")
+                logger.debug(f"Response headers: {dict(response.headers)}")
+                logger.debug(f"Response body: {response.text}")
+                
                 response.raise_for_status()
                 return response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+                logger.debug(f"Failed request details - URL: {url}, Method: {method}")
+                logger.debug(f"Failed request headers: {self.headers}")
+                if 'json' in kwargs:
+                    logger.debug(f"Failed request body: {kwargs['json']}")
                 raise Exception(f"Evolution API error: {e.response.status_code}")
             except Exception as e:
                 logger.error(f"Evolution API request failed: {e}")
+                logger.debug(f"Failed request details - URL: {url}, Method: {method}")
+                logger.debug(f"Exception type: {type(e).__name__}")
                 raise Exception(f"Evolution API request failed: {str(e)}")
     
     async def create_instance(self, request: EvolutionCreateRequest) -> Dict[str, Any]:
         """Create a new WhatsApp instance in Evolution API."""
         logger.info(f"Creating Evolution instance: {request.instanceName}")
+        logger.debug(f"Instance creation request: {request.dict()}")
         
         # Set webhook URL if configured
         if not request.webhook and config.api.host and config.api.port:
             webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{request.instanceName}"
+            logger.debug(f"Auto-configuring webhook URL: {webhook_url}")
             request.webhook = {
                 "url": webhook_url,
                 "byEvents": True,
@@ -113,8 +135,21 @@ class EvolutionClient:
                     "NEW_JWT_TOKEN"
                 ]
             }
+            logger.debug(f"Webhook configuration: {request.webhook}")
+        else:
+            logger.debug(f"Using provided webhook config: {request.webhook}")
         
-        return await self._request("POST", "/instance/create", json=request.dict())
+        # Convert to dict and exclude None values to avoid Evolution API validation errors
+        payload = request.dict(exclude_none=True)
+        
+        # Remove optional fields that cause validation issues if empty
+        optional_fields_to_remove = ['token', 'msgCall', 'number']
+        for field in optional_fields_to_remove:
+            if field in payload and not payload[field]:
+                del payload[field]
+            
+        logger.debug(f"Final instance creation payload: {payload}")
+        return await self._request("POST", "/instance/create", json=payload)
     
     async def fetch_instances(self, instance_name: Optional[str] = None) -> List[EvolutionInstance]:
         """Fetch Evolution API instances."""
@@ -185,10 +220,15 @@ def get_evolution_client() -> EvolutionClient:
         evolution_url = config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         evolution_key = config.get_env("EVOLUTION_API_KEY", "")
         
+        logger.debug(f"Evolution API configuration - URL: {evolution_url}")
+        logger.debug(f"Evolution API configuration - Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}")
+        
         if not evolution_key:
+            logger.error("EVOLUTION_API_KEY not configured in environment")
             raise Exception("EVOLUTION_API_KEY not configured")
         
         evolution_client = EvolutionClient(evolution_url, evolution_key)
         logger.info(f"Evolution API client initialized: {evolution_url}")
+        logger.debug(f"Evolution API client headers: {evolution_client.headers}")
     
     return evolution_client
