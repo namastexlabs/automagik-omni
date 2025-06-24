@@ -197,6 +197,7 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
 
+
 async def _handle_evolution_webhook(instance_config, request: Request):
     """
     Core webhook handling logic shared between default and tenant endpoints.
@@ -214,6 +215,7 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         # Update the Evolution API sender with the webhook data
         # This sets the runtime configuration from the webhook payload
         evolution_api_sender.update_from_webhook(data)
+        
         
         # Process the message through the agent service
         # The agent service will now delegate to the WhatsApp handler

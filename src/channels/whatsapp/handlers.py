@@ -266,11 +266,22 @@ class WhatsAppMessageHandler:
                             media_meta = message_obj.get('documentMessage', {})
                         
                         # Build media_contents payload as expected by Agent API
+                        # PRIORITY 1: Use base64 data if available (preferred by agent API)
+                        base64_data = data.get('base64')
                         media_item = {
                             "alt_text": message_content or message_type,
-                            "media_url": media_url_to_send,
                             "mime_type": media_meta.get('mimetype', f"{message_type}/")
                         }
+                        
+                        if base64_data:
+                            # Use base64 data (preferred format for agent API)
+                            mime_type = media_meta.get('mimetype', 'application/octet-stream')
+                            media_item["data"] = f"data:{mime_type};base64,{base64_data}"
+                            logger.info(f"Using base64 data for agent API (size: {len(base64_data)} chars)")
+                        else:
+                            # Fallback to media URL if no base64 available
+                            media_item["media_url"] = media_url_to_send
+                            logger.warning(f"No base64 data available, using media URL: {self._truncate_url_for_logging(media_url_to_send)}")
                         
                         # Add type-specific metadata
                         if 'imageMessage' in message_obj or 'videoMessage' in message_obj:
@@ -374,14 +385,41 @@ class WhatsAppMessageHandler:
                 # Note: We're not using sleep anymore, just log the time
                 logger.info(f"Processing completed in {elapsed_time:.2f}s")
                 
+                # Extract message text and log additional information from agent response
+                if isinstance(agent_response, dict):
+                    # Full agent response structure
+                    message_text = agent_response.get('message', '')
+                    session_id = agent_response.get('session_id', 'unknown')
+                    success = agent_response.get('success', True)
+                    tool_calls = agent_response.get('tool_calls', [])
+                    usage = agent_response.get('usage', {})
+                    
+                    # Log detailed agent response information
+                    logger.info(f"Agent response - Session: {session_id}, Success: {success}, Tools used: {len(tool_calls)}")
+                    if usage:
+                        logger.debug(f"Agent usage stats: {usage}")
+                    if tool_calls:
+                        logger.debug(f"Tool calls made: {[tool.get('function', {}).get('name', 'unknown') for tool in tool_calls]}")
+                    
+                    # Use the extracted message text
+                    response_to_send = message_text
+                elif isinstance(agent_response, str):
+                    # Backward compatibility - direct string response
+                    response_to_send = agent_response
+                    logger.debug("Received legacy string response from agent")
+                else:
+                    # Fallback for unexpected response format
+                    response_to_send = str(agent_response)
+                    logger.warning(f"Unexpected agent response format: {type(agent_response)}")
+                
                 # Check if the response should be ignored
-                if isinstance(agent_response, str) and agent_response.startswith("AUTOMAGIK:"):
-                    logger.warning(f"Ignoring AUTOMAGIK message for user {user_dict['phone_number']}, session {session_name}: {agent_response}")
+                if isinstance(response_to_send, str) and response_to_send.startswith("AUTOMAGIK:"):
+                    logger.warning(f"Ignoring AUTOMAGIK message for user {user_dict['phone_number']}, session {session_name}: {response_to_send}")
                 else:
                     # Send the response immediately while the typing indicator is still active
                     response_result = self._send_whatsapp_response(
                         recipient=sender_id,
-                        text=agent_response
+                        text=response_to_send
                     )
                     
                     # Mark message as sent but let the typing indicator continue for a short time
@@ -774,6 +812,10 @@ class WhatsAppMessageHandler:
 # Singleton instance - initialized without a callback
 # The callback will be set later by the client
 message_handler = WhatsAppMessageHandler()
+
+# Set up the send response callback to use evolution_api_sender for webhook-based messaging
+from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
+message_handler.send_response_callback = evolution_api_sender.send_text_message
 
 # Start the message processing thread immediately
 message_handler.start()

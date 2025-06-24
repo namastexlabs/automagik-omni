@@ -212,30 +212,41 @@ class AgentApiClient:
                 try:
                     response_data = response.json()
                     
-                    # Extract message from response - API returns either 'message' or directly the message content
-                    if isinstance(response_data, dict) and 'message' in response_data:
-                        agent_message = response_data.get('message')
-                    else:
-                        agent_message = response_data
+                    # Return the full response structure to preserve all fields
+                    if isinstance(response_data, dict):
+                        # Log success with message info if available
+                        message_text = response_data.get('message', '')
+                        session_id = response_data.get('session_id', 'unknown')
+                        success = response_data.get('success', True)
                         
-                    # Handle the case where agent_message might be a dict
-                    if isinstance(agent_message, dict):
-                        if 'content' in agent_message:
-                            agent_message = agent_message.get('content', 'No response content')
-                        else:
-                            # Convert the dict to a string 
-                            agent_message = json.dumps(agent_message)
-                    
-                    # Log success
-                    message_length = len(agent_message) if isinstance(agent_message, str) else "non-string response"
-                    logger.info(f"Received response from agent ({message_length} chars)")
-                    
-                    return {"response": agent_message}
+                        message_length = len(message_text) if isinstance(message_text, str) else "non-string message"
+                        logger.info(f"Received response from agent ({message_length} chars), session: {session_id}, success: {success}")
+                        
+                        # Return the complete response structure
+                        return response_data
+                    else:
+                        # If response is not a dict, wrap it in the expected format
+                        logger.warning(f"Agent response is not a dict, wrapping: {type(response_data)}")
+                        return {
+                            "message": str(response_data),
+                            "success": True,
+                            "session_id": None,
+                            "tool_calls": [],
+                            "tool_outputs": [],
+                            "usage": {}
+                        }
                 except json.JSONDecodeError:
                     # Not a JSON response, try to use the raw text
                     text_response = response.text
                     logger.warning(f"Response was not valid JSON, using raw text: {text_response[:100]}...")
-                    return {"response": text_response}
+                    return {
+                        "message": text_response,
+                        "success": True,
+                        "session_id": None,
+                        "tool_calls": [],
+                        "tool_outputs": [],
+                        "usage": {}
+                    }
             else:
                 # Log error
                 logger.error(f"Error from agent API: {response.status_code} {response.text}")
@@ -294,10 +305,10 @@ class AgentApiClient:
                        context: Optional[Dict[str, Any]] = None,
                        channel_payload: Optional[Dict[str, Any]] = None,
                        session_origin: Optional[str] = None,
-                       preserve_system_prompt: bool = False) -> str:
+                       preserve_system_prompt: bool = False) -> Dict[str, Any]:
         """
         Process a message using the agent API.
-        This is a simplified wrapper around run_agent that returns just the response text.
+        This is a wrapper around run_agent that returns the full response structure.
         
         Args:
             message: The message to process
@@ -315,7 +326,7 @@ class AgentApiClient:
             preserve_system_prompt: Whether to preserve the system prompt
             
         Returns:
-            The response text from the agent
+            The full response structure from the agent including message, session_id, success, tool_calls, usage, etc.
         """
         if not agent_name:
             agent_name = self.default_agent_name
@@ -337,16 +348,32 @@ class AgentApiClient:
             preserve_system_prompt=preserve_system_prompt
         )
         
-        # Extract response
+        # Return the full response structure
         if isinstance(result, dict):
             if "error" in result:
-                return result.get("error", "Desculpe, encontrei um erro.")
-            elif "response" in result:
-                return result.get("response", "")
+                # Convert error to agent response format
+                return {
+                    "message": result.get("error", "Desculpe, encontrei um erro."),
+                    "success": False,
+                    "session_id": None,
+                    "tool_calls": [],
+                    "tool_outputs": [],
+                    "usage": {},
+                    "error": result.get("details", "")
+                }
             else:
-                return str(result)
+                # Return the full response (already in correct format from run_agent)
+                return result
         else:
-            return str(result)
+            # Convert non-dict result to agent response format
+            return {
+                "message": str(result),
+                "success": True,
+                "session_id": None,
+                "tool_calls": [],
+                "tool_outputs": [],
+                "usage": {}
+            }
 
 # Singleton instance
 agent_api_client = AgentApiClient() 
