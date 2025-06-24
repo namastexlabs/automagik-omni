@@ -54,18 +54,35 @@ class WhatsAppMessageHandler:
             self.processing_thread.join(timeout=5.0)
             logger.info("WhatsApp message handler stopped")
     
-    def handle_message(self, message: Dict[str, Any]):
+    def handle_message(self, message: Dict[str, Any], instance_config=None):
         """Queue a message for processing."""
-        self.message_queue.put(message)
+        # Add instance config to the message for processing
+        message_with_config = {
+            'message': message,
+            'instance_config': instance_config
+        }
+        self.message_queue.put(message_with_config)
         logger.debug(f"Message queued for processing: {message.get('event')}")
+        if instance_config:
+            logger.debug(f"Using instance config: {instance_config.name} -> Agent: {instance_config.default_agent}")
     
     def _process_messages_loop(self):
         """Process messages from the queue in a loop."""
         while self.is_running:
             try:
                 # Get message with timeout to allow for clean shutdown
-                message = self.message_queue.get(timeout=1.0)
-                self._process_message(message)
+                message_data = self.message_queue.get(timeout=1.0)
+                
+                # Extract message and instance config
+                if isinstance(message_data, dict) and 'message' in message_data:
+                    message = message_data['message']
+                    instance_config = message_data.get('instance_config')
+                else:
+                    # Backward compatibility for direct message data
+                    message = message_data
+                    instance_config = None
+                
+                self._process_message(message, instance_config)
                 self.message_queue.task_done()
             except queue.Empty:
                 # No messages, continue waiting
@@ -73,7 +90,7 @@ class WhatsAppMessageHandler:
             except Exception as e:
                 logger.error(f"Error processing message: {e}", exc_info=True)
     
-    def _process_message(self, message: Dict[str, Any]):
+    def _process_message(self, message: Dict[str, Any], instance_config=None):
         """
         Process a WhatsApp message.
         """
@@ -277,11 +294,24 @@ class WhatsAppMessageHandler:
                     presence_updater.mark_message_sent()
                     return
                 
-                # Create a simple config with the default agent name
-                agent_config = {
-                    "name": config.agent_api.default_agent_name,
-                    "type": "whatsapp"
-                }
+                # Create agent config using instance-specific or global configuration
+                if instance_config:
+                    # Use per-instance configuration
+                    agent_config = {
+                        "name": instance_config.default_agent,
+                        "type": "whatsapp",
+                        "api_url": instance_config.agent_api_url,
+                        "api_key": instance_config.agent_api_key,
+                        "timeout": instance_config.agent_timeout
+                    }
+                    logger.info(f"Using instance-specific agent config: {instance_config.name} -> {instance_config.default_agent}")
+                else:
+                    # Fallback to global configuration
+                    agent_config = {
+                        "name": config.agent_api.default_agent_name,
+                        "type": "whatsapp"
+                    }
+                    logger.info(f"Using global agent config: {config.agent_api.default_agent_name}")
                 
                 # Generate a session ID based on the sender's WhatsApp ID
                 # Create a deterministic hash from the sender's WhatsApp ID

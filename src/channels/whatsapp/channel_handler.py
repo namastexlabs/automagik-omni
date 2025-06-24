@@ -24,9 +24,18 @@ class WhatsAppChannelHandler(ChannelHandler):
         logger.debug(f"Instance config - URL: {instance.evolution_url}, Key: {'*' * len(instance.evolution_key) if instance.evolution_key else 'NOT SET'}")
         logger.debug(f"Final config - URL: {evolution_url}, Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}")
         
-        if not evolution_key:
-            logger.error("Evolution API key not configured for instance and no global key available")
-            raise Exception("Evolution API key not configured for instance and no global key available")
+        # Validate configuration values
+        if evolution_url.lower() in ["string", "null", "undefined", ""]:
+            logger.error(f"Invalid Evolution URL detected: '{evolution_url}'. Please provide a valid URL like 'http://localhost:8080'")
+            raise Exception(f"Invalid Evolution URL: '{evolution_url}'. Please provide a valid URL like 'http://localhost:8080'")
+            
+        if not evolution_key or evolution_key.lower() in ["string", "null", "undefined", ""]:
+            logger.error(f"Invalid Evolution API key detected: '{evolution_key}'. Please provide a valid API key.")
+            raise Exception(f"Invalid Evolution API key: '{evolution_key}'. Please provide a valid API key.")
+            
+        if not evolution_url.startswith(("http://", "https://")):
+            logger.error(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
+            raise Exception(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
             
         logger.debug(f"Creating Evolution client for instance '{instance.name}' - URL: {evolution_url}")
         logger.debug(f"Using Evolution API key: {evolution_key[:8]}{'*' * (len(evolution_key)-8) if len(evolution_key) > 8 else evolution_key}")

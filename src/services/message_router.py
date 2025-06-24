@@ -95,16 +95,52 @@ class MessageRouter:
         
         # Process the message through the Agent API
         try:
-            response = agent_api_client.process_message(
-                message=message_text,
-                user_id=user_id,
-                user=user,
-                session_name=session_identifier,
-                agent_name=agent_name,
-                message_type=message_type,
-                media_contents=media_contents,
-                channel_payload=whatsapp_raw_payload
-            )
+            # Use instance-specific API client if agent_config contains API details
+            if agent_config and "api_url" in agent_config:
+                # Create a per-instance agent API client
+                from src.services.agent_api_client import AgentApiClient
+                class InstanceConfig:
+                    def __init__(self, name, agent_api_url, agent_api_key, default_agent, agent_timeout):
+                        self.name = name
+                        self.agent_api_url = agent_api_url
+                        self.agent_api_key = agent_api_key
+                        self.default_agent = default_agent
+                        self.agent_timeout = agent_timeout
+                
+                instance_override = InstanceConfig(
+                    name=agent_config.get("name", "unknown"),
+                    agent_api_url=agent_config.get("api_url"),
+                    agent_api_key=agent_config.get("api_key"),
+                    default_agent=agent_config.get("name"),
+                    agent_timeout=agent_config.get("timeout", 60)
+                )
+                
+                instance_agent_client = AgentApiClient(config_override=instance_override)
+                logger.info(f"Using instance-specific agent API client: {agent_config.get('api_url')}")
+                
+                response = instance_agent_client.process_message(
+                    message=message_text,
+                    user_id=user_id,
+                    user=user,
+                    session_name=session_identifier,
+                    agent_name=agent_name,
+                    message_type=message_type,
+                    media_contents=media_contents,
+                    channel_payload=whatsapp_raw_payload
+                )
+            else:
+                # Use global agent API client
+                logger.info(f"Using global agent API client: {agent_api_client.api_url if agent_api_client else 'not configured'}")
+                response = agent_api_client.process_message(
+                    message=message_text,
+                    user_id=user_id,
+                    user=user,
+                    session_name=session_identifier,
+                    agent_name=agent_name,
+                    message_type=message_type,
+                    media_contents=media_contents,
+                    channel_payload=whatsapp_raw_payload
+                )
             
             # Memory creation is handled by the Automagik Agents API, no need to create it here
             return response

@@ -75,6 +75,16 @@ class InstanceConfigUpdate(BaseModel):
     is_default: Optional[bool] = None
 
 
+class EvolutionStatusInfo(BaseModel):
+    """Schema for Evolution API status information."""
+    state: Optional[str] = None
+    owner_jid: Optional[str] = None
+    profile_name: Optional[str] = None
+    profile_picture_url: Optional[str] = None
+    last_updated: Optional[datetime] = None
+    error: Optional[str] = None
+
+
 class InstanceConfigResponse(BaseModel):
     """Schema for instance configuration response."""
     id: int
@@ -91,6 +101,7 @@ class InstanceConfigResponse(BaseModel):
     is_default: bool
     created_at: datetime
     updated_at: datetime
+    evolution_status: Optional[EvolutionStatusInfo] = None
 
     class Config:
         from_attributes = True
@@ -103,6 +114,35 @@ async def create_instance(
     api_key: str = Depends(verify_api_key)
 ):
     """Create a new instance configuration with channel-specific setup."""
+    
+    # Log incoming request payload (with sensitive data masked)
+    logger.info(f"Creating instance: {instance_data.name}")
+    payload_data = instance_data.dict()
+    # Mask sensitive fields for logging
+    if 'evolution_key' in payload_data and payload_data['evolution_key']:
+        payload_data['evolution_key'] = f"{payload_data['evolution_key'][:4]}***{payload_data['evolution_key'][-4:]}" if len(payload_data['evolution_key']) > 8 else "***"
+    if 'agent_api_key' in payload_data and payload_data['agent_api_key']:
+        payload_data['agent_api_key'] = f"{payload_data['agent_api_key'][:4]}***{payload_data['agent_api_key'][-4:]}" if len(payload_data['agent_api_key']) > 8 else "***"
+    logger.debug(f"Instance creation payload: {payload_data}")
+    
+    # Validate input data for common issues
+    if instance_data.name.lower() in ["string", "null", "undefined", ""]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid instance name. Please provide a valid instance name."
+        )
+    
+    if instance_data.channel_type == "whatsapp":
+        if instance_data.evolution_url and instance_data.evolution_url.lower() in ["string", "null", "undefined", ""]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid evolution_url. Please provide a valid Evolution API URL (e.g., http://localhost:8080)."
+            )
+        if instance_data.evolution_key and instance_data.evolution_key.lower() in ["string", "null", "undefined", ""]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid evolution_key. Please provide a valid Evolution API key."
+            )
     
     # Check if instance name already exists
     existing = db.query(InstanceConfig).filter_by(name=instance_data.name).first()
@@ -175,31 +215,144 @@ async def create_instance(
 
 
 @router.get("/instances", response_model=List[InstanceConfigResponse])
-def list_instances(
+async def list_instances(
     skip: int = 0,
     limit: int = 100,
+    include_status: bool = True,
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key)
 ):
-    """List all instance configurations."""
+    """List all instance configurations with optional Evolution API status."""
     instances = db.query(InstanceConfig).offset(skip).limit(limit).all()
-    return instances
+    
+    # Convert to response format and optionally include Evolution status
+    response_instances = []
+    for instance in instances:
+        # Convert to dict first
+        instance_dict = {
+            "id": instance.id,
+            "name": instance.name,
+            "channel_type": instance.channel_type,
+            "evolution_url": instance.evolution_url,
+            "evolution_key": instance.evolution_key,
+            "whatsapp_instance": instance.whatsapp_instance,
+            "session_id_prefix": instance.session_id_prefix,
+            "agent_api_url": instance.agent_api_url,
+            "agent_api_key": instance.agent_api_key,
+            "default_agent": instance.default_agent,
+            "agent_timeout": instance.agent_timeout,
+            "is_default": instance.is_default,
+            "created_at": instance.created_at,
+            "updated_at": instance.updated_at,
+            "evolution_status": None
+        }
+        
+        # Fetch Evolution status if requested and it's a WhatsApp instance
+        if include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key:
+            try:
+                from src.channels.whatsapp.evolution_client import EvolutionClient
+                evolution_client = EvolutionClient(instance.evolution_url, instance.evolution_key)
+                
+                # Get connection state
+                state_response = await evolution_client.get_connection_state(instance.name)
+                logger.debug(f"Evolution status for {instance.name}: {state_response}")
+                
+                # Parse the response
+                if isinstance(state_response, dict) and "instance" in state_response:
+                    instance_info = state_response["instance"]
+                    instance_dict["evolution_status"] = EvolutionStatusInfo(
+                        state=instance_info.get("state"),
+                        owner_jid=instance_info.get("ownerJid"),
+                        profile_name=instance_info.get("profileName"),
+                        profile_picture_url=instance_info.get("profilePictureUrl"),
+                        last_updated=datetime.now()
+                    )
+                else:
+                    instance_dict["evolution_status"] = EvolutionStatusInfo(
+                        error="Invalid response format",
+                        last_updated=datetime.now()
+                    )
+                    
+            except Exception as e:
+                logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")
+                instance_dict["evolution_status"] = EvolutionStatusInfo(
+                    error=str(e),
+                    last_updated=datetime.now()
+                )
+        
+        response_instances.append(InstanceConfigResponse(**instance_dict))
+    
+    return response_instances
 
 
 @router.get("/instances/{instance_name}", response_model=InstanceConfigResponse)
-def get_instance(
+async def get_instance(
     instance_name: str,
+    include_status: bool = True,
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get a specific instance configuration."""
+    """Get a specific instance configuration with optional Evolution API status."""
     instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
     if not instance:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Instance '{instance_name}' not found"
         )
-    return instance
+    
+    # Convert to dict first
+    instance_dict = {
+        "id": instance.id,
+        "name": instance.name,
+        "channel_type": instance.channel_type,
+        "evolution_url": instance.evolution_url,
+        "evolution_key": instance.evolution_key,
+        "whatsapp_instance": instance.whatsapp_instance,
+        "session_id_prefix": instance.session_id_prefix,
+        "agent_api_url": instance.agent_api_url,
+        "agent_api_key": instance.agent_api_key,
+        "default_agent": instance.default_agent,
+        "agent_timeout": instance.agent_timeout,
+        "is_default": instance.is_default,
+        "created_at": instance.created_at,
+        "updated_at": instance.updated_at,
+        "evolution_status": None
+    }
+    
+    # Fetch Evolution status if requested and it's a WhatsApp instance
+    if include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key:
+        try:
+            from src.channels.whatsapp.evolution_client import EvolutionClient
+            evolution_client = EvolutionClient(instance.evolution_url, instance.evolution_key)
+            
+            # Get connection state
+            state_response = await evolution_client.get_connection_state(instance.name)
+            logger.debug(f"Evolution status for {instance.name}: {state_response}")
+            
+            # Parse the response
+            if isinstance(state_response, dict) and "instance" in state_response:
+                instance_info = state_response["instance"]
+                instance_dict["evolution_status"] = EvolutionStatusInfo(
+                    state=instance_info.get("state"),
+                    owner_jid=instance_info.get("ownerJid"),
+                    profile_name=instance_info.get("profileName"),
+                    profile_picture_url=instance_info.get("profilePictureUrl"),
+                    last_updated=datetime.now()
+                )
+            else:
+                instance_dict["evolution_status"] = EvolutionStatusInfo(
+                    error="Invalid response format",
+                    last_updated=datetime.now()
+                )
+                
+        except Exception as e:
+            logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")
+            instance_dict["evolution_status"] = EvolutionStatusInfo(
+                error=str(e),
+                last_updated=datetime.now()
+            )
+    
+    return InstanceConfigResponse(**instance_dict)
 
 
 @router.put("/instances/{instance_name}", response_model=InstanceConfigResponse)

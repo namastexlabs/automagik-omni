@@ -5,7 +5,10 @@ FastAPI application for receiving Evolution API webhooks.
 import logging
 from fastapi import FastAPI, Request, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
+import json
+import time
 
 # Import configuration first to ensure environment variables are loaded
 from src.config import config
@@ -27,6 +30,72 @@ from src.db.database import create_tables
 
 # Configure logging
 logger = logging.getLogger("src.api.app")
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Middleware to log all incoming API requests with payload."""
+    
+    async def dispatch(self, request: Request, call_next):
+        # Skip logging for health check and docs
+        if request.url.path in ["/health", "/api/v1/docs", "/api/v1/redoc", "/api/v1/openapi.json"]:
+            return await call_next(request)
+        
+        start_time = time.time()
+        
+        # Log request details
+        logger.info(f"API Request: {request.method} {request.url.path}")
+        logger.debug(f"Request headers: {dict(request.headers)}")
+        logger.debug(f"Request query params: {dict(request.query_params)}")
+        
+        # Log request body for POST/PUT requests
+        if request.method in ["POST", "PUT", "PATCH"]:
+            try:
+                # Read body
+                body = await request.body()
+                if body:
+                    try:
+                        # Try to parse as JSON
+                        json_body = json.loads(body.decode())
+                        # Mask sensitive fields
+                        masked_body = self._mask_sensitive_data(json_body)
+                        logger.debug(f"Request body: {json.dumps(masked_body, indent=2)}")
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        logger.debug(f"Request body (non-JSON): {len(body)} bytes")
+                        
+                # Create new request with body for downstream processing
+                async def receive():
+                    return {"type": "http.request", "body": body}
+                request._receive = receive
+            except Exception as e:
+                logger.warning(f"Failed to log request body: {e}")
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Log response
+        process_time = time.time() - start_time
+        logger.info(f"API Response: {response.status_code} - {process_time:.3f}s")
+        
+        return response
+    
+    def _mask_sensitive_data(self, data):
+        """Mask sensitive fields in request data."""
+        if not isinstance(data, dict):
+            return data
+            
+        masked = data.copy()
+        sensitive_fields = ['password', 'api_key', 'agent_api_key', 'evolution_key', 'token', 'secret']
+        
+        for key, value in masked.items():
+            if any(field in key.lower() for field in sensitive_fields):
+                if isinstance(value, str) and len(value) > 8:
+                    masked[key] = f"{value[:4]}***{value[-4:]}"
+                elif isinstance(value, str) and value:
+                    masked[key] = "***"
+            elif isinstance(value, dict):
+                masked[key] = self._mask_sensitive_data(value)
+        
+        return masked
 
 # Create database tables on startup
 create_tables()
@@ -57,6 +126,9 @@ app = FastAPI(
 
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
+
+# Add request logging middleware
+app.add_middleware(RequestLoggingMiddleware)
 
 # Add CORS middleware
 app.add_middleware(
@@ -113,6 +185,9 @@ async def startup_event():
     
     logger.info("Initializing application...")
     logger.info(f"Log level set to: {config.logging.level}")
+    logger.info(f"API Host: {config.api.host}")
+    logger.info(f"API Port: {config.api.port}")
+    logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
     
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
@@ -143,8 +218,8 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         # Process the message through the agent service
         # The agent service will now delegate to the WhatsApp handler
         # which will handle transcription and sending responses directly
-        # TODO: Pass instance_config to service for per-instance agent configuration
-        agent_service.process_whatsapp_message(data)
+        # Pass instance_config to service for per-instance agent configuration
+        agent_service.process_whatsapp_message(data, instance_config)
         
         # Return success response
         return {"status": "success", "instance": instance_config.name}
