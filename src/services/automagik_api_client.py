@@ -16,19 +16,22 @@ logger = logging.getLogger("src.services.automagik_api_client")
 class AutomagikAPIClient:
     """Client for interacting with the Automagik API."""
     
-    def __init__(self):
+    def __init__(self, api_url: str = None, api_key: str = None):
         """Initialize the API client."""
-        self.api_url = config.agent_api.url
-        self.api_key = config.agent_api.api_key
+        self.api_url = api_url or config.agent_api.url
+        self.api_key = api_key or config.agent_api.api_key
         
         # Verify required configuration
         if not self.api_key:
             logger.warning("API key not set. API requests will likely fail.")
+        if not self.api_url:
+            logger.warning("API URL not set. API requests will fail.")
             
         # Default timeout in seconds
         self.timeout = 30
         
-        logger.info(f"Automagik API client initialized with URL: {self.api_url}")
+        if self.api_url:
+            logger.info(f"Automagik API client initialized with URL: {self.api_url}")
     
     def _make_headers(self) -> Dict[str, str]:
         """Make headers for API requests."""
@@ -209,5 +212,25 @@ class AutomagikAPIClient:
             logger.error(f"Error getting session: {e}")
             return None
 
-# Singleton instance
-automagik_api_client = AutomagikAPIClient() 
+# Global instance - only initialized if configuration is available
+automagik_api_client = None
+
+def get_automagik_api_client() -> AutomagikAPIClient:
+    """Get or create the global automagik API client."""
+    global automagik_api_client
+    
+    if automagik_api_client is None:
+        # Only create if configuration is available
+        if config.agent_api.url and config.agent_api.api_key:
+            automagik_api_client = AutomagikAPIClient()
+        else:
+            logger.info("Automagik API client not initialized - no configuration available")
+            raise RuntimeError("Automagik API client not configured. Configure AGENT_API_URL and AGENT_API_KEY.")
+    
+    return automagik_api_client
+
+# Initialize at import only if configuration exists
+if config.agent_api.url and config.agent_api.api_key:
+    automagik_api_client = AutomagikAPIClient()
+else:
+    logger.info("Automagik API client initialization skipped - configure AGENT_API_URL and AGENT_API_KEY to enable") 

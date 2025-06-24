@@ -260,6 +260,9 @@ def delete_instance(
     
     db.delete(instance)
     db.commit()
+    
+    # Return empty response for 204 No Content
+    return
 
 
 @router.get("/instances/{instance_name}/default", response_model=InstanceConfigResponse)

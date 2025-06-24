@@ -4,6 +4,8 @@ Creates default instance from environment variables for backward compatibility.
 """
 
 import logging
+import os
+from typing import Optional
 from sqlalchemy.orm import Session
 from .models import InstanceConfig
 from src.config import config
@@ -11,23 +13,51 @@ from src.config import config
 logger = logging.getLogger(__name__)
 
 
-def ensure_default_instance(db: Session) -> InstanceConfig:
+def _has_essential_config() -> bool:
+    """
+    Check if essential configuration is available for creating an instance.
+    
+    Returns:
+        True if essential config is present, False otherwise
+    """
+    # Check for explicitly set environment variables (not defaults)
+    whatsapp_instance = os.getenv("WHATSAPP_INSTANCE")
+    agent_api_url = os.getenv("AGENT_API_URL") 
+    agent_api_key = os.getenv("AGENT_API_KEY")
+    
+    # All essential config must be explicitly set
+    has_config = bool(whatsapp_instance and agent_api_url and agent_api_key)
+    
+    logger.debug(f"Essential config check - WHATSAPP_INSTANCE: {'SET' if whatsapp_instance else 'MISSING'}, "
+                f"AGENT_API_URL: {'SET' if agent_api_url else 'MISSING'}, "
+                f"AGENT_API_KEY: {'SET' if agent_api_key else 'MISSING'}")
+    
+    return has_config
+
+
+def ensure_default_instance(db: Session) -> Optional[InstanceConfig]:
     """
     Ensure a default instance exists for backward compatibility.
     
-    If no instances exist in the database, create one from current environment variables
-    and mark it as the default instance.
+    If no instances exist in the database and essential configuration is available,
+    create one from current environment variables and mark it as the default instance.
     
     Args:
         db: Database session
         
     Returns:
-        The default InstanceConfig
+        The default InstanceConfig, or None if no instances exist and config is insufficient
     """
     # Check if any instances exist
     existing_count = db.query(InstanceConfig).count()
     
     if existing_count == 0:
+        # Check if essential configuration is available before creating default instance
+        if not _has_essential_config():
+            logger.info("No instances found and essential configuration missing - skipping default instance creation")
+            logger.info("Configure WHATSAPP_INSTANCE, AGENT_API_URL, and AGENT_API_KEY to enable automatic instance creation")
+            return None
+            
         logger.info("No instances found, creating default instance from environment variables")
         
         # Create default instance from current config

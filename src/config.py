@@ -25,9 +25,9 @@ class RabbitMQConfig(BaseModel):
 
 class AgentApiConfig(BaseModel):
     """Agent API configuration."""
-    url: str = Field(default_factory=lambda: os.getenv("AGENT_API_URL", "http://localhost:8000"))
+    url: str = Field(default_factory=lambda: os.getenv("AGENT_API_URL", ""))
     api_key: str = Field(default_factory=lambda: os.getenv("AGENT_API_KEY", ""))
-    default_agent_name: str = Field(default_factory=lambda: os.getenv("DEFAULT_AGENT_NAME", "simple_agent"))
+    default_agent_name: str = Field(default_factory=lambda: os.getenv("DEFAULT_AGENT_NAME", ""))
     timeout: int = Field(default_factory=lambda: int(os.getenv("AGENT_API_TIMEOUT", "60")))
 
 class EvolutionTranscriptConfig(BaseModel):
@@ -49,7 +49,7 @@ class WhatsAppConfig(BaseModel):
     minio_url: str = Field(default_factory=lambda: os.getenv("EVOLUTION_MINIO_URL", ""))
     api_use_https: bool = Field(default_factory=lambda: os.getenv("API_USE_HTTPS", "").lower() == "true")
     typing_indicator_duration: int = Field(default_factory=lambda: int(os.getenv("TYPING_INDICATOR_DURATION", "10")))
-    instance: str = Field(default_factory=lambda: os.getenv("WHATSAPP_INSTANCE", "dev_wpp"))
+    instance: str = Field(default_factory=lambda: os.getenv("WHATSAPP_INSTANCE", ""))
 
 class DatabaseConfig(BaseModel):
     """Database configuration."""

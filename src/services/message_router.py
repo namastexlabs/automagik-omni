@@ -72,17 +72,22 @@ class MessageRouter:
         elif not user_id:
             # Fallback to existing user creation logic only if no user dict provided
             try:
-                # Create an anonymous user with minimal information
-                user_response = automagik_api_client.create_user(
-                    user_data={"source": session_origin}
-                )
-                if user_response:
-                    user_id = user_response["id"]
-                    logger.info(f"Created new user with ID: {user_id}")
+                if automagik_api_client and automagik_api_client.api_url:
+                    # Create an anonymous user with minimal information
+                    user_response = automagik_api_client.create_user(
+                        user_data={"source": session_origin}
+                    )
+                    if user_response:
+                        user_id = user_response["id"]
+                        logger.info(f"Created new user with ID: {user_id}")
+                    else:
+                        # Fallback to a default user ID (1 is typically admin/system user)
+                        user_id = 1
+                        logger.warning(f"Failed to create user, using default ID: {user_id}")
                 else:
-                    # Fallback to a default user ID (1 is typically admin/system user)
+                    # No API client available, use default user ID
                     user_id = 1
-                    logger.warning(f"Failed to create user, using default ID: {user_id}")
+                    logger.info(f"No automagik API client configured, using default user ID: {user_id}")
             except Exception as e:
                 # If user creation fails, use default user ID
                 user_id = 1

@@ -246,35 +246,43 @@ quality: lint typecheck ## Run all code quality checks
 # ===========================================
 # 🔧 Service Management
 # ===========================================
-.PHONY: install-service
+.PHONY: restart-service install-service
+restart-service: ## Update systemd service (removes and recreates)
+	$(call print_status,Updating systemd service)
+	@sudo systemctl stop $(SERVICE_NAME) 2>/dev/null || true
+	@sudo rm -f $(SERVICE_FILE)
+	@$(MAKE) install-service
+
 install-service: ## Install systemd service
 	$(call print_status,Installing systemd service)
 	@if [ ! -f "$(SERVICE_FILE)" ]; then \
-		sudo tee $(SERVICE_FILE) > /dev/null << 'EOF'; \
-[Unit]; \
-Description=Omni-Hub Multi-Tenant WhatsApp Agent Service; \
-After=network.target; \
-Wants=network.target; \
-; \
-[Service]; \
-Type=simple; \
-User=$(USER); \
-WorkingDirectory=$(PROJECT_ROOT); \
-Environment=PATH=$(PROJECT_ROOT)/.venv/bin:$(PATH); \
-ExecStart=$(PROJECT_ROOT)/.venv/bin/uvicorn src.api.app:app --host 0.0.0.0 --port 8000; \
-Restart=always; \
-RestartSec=10; \
-StandardOutput=journal; \
-StandardError=journal; \
-; \
-[Install]; \
-WantedBy=multi-user.target; \
-EOF \
+		TMP_FILE=$$(mktemp); \
+		printf "[Unit]\n" > $$TMP_FILE; \
+		printf "Description=Omni-Hub Multi-Tenant WhatsApp Agent Service\n" >> $$TMP_FILE; \
+		printf "After=network.target\n" >> $$TMP_FILE; \
+		printf "Wants=network.target\n" >> $$TMP_FILE; \
+		printf "\n" >> $$TMP_FILE; \
+		printf "[Service]\n" >> $$TMP_FILE; \
+		printf "Type=simple\n" >> $$TMP_FILE; \
+		printf "User=%s\n" "$(USER)" >> $$TMP_FILE; \
+		printf "WorkingDirectory=%s\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
+		printf "Environment=PATH=%s/.venv/bin:/usr/local/bin:/usr/bin:/bin\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
+		printf "EnvironmentFile=%s/.env\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
+		printf "ExecStart=/bin/bash -c 'cd %s && source .env && %s/.venv/bin/uvicorn src.api.app:app --host $${API_HOST:-0.0.0.0} --port $${API_PORT:-8000}'\n" "$(PROJECT_ROOT)" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
+		printf "Restart=always\n" >> $$TMP_FILE; \
+		printf "RestartSec=10\n" >> $$TMP_FILE; \
+		printf "StandardOutput=journal\n" >> $$TMP_FILE; \
+		printf "StandardError=journal\n" >> $$TMP_FILE; \
+		printf "\n" >> $$TMP_FILE; \
+		printf "[Install]\n" >> $$TMP_FILE; \
+		printf "WantedBy=multi-user.target\n" >> $$TMP_FILE; \
+		sudo cp $$TMP_FILE $(SERVICE_FILE); \
+		rm $$TMP_FILE; \
 		sudo systemctl daemon-reload; \
 		sudo systemctl enable $(SERVICE_NAME); \
-		$(call print_success_with_logo,Service installed and enabled); \
+		echo "✅ Service installed and enabled"; \
 	else \
-		$(call print_warning,Service already installed); \
+		echo "⚠️ Service already installed"; \
 	fi
 
 .PHONY: start-service
@@ -290,8 +298,8 @@ stop-service: ## Stop the systemd service
 	@sudo systemctl stop $(SERVICE_NAME)
 	$(call print_success,Service stopped)
 
-.PHONY: restart-service
-restart-service: ## Restart the systemd service
+.PHONY: restart-service-simple
+restart-service-simple: ## Restart the systemd service
 	$(call print_status,Restarting $(SERVICE_NAME) service)
 	@sudo systemctl restart $(SERVICE_NAME)
 	@sleep 2
@@ -305,12 +313,14 @@ service-status: ## Check service status
 .PHONY: logs
 logs: ## Show service logs (follow)
 	$(call print_status,Following $(SERVICE_NAME) logs)
-	@sudo journalctl -u $(SERVICE_NAME) -f --no-pager
+	@journalctl -u $(SERVICE_NAME) -f --no-pager 2>/dev/null || \
+	{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -f --no-pager; }
 
 .PHONY: logs-tail
 logs-tail: ## Show recent service logs
 	$(call print_status,Recent $(SERVICE_NAME) logs)
-	@sudo journalctl -u $(SERVICE_NAME) -n 50 --no-pager
+	@journalctl -u $(SERVICE_NAME) -n 50 --no-pager 2>/dev/null || \
+	{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -n 50 --no-pager; }
 
 # ===========================================
 # 🗃️ Database & CLI Management

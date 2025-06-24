@@ -33,10 +33,13 @@ class AgentService:
             # whatsapp_client.start()
             
             # Check if API is available
-            if not automagik_api_client.health_check():
-                logger.warning("Automagik API health check failed. Service may have limited functionality.")
+            if automagik_api_client and automagik_api_client.api_url:
+                if not automagik_api_client.health_check():
+                    logger.warning("Automagik API health check failed. Service may have limited functionality.")
+                else:
+                    logger.info("Automagik API health check successful.")
             else:
-                logger.info("Automagik API health check successful.")
+                logger.info("Automagik API client not configured - skipping health check")
             
             return True
         except Exception as e:

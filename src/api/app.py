@@ -3,7 +3,7 @@ FastAPI application for receiving Evolution API webhooks.
 """
 
 import logging
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -22,7 +22,6 @@ from src.api.deps import get_database, get_instance_by_name
 from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
 from src.db.database import create_tables
-from src.db.bootstrap import ensure_default_instance
 
 # Initialize channel handlers
 
@@ -111,20 +110,12 @@ app.openapi = custom_openapi
 async def startup_event():
     """Initialize application on startup."""
     from src.db.database import get_db
-    from src.db.bootstrap import ensure_default_instance
     
     logger.info("Initializing application...")
     logger.info(f"Log level set to: {config.logging.level}")
     
-    # Create default instance from .env if none exist
-    db = next(get_db())
-    try:
-        default_instance = ensure_default_instance(db)
-        logger.info(f"Default instance ready: {default_instance.name}")
-    except Exception as e:
-        logger.error(f"Failed to initialize default instance: {e}")
-    finally:
-        db.close()
+    # Application ready - instances will be created via API endpoints
+    logger.info("API ready - use /api/v1/instances to create instances")
 
 @app.get("/health")
 async def health_check():
@@ -162,21 +153,6 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         logger.error(f"Error processing webhook for instance '{instance_config.name}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.post("/webhook/evolution")
-async def evolution_webhook_default(
-    request: Request,
-    db: Session = Depends(get_database)
-):
-    """
-    Default webhook endpoint for Evolution API (backward compatibility).
-    Uses the default instance configuration.
-    """
-    # Get default instance configuration
-    default_instance = ensure_default_instance(db)
-    
-    # Handle using shared logic
-    return await _handle_evolution_webhook(default_instance, request)
 
 
 @app.post("/webhook/evolution/{instance_name}")

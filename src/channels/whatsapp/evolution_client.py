@@ -113,27 +113,11 @@ class EvolutionClient:
             webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{request.instanceName}"
             logger.debug(f"Auto-configuring webhook URL: {webhook_url}")
             request.webhook = {
+                "enabled": True,
                 "url": webhook_url,
-                "byEvents": True,
-                "base64": True,
-                "events": [
-                    "QRCODE_UPDATED",
-                    "CONNECTION_UPDATE", 
-                    "MESSAGES_UPSERT",
-                    "MESSAGES_UPDATE",
-                    "MESSAGES_DELETE",
-                    "SEND_MESSAGE",
-                    "CONTACTS_UPSERT",
-                    "CONTACTS_UPDATE",
-                    "PRESENCE_UPDATE",
-                    "CHATS_UPSERT",
-                    "CHATS_UPDATE",
-                    "CHATS_DELETE",
-                    "GROUPS_UPSERT",
-                    "GROUPS_UPDATE",
-                    "GROUP_PARTICIPANTS_UPDATE",
-                    "NEW_JWT_TOKEN"
-                ]
+                "webhookByEvents": True,
+                "webhookBase64": True,
+                "events": ["MESSAGES_UPSERT"]
             }
             logger.debug(f"Webhook configuration: {request.webhook}")
         else:
@@ -160,7 +144,7 @@ class EvolutionClient:
         data = await self._request("GET", "/instance/fetchInstances", params=params)
         
         # Parse response - Evolution API returns list of instance objects
-        instances = []
+        instances: List[EvolutionInstance] = []
         if isinstance(data, list):
             for item in data:
                 if "instance" in item:
@@ -188,24 +172,35 @@ class EvolutionClient:
         """Delete a WhatsApp instance."""
         return await self._request("DELETE", f"/instance/delete/{instance_name}")
     
-    async def set_webhook(self, instance_name: str, webhook_url: str, events: List[str] = None) -> Dict[str, Any]:
+    async def set_webhook(self, instance_name: str, webhook_url: str, events: Optional[List[str]] = None) -> Dict[str, Any]:
         """Set webhook URL for an instance."""
         if events is None:
-            events = [
-                "QRCODE_UPDATED",
-                "CONNECTION_UPDATE", 
-                "MESSAGES_UPSERT",
-                "SEND_MESSAGE"
-            ]
+            events = ["MESSAGES_UPSERT"]
         
         webhook_data = {
+            "enabled": True,
             "url": webhook_url,
-            "byEvents": True,
-            "base64": True,
+            "webhookByEvents": True,
+            "webhookBase64": True,
             "events": events
         }
         
         return await self._request("POST", f"/webhook/set/{instance_name}", json=webhook_data)
+    
+    async def set_settings(self, instance_name: str, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Set settings for an instance."""
+        if settings is None:
+            settings = {
+                "rejectCall": False,
+                "msgCall": "Call rejected automatically",
+                "groupsIgnore": False,
+                "alwaysOnline": False,
+                "readMessages": True,
+                "readStatus": True,
+                "syncFullHistory": True
+            }
+        
+        return await self._request("POST", f"/settings/set/{instance_name}", json=settings)
 
 
 # Global Evolution client instance

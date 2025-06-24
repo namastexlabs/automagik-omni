@@ -23,7 +23,6 @@ from src.services.agent_api_client import agent_api_client
 
 # Import database initialization
 from src.db.database import create_tables
-from src.db.bootstrap import ensure_default_instance
 from src.db.database import SessionLocal
 
 # Get a logger for this module
@@ -59,13 +58,7 @@ def run():
         logger.info("Initializing database...")
         create_tables()
         
-        # Ensure default instance exists (backward compatibility)
-        db = SessionLocal()
-        try:
-            ensure_default_instance(db)
-            logger.info("Database initialization complete")
-        finally:
-            db.close()
+        logger.info("Database initialization complete")
         
         # Check if configuration is valid
         if not config.is_valid:
