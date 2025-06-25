@@ -299,12 +299,12 @@ class WhatsAppMessageHandler:
                         }
                         
                         if base64_data:
-                            # Use base64 data (preferred format for agent API)
+                            # Use base64 data as data URL in media_url field (preferred format for agent API)
                             mime_type = media_meta.get('mimetype', 'application/octet-stream')
-                            media_item["data"] = f"data:{mime_type};base64,{base64_data}"
+                            media_item["media_url"] = f"data:{mime_type};base64,{base64_data}"
                             logger.info(f"Using base64 data for agent API: {self._truncate_base64_for_logging(base64_data)} (size: {len(base64_data)} chars)")
                         else:
-                            # Fallback to media URL if no base64 available
+                            # Fallback to encrypted media URL if no base64 available
                             media_item["media_url"] = media_url_to_send
                             logger.warning(f"No base64 data available, using media URL: {self._truncate_url_for_logging(media_url_to_send)}")
                         
