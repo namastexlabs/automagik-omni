@@ -197,6 +197,29 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
 
+@app.post("/api/v1/test/capture/enable")
+async def enable_test_capture():
+    """Enable test capture for the next media message."""
+    from src.utils.test_capture import test_capture
+    test_capture.enable_capture()
+    return {"status": "enabled", "message": "Send a WhatsApp image/video to capture real test data"}
+
+@app.post("/api/v1/test/capture/disable") 
+async def disable_test_capture():
+    """Disable test capture."""
+    from src.utils.test_capture import test_capture
+    test_capture.disable_capture()
+    return {"status": "disabled", "message": "Test capture disabled"}
+
+@app.get("/api/v1/test/capture/status")
+async def test_capture_status():
+    """Get test capture status."""
+    from src.utils.test_capture import test_capture
+    return {
+        "enabled": test_capture.capture_enabled,
+        "directory": test_capture.save_directory
+    }
+
 
 async def _handle_evolution_webhook(instance_config, request: Request):
     """
@@ -216,6 +239,12 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         # This sets the runtime configuration from the webhook payload
         evolution_api_sender.update_from_webhook(data)
         
+        # Capture real media messages for testing purposes
+        try:
+            from src.utils.test_capture import test_capture
+            test_capture.capture_media_message(data, instance_config)
+        except Exception as e:
+            logger.error(f"Test capture failed: {e}", exc_info=True)
         
         # Process the message through the agent service
         # The agent service will now delegate to the WhatsApp handler

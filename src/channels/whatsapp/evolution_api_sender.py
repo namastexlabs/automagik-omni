@@ -5,9 +5,11 @@ Handles sending messages back to Evolution API using webhook payload information
 
 import logging
 import requests
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import time
 import threading
+import random
+import re
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.evolution_api_sender")
@@ -71,13 +73,14 @@ class EvolutionApiSender:
             
         return formatted_recipient
     
-    def send_text_message(self, recipient: str, text: str) -> bool:
+    def send_text_message(self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]] = None) -> bool:
         """
-        Send a text message via Evolution API.
+        Send a text message via Evolution API with optional message quoting and auto-splitting.
         
         Args:
             recipient: WhatsApp ID of the recipient
             text: Message text
+            quoted_message: Optional message to quote/reply to
             
         Returns:
             bool: Success status
@@ -86,6 +89,99 @@ class EvolutionApiSender:
             logger.error("Cannot send message: missing server URL, API key, or instance name")
             return False
         
+        # Check if message should be split (contains \n\n and is replying to a text message)
+        should_split = self._should_split_message(text, quoted_message)
+        
+        if should_split:
+            return self._send_split_messages(recipient, text, quoted_message)
+        else:
+            return self._send_single_message(recipient, text, quoted_message)
+    
+    def _should_split_message(self, text: str, quoted_message: Optional[Dict[str, Any]]) -> bool:
+        """
+        Determine if a message should be split.
+        
+        Args:
+            text: Message text
+            quoted_message: Original message being replied to
+            
+        Returns:
+            bool: True if message should be split
+        """
+        # Don't split if it's a reply to a media message
+        if quoted_message and self._is_media_message(quoted_message):
+            logger.info("Not splitting message - replying to media message")
+            return False
+        
+        # Split if contains double newlines
+        if "\n\n" in text:
+            logger.info("Message contains \\n\\n - will split into multiple messages")
+            return True
+            
+        return False
+    
+    def _is_media_message(self, quoted_message: Dict[str, Any]) -> bool:
+        """Check if the quoted message is a media message."""
+        if not quoted_message:
+            return False
+            
+        message_obj = quoted_message.get('message', {})
+        media_types = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage']
+        
+        return any(media_type in message_obj for media_type in media_types)
+    
+    def _send_split_messages(self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]]) -> bool:
+        """
+        Send text as multiple messages split by \\n\\n with random delays.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            text: Full message text
+            quoted_message: Optional message to quote (only for first message)
+            
+        Returns:
+            bool: Success status (True if all messages sent successfully)
+        """
+        # Split by double newlines and filter out empty strings
+        parts = [part.strip() for part in text.split('\n\n') if part.strip()]
+        
+        if len(parts) <= 1:
+            # No actual split needed
+            return self._send_single_message(recipient, text, quoted_message)
+        
+        logger.info(f"Splitting message into {len(parts)} parts")
+        
+        success_count = 0
+        for i, part in enumerate(parts):
+            # Only quote the first message
+            quote_for_this_part = quoted_message if i == 0 else None
+            
+            # Send the message part
+            if self._send_single_message(recipient, part, quote_for_this_part):
+                success_count += 1
+            
+            # Add random delay between messages (except for the last one)
+            if i < len(parts) - 1:
+                delay = random.uniform(0.3, 1.0)  # 300ms to 1000ms
+                logger.info(f"Waiting {delay:.3f}s before sending next message part")
+                time.sleep(delay)
+        
+        success = success_count == len(parts)
+        logger.info(f"Split message result: {success_count}/{len(parts)} parts sent successfully")
+        return success
+    
+    def _send_single_message(self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]]) -> bool:
+        """
+        Send a single text message via Evolution API.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            text: Message text
+            quoted_message: Optional message to quote/reply to
+            
+        Returns:
+            bool: Success status
+        """
         url = f"{self.server_url}/message/sendText/{self.instance_name}"
         formatted_recipient = self._prepare_recipient(recipient)
         
@@ -98,6 +194,11 @@ class EvolutionApiSender:
             "number": formatted_recipient,
             "text": text
         }
+        
+        # Add quoted message if provided
+        if quoted_message:
+            payload["quoted"] = self._format_quoted_message(quoted_message)
+            logger.info("Including quoted message in response")
         
         try:
             # Log the request details (without sensitive data)
@@ -118,6 +219,51 @@ class EvolutionApiSender:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to send message: {str(e)}")
             return False
+    
+    def _format_quoted_message(self, quoted_message: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format a message for quoting according to Evolution API format.
+        
+        Args:
+            quoted_message: Original message data from webhook
+            
+        Returns:
+            Dict: Formatted quoted message for Evolution API
+        """
+        # Extract key information
+        key_data = quoted_message.get('key', {})
+        message_data = quoted_message.get('message', {})
+        
+        # Basic quoted structure
+        quoted_payload = {
+            "key": {
+                "id": key_data.get('id', '')
+            },
+            "message": {}
+        }
+        
+        # Handle different message types for quoted content
+        if 'conversation' in message_data:
+            quoted_payload["message"]["conversation"] = message_data['conversation']
+        elif 'extendedTextMessage' in message_data:
+            quoted_payload["message"]["conversation"] = message_data['extendedTextMessage'].get('text', '')
+        elif 'imageMessage' in message_data:
+            # For media messages, use caption or indicate it's an image
+            caption = message_data['imageMessage'].get('caption', '[Image]')
+            quoted_payload["message"]["conversation"] = caption
+        elif 'videoMessage' in message_data:
+            caption = message_data['videoMessage'].get('caption', '[Video]')
+            quoted_payload["message"]["conversation"] = caption
+        elif 'audioMessage' in message_data:
+            quoted_payload["message"]["conversation"] = '[Audio]'
+        elif 'documentMessage' in message_data:
+            file_name = message_data['documentMessage'].get('fileName', '[Document]')
+            quoted_payload["message"]["conversation"] = file_name
+        else:
+            # Fallback for unknown message types
+            quoted_payload["message"]["conversation"] = '[Message]'
+        
+        return quoted_payload
     
     def send_presence(self, recipient: str, presence_type: str = "composing", refresh_seconds: int = 25) -> bool:
         """

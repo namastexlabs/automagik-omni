@@ -300,7 +300,8 @@ class WhatsAppMessageHandler:
                     logger.info("Skipping audio message processing as transcription failed and no content available")
                     response_result = self._send_whatsapp_response(
                         recipient=sender_id,
-                        text="Recebi seu áudio, mas não consegui transcrever o conteúdo. Poderia enviar sua mensagem em texto?"
+                        text="Recebi seu áudio, mas não consegui transcrever o conteúdo. Poderia enviar sua mensagem em texto?",
+                        quoted_message=message
                     )
                     presence_updater.mark_message_sent()
                     return
@@ -417,9 +418,11 @@ class WhatsAppMessageHandler:
                     logger.warning(f"Ignoring AUTOMAGIK message for user {user_dict['phone_number']}, session {session_name}: {response_to_send}")
                 else:
                     # Send the response immediately while the typing indicator is still active
+                    # Include the original message for quoting (reply)
                     response_result = self._send_whatsapp_response(
                         recipient=sender_id,
-                        text=response_to_send
+                        text=response_to_send,
+                        quoted_message=message
                     )
                     
                     # Mark message as sent but let the typing indicator continue for a short time
@@ -435,13 +438,13 @@ class WhatsAppMessageHandler:
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
     
-    def _send_whatsapp_response(self, recipient: str, text: str):
-        """Send a response back via WhatsApp."""
+    def _send_whatsapp_response(self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]] = None):
+        """Send a response back via WhatsApp with optional message quoting."""
         response_payload = None
         if self.send_response_callback:
             try:
-                # The Evolution API sender returns a boolean
-                success = self.send_response_callback(recipient, text)
+                # The Evolution API sender now supports quoting
+                success = self.send_response_callback(recipient, text, quoted_message)
                 if success:
                     # Extract just the phone number without the suffix for logging
                     clean_recipient = recipient.split('@')[0] if '@' in recipient else recipient
