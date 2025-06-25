@@ -392,12 +392,12 @@ def update_instance(
 
 
 @router.delete("/instances/{instance_name}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_instance(
+async def delete_instance(
     instance_name: str,
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key)
 ):
-    """Delete an instance configuration."""
+    """Delete an instance configuration from both database and external service."""
     
     # Get existing instance
     instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
@@ -416,8 +416,35 @@ def delete_instance(
                 detail="Cannot delete the only remaining instance"
             )
     
+    # First try to delete from external service (Evolution API)
+    evolution_delete_success = False
+    evolution_error = None
+    
+    try:
+        # Get channel-specific handler
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        
+        # Delete from external service
+        result = await handler.delete_instance(instance)
+        evolution_delete_success = True
+        logger.info(f"Successfully deleted instance '{instance_name}' from {instance.channel_type} service")
+        
+    except Exception as e:
+        evolution_error = str(e)
+        logger.warning(f"Failed to delete instance '{instance_name}' from {instance.channel_type} service: {e}")
+        # Continue with database deletion even if external service fails
+    
+    # Always delete from database
     db.delete(instance)
     db.commit()
+    
+    logger.info(f"Instance '{instance_name}' deleted from database")
+    
+    # Log the final result
+    if evolution_delete_success:
+        logger.info(f"Instance '{instance_name}' completely deleted from both service and database")
+    else:
+        logger.warning(f"Instance '{instance_name}' deleted from database only. External service deletion failed: {evolution_error}")
     
     # Return empty response for 204 No Content
     return
