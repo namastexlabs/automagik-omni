@@ -268,6 +268,11 @@ class WhatsAppMessageHandler:
                         # Build media_contents payload as expected by Agent API
                         # PRIORITY 1: Use base64 data if available (preferred by agent API)
                         base64_data = data.get('base64')
+                        logger.debug(f"DEBUG: Looking for base64 in data. Keys in data: {list(data.keys())}")
+                        if base64_data:
+                            logger.debug(f"DEBUG: base64_data found: {self._truncate_base64_for_logging(base64_data)} (length: {len(base64_data)})")
+                        else:
+                            logger.debug(f"DEBUG: No base64_data found")
                         media_item = {
                             "alt_text": message_content or message_type,
                             "mime_type": media_meta.get('mimetype', f"{message_type}/")
@@ -277,7 +282,7 @@ class WhatsAppMessageHandler:
                             # Use base64 data (preferred format for agent API)
                             mime_type = media_meta.get('mimetype', 'application/octet-stream')
                             media_item["data"] = f"data:{mime_type};base64,{base64_data}"
-                            logger.info(f"Using base64 data for agent API (size: {len(base64_data)} chars)")
+                            logger.info(f"Using base64 data for agent API: {self._truncate_base64_for_logging(base64_data)} (size: {len(base64_data)} chars)")
                         else:
                             # Fallback to media URL if no base64 available
                             media_item["media_url"] = media_url_to_send
@@ -642,6 +647,23 @@ class WhatsAppMessageHandler:
         except Exception:
             # If parsing fails, do a simple truncation
             return url[:30] + '...' + url[-30:]
+    
+    def _truncate_base64_for_logging(self, base64_data: str, prefix_length: int = 50, suffix_length: int = 20) -> str:
+        """Truncate base64 data for logging to show start...end format.
+        
+        Args:
+            base64_data: The base64 string to truncate
+            prefix_length: Number of characters to show at the start
+            suffix_length: Number of characters to show at the end
+            
+        Returns:
+            Truncated base64 string in format "prefix...suffix"
+        """
+        if not base64_data:
+            return base64_data
+        if len(base64_data) <= prefix_length + suffix_length + 10:
+            return base64_data
+        return f"{base64_data[:prefix_length]}...{base64_data[-suffix_length:]}"
 
     def _extract_message_content(self, message: Dict[str, Any]) -> str:
         """

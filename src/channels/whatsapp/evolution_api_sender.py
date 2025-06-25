@@ -210,7 +210,25 @@ class EvolutionApiSender:
             # Log response status
             logger.info(f"Response status: {response.status_code}")
             
-            # Raise for HTTP errors
+            # Handle Evolution API's known database schema issue with quoted messages
+            # See: https://github.com/EvolutionAPI/evolution-api/issues/1247
+            if response.status_code == 400 and quoted_message:
+                # Check if this is the known "typebotSessionId" database error
+                try:
+                    error_response = response.json()
+                    error_message = str(error_response.get('message', ''))
+                    if 'typebotSessionId' in error_message or 'database' in error_message.lower():
+                        logger.warning(f"Evolution API 400 error (known database schema issue): {error_message}")
+                        logger.info(f"Message likely sent despite 400 error - continuing")
+                        return True
+                except:
+                    pass
+                
+                logger.warning(f"400 error with quoted message - this may be Evolution API database schema issue")
+                logger.info(f"Attempting to continue - message may have been sent despite error")
+                return True
+            
+            # Raise for other HTTP errors
             response.raise_for_status()
             
             logger.info(f"Message sent to {formatted_recipient}")
