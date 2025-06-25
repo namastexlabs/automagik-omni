@@ -172,7 +172,7 @@ class EvolutionClient:
         """Delete a WhatsApp instance."""
         return await self._request("DELETE", f"/instance/delete/{instance_name}")
     
-    async def set_webhook(self, instance_name: str, webhook_url: str, events: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def set_webhook(self, instance_name: str, webhook_url: str, events: Optional[List[str]] = None, webhook_base64: bool = True) -> Dict[str, Any]:
         """Set webhook URL for an instance."""
         if events is None:
             events = ["MESSAGES_UPSERT"]
@@ -181,7 +181,7 @@ class EvolutionClient:
             "enabled": True,
             "url": webhook_url,
             "webhookByEvents": True,
-            "webhookBase64": True,
+            "webhookBase64": webhook_base64,
             "events": events
         }
         

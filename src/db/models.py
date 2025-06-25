@@ -28,6 +28,7 @@ class InstanceConfig(Base):
     # Channel-specific configuration  
     whatsapp_instance = Column(String, nullable=True)  # WhatsApp: instance name
     session_id_prefix = Column(String, nullable=True)  # WhatsApp: session prefix
+    webhook_base64 = Column(Boolean, default=True, nullable=False)  # WhatsApp: send base64 in webhooks
     
     # Future channel-specific fields (to be added as needed)
     # slack_bot_token = Column(String, nullable=True)

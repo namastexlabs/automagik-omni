@@ -47,6 +47,7 @@ class InstanceConfigCreate(BaseModel):
     evolution_key: Optional[str] = Field(None, description="Evolution API key (WhatsApp)")
     whatsapp_instance: Optional[str] = Field(None, description="WhatsApp instance name")
     session_id_prefix: Optional[str] = Field(None, description="Session ID prefix (WhatsApp)")
+    webhook_base64: Optional[bool] = Field(True, description="Send base64 media in webhooks (WhatsApp)")
     
     # WhatsApp-specific creation parameters (not stored in DB)
     phone_number: Optional[str] = Field(None, description="Phone number for WhatsApp")
@@ -68,6 +69,7 @@ class InstanceConfigUpdate(BaseModel):
     evolution_key: Optional[str] = None
     whatsapp_instance: Optional[str] = None
     session_id_prefix: Optional[str] = None
+    webhook_base64: Optional[bool] = None
     agent_api_url: Optional[str] = None
     agent_api_key: Optional[str] = None
     default_agent: Optional[str] = None
@@ -94,6 +96,7 @@ class InstanceConfigResponse(BaseModel):
     evolution_key: Optional[str]
     whatsapp_instance: Optional[str]
     session_id_prefix: Optional[str]
+    webhook_base64: Optional[bool]
     agent_api_url: str
     agent_api_key: str
     default_agent: str
@@ -237,6 +240,7 @@ async def list_instances(
             "evolution_key": instance.evolution_key,
             "whatsapp_instance": instance.whatsapp_instance,
             "session_id_prefix": instance.session_id_prefix,
+            "webhook_base64": getattr(instance, 'webhook_base64', True) if hasattr(instance, 'webhook_base64') else True,
             "agent_api_url": instance.agent_api_url,
             "agent_api_key": instance.agent_api_key,
             "default_agent": instance.default_agent,
@@ -309,6 +313,7 @@ async def get_instance(
         "evolution_key": instance.evolution_key,
         "whatsapp_instance": instance.whatsapp_instance,
         "session_id_prefix": instance.session_id_prefix,
+        "webhook_base64": getattr(instance, 'webhook_base64', True) if hasattr(instance, 'webhook_base64') else True,
         "agent_api_url": instance.agent_api_url,
         "agent_api_key": instance.agent_api_key,
         "default_agent": instance.default_agent,

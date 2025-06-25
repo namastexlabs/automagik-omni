@@ -67,8 +67,9 @@ class WhatsAppChannelHandler(ChannelHandler):
                 webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
                 
                 try:
-                    await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"])
-                    logger.info(f"Updated webhook URL for existing instance: {webhook_url}")
+                    webhook_base64 = getattr(instance, 'webhook_base64', True)
+                    await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], webhook_base64)
+                    logger.info(f"Updated webhook URL for existing instance: {webhook_url} (base64={webhook_base64})")
                     
                     # Also configure settings for existing instance
                     await evolution_client.set_settings(instance.name)
@@ -109,8 +110,9 @@ class WhatsAppChannelHandler(ChannelHandler):
             
             # Configure webhook and settings for new instance
             try:
-                await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"])
-                logger.info(f"Configured webhook for new instance: {webhook_url}")
+                webhook_base64 = getattr(instance, 'webhook_base64', True)
+                await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], webhook_base64)
+                logger.info(f"Configured webhook for new instance: {webhook_url} (base64={webhook_base64})")
                 
                 await evolution_client.set_settings(instance.name)
                 logger.info(f"Configured settings for new instance: {instance.name}")
@@ -148,6 +150,24 @@ class WhatsAppChannelHandler(ChannelHandler):
             evolution_client = self._get_evolution_client(instance)
             logger.debug("Evolution client created successfully")
             
+            # First check the instance state
+            logger.debug(f"Checking instance state before QR request: {instance.name}")
+            state_response = await evolution_client.get_connection_state(instance.name)
+            current_state = state_response.get("instance", {}).get("state", "unknown")
+            logger.debug(f"Current instance state: {current_state}")
+            
+            # If instance is in connecting state, try to restart it first to get fresh QR
+            if current_state == "connecting":
+                logger.info(f"Instance is in connecting state, restarting to get fresh QR...")
+                try:
+                    await evolution_client.restart_instance(instance.name)
+                    logger.debug("Instance restart initiated")
+                    # Wait a moment for restart to take effect
+                    import asyncio
+                    await asyncio.sleep(1)
+                except Exception as restart_error:
+                    logger.warning(f"Failed to restart instance: {restart_error}")
+            
             logger.debug(f"Calling Evolution API connect for instance: {instance.name}")
             connect_response = await evolution_client.connect_instance(instance.name)
             logger.debug(f"Evolution connect response type: {type(connect_response)}")
@@ -178,8 +198,12 @@ class WhatsAppChannelHandler(ChannelHandler):
                 elif "message" in connect_response:
                     message = connect_response["message"]
                     logger.debug(f"Connect response message: {message}")
+                # Handle case where instance exists but no QR (like {"count": 0})
+                elif "count" in connect_response and connect_response["count"] == 0:
+                    message = "Instance exists but no QR available - may need to restart instance"
+                    logger.debug("Got count=0 response, instance may need restart")
                 else:
-                    logger.debug("No base64, qrcode, or message field in response")
+                    logger.debug("No base64, qrcode, message, or count field in response")
             else:
                 logger.debug(f"Response is not dict: {connect_response}")
             
@@ -244,7 +268,7 @@ class WhatsAppChannelHandler(ChannelHandler):
     async def restart_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Restart WhatsApp instance."""
         try:
-            evolution_client = get_evolution_client()
+            evolution_client = self._get_evolution_client(instance)
             result = await evolution_client.restart_instance(instance.name)
             
             return {
@@ -260,7 +284,7 @@ class WhatsAppChannelHandler(ChannelHandler):
     async def logout_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Logout WhatsApp instance."""
         try:
-            evolution_client = get_evolution_client()
+            evolution_client = self._get_evolution_client(instance)
             result = await evolution_client.logout_instance(instance.name)
             
             return {
@@ -276,7 +300,7 @@ class WhatsAppChannelHandler(ChannelHandler):
     async def delete_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Delete WhatsApp instance from Evolution API."""
         try:
-            evolution_client = get_evolution_client()
+            evolution_client = self._get_evolution_client(instance)
             result = await evolution_client.delete_instance(instance.name)
             
             return {
