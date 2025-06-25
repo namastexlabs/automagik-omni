@@ -267,12 +267,32 @@ class WhatsAppMessageHandler:
                         
                         # Build media_contents payload as expected by Agent API
                         # PRIORITY 1: Use base64 data if available (preferred by agent API)
+                        # First check if base64 is directly in data, then check in the message structure
                         base64_data = data.get('base64')
+                        if not base64_data:
+                            # Check if base64 is nested in the message structure
+                            message_obj = data.get('message', {})
+                            for media_type_key in ['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage']:
+                                if media_type_key in message_obj:
+                                    media_obj = message_obj[media_type_key]
+                                    logger.debug(f"DEBUG: Checking {media_type_key}, keys: {list(media_obj.keys()) if isinstance(media_obj, dict) else 'not dict'}")
+                                    if isinstance(media_obj, dict) and 'base64' in media_obj:
+                                        base64_data = media_obj['base64']
+                                        logger.debug(f"DEBUG: Found base64 in {media_type_key}")
+                                        break
+                        
+                        # Also check the root message for base64 (the original structure we saw in logs)
+                        if not base64_data and 'base64' in message:
+                            base64_data = message['base64']
+                            logger.debug(f"DEBUG: Found base64 in root message structure")
+                        
                         logger.debug(f"DEBUG: Looking for base64 in data. Keys in data: {list(data.keys())}")
+                        logger.debug(f"DEBUG: Message keys: {list(data.get('message', {}).keys())}")
+                        logger.debug(f"DEBUG: Root message keys: {list(message.keys())}")
                         if base64_data:
                             logger.debug(f"DEBUG: base64_data found: {self._truncate_base64_for_logging(base64_data)} (length: {len(base64_data)})")
                         else:
-                            logger.debug(f"DEBUG: No base64_data found")
+                            logger.debug(f"DEBUG: No base64_data found anywhere")
                         media_item = {
                             "alt_text": message_content or message_type,
                             "mime_type": media_meta.get('mimetype', f"{message_type}/")
@@ -498,7 +518,11 @@ class WhatsAppMessageHandler:
     def _extract_media_url_from_payload(self, data: dict) -> Optional[str]:
         """Extract media URL from WhatsApp message payload with retry logic for file availability."""
         try:
-            logger.info(f"🔍 DEBUG: Full data structure: {data}")
+            # Create a copy of data without base64 for cleaner logging
+            data_for_logging = data.copy()
+            if 'base64' in data_for_logging:
+                data_for_logging['base64'] = self._truncate_base64_for_logging(data_for_logging['base64'])
+            logger.info(f"🔍 DEBUG: Data structure (base64 truncated): {data_for_logging}")
             
             # PRIORITY 1: Check for Evolution API processed mediaUrl in message data
             message_data = data.get("message", {})
