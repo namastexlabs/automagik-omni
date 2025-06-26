@@ -135,6 +135,10 @@ app = FastAPI(
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
 
+# Include trace management routes
+from src.api.routes.traces import router as traces_router
+app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
+
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
 
@@ -237,31 +241,36 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         instance_config: InstanceConfig object with per-instance configuration
         request: FastAPI request object
     """
+    from src.services.trace_service import get_trace_context
+    
     try:
         # Get the JSON data from the request
         data = await request.json()
         logger.info(f"Received webhook for instance '{instance_config.name}'")
         logger.debug(f"Webhook data: {data}")
         
-        # Update the Evolution API sender with the webhook data
-        # This sets the runtime configuration from the webhook payload
-        evolution_api_sender.update_from_webhook(data)
-        
-        # Capture real media messages for testing purposes
-        try:
-            from src.utils.test_capture import test_capture
-            test_capture.capture_media_message(data, instance_config)
-        except Exception as e:
-            logger.error(f"Test capture failed: {e}", exc_info=True)
-        
-        # Process the message through the agent service
-        # The agent service will now delegate to the WhatsApp handler
-        # which will handle transcription and sending responses directly
-        # Pass instance_config to service for per-instance agent configuration
-        agent_service.process_whatsapp_message(data, instance_config)
-        
-        # Return success response
-        return {"status": "success", "instance": instance_config.name}
+        # Start message tracing
+        with get_trace_context(data, instance_config.name) as trace:
+            
+            # Update the Evolution API sender with the webhook data
+            # This sets the runtime configuration from the webhook payload
+            evolution_api_sender.update_from_webhook(data)
+            
+            # Capture real media messages for testing purposes
+            try:
+                from src.utils.test_capture import test_capture
+                test_capture.capture_media_message(data, instance_config)
+            except Exception as e:
+                logger.error(f"Test capture failed: {e}", exc_info=True)
+            
+            # Process the message through the agent service
+            # The agent service will now delegate to the WhatsApp handler
+            # which will handle transcription and sending responses directly
+            # Pass instance_config and trace context to service for per-instance agent configuration
+            agent_service.process_whatsapp_message(data, instance_config, trace)
+            
+            # Return success response
+            return {"status": "success", "instance": instance_config.name, "trace_id": trace.trace_id if trace else None}
         
     except Exception as e:
         logger.error(f"Error processing webhook for instance '{instance_config.name}': {e}", exc_info=True)

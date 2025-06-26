@@ -1,0 +1,38 @@
+{
+  "event": "messages.upsert",
+  "instance": "FlashinhoProTestonho",
+  "data": {
+    "key": {
+      "remoteJid": "555197285829@s.whatsapp.net",
+      "fromMe": false,
+      "id": "3EB0344B8C3BA7F792CE30",
+      "senderLid": "217046273028329@lid"
+    },
+    "pushName": "Cezar Vasconcelos",
+    "status": "DELIVERY_ACK",
+    "message": {
+      "conversation": "tipo a gnt já conversou?",
+      "messageContextInfo": {
+        "deviceListMetadata": {
+          "senderKeyHash": "Gu/iUJxqi7+6EA==",
+          "senderTimestamp": "1750544461",
+          "senderAccountType": "E2EE",
+          "receiverAccountType": "E2EE",
+          "recipientKeyHash": "N+nhpQjU4zFawg==",
+          "recipientTimestamp": "1750874564"
+        },
+        "deviceListMetadataVersion": 2,
+        "messageSecret": "2+Ieoxnb2belFwpKpUNALyxKFZ5aBoUsFDMhMAXrhBI="
+      }
+    },
+    "messageType": "conversation",
+    "messageTimestamp": 1750965392,
+    "instanceId": "05e1aaad-c61a-4cc7-bf95-05354ad0cc13",
+    "source": "web"
+  },
+  "destination": "http://192.168.112.188:18882/webhook/evolution/FlashinhoProTestonho",
+  "date_time": "2025-06-26T16:16:32.289Z",
+  "sender": "555198882486@s.whatsapp.net",
+  "server_url": "http://localhost:18080",
+  "apikey": "CFBFBD5F-E86C-42FC-A8F6-BEB04FBB9B33"
+}

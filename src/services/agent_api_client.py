@@ -314,7 +314,8 @@ class AgentApiClient:
                        context: Optional[Dict[str, Any]] = None,
                        channel_payload: Optional[Dict[str, Any]] = None,
                        session_origin: Optional[str] = None,
-                       preserve_system_prompt: bool = False) -> Dict[str, Any]:
+                       preserve_system_prompt: bool = False,
+                       trace_context=None) -> Dict[str, Any]:
         """
         Process a message using the agent API.
         This is a wrapper around run_agent that returns the full response structure.
@@ -340,6 +341,29 @@ class AgentApiClient:
         if not agent_name:
             agent_name = self.default_agent_name
             
+        # Log agent request if tracing enabled
+        if trace_context:
+            agent_request_payload = {
+                "agent_name": agent_name,
+                "message_content": message,
+                "user_id": user_id,
+                "user": user,
+                "session_name": session_name,
+                "message_type": message_type,
+                "media_url": media_url,
+                "media_contents": media_contents,
+                "mime_type": mime_type,
+                "context": context,
+                "channel_payload": channel_payload,
+                "session_origin": session_origin,
+                "preserve_system_prompt": preserve_system_prompt
+            }
+            trace_context.log_agent_request(agent_request_payload)
+        
+        # Record timing
+        import time
+        start_time = time.time()
+        
         # Call run_agent
         result = self.run_agent(
             agent_name=agent_name,
@@ -356,6 +380,11 @@ class AgentApiClient:
             session_origin=session_origin,
             preserve_system_prompt=preserve_system_prompt
         )
+        
+        # Record processing time and log response
+        processing_time = int((time.time() - start_time) * 1000)
+        if trace_context:
+            trace_context.log_agent_response(result, processing_time)
         
         # Return the full response structure
         if isinstance(result, dict):

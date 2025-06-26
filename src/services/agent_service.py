@@ -56,7 +56,7 @@ class AgentService:
         # No explicit cleanup needed for FastAPI-based service
         pass
     
-    def process_whatsapp_message(self, data: Dict[str, Any], instance_config=None) -> Optional[str]:
+    def process_whatsapp_message(self, data: Dict[str, Any], instance_config=None, trace_context=None) -> Optional[str]:
         """Process a WhatsApp message and generate a response.
         
         Args:
@@ -82,7 +82,8 @@ class AgentService:
         # Let the WhatsApp handler process the message
         # The handler will take care of transcribing audio, extracting text, etc.
         # and will send the response directly to the user
-        message_handler.handle_message(data, instance_config)
+        # Pass trace context for message lifecycle tracking
+        message_handler.handle_message(data, instance_config, trace_context)
         
         # Since the handler sends the response directly, we return None here
         return None

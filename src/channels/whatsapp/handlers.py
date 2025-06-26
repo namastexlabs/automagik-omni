@@ -58,17 +58,20 @@ class WhatsAppMessageHandler:
             self.processing_thread.join(timeout=5.0)
             logger.info("WhatsApp message handler stopped")
     
-    def handle_message(self, message: Dict[str, Any], instance_config=None):
+    def handle_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
         """Queue a message for processing."""
-        # Add instance config to the message for processing
+        # Add instance config and trace context to the message for processing
         message_with_config = {
             'message': message,
-            'instance_config': instance_config
+            'instance_config': instance_config,
+            'trace_context': trace_context
         }
         self.message_queue.put(message_with_config)
         logger.debug(f"Message queued for processing: {message.get('event')}")
         if instance_config:
             logger.debug(f"Using instance config: {instance_config.name} -> Agent: {instance_config.default_agent}")
+        if trace_context:
+            logger.debug(f"Message trace ID: {trace_context.trace_id}")
     
     def _process_messages_loop(self):
         """Process messages from the queue in a loop."""
@@ -77,16 +80,18 @@ class WhatsAppMessageHandler:
                 # Get message with timeout to allow for clean shutdown
                 message_data = self.message_queue.get(timeout=1.0)
                 
-                # Extract message and instance config
+                # Extract message, instance config, and trace context
                 if isinstance(message_data, dict) and 'message' in message_data:
                     message = message_data['message']
                     instance_config = message_data.get('instance_config')
+                    trace_context = message_data.get('trace_context')
                 else:
                     # Backward compatibility for direct message data
                     message = message_data
                     instance_config = None
+                    trace_context = None
                 
-                self._process_message(message, instance_config)
+                self._process_message(message, instance_config, trace_context)
                 self.message_queue.task_done()
             except queue.Empty:
                 # No messages, continue waiting
@@ -177,9 +182,14 @@ class WhatsAppMessageHandler:
         }
         return mime_to_ext.get(mime_type, '.bin')
 
-    def _process_message(self, message: Dict[str, Any], instance_config=None):
+    def _process_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
         """
         Process a WhatsApp message.
+        
+        Args:
+            message: WhatsApp message data
+            instance_config: Instance configuration for multi-tenant support
+            trace_context: TraceContext for message lifecycle tracking
         """
         try:
             # The message from Evolution API has a different structure from our previous code
@@ -495,7 +505,8 @@ class WhatsAppMessageHandler:
                         whatsapp_raw_payload=message,
                         session_origin="whatsapp",
                         agent_config=agent_config,
-                        media_contents=media_contents_to_send
+                        media_contents=media_contents_to_send,
+                        trace_context=trace_context
                     )
                 except TypeError as te:
                     # Fallback for older versions of MessageRouter without media parameters
@@ -552,7 +563,8 @@ class WhatsAppMessageHandler:
                     response_result = self._send_whatsapp_response(
                         recipient=sender_id,
                         text=response_to_send,
-                        quoted_message=message
+                        quoted_message=message,
+                        trace_context=trace_context
                     )
                     
                     # Mark message as sent but let the typing indicator continue for a short time
@@ -568,23 +580,43 @@ class WhatsAppMessageHandler:
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
     
-    def _send_whatsapp_response(self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]] = None):
+    def _send_whatsapp_response(self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]] = None, trace_context=None):
         """Send a response back via WhatsApp with optional message quoting."""
         response_payload = None
+        success = False
+        
+        # Prepare payload for tracing
+        send_payload = {
+            "recipient": recipient,
+            "text": text,
+            "has_quoted_message": quoted_message is not None
+        }
+        
         if self.send_response_callback:
             try:
                 # The Evolution API sender now supports quoting
                 success = self.send_response_callback(recipient, text, quoted_message)
+                response_code = 201 if success else 400  # Simulate HTTP status codes
+                
                 if success:
                     # Extract just the phone number without the suffix for logging
                     clean_recipient = recipient.split('@')[0] if '@' in recipient else recipient
                     logger.info(f"➤ Sent response to {clean_recipient}")
                 else:
                     logger.error(f"❌ Failed to send response to {recipient}")
+                    
             except Exception as e:
                 logger.error(f"❌ Error sending response: {e}", exc_info=True)
+                response_code = 500
+                success = False
         else:
             logger.warning("⚠️ No send response callback set, message not sent")
+            response_code = 500
+            success = False
+        
+        # Log evolution send attempt to trace
+        if trace_context:
+            trace_context.log_evolution_send(send_payload, response_code, success)
         
         return response_payload
 

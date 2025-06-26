@@ -34,7 +34,8 @@ class MessageRouter:
         whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
         session_origin: str = "whatsapp",
         agent_config: Optional[Dict[str, Any]] = None,
-        media_contents: Optional[List[Dict[str, Any]]] = None
+        media_contents: Optional[List[Dict[str, Any]]] = None,
+        trace_context=None
     ) -> str:
         """Route a message to the appropriate handler.
         
@@ -48,6 +49,7 @@ class MessageRouter:
             session_origin: Session origin (default: "whatsapp")
             agent_config: Agent configuration (optional)
             media_contents: List of media content objects (optional)
+            trace_context: TraceContext for message lifecycle tracking (optional)
             
         Returns:
             Response from the handler
@@ -126,7 +128,8 @@ class MessageRouter:
                     agent_name=agent_name,
                     message_type=message_type,
                     media_contents=media_contents,
-                    channel_payload=whatsapp_raw_payload
+                    channel_payload=whatsapp_raw_payload,
+                    trace_context=trace_context
                 )
             else:
                 # Use global agent API client
@@ -139,7 +142,8 @@ class MessageRouter:
                     agent_name=agent_name,
                     message_type=message_type,
                     media_contents=media_contents,
-                    channel_payload=whatsapp_raw_payload
+                    channel_payload=whatsapp_raw_payload,
+                    trace_context=trace_context
                 )
             
             # Memory creation is handled by the Automagik Agents API, no need to create it here

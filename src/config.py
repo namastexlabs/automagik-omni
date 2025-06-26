@@ -68,6 +68,13 @@ class DatabaseConfig(BaseModel):
         # Auto-construct SQLite URL from path
         return f"sqlite:///{self.sqlite_path}"
 
+class TracingConfig(BaseModel):
+    """Message tracing configuration."""
+    enabled: bool = Field(default_factory=lambda: os.getenv("ENABLE_TRACING", "true").lower() == "true")
+    retention_days: int = Field(default_factory=lambda: int(os.getenv("TRACE_RETENTION_DAYS", "30")))
+    max_payload_size: int = Field(default_factory=lambda: int(os.getenv("TRACE_MAX_PAYLOAD_SIZE", "1048576")))  # 1MB
+    include_sensitive_data: bool = Field(default_factory=lambda: os.getenv("TRACE_INCLUDE_SENSITIVE", "false").lower() == "true")
+
 class ApiConfig(BaseModel):
     """API Server configuration."""
     host: str = Field(default_factory=lambda: os.getenv("API_HOST", "0.0.0.0"))
@@ -86,6 +93,7 @@ class Config(BaseModel):
     whatsapp: WhatsAppConfig = WhatsAppConfig()
     api: ApiConfig = ApiConfig()
     database: DatabaseConfig = DatabaseConfig()
+    tracing: TracingConfig = TracingConfig()
     
     @property
     def is_valid(self) -> bool:

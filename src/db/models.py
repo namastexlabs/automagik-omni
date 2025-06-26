@@ -51,3 +51,7 @@ class InstanceConfig(Base):
 
     def __repr__(self):
         return f"<InstanceConfig(name='{self.name}', is_default={self.is_default})>"
+
+
+# Import trace models to ensure they're registered with SQLAlchemy
+from .trace_models import MessageTrace, TracePayload

@@ -1,0 +1,38 @@
+{
+  "event": "messages.upsert",
+  "instance": "FlashinhoProTestonho",
+  "data": {
+    "key": {
+      "remoteJid": "555197285829@s.whatsapp.net",
+      "fromMe": false,
+      "id": "3EB0A0A9A5D5AA4F5AB2F9",
+      "senderLid": "217046273028329@lid"
+    },
+    "pushName": "Cezar Vasconcelos",
+    "status": "DELIVERY_ACK",
+    "message": {
+      "conversation": "Do q eu gosto?",
+      "messageContextInfo": {
+        "deviceListMetadata": {
+          "senderKeyHash": "Gu/iUJxqi7+6EA==",
+          "senderTimestamp": "1750544461",
+          "senderAccountType": "E2EE",
+          "receiverAccountType": "E2EE",
+          "recipientKeyHash": "N+nhpQjU4zFawg==",
+          "recipientTimestamp": "1750874564"
+        },
+        "deviceListMetadataVersion": 2,
+        "messageSecret": "s6f/JzUtRZYycaerLk6PxK79GlQMrxMRQtAw/TktzW4="
+      }
+    },
+    "messageType": "conversation",
+    "messageTimestamp": 1750965371,
+    "instanceId": "05e1aaad-c61a-4cc7-bf95-05354ad0cc13",
+    "source": "web"
+  },
+  "destination": "http://192.168.112.188:18882/webhook/evolution/FlashinhoProTestonho",
+  "date_time": "2025-06-26T16:16:11.645Z",
+  "sender": "555198882486@s.whatsapp.net",
+  "server_url": "http://localhost:18080",
+  "apikey": "CFBFBD5F-E86C-42FC-A8F6-BEB04FBB9B33"
+}
