@@ -273,6 +273,42 @@ class AgentApiClient:
             logger.error(f"Unexpected error calling agent API: {e}", exc_info=True)
             return {"error": "Desculpe, encontrei um erro inesperado. Por favor, tente novamente."}
     
+    def get_session_info(self, session_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get session information from the agent API.
+        
+        Args:
+            session_name: Name of the session to retrieve
+            
+        Returns:
+            Session information dictionary if successful, None otherwise
+        """
+        endpoint = f"{self.api_url}/api/v1/sessions/{session_name}"
+        
+        try:
+            # Make the request
+            response = requests.get(
+                endpoint,
+                headers=self._make_headers(),
+                timeout=self.timeout
+            )
+                
+            # Check for successful response
+            if response.status_code == 200:
+                session_data = response.json()
+                logger.debug(f"Retrieved session info for {session_name}: user_id={session_data.get('user_id')}")
+                return session_data
+            elif response.status_code == 404:
+                logger.warning(f"Session {session_name} not found")
+                return None
+            else:
+                logger.warning(f"Unexpected response getting session {session_name}: {response.status_code}")
+                return None
+            
+        except Exception as e:
+            logger.error(f"Error getting session info for {session_name}: {str(e)}")
+            return None
+
     def list_agents(self) -> List[Dict[str, Any]]:
         """
         Get a list of available agents.
@@ -386,11 +422,22 @@ class AgentApiClient:
         if trace_context:
             trace_context.log_agent_response(result, processing_time)
         
+        # Fetch current session info to get the authoritative user_id
+        current_user_id = None
+        if session_name:
+            try:
+                session_info = self.get_session_info(session_name)
+                if session_info and 'user_id' in session_info:
+                    current_user_id = session_info['user_id']
+                    logger.info(f"Session {session_name} current user_id: {current_user_id}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch session info for {session_name}: {e}")
+        
         # Return the full response structure
         if isinstance(result, dict):
             if "error" in result:
                 # Convert error to agent response format
-                return {
+                response = {
                     "message": result.get("error", "Desculpe, encontrei um erro."),
                     "success": False,
                     "session_id": None,
@@ -401,10 +448,10 @@ class AgentApiClient:
                 }
             else:
                 # Return the full response (already in correct format from run_agent)
-                return result
+                response = result
         else:
             # Convert non-dict result to agent response format
-            return {
+            response = {
                 "message": str(result),
                 "success": True,
                 "session_id": None,
@@ -412,6 +459,12 @@ class AgentApiClient:
                 "tool_outputs": [],
                 "usage": {}
             }
+        
+        # Add the current user_id from session to the response
+        if current_user_id:
+            response["current_user_id"] = current_user_id
+        
+        return response
 
 # Singleton instance
 agent_api_client = AgentApiClient() 
