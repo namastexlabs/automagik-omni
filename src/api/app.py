@@ -261,7 +261,7 @@ async def _handle_evolution_webhook(instance_config, request: Request):
                 from src.utils.test_capture import test_capture
                 test_capture.capture_media_message(data, instance_config)
             except Exception as e:
-                logger.error(f"Test capture failed: {e}", exc_info=True)
+                logger.error(f"Test capture failed: {e}")
             
             # Process the message through the agent service
             # The agent service will now delegate to the WhatsApp handler

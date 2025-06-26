@@ -67,8 +67,12 @@ class MessageRouter:
             agent_name = agent_config["name"]
         logger.info(f"Using agent name: {agent_name}")
         
-        # If user dict is provided, use it directly (skip user lookup)
-        if user:
+        # If user_id is provided, prioritize it over user dict
+        if user_id:
+            logger.info(f"Using provided user_id: {user_id}")
+            # Clear user dict to avoid confusion - we have a specific user ID
+            user = None
+        elif user:
             logger.info(f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}")
             user_id = None  # Let the API handle user creation
         elif not user_id:

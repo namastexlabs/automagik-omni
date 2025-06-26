@@ -8,7 +8,7 @@ import httpx
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 from src.config import config
-from src.utils import replace_localhost_with_ipv4
+from src.ip_utils import replace_localhost_with_ipv4
 
 logger = logging.getLogger(__name__)
 

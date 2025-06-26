@@ -8,7 +8,7 @@ from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
 from src.channels.whatsapp.evolution_client import get_evolution_client, EvolutionCreateRequest, EvolutionClient
 from src.db.models import InstanceConfig
 from src.config import config
-from src.utils import replace_localhost_with_ipv4
+from src.ip_utils import replace_localhost_with_ipv4
 
 logger = logging.getLogger(__name__)
 

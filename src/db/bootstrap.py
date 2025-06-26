@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from .models import InstanceConfig
 from src.config import config
-from src.utils import ensure_ipv4_in_config
+from src.ip_utils import ensure_ipv4_in_config
 
 logger = logging.getLogger(__name__)
 

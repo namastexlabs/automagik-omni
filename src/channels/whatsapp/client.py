@@ -16,7 +16,7 @@ import tempfile
 
 from src.channels.whatsapp.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
-from src.utils import replace_localhost_with_ipv4
+from src.ip_utils import replace_localhost_with_ipv4
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.client")

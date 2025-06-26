@@ -19,6 +19,7 @@ from datetime import datetime
 from src.config import config
 from src.services.message_router import message_router
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
+from src.services.user_management_service import user_management_service
 
 # Remove the circular import
 # from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
@@ -244,21 +245,42 @@ class WhatsAppMessageHandler:
             try:
                 # Extract and normalize phone number
                 phone_number = self._extract_phone_number(sender_id)
+                formatted_phone = f"+{phone_number}"  # Ensure + prefix for international format
                 
-                # Create user dict for automatic user creation (skip user lookup)
-                user_dict = {
-                    "phone_number": f"+{phone_number}",  # Ensure + prefix for international format
-                    "email": "",  # WhatsApp doesn't provide email, leave empty
-                    "user_data": {
+                # Check if user exists or create new user
+                user_info = user_management_service.get_or_create_user(
+                    phone_number=formatted_phone,
+                    email=None,  # WhatsApp doesn't provide email
+                    user_data={
                         "name": user_name or "WhatsApp User",  # Use pushName or fallback
                         "whatsapp_id": sender_id,
                         "source": "whatsapp"
                     }
-                }
+                )
                 
-                logger.info(f"Created user dict for automatic creation: phone={user_dict['phone_number']}, name={user_dict['user_data']['name']}")
-                
-                # Skip the user lookup entirely - let the API handle user creation
+                if user_info:
+                    user_id = user_info.get('id')
+                    logger.info(f"Using user ID: {user_id} for phone: {formatted_phone}")
+                    
+                    # Create user dict for backward compatibility with existing API
+                    user_dict = {
+                        "phone_number": formatted_phone,
+                        "email": user_info.get('email'),
+                        "user_data": user_info.get('user_data', {})
+                    }
+                else:
+                    # Fallback to legacy user dict creation if user management fails
+                    logger.warning(f"Failed to get/create user for {formatted_phone}, using legacy approach")
+                    user_id = None
+                    user_dict = {
+                        "phone_number": formatted_phone,
+                        "email": "",
+                        "user_data": {
+                            "name": user_name or "WhatsApp User",
+                            "whatsapp_id": sender_id,
+                            "source": "whatsapp"
+                        }
+                    }
                 
                 # Handle audio messages - attempt transcription first
                 transcription_successful = False
@@ -498,6 +520,7 @@ class WhatsAppMessageHandler:
                 logger.info(f"Routing message to API for user {user_dict['phone_number']}, session {session_name}: {message_content}")
                 try:
                     agent_response = message_router.route_message(
+                        user_id=user_id,
                         user=user_dict,
                         session_name=session_name,
                         message_text=message_content,
@@ -512,6 +535,7 @@ class WhatsAppMessageHandler:
                     # Fallback for older versions of MessageRouter without media parameters
                     logger.warning(f"Route_message did not accept media_contents parameter, retrying without it: {te}")
                     agent_response = message_router.route_message(
+                        user_id=user_id,
                         user=user_dict,
                         session_name=session_name,
                         message_text=message_content,
