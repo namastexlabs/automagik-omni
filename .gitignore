@@ -188,3 +188,4 @@ backups/
 .env.production
 .env.staging
 nohup.out
+webhook_data/*
