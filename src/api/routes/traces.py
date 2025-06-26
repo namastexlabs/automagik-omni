@@ -6,7 +6,8 @@ Provides endpoints for querying message traces and analytics.
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from starlette import status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, desc
 from pydantic import BaseModel, Field
@@ -129,7 +130,7 @@ async def list_traces(
         # Apply pagination
         traces = query.offset(offset).limit(limit).all()
         
-        return [TraceResponse.from_orm(trace) for trace in traces]
+        return [TraceResponse(**trace.to_dict()) for trace in traces]
         
     except Exception as e:
         logger.error(f"Error listing traces: {e}")
@@ -155,7 +156,7 @@ async def get_trace(
                 detail=f"Trace '{trace_id}' not found"
             )
         
-        return TraceResponse.from_orm(trace)
+        return TraceResponse(**trace.to_dict())
         
     except HTTPException:
         raise
@@ -296,7 +297,7 @@ async def get_traces_by_phone(
     
     try:
         traces = TraceService.get_traces_by_phone(phone_number, limit, db)
-        return [TraceResponse.from_orm(trace) for trace in traces]
+        return [TraceResponse(**trace.to_dict()) for trace in traces]
         
     except Exception as e:
         logger.error(f"Error getting traces for phone {phone_number}: {e}")
