@@ -8,6 +8,7 @@ from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
 from src.channels.whatsapp.evolution_client import get_evolution_client, EvolutionCreateRequest, EvolutionClient
 from src.db.models import InstanceConfig
 from src.config import config
+from src.utils import replace_localhost_with_ipv4
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class WhatsAppChannelHandler(ChannelHandler):
     def _get_evolution_client(self, instance: InstanceConfig) -> EvolutionClient:
         """Get Evolution client for this specific instance."""
         # Use instance-specific credentials if available, otherwise fall back to global
-        evolution_url = instance.evolution_url or config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
+        evolution_url = instance.evolution_url or replace_localhost_with_ipv4(config.get_env("EVOLUTION_API_URL", "http://localhost:8080"))
         evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
         
         logger.debug(f"Instance config - URL: {instance.evolution_url}, Key: {'*' * len(instance.evolution_key) if instance.evolution_key else 'NOT SET'}")
@@ -64,7 +65,7 @@ class WhatsAppChannelHandler(ChannelHandler):
                 logger.info(f"Evolution instance '{instance.name}' already exists, using existing instance")
                 
                 # Set webhook URL for existing instance if needed
-                webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
+                webhook_url = replace_localhost_with_ipv4(f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}")
                 
                 try:
                     await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], True)
@@ -93,7 +94,7 @@ class WhatsAppChannelHandler(ChannelHandler):
             integration = kwargs.get("integration", "WHATSAPP-BAILEYS")
             
             # Set webhook URL automatically
-            webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
+            webhook_url = replace_localhost_with_ipv4(f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}")
             
             # Prepare Evolution API request (without webhook initially to avoid 403 errors)
             evolution_request = EvolutionCreateRequest(

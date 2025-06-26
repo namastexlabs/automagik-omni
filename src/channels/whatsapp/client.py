@@ -16,6 +16,7 @@ import tempfile
 
 from src.channels.whatsapp.evolution_api_client import EvolutionAPIClient, RabbitMQConfig, EventType
 from src.config import config
+from src.utils import replace_localhost_with_ipv4
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.client")
@@ -92,10 +93,10 @@ class WhatsAppClient:
                 return f"{protocol}://{host}:8080"
             else:
                 logger.warning("RabbitMQ URI is not in expected format")
-                return "http://localhost:8080"
+                return replace_localhost_with_ipv4("http://localhost:8080")
         except (IndexError, ValueError):
             logger.warning("Failed to extract host from RabbitMQ URI, using default")
-            return "http://localhost:8080"
+            return replace_localhost_with_ipv4("http://localhost:8080")
     
     def _get_api_key(self) -> str:
         """Get the API key from environment variables or use default."""

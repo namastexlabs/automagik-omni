@@ -9,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from .models import InstanceConfig
 from src.config import config
+from src.utils import ensure_ipv4_in_config
 
 logger = logging.getLogger(__name__)
 
@@ -60,20 +61,26 @@ def ensure_default_instance(db: Session) -> Optional[InstanceConfig]:
             
         logger.info("No instances found, creating default instance from environment variables")
         
+        # Prepare instance configuration data
+        instance_data = {
+            "name": "default",
+            "channel_type": "whatsapp",  # Default to WhatsApp for backward compatibility
+            "evolution_url": "",  # Evolution URL comes from webhook payload
+            "evolution_key": "",  # Evolution key comes from webhook payload
+            "whatsapp_instance": config.whatsapp.instance,
+            "session_id_prefix": config.whatsapp.session_id_prefix,
+            "agent_api_url": config.agent_api.url,
+            "agent_api_key": config.agent_api.api_key,
+            "default_agent": config.agent_api.default_agent_name,
+            "agent_timeout": config.agent_api.timeout,
+            "is_default": True
+        }
+        
+        # Replace localhost with actual IPv4 addresses in URLs
+        instance_data = ensure_ipv4_in_config(instance_data)
+        
         # Create default instance from current config
-        default_instance = InstanceConfig(
-            name="default",
-            channel_type="whatsapp",  # Default to WhatsApp for backward compatibility
-            evolution_url="",  # Evolution URL comes from webhook payload
-            evolution_key="",  # Evolution key comes from webhook payload
-            whatsapp_instance=config.whatsapp.instance,
-            session_id_prefix=config.whatsapp.session_id_prefix,
-            agent_api_url=config.agent_api.url,
-            agent_api_key=config.agent_api.api_key,
-            default_agent=config.agent_api.default_agent_name,
-            agent_timeout=config.agent_api.timeout,
-            is_default=True
-        )
+        default_instance = InstanceConfig(**instance_data)
         
         db.add(default_instance)
         db.commit()
@@ -114,19 +121,25 @@ def create_instance_from_env(db: Session, name: str, make_default: bool = False)
         logger.warning(f"Instance '{name}' already exists")
         return existing
     
-    instance = InstanceConfig(
-        name=name,
-        channel_type="whatsapp",  # Default to WhatsApp for backward compatibility
-        evolution_url="",  # Will be set from webhook payload
-        evolution_key="",  # Will be set from webhook payload
-        whatsapp_instance=config.whatsapp.instance,
-        session_id_prefix=config.whatsapp.session_id_prefix,
-        agent_api_url=config.agent_api.url,
-        agent_api_key=config.agent_api.api_key,
-        default_agent=config.agent_api.default_agent_name,
-        agent_timeout=config.agent_api.timeout,
-        is_default=make_default
-    )
+    # Prepare instance configuration data
+    instance_data = {
+        "name": name,
+        "channel_type": "whatsapp",  # Default to WhatsApp for backward compatibility
+        "evolution_url": "",  # Will be set from webhook payload
+        "evolution_key": "",  # Will be set from webhook payload
+        "whatsapp_instance": config.whatsapp.instance,
+        "session_id_prefix": config.whatsapp.session_id_prefix,
+        "agent_api_url": config.agent_api.url,
+        "agent_api_key": config.agent_api.api_key,
+        "default_agent": config.agent_api.default_agent_name,
+        "agent_timeout": config.agent_api.timeout,
+        "is_default": make_default
+    }
+    
+    # Replace localhost with actual IPv4 addresses in URLs
+    instance_data = ensure_ipv4_in_config(instance_data)
+    
+    instance = InstanceConfig(**instance_data)
     
     # If making this default, unset other defaults
     if make_default:

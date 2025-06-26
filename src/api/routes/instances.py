@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory, QRCodeResponse, ConnectionStatus
+from src.utils import ensure_ipv4_in_config
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +169,9 @@ async def create_instance(
     
     # Create database instance first (without creation parameters)
     db_instance_data = instance_data.dict(exclude={"phone_number", "auto_qr", "integration"})
+    
+    # Replace localhost with actual IPv4 addresses in URLs
+    db_instance_data = ensure_ipv4_in_config(db_instance_data)
     
     # Set channel-specific defaults for WhatsApp
     if instance_data.channel_type == "whatsapp":
@@ -381,6 +385,10 @@ def update_instance(
     
     # Update fields
     update_data = instance_data.dict(exclude_unset=True)
+    
+    # Replace localhost with actual IPv4 addresses in URLs
+    update_data = ensure_ipv4_in_config(update_data)
+    
     for field, value in update_data.items():
         setattr(instance, field, value)
     

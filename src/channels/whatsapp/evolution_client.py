@@ -8,6 +8,7 @@ import httpx
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 from src.config import config
+from src.utils import replace_localhost_with_ipv4
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class EvolutionClient:
         
         # Set webhook URL if configured
         if not request.webhook and config.api.host and config.api.port:
-            webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{request.instanceName}"
+            webhook_url = replace_localhost_with_ipv4(f"http://{config.api.host}:{config.api.port}/webhook/evolution/{request.instanceName}")
             logger.debug(f"Auto-configuring webhook URL: {webhook_url}")
             request.webhook = {
                 "enabled": True,
@@ -212,7 +213,7 @@ def get_evolution_client() -> EvolutionClient:
     
     if evolution_client is None:
         # Use environment variables for Evolution API configuration
-        evolution_url = config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
+        evolution_url = replace_localhost_with_ipv4(config.get_env("EVOLUTION_API_URL", "http://localhost:8080"))
         evolution_key = config.get_env("EVOLUTION_API_KEY", "")
         
         logger.debug(f"Evolution API configuration - URL: {evolution_url}")
