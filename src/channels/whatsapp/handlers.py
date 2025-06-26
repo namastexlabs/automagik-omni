@@ -322,6 +322,12 @@ class WhatsAppMessageHandler:
                 # Extract message content (will use transcription if available)
                 message_content = self._extract_message_content(message)
                 
+                # Add quoted message context if present
+                quoted_context = self._extract_quoted_context(message)
+                if quoted_context:
+                    message_content = f"{quoted_context}\n\n{message_content}"
+                    logger.info("Added quoted message context to message content")
+                
                 # Prepend user name to message content if available
                 if user_name and message_content:
                     message_content = f"[{user_name}]: {message_content}"
@@ -852,6 +858,61 @@ class WhatsAppMessageHandler:
             
         except Exception as e:
             logger.error(f"Error extracting message content: {e}", exc_info=True)
+            return ""
+    
+    def _extract_quoted_context(self, message: Dict[str, Any]) -> str:
+        """
+        Extract quoted message context from WhatsApp message payload.
+        
+        Args:
+            message: The WhatsApp message payload
+            
+        Returns:
+            str: Formatted quoted message context or empty string if no quote
+        """
+        try:
+            data = message.get('data', {})
+            
+            # Check for quoted message in contextInfo
+            context_info = data.get('contextInfo', {})
+            quoted_message = context_info.get('quotedMessage', {})
+            
+            if not quoted_message:
+                # Also check in message.contextInfo structure
+                message_obj = data.get('message', {})
+                context_info = message_obj.get('contextInfo', {})
+                quoted_message = context_info.get('quotedMessage', {})
+            
+            if quoted_message:
+                # Extract quoted text content
+                quoted_text = ""
+                
+                # Check different message types in quoted message
+                if 'conversation' in quoted_message:
+                    quoted_text = quoted_message['conversation']
+                elif 'extendedTextMessage' in quoted_message:
+                    quoted_text = quoted_message['extendedTextMessage'].get('text', '')
+                elif 'imageMessage' in quoted_message:
+                    quoted_text = quoted_message['imageMessage'].get('caption', '[Image]')
+                elif 'videoMessage' in quoted_message:
+                    quoted_text = quoted_message['videoMessage'].get('caption', '[Video]')
+                elif 'documentMessage' in quoted_message:
+                    quoted_text = quoted_message['documentMessage'].get('caption', '[Document]')
+                elif 'audioMessage' in quoted_message:
+                    quoted_text = '[Audio Message]'
+                
+                if quoted_text:
+                    # Format the quoted message context nicely
+                    # Truncate long messages for better readability
+                    if len(quoted_text) > 200:
+                        quoted_text = quoted_text[:200] + "..."
+                    
+                    return f"📝 **Replying to:** {quoted_text}"
+            
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error extracting quoted context: {e}", exc_info=True)
             return ""
             
     def _extract_message_type(self, message: Dict[str, Any]) -> str:
