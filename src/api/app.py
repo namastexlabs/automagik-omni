@@ -79,12 +79,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return response
     
     def _mask_sensitive_data(self, data):
-        """Mask sensitive fields in request data."""
+        """Mask sensitive fields and large payloads in request data."""
         if not isinstance(data, dict):
             return data
             
         masked = data.copy()
         sensitive_fields = ['password', 'api_key', 'agent_api_key', 'evolution_key', 'token', 'secret']
+        large_data_fields = ['base64', 'message', 'media_contents', 'data']
         
         for key, value in masked.items():
             if any(field in key.lower() for field in sensitive_fields):
@@ -92,6 +93,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     masked[key] = f"{value[:4]}***{value[-4:]}"
                 elif isinstance(value, str) and value:
                     masked[key] = "***"
+            elif any(field in key.lower() for field in large_data_fields):
+                if isinstance(value, str) and len(value) > 100:
+                    masked[key] = f"<large_string:{len(value)}_chars:{value[:20]}...{value[-20:]}>"
+                elif isinstance(value, list) and len(value) > 0:
+                    masked[key] = f"<array:{len(value)}_items>"
+                elif isinstance(value, dict):
+                    masked[key] = self._mask_sensitive_data(value)
             elif isinstance(value, dict):
                 masked[key] = self._mask_sensitive_data(value)
         

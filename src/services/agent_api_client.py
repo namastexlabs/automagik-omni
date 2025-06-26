@@ -193,7 +193,16 @@ class AgentApiClient:
         
         # Log the request (without sensitive information)
         logger.info(f"Making API request to {endpoint}")
-        logger.debug(f"Request payload: {json.dumps({k:v for k,v in payload.items() if k != 'channel_payload'}, cls=UUIDEncoder)}")
+        # Log payload summary without full content to avoid log clutter
+        payload_summary = {
+            'message_length': len(payload.get('message', '')),
+            'user_id': payload.get('user_id'),
+            'session_name': payload.get('session_name'),
+            'message_type': payload.get('message_type'),
+            'media_contents_count': len(payload.get('media_contents', [])),
+            'has_context': bool(payload.get('context'))
+        }
+        logger.debug(f"Request payload summary: {json.dumps(payload_summary)}")
         
         try:
             # Send request to the agent API
@@ -249,8 +258,8 @@ class AgentApiClient:
                     }
             else:
                 # Log error
-                logger.error(f"Error from agent API: {response.status_code} {response.text}")
-                return {"error": f"Desculpe, encontrei um erro (status {response.status_code}).", "details": response.text}
+                logger.error(f"Error from agent API: {response.status_code} (response: {len(response.text)} chars)")
+                return {"error": f"Desculpe, encontrei um erro (status {response.status_code}).", "details": f"Response length: {len(response.text)} chars"}
                 
         except Timeout:
             logger.error(f"Timeout calling agent API after {self.timeout}s")

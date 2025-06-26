@@ -42,6 +42,8 @@ class LoggingConfig(BaseModel):
     date_format: str = "%H:%M:%S"  # Shorter time format without date
     use_colors: bool = True
     shorten_paths: bool = Field(default_factory=lambda: os.getenv("LOG_VERBOSITY", "short").lower() != "full")
+    log_folder: str = Field(default_factory=lambda: os.getenv("LOG_FOLDER", ""))
+    enable_file_logging: bool = Field(default_factory=lambda: bool(os.getenv("LOG_FOLDER", "")))
 
 class WhatsAppConfig(BaseModel):
     """WhatsApp configuration."""
@@ -50,6 +52,8 @@ class WhatsAppConfig(BaseModel):
     api_use_https: bool = Field(default_factory=lambda: os.getenv("API_USE_HTTPS", "").lower() == "true")
     typing_indicator_duration: int = Field(default_factory=lambda: int(os.getenv("TYPING_INDICATOR_DURATION", "10")))
     instance: str = Field(default_factory=lambda: os.getenv("WHATSAPP_INSTANCE", ""))
+    use_base64_media: bool = Field(default_factory=lambda: os.getenv("USE_BASE64_MEDIA", "false").lower() == "true")
+    save_webhook_debug: bool = Field(default_factory=lambda: os.getenv("SAVE_WEBHOOK_DEBUG", "false").lower() == "true")
 
 class DatabaseConfig(BaseModel):
     """Database configuration."""

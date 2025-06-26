@@ -195,10 +195,10 @@ class EvolutionApiSender:
             "text": text
         }
         
-        # Add quoted message if provided
-        if quoted_message:
-            payload["quoted"] = self._format_quoted_message(quoted_message)
-            logger.info("Including quoted message in response")
+        # Add quoted message if provided (disabled due to Evolution API 400 errors)
+        # if quoted_message:
+        #     payload["quoted"] = self._format_quoted_message(quoted_message)
+        #     logger.info("Including quoted message in response")
         
         try:
             # Log the request details (without sensitive data)
@@ -212,21 +212,28 @@ class EvolutionApiSender:
             
             # Handle Evolution API's known database schema issue with quoted messages
             # See: https://github.com/EvolutionAPI/evolution-api/issues/1247
-            if response.status_code == 400 and quoted_message:
-                # Check if this is the known "typebotSessionId" database error
+            if response.status_code == 400:
+                # Log the actual error response for debugging
                 try:
                     error_response = response.json()
                     error_message = str(error_response.get('message', ''))
-                    if 'typebotSessionId' in error_message or 'database' in error_message.lower():
+                    logger.error(f"Evolution API 400 error response: {error_response}")
+                    
+                    if quoted_message and ('typebotSessionId' in error_message or 'database' in error_message.lower()):
                         logger.warning(f"Evolution API 400 error (known database schema issue): {error_message}")
                         logger.info(f"Message likely sent despite 400 error - continuing")
                         return True
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Could not parse 400 error response: {e}")
+                    logger.error(f"Raw response text: {response.text}")
                 
-                logger.warning(f"400 error with quoted message - this may be Evolution API database schema issue")
-                logger.info(f"Attempting to continue - message may have been sent despite error")
-                return True
+                if quoted_message:
+                    logger.warning(f"400 error with quoted message - this may be Evolution API database schema issue")
+                    logger.info(f"Attempting to continue - message may have been sent despite error")
+                    return True
+                else:
+                    logger.error(f"400 error without quoted message - this is a real error")
+                    return False
             
             # Raise for other HTTP errors
             response.raise_for_status()
@@ -325,7 +332,7 @@ class EvolutionApiSender:
             if success:
                 logger.info(f"Presence update sent to {formatted_recipient}")
             else:
-                logger.warning(f"Failed to send presence update: {response.status_code} {response.text}")
+                logger.warning(f"Failed to send presence update: {response.status_code} (response: {len(response.text)} chars)")
             
             return success
             

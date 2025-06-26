@@ -67,9 +67,8 @@ class WhatsAppChannelHandler(ChannelHandler):
                 webhook_url = f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
                 
                 try:
-                    webhook_base64 = getattr(instance, 'webhook_base64', True)
-                    await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], webhook_base64)
-                    logger.info(f"Updated webhook URL for existing instance: {webhook_url} (base64={webhook_base64})")
+                    await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], True)
+                    logger.info(f"Updated webhook URL for existing instance: {webhook_url} (base64=True)")
                     
                     # Also configure settings for existing instance
                     await evolution_client.set_settings(instance.name)
@@ -110,9 +109,8 @@ class WhatsAppChannelHandler(ChannelHandler):
             
             # Configure webhook and settings for new instance
             try:
-                webhook_base64 = getattr(instance, 'webhook_base64', True)
-                await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], webhook_base64)
-                logger.info(f"Configured webhook for new instance: {webhook_url} (base64={webhook_base64})")
+                await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], True)
+                logger.info(f"Configured webhook for new instance: {webhook_url} (base64=True)")
                 
                 await evolution_client.set_settings(instance.name)
                 logger.info(f"Configured settings for new instance: {instance.name}")

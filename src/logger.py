@@ -5,6 +5,9 @@ Provides colorful, emoji-decorated log formatting with customizable options.
 
 import logging
 import sys
+import os
+import uuid
+from datetime import datetime
 from typing import Optional
 
 from src.config import config
@@ -140,13 +143,20 @@ def setup_logging(level: Optional[str] = None, use_colors: bool = None,
     log_format = config.logging.format
     date_format = config.logging.date_format
     
-    # Create the formatter
-    formatter = ColoredFormatter(
+    # Create the console formatter (with colors and emojis)
+    console_formatter = ColoredFormatter(
         fmt=log_format,
         datefmt=date_format,
         use_colors=use_colors,
         use_emojis=use_emojis,
         shorten_paths=shorten_paths
+    )
+    
+    # Create the file formatter (without colors and emojis for clean file output)
+    file_log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file_formatter = logging.Formatter(
+        fmt=file_log_format,
+        datefmt="%Y-%m-%d %H:%M:%S"
     )
     
     # Configure the root logger
@@ -159,8 +169,32 @@ def setup_logging(level: Optional[str] = None, use_colors: bool = None,
     
     # Add console handler with the custom formatter
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
+    
+    # Add file handler if log folder is configured
+    if config.logging.enable_file_logging and config.logging.log_folder:
+        try:
+            # Create log folder if it doesn't exist
+            os.makedirs(config.logging.log_folder, exist_ok=True)
+            
+            # Generate unique server restart ID
+            server_id = str(uuid.uuid4())[:8]
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_filename = f"omnihub_{timestamp}_{server_id}.log"
+            log_filepath = os.path.join(config.logging.log_folder, log_filename)
+            
+            # Create file handler
+            file_handler = logging.FileHandler(log_filepath, mode='w', encoding='utf-8')
+            file_handler.setFormatter(file_formatter)
+            root_logger.addHandler(file_handler)
+            
+            # Log that file logging is enabled
+            root_logger.info(f"📁 File logging enabled: {log_filepath}")
+            
+        except Exception as e:
+            # If file logging fails, log error but continue with console logging
+            root_logger.error(f"❌ Failed to setup file logging: {e}")
     
     # Control HTTP client logging to prevent duplicates
     # Set HTTP client libraries to WARNING level to reduce noise

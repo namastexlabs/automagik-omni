@@ -68,7 +68,7 @@ class AutomagikAPIClient:
                 logger.info(f"User not found: {user_identifier}")
                 return None
             else:
-                logger.error(f"Error getting user: {response.status_code} {response.text}")
+                logger.error(f"Error getting user: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error getting user: {e}")
@@ -94,7 +94,7 @@ class AutomagikAPIClient:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger.error(f"Error listing users: {response.status_code} {response.text}")
+                logger.error(f"Error listing users: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error listing users: {e}")
@@ -124,7 +124,7 @@ class AutomagikAPIClient:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger.error(f"Error creating user: {response.status_code} {response.text}")
+                logger.error(f"Error creating user: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error creating user: {e}")
@@ -206,7 +206,7 @@ class AutomagikAPIClient:
                 logger.info(f"Session not found: {session_id}")
                 return None
             else:
-                logger.error(f"Error getting session: {response.status_code} {response.text}")
+                logger.error(f"Error getting session: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error getting session: {e}")
