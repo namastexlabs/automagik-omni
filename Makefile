@@ -436,3 +436,170 @@ info: ## Show project information
 	@echo ""
 	$(call check_service_status)
 	@echo ""
+
+# ===========================================
+# 📦 Build & Publish
+# ===========================================
+.PHONY: build publish-test publish check-dist check-release clean-build
+.PHONY: bump-patch bump-minor bump-major bump-dev publish-dev finalize-version
+
+build: clean-build ## 📦 Build package
+	$(call print_status,Building package...)
+	@uv build
+	$(call print_success,Package built!)
+
+check-dist: ## 🔍 Check package quality
+	$(call print_status,Checking package quality...)
+	@uv run twine check dist/*
+
+check-release: ## 🔍 Check if ready for release (clean working directory)
+	$(call print_status,Checking release readiness...)
+	@# Check for uncommitted changes
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Please commit or stash your changes before publishing.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Run: git status$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@# Check if on main branch
+	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$CURRENT_BRANCH" != "main" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Not on main branch (current: $$CURRENT_BRANCH)$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)It's recommended to publish from the main branch.$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	@# Check if main branch is up to date with origin
+	@git fetch origin main --quiet; \
+	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/main)" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Local main branch differs from origin/main$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Consider pulling latest changes or pushing your commits.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Run: git pull origin main$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	$(call print_success,Ready for release!)
+
+publish-test: build check-dist ## 🧪 Upload to TestPyPI
+	$(call print_status,Publishing to TestPyPI...)
+	@if [ -z "$(TESTPYPI_TOKEN)" ]; then \
+		$(call print_error,TESTPYPI_TOKEN not set); \
+		echo -e "$(FONT_YELLOW)💡 Get your TestPyPI token at: https://test.pypi.org/manage/account/token/$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Set with: export TESTPYPI_TOKEN=pypi-xxxxx$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@uv run twine upload --repository testpypi dist/* -u __token__ -p "$(TESTPYPI_TOKEN)"
+	$(call print_success,Published to TestPyPI!)
+
+publish: check-release build check-dist ## 🚀 Upload to PyPI and create GitHub release
+	$(call print_status,Publishing to PyPI and GitHub...)
+	@if [ -z "$(PYPI_TOKEN)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) PYPI_TOKEN environment variable not set$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@# Get version from pyproject.toml
+	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)$(INFO) Publishing version: v$$VERSION$(FONT_RESET)"; \
+	uv run twine upload dist/* -u __token__ -p "$(PYPI_TOKEN)"; \
+	if ! git tag | grep -q "^v$$VERSION$$"; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating git tag v$$VERSION$(FONT_RESET)"; \
+		git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
+	fi; \
+	echo -e "$(FONT_CYAN)$(INFO) Pushing tag to GitHub$(FONT_RESET)"; \
+	git push origin "v$$VERSION"; \
+	if command -v gh >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating GitHub release$(FONT_RESET)"; \
+		gh release create "v$$VERSION" \
+			--title "v$$VERSION" \
+			--notes "Release v$$VERSION - See CHANGELOG for details" \
+			dist/* || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - skipping release creation$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) Install with: brew install gh$(FONT_RESET)"; \
+	fi
+	$(call print_success,Published to PyPI and GitHub!)
+
+clean-build: ## 🧹 Clean build artifacts
+	$(call print_status,Cleaning build artifacts...)
+	@rm -rf build dist *.egg-info
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	$(call print_success,Build artifacts cleaned!)
+
+# ===========================================
+# 📈 Version Management
+# ===========================================
+bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
+	$(call print_status,Bumping patch version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$NF = $$NF + 1;} 1' | sed 's/ /./g'); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
+	$(call print_status,Bumping minor version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$2 = $$2 + 1; $$3 = 0;} 1' | sed 's/ /./g'); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
+	$(call print_status,Bumping major version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$1 = $$1 + 1; $$2 = 0; $$3 = 0;} 1' | sed 's/ /./g'); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2)
+	$(call print_status,Creating dev pre-release version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		BASE_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
+		PRE_NUM=$$(echo "$$CURRENT_VERSION" | sed 's/.*pre\([0-9]*\)/\1/'); \
+		NEW_PRE_NUM=$$((PRE_NUM + 1)); \
+		NEW_VERSION="$${BASE_VERSION}pre$${NEW_PRE_NUM}"; \
+	else \
+		NEW_VERSION="$${CURRENT_VERSION}pre1"; \
+	fi; \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Dev version created: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)💡 Ready for: make publish-dev$(FONT_RESET)"
+
+publish-dev: build check-dist ## 🚀 Build and publish dev version to PyPI
+	$(call print_status,Publishing dev version to PyPI...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if ! echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		$(call print_error,Not a dev version! Use 'make bump-dev' first); \
+		echo -e "$(FONT_GRAY)Current version: $$CURRENT_VERSION$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@if [ -z "$(PYPI_TOKEN)" ]; then \
+		$(call print_error,PYPI_TOKEN not set); \
+		echo -e "$(FONT_YELLOW)💡 Get your PyPI token at: https://pypi.org/manage/account/token/$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Set with: export PYPI_TOKEN=pypi-xxxxx$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@echo -e "$(FONT_CYAN)🚀 Publishing $$CURRENT_VERSION to PyPI for beta testing...$(FONT_RESET)"
+	@uv run twine upload dist/* -u __token__ -p "$(PYPI_TOKEN)"
+	@echo -e "$(FONT_GREEN)✅ Dev version published to PyPI!$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)💡 Users can install with: pip install omni-hub==$$CURRENT_VERSION$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)💡 Or latest pre-release: pip install --pre omni-hub$(FONT_RESET)"
+
+finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
+	$(call print_status,Finalizing version for release...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if ! echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		$(call print_error,Not a pre-release version!); \
+		echo -e "$(FONT_GRAY)Current version: $$CURRENT_VERSION$(FONT_RESET)"; \
+		exit 1; \
+	fi; \
+	FINAL_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$FINAL_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
