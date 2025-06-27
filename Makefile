@@ -354,26 +354,7 @@ validate: ## Run multi-tenancy validation
 # ===========================================
 # 📦 Publishing & Release
 # ===========================================
-.PHONY: build
-build: ## Build the project
-	$(call check_prerequisites)
-	$(call print_status,Building project)
-	@$(UV) build
-	$(call print_success,Build completed)
-
-.PHONY: publish-test
-publish-test: ## Publish to Test PyPI
-	$(call check_prerequisites)
-	$(call print_status,Publishing to Test PyPI)
-	@$(UV) publish --repository testpypi
-	$(call print_success,Published to Test PyPI)
-
-.PHONY: publish
-publish: ## Publish to PyPI
-	$(call check_prerequisites)
-	$(call print_status,Publishing to PyPI)
-	@$(UV) publish
-	$(call print_success,Published to PyPI)
+# Duplicate targets removed - see Build & Publish section below
 
 .PHONY: release
 release: quality test build ## Full release process (quality + test + build)
