@@ -1,7 +1,6 @@
 """Utility functions for Omni-Hub."""
 
 import socket
-import re
 from urllib.parse import urlparse
 
 
@@ -17,7 +16,6 @@ def get_local_ipv4() -> str:
     """
     import subprocess
     import platform
-    import os
     
     def is_local_network_ip(ip: str) -> bool:
         """Check if IP is in local network ranges."""

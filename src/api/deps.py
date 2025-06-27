@@ -3,7 +3,7 @@ FastAPI dependency injection for database and services.
 """
 
 import logging
-from typing import Generator, Optional
+from typing import Generator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session

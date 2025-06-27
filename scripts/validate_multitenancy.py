@@ -5,10 +5,9 @@ Checks code quality, security, and production readiness.
 """
 
 import ast
-import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict
 
 
 def check_file_structure() -> Dict[str, bool]:

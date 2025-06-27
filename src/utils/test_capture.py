@@ -107,7 +107,7 @@ class TestCapture:
             logger.info(f"📸 CAPTURED real {message_type} message: {file_path}")
             logger.info(f"   User: {push_name}")
             logger.info(f"   Base64 size: {len(data.get('base64', ''))} chars")
-            logger.info(f"   Use this file to test agent API with real WhatsApp media!")
+            logger.info("   Use this file to test agent API with real WhatsApp media!")
             
             # Also create a standalone curl script
             curl_file = file_path.replace('.json', '_curl.sh')

@@ -9,7 +9,6 @@ from typing import Dict, Any, Optional
 import time
 import threading
 import random
-import re
 
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.evolution_api_sender")
@@ -221,18 +220,18 @@ class EvolutionApiSender:
                     
                     if quoted_message and ('typebotSessionId' in error_message or 'database' in error_message.lower()):
                         logger.warning(f"Evolution API 400 error (known database schema issue): {error_message}")
-                        logger.info(f"Message likely sent despite 400 error - continuing")
+                        logger.info("Message likely sent despite 400 error - continuing")
                         return True
                 except Exception as e:
                     logger.error(f"Could not parse 400 error response: {e}")
                     logger.error(f"Raw response text: {response.text}")
                 
                 if quoted_message:
-                    logger.warning(f"400 error with quoted message - this may be Evolution API database schema issue")
-                    logger.info(f"Attempting to continue - message may have been sent despite error")
+                    logger.warning("400 error with quoted message - this may be Evolution API database schema issue")
+                    logger.info("Attempting to continue - message may have been sent despite error")
                     return True
                 else:
-                    logger.error(f"400 error without quoted message - this is a real error")
+                    logger.error("400 error without quoted message - this is a real error")
                     return False
             
             # Raise for other HTTP errors

@@ -383,12 +383,12 @@ class WhatsAppMessageHandler:
                         # First check if base64 is directly in message object (correct location from logs)
                         if 'base64' in message_obj:
                             base64_data = message_obj['base64']
-                            logger.debug(f"DEBUG: Found base64 in message object")
+                            logger.debug("DEBUG: Found base64 in message object")
                         
                         # Fallback: check if base64 is directly in data
                         elif 'base64' in data:
                             base64_data = data['base64']
-                            logger.debug(f"DEBUG: Found base64 in data object")
+                            logger.debug("DEBUG: Found base64 in data object")
                         
                         # Fallback: check if base64 is nested in media type objects
                         else:
@@ -407,7 +407,7 @@ class WhatsAppMessageHandler:
                         if base64_data:
                             logger.debug(f"DEBUG: base64_data found (length: {len(base64_data)} chars)")
                         else:
-                            logger.debug(f"DEBUG: No base64_data found anywhere")
+                            logger.debug("DEBUG: No base64_data found anywhere")
                         media_item = {
                             "alt_text": message_content or message_type,
                             "mime_type": media_meta.get('mimetype', f"{message_type}/")

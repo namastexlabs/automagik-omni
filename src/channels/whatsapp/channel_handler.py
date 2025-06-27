@@ -5,7 +5,7 @@ WhatsApp channel handler using Evolution API.
 import logging
 from typing import Dict, Any
 from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
-from src.channels.whatsapp.evolution_client import get_evolution_client, EvolutionCreateRequest, EvolutionClient
+from src.channels.whatsapp.evolution_client import EvolutionCreateRequest, EvolutionClient
 from src.db.models import InstanceConfig
 from src.config import config
 from src.ip_utils import replace_localhost_with_ipv4
@@ -157,7 +157,7 @@ class WhatsAppChannelHandler(ChannelHandler):
             
             # If instance is in connecting state, try to restart it first to get fresh QR
             if current_state == "connecting":
-                logger.info(f"Instance is in connecting state, restarting to get fresh QR...")
+                logger.info("Instance is in connecting state, restarting to get fresh QR...")
                 try:
                     await evolution_client.restart_instance(instance.name)
                     logger.debug("Instance restart initiated")

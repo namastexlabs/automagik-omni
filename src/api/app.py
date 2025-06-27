@@ -3,7 +3,7 @@ FastAPI application for receiving Evolution API webhooks.
 """
 
 import logging
-from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
@@ -193,7 +193,6 @@ app.openapi = custom_openapi
 @app.on_event("startup")
 async def startup_event():
     """Initialize application on startup."""
-    from src.db.database import get_db
     
     logger.info("Initializing application...")
     logger.info(f"Log level set to: {config.logging.level}")

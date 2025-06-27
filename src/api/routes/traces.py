@@ -9,11 +9,11 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette import status
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, desc
-from pydantic import BaseModel, Field
+from sqlalchemy import and_, desc
+from pydantic import BaseModel
 
 from src.api.deps import get_database, verify_api_key
-from src.db.trace_models import MessageTrace, TracePayload
+from src.db.trace_models import MessageTrace
 from src.services.trace_service import TraceService
 
 logger = logging.getLogger(__name__)

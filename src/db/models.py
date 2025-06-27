@@ -54,4 +54,3 @@ class InstanceConfig(Base):
 
 
 # Import trace models to ensure they're registered with SQLAlchemy
-from .trace_models import MessageTrace, TracePayload

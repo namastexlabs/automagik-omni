@@ -526,7 +526,7 @@ async def get_instance_qr_code(
         logger.debug(f"QR CODE API: Got handler {type(handler).__name__}")
         
         # Get QR code/connection info
-        logger.debug(f"QR CODE API: Calling handler.get_qr_code()")
+        logger.debug("QR CODE API: Calling handler.get_qr_code()")
         result = await handler.get_qr_code(instance)
         logger.debug(f"QR CODE API: Handler returned {result}")
         return result

@@ -7,7 +7,6 @@ import os
 sys.path.insert(0, os.path.abspath('.'))
 
 from src.utils.test_capture import test_capture
-from src.db.models import InstanceConfig
 
 # Real webhook data structure from the logs I saw
 webhook_data = {

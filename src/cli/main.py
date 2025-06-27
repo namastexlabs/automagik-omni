@@ -23,7 +23,6 @@ from src.services.agent_api_client import agent_api_client
 
 # Import database initialization
 from src.db.database import create_tables
-from src.db.database import SessionLocal
 
 # Get a logger for this module
 logger = logging.getLogger("src.cli.main")
