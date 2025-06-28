@@ -1,0 +1,9 @@
+{
+  "name": "automagik-omni",
+  "version": "0.2.0",
+  "description": "Automagik Omni - Multi-tenant Hub",
+  "private": true,
+  "scripts": {
+    "start": "echo 'This is a Python service managed by PM2'"
+  }
+}
