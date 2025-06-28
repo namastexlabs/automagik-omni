@@ -17,6 +17,11 @@ def get_config_timezone():
         # Fallback for cases where config isn't available
         import os
         timezone_str = os.getenv("AUTOMAGIK_TIMEZONE", "UTC")
+        # Remove quotes if present
+        if timezone_str.startswith('"') and timezone_str.endswith('"'):
+            timezone_str = timezone_str[1:-1]
+        if timezone_str.startswith("'") and timezone_str.endswith("'"):
+            timezone_str = timezone_str[1:-1]
         try:
             return pytz.timezone(timezone_str)
         except pytz.UnknownTimeZoneError:

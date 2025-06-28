@@ -233,4 +233,4 @@ def get_automagik_api_client() -> AutomagikAPIClient:
 if config.agent_api.url and config.agent_api.api_key:
     automagik_api_client = AutomagikAPIClient()
 else:
-    logger.info("Automagik API client initialization skipped - configure AGENT_API_URL and AGENT_API_KEY to enable") 
+    logger.debug("Automagik API client initialization skipped - configure AGENT_API_URL and AGENT_API_KEY to enable") 

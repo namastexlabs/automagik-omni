@@ -18,6 +18,16 @@ load_dotenv(override=True)
 # Get logger for this module
 logger = logging.getLogger(__name__)
 
+def _clean_timezone_env() -> str:
+    """Clean timezone environment variable by removing quotes."""
+    tz = os.getenv("AUTOMAGIK_TIMEZONE", "UTC")
+    # Remove quotes if present
+    if tz.startswith('"') and tz.endswith('"'):
+        tz = tz[1:-1]
+    if tz.startswith("'") and tz.endswith("'"):
+        tz = tz[1:-1]
+    return tz
+
 class RabbitMQConfig(BaseModel):
     """RabbitMQ configuration (DISABLED - HTTP webhooks only)."""
     uri: str = Field(default_factory=lambda: os.getenv("RABBITMQ_URI", ""))
@@ -88,7 +98,7 @@ class ApiConfig(BaseModel):
 
 class TimezoneConfig(BaseModel):
     """Timezone configuration."""
-    timezone: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_TIMEZONE", "UTC"))
+    timezone: str = Field(default_factory=lambda: _clean_timezone_env())
     
     @property
     def tz(self) -> pytz.BaseTzInfo:
