@@ -194,22 +194,22 @@ def get_local_ipv4() -> str:
 
 
 def replace_localhost_with_ipv4(url: str) -> str:
-    """Replace localhost in a URL with the actual IPv4 address.
+    """Replace localhost/0.0.0.0 in a URL with the actual IPv4 address.
     
     Args:
-        url: The URL that may contain localhost
+        url: The URL that may contain localhost, 127.0.0.1, or 0.0.0.0
         
     Returns:
-        str: The URL with localhost replaced by actual IPv4 address
+        str: The URL with localhost/0.0.0.0 replaced by actual IPv4 address
     """
     if not url:
         return url
         
-    # Parse the URL to check if it contains localhost
+    # Parse the URL to check if it contains localhost or 0.0.0.0
     parsed = urlparse(url)
-    if parsed.hostname in ("localhost", "127.0.0.1"):
+    if parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
         ipv4_address = get_local_ipv4()
-        # Replace localhost/127.0.0.1 with actual IPv4
+        # Replace localhost/127.0.0.1/0.0.0.0 with actual IPv4
         return url.replace(parsed.hostname, ipv4_address)
     
     return url
