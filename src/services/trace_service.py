@@ -6,7 +6,6 @@ Manages the lifecycle of message traces through the Omni-Hub system.
 import time
 import logging
 import uuid
-from datetime import datetime
 from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 from sqlalchemy.orm import Session

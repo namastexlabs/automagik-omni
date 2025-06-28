@@ -5,7 +5,6 @@ Provides consistent datetime handling across the application using configured ti
 
 from datetime import datetime
 import pytz
-from typing import Optional
 
 
 def get_config_timezone():

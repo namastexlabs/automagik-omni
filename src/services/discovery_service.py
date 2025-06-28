@@ -6,9 +6,8 @@ import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
-from src.channels.whatsapp.evolution_client import get_evolution_client, EvolutionInstance
+from src.channels.whatsapp.evolution_client import EvolutionInstance
 from src.db.models import InstanceConfig
-from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -174,12 +173,6 @@ class DiscoveryService:
                 return None
             
             # Map Evolution status to our boolean
-            evolution_status_map = {
-                "open": True,
-                "close": False,
-                "connecting": False,
-                "created": False
-            }
             
             new_instance = InstanceConfig(
                 name=evo_instance.instanceName,

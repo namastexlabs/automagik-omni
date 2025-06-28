@@ -8,7 +8,6 @@ from typing import List, Optional, Dict, Any, Union
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from uuid import UUID
 
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender

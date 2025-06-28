@@ -105,7 +105,7 @@ class ColoredFormatter(logging.Formatter):
             local_time = to_local(utc_time)
             # Update the record with timezone-aware time
             record_copy.created = local_time.timestamp()
-        except Exception as e:
+        except Exception:
             # Fallback to original time if timezone conversion fails
             # This ensures logging still works even if timezone config is broken
             pass
@@ -128,7 +128,7 @@ class ColoredFormatter(logging.Formatter):
         if self.use_emojis:
             levelname = record.levelname  # Use original record level
             if levelname in self.EMOJIS:
-                emoji = self.EMOJIS[levelname]
+                self.EMOJIS[levelname]
                 # Only add emoji if not already present
                 if not any(emoji in formatted_msg for emoji in self.EMOJIS.values()):
                     formatted_msg = f"{self.EMOJIS[levelname]} {formatted_msg}"

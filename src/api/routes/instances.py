@@ -431,7 +431,7 @@ async def delete_instance(
         handler = ChannelHandlerFactory.get_handler(instance.channel_type)
         
         # Delete from external service
-        result = await handler.delete_instance(instance)
+        await handler.delete_instance(instance)
         evolution_delete_success = True
         logger.info(f"Successfully deleted instance '{instance_name}' from {instance.channel_type} service")
         

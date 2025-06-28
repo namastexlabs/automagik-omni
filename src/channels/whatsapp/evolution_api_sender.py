@@ -700,7 +700,7 @@ class PresenceUpdater:
         # Initial delay before starting presence updates
         time.sleep(0.5)
         
-        start_time = time.time()
+        time.time()
         post_send_cooldown = 1.0  # Short cooldown after message sent (in seconds)
         message_sent_time = None
         

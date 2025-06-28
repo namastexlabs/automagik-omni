@@ -45,7 +45,7 @@ def get_local_ipv4() -> str:
         try:
             with open('/proc/version', 'r') as f:
                 return 'microsoft' in f.read().lower() or 'wsl' in f.read().lower()
-        except:
+        except (OSError, IOError):
             return False
     
     try:

@@ -11,7 +11,6 @@ from typing import Optional
 import tempfile
 import os
 
-from src.config import config
 from src.channels.whatsapp.whatsapp_media_decrypt import whatsapp_media_decryptor
 
 # Configure logging

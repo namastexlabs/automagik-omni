@@ -14,7 +14,6 @@ import requests
 import json
 import os
 import base64
-from datetime import datetime
 
 from src.config import config
 from src.services.message_router import message_router
@@ -394,7 +393,7 @@ class WhatsAppMessageHandler:
                 
                 # Generate a session ID based on the sender's WhatsApp ID
                 # Create a deterministic hash from the sender's WhatsApp ID
-                hash_obj = hashlib.md5(sender_id.encode())
+                hashlib.md5(sender_id.encode())
                 
                 # Get the session ID prefix from config
                 session_id_prefix = config.whatsapp.session_id_prefix
@@ -533,7 +532,7 @@ class WhatsAppMessageHandler:
                 else:
                     # Send the response immediately while the typing indicator is still active
                     # Include the original message for quoting (reply)
-                    response_result = self._send_whatsapp_response(
+                    self._send_whatsapp_response(
                         recipient=sender_id,
                         text=response_to_send,
                         quoted_message=message,

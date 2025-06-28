@@ -3,7 +3,6 @@ SQLAlchemy models for multi-tenant instance configuration and user management.
 """
 
 import uuid
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base

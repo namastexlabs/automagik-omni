@@ -112,7 +112,7 @@ class EvolutionAPIClient:
                 
                 try:
                     # Declare queue if it doesn't exist (passive=False) or just get it if it does
-                    queue_result = self.channel.queue_declare(queue=instance_queue_name, durable=True, passive=True)
+                    self.channel.queue_declare(queue=instance_queue_name, durable=True, passive=True)
                     logger.info(f"Found existing queue: {instance_queue_name}")
                     
                     # Consume from this queue directly
