@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.channels.whatsapp.evolution_client import EvolutionInstance
 from src.db.models import InstanceConfig
+from src.utils.instance_utils import normalize_instance_name
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +175,11 @@ class DiscoveryService:
             
             # Map Evolution status to our boolean
             
+            # Normalize the name for our database but keep original for Evolution API
+            normalized_name = normalize_instance_name(evo_instance.instanceName)
+            
             new_instance = InstanceConfig(
-                name=evo_instance.instanceName,
+                name=normalized_name,
                 channel_type="whatsapp",
                 default_agent=evo_instance.profileName or "default-agent",
                 evolution_url=evolution_url,
@@ -185,6 +189,10 @@ class DiscoveryService:
                 whatsapp_instance=evo_instance.instanceName,  # Preserve original case for Evolution API calls
                 is_default=False  # Never make auto-discovered instances default
             )
+            
+            # Log normalization if name changed
+            if evo_instance.instanceName != normalized_name:
+                logger.info(f"Auto-discovered instance name normalized: '{evo_instance.instanceName}' -> '{normalized_name}'")
             
             db.add(new_instance)
             db.flush()  # Get the ID
