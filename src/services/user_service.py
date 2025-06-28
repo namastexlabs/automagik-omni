@@ -11,7 +11,6 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from src.db.models import User
-from src.services.automagik_api_client import automagik_api_client
 from src.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -264,18 +263,8 @@ class UserService:
         Returns:
             Optional[Dict]: User data from agent API if found
         """
-        if not automagik_api_client:
-            logger.debug("Agent API client not configured")
-            return None
-        
-        try:
-            user_data = automagik_api_client.get_user(user_id)
-            if user_data:
-                logger.info(f"Found user {user_id} via agent API")
-                return user_data
-        except Exception as e:
-            logger.warning(f"Error looking up user {user_id} via agent API: {e}")
-        
+        # Global agent API client is disabled - using instance-specific configurations
+        logger.debug("Global agent API lookup skipped - using instance-specific configurations")
         return None
 
 

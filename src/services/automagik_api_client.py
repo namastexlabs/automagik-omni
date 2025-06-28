@@ -229,8 +229,4 @@ def get_automagik_api_client() -> AutomagikAPIClient:
     
     return automagik_api_client
 
-# Initialize at import only if configuration exists
-if config.agent_api.url and config.agent_api.api_key:
-    automagik_api_client = AutomagikAPIClient()
-else:
-    logger.debug("Automagik API client initialization skipped - configure AGENT_API_URL and AGENT_API_KEY to enable") 
+# Global instance initialization disabled - using instance-specific configurations only 

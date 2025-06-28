@@ -8,7 +8,6 @@ import logging
 from typing import Dict, Any, Optional, Union, List
 
 from src.services.agent_api_client import agent_api_client
-from src.services.automagik_api_client import automagik_api_client
 from src.config import config
 
 # Configure logging
@@ -76,28 +75,9 @@ class MessageRouter:
             logger.info(f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}")
             user_id = None  # Let the API handle user creation
         elif not user_id:
-            # Fallback to existing user creation logic only if no user dict provided
-            try:
-                if automagik_api_client and automagik_api_client.api_url:
-                    # Create an anonymous user with minimal information
-                    user_response = automagik_api_client.create_user(
-                        user_data={"source": session_origin}
-                    )
-                    if user_response:
-                        user_id = user_response["id"]
-                        logger.info(f"Created new user with ID: {user_id}")
-                    else:
-                        # Fallback to a default user ID (1 is typically admin/system user)
-                        user_id = 1
-                        logger.warning(f"Failed to create user, using default ID: {user_id}")
-                else:
-                    # No API client available, use default user ID
-                    user_id = 1
-                    logger.info(f"No automagik API client configured, using default user ID: {user_id}")
-            except Exception as e:
-                # If user creation fails, use default user ID
-                user_id = 1
-                logger.error(f"Error creating user: {e}")
+            # No user_id provided and no user dict - let the instance-specific agent handle user creation
+            logger.info("No user_id provided - letting instance-specific agent API handle user creation")
+            user_id = None
         
         # Process the message through the Agent API
         try:

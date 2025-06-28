@@ -10,7 +10,6 @@ from typing import Dict, Any, Optional
 
 # We no longer need to import the WhatsApp client that uses RabbitMQ
 # from src.channels.whatsapp.client import whatsapp_client
-from src.services.automagik_api_client import automagik_api_client
 
 # Configure logging
 logger = logging.getLogger("src.services.agent_service")
@@ -32,14 +31,8 @@ class AgentService:
             # We no longer use the WhatsApp client with RabbitMQ
             # whatsapp_client.start()
             
-            # Check if API is available
-            if automagik_api_client and automagik_api_client.api_url:
-                if not automagik_api_client.health_check():
-                    logger.warning("Automagik API health check failed. Service may have limited functionality.")
-                else:
-                    logger.info("Automagik API health check successful.")
-            else:
-                logger.info("Automagik API client not configured - skipping health check")
+            # Global API client disabled - using instance-specific configurations
+            logger.debug("Global API health check skipped - using instance-specific configurations")
             
             return True
         except Exception as e:

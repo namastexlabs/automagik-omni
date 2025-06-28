@@ -12,7 +12,6 @@ from uuid import UUID
 
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
-from src.services.automagik_api_client import automagik_api_client
 from src.services.user_service import user_service
 
 logger = logging.getLogger(__name__)
