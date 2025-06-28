@@ -34,9 +34,7 @@ SPARKLES := ✨
 PROJECT_ROOT := $(shell pwd)
 PYTHON := python3
 UV := uv
-SERVICE_NAME := omni-hub
-SERVICE_FILE := /etc/systemd/system/$(SERVICE_NAME).service
-SYSTEMCTL := systemctl
+SERVICE_NAME := automagik-omni
 
 # Load environment variables from .env file if it exists
 -include .env
@@ -101,6 +99,13 @@ define check_prerequisites
 	fi
 endef
 
+define check_pm2
+	@if ! command -v pm2 >/dev/null 2>&1; then \
+		$(call print_error,PM2 not found. Install with: npm install -g pm2); \
+		exit 1; \
+	fi
+endef
+
 define ensure_env_file
 	@if [ ! -f ".env" ]; then \
 		cp .env.example .env 2>/dev/null || touch .env; \
@@ -108,17 +113,7 @@ define ensure_env_file
 	fi
 endef
 
-define check_service_status
-	@if systemctl is-active --quiet $(SERVICE_NAME); then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(SERVICE_NAME) is running$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(SERVICE_NAME))$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
-	elif systemctl is-enabled --quiet $(SERVICE_NAME); then \
-		echo -e "$(FONT_YELLOW)$(WARNING) Service $(SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_RED)$(ERROR) Service $(SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
-	fi
-endef
+# Function removed - now using PM2 for service management
 
 # ===========================================
 # 📋 Help System
@@ -257,81 +252,58 @@ restart-service: ## Update systemd service (removes and recreates)
 	@sudo rm -f $(SERVICE_FILE)
 	@$(MAKE) install-service
 
-install-service: ## Install systemd service
-	$(call print_status,Installing systemd service)
-	@if [ ! -f "$(SERVICE_FILE)" ]; then \
-		TMP_FILE=$$(mktemp); \
-		printf "[Unit]\n" > $$TMP_FILE; \
-		printf "Description=Omni-Hub Multi-Tenant WhatsApp Agent Service\n" >> $$TMP_FILE; \
-		printf "After=network.target\n" >> $$TMP_FILE; \
-		printf "Wants=network.target\n" >> $$TMP_FILE; \
-		printf "\n" >> $$TMP_FILE; \
-		printf "[Service]\n" >> $$TMP_FILE; \
-		printf "Type=simple\n" >> $$TMP_FILE; \
-		printf "User=%s\n" "$(USER)" >> $$TMP_FILE; \
-		printf "WorkingDirectory=%s\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "Environment=PATH=%s/.venv/bin:/usr/local/bin:/usr/bin:/bin\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "EnvironmentFile=%s/.env\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "ExecStart=/bin/bash -c 'cd %s && source .env && %s/.venv/bin/uvicorn src.api.app:app --host $${API_HOST:-0.0.0.0} --port $${API_PORT:-8000}'\n" "$(PROJECT_ROOT)" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "Restart=always\n" >> $$TMP_FILE; \
-		printf "RestartSec=10\n" >> $$TMP_FILE; \
-		printf "StandardOutput=journal\n" >> $$TMP_FILE; \
-		printf "StandardError=journal\n" >> $$TMP_FILE; \
-		printf "\n" >> $$TMP_FILE; \
-		printf "[Install]\n" >> $$TMP_FILE; \
-		printf "WantedBy=multi-user.target\n" >> $$TMP_FILE; \
-		sudo cp $$TMP_FILE $(SERVICE_FILE); \
-		rm $$TMP_FILE; \
-		sudo systemctl daemon-reload; \
-		sudo systemctl enable $(SERVICE_NAME); \
-		echo "✅ Service installed and enabled"; \
-	else \
-		echo "⚠️ Service already installed"; \
+install-service: ## Install PM2 service
+	$(call print_status,Installing PM2 service)
+	@if [ ! -d ".venv" ]; then \
+		$(call print_warning,Virtual environment not found - creating it now...); \
+		$(MAKE) install; \
 	fi
+	@$(call check_pm2)
+	@$(call print_status,Starting service with PM2...)
+	@cd $(PROJECT_ROOT)/.. && pm2 start ecosystem.config.js --only automagik-omni
+	@pm2 save
+	@$(call print_success,PM2 service installed!)
 
 .PHONY: start-service
-start-service: ## Start the systemd service
-	$(call print_status,Starting $(SERVICE_NAME) service)
-	@sudo systemctl start $(SERVICE_NAME)
-	@sleep 2
-	$(call check_service_status)
+start-service: ## Start PM2 service
+	$(call print_status,Starting PM2 service)
+	@$(call check_pm2)
+	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js --only automagik-omni
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service started!$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)$(HUB) Recent logs:$(FONT_RESET)"
+	@pm2 logs automagik-omni --lines 20 --nostream
 
 .PHONY: stop-service
-stop-service: ## Stop the systemd service
-	$(call print_status,Stopping $(SERVICE_NAME) service)
-	@sudo systemctl stop $(SERVICE_NAME)
+stop-service: ## Stop PM2 service
+	$(call print_status,Stopping PM2 service)
+	@$(call check_pm2)
+	@pm2 stop automagik-omni 2>/dev/null || true
 	$(call print_success,Service stopped)
 
-.PHONY: restart-service-simple
-restart-service-simple: ## Restart the systemd service
-	$(call print_status,Restarting $(SERVICE_NAME) service)
-	@sudo systemctl restart $(SERVICE_NAME)
-	@sleep 2
-	$(call check_service_status)
+.PHONY: restart-service
+restart-service: ## Restart PM2 service
+	$(call print_status,Restarting PM2 service)
+	@$(call check_pm2)
+	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js --only automagik-omni
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service restarted!$(FONT_RESET)"
 
 .PHONY: service-status
-service-status: ## Check service status
-	$(call print_status,Checking $(SERVICE_NAME) service status)
-	$(call check_service_status)
+service-status: ## Check PM2 service status
+	$(call print_status,Checking PM2 service status)
+	@$(call check_pm2)
+	@pm2 show automagik-omni 2>/dev/null || echo "Service not found"
 
 .PHONY: logs
-logs: ## Show service logs (N=lines FOLLOW=1 for follow mode)
+logs: ## Show service logs (N=lines)
 	$(eval N := $(or $(N),30))
-	$(call print_status,Recent $(SERVICE_NAME) logs)
-	@if [ "$(FOLLOW)" = "1" ]; then \
-		echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"; \
-		journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager 2>/dev/null || \
-		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager; }; \
-	else \
-		journalctl -u $(SERVICE_NAME) -n $(N) --no-pager 2>/dev/null || \
-		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -n $(N) --no-pager; }; \
-	fi
+	$(call print_status,Recent logs)
+	@pm2 logs automagik-omni --lines $(N) --nostream 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
 
-.PHONY: logs-tail
-logs-tail: ## Show recent service logs
-	$(call print_status,Recent $(SERVICE_NAME) logs)
-	@journalctl -u $(SERVICE_NAME) -n 50 --no-pager 2>/dev/null || \
-	{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -n 50 --no-pager; }
+.PHONY: logs-follow
+logs-follow: ## Follow service logs in real-time
+	$(call print_status,Following logs)
+	@echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"
+	@pm2 logs automagik-omni 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
 
 # ===========================================
 # 🗃️ Database & CLI Management
@@ -389,17 +361,12 @@ clean: ## Clean build artifacts and cache
 	$(call print_success,Cleanup completed)
 
 .PHONY: uninstall-service
-uninstall-service: ## Uninstall systemd service
-	$(call print_status,Uninstalling systemd service)
-	@if [ -f "$(SERVICE_FILE)" ]; then \
-		sudo systemctl stop $(SERVICE_NAME) 2>/dev/null || true; \
-		sudo systemctl disable $(SERVICE_NAME) 2>/dev/null || true; \
-		sudo rm -f $(SERVICE_FILE); \
-		sudo systemctl daemon-reload; \
-		$(call print_success,Service uninstalled); \
-	else \
-		$(call print_warning,Service not found); \
-	fi
+uninstall-service: ## Uninstall PM2 service
+	$(call print_status,Uninstalling PM2 service)
+	@$(call check_pm2)
+	@pm2 delete automagik-omni 2>/dev/null || true
+	@pm2 save --force
+	@$(call print_success,PM2 service uninstalled!)
 
 # ===========================================
 # 🚀 Quick Commands
@@ -425,8 +392,7 @@ info: ## Show project information
 	@echo -e "$(FONT_CYAN)Python:$(FONT_RESET) $(shell python3 --version 2>/dev/null || echo 'Not found')"
 	@echo -e "$(FONT_CYAN)UV:$(FONT_RESET) $(shell uv --version 2>/dev/null || echo 'Not found')"
 	@echo -e "$(FONT_CYAN)Service:$(FONT_RESET) $(SERVICE_NAME)"
-	@echo ""
-	$(call check_service_status)
+	@echo -e "$(FONT_CYAN)PM2:$(FONT_RESET) $(shell pm2 --version 2>/dev/null || echo 'Not found')"
 	@echo ""
 
 # ===========================================
