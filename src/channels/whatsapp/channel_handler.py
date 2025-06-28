@@ -108,15 +108,13 @@ class WhatsAppChannelHandler(ChannelHandler):
             logger.info(f"WhatsApp instance created: {response}")
             logger.debug(f"Response type: {type(response)}")
             
-            # Configure webhook and settings for new instance
+            # Note: Webhook is already configured during instance creation above
+            # Additional settings configuration if needed
             try:
-                await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], True)
-                logger.info(f"Configured webhook for new instance: {webhook_url} (base64=True)")
-                
                 await evolution_client.set_settings(instance.name)
-                logger.info(f"Configured settings for new instance: {instance.name}")
+                logger.info(f"Configured additional settings for new instance: {instance.name}")
             except Exception as config_error:
-                logger.warning(f"Failed to configure webhook/settings for new instance: {config_error}")
+                logger.debug(f"Additional settings configuration not needed or failed: {config_error}")
             
             # Handle different response formats from Evolution API
             if isinstance(response, dict):

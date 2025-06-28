@@ -93,12 +93,13 @@ class EvolutionClient:
                 response.raise_for_status()
                 return response.json()
             except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {len(e.response.text)} characters")
+                error_text = e.response.text
+                logger.error(f"Evolution API error {e.response.status_code}: {error_text}")
                 logger.debug(f"Failed request details - URL: {url}, Method: {method}")
                 logger.debug(f"Failed request headers: {self.headers}")
                 if 'json' in kwargs:
-                    logger.debug(f"Failed request body size: {len(str(kwargs['json']))} characters")
-                raise Exception(f"Evolution API error: {e.response.status_code}")
+                    logger.debug(f"Failed request body: {kwargs['json']}")
+                raise Exception(f"Evolution API error: {e.response.status_code} - {error_text}")
             except Exception as e:
                 logger.error(f"Evolution API request failed: {e}")
                 logger.debug(f"Failed request details - URL: {url}, Method: {method}")
