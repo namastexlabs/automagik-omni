@@ -42,7 +42,7 @@ class WhatsAppMessageHandler:
         self.is_running = False
         self.send_response_callback = send_response_callback
         self.audio_transcriber = AudioTranscriptionService()
-        logger.info("WhatsApp message handler initialized with audio transcription service")
+        logger.debug("WhatsApp message handler initialized")
     
     def start(self):
         """Start the message processing thread."""
@@ -264,74 +264,9 @@ class WhatsAppMessageHandler:
                 # The agent API will be the source of truth for user_id
                 # We'll get the actual user_id from the agent response after processing
                 
-                # Handle audio messages - attempt transcription first
-                transcription_successful = False
+                # Handle audio messages (transcription disabled)
                 if is_audio_message:
-                    # Extract media URL and media key from the message
-                    media_url = self._extract_media_url_from_payload(data)
-                    media_key = self._extract_media_key_from_payload(data)
-                    
-                    if media_url:
-                        # Log which URL is being used for debugging
-                        if "api.bucket.namastex.ai" in media_url:
-                            logger.info(f"✅ Using Evolution API processed URL: {self._truncate_url_for_logging(media_url)}")
-                        elif "mmg.whatsapp.net" in media_url:
-                            logger.warning(f"⚠️ Using WhatsApp encrypted URL (may not work): {self._truncate_url_for_logging(media_url)}")
-                        else:
-                            logger.info(f"Audio URL found in message: {self._truncate_url_for_logging(media_url)}")
-                        
-                        # PRIORITY 1: Use Evolution API processed mediaUrl (contains decrypted .oga file)
-                        # Check if this is a processed minio URL from Evolution API
-                        if "minio:9000" in media_url and ".oga" in media_url:
-                            logger.info(f"✅ Found Evolution API processed audio file: {self._truncate_url_for_logging(media_url)}")
-                            
-                            # Convert minio URL to external accessible URL
-                            external_media_url = self._convert_minio_url(media_url)
-                            logger.info(f"🔄 Converted to external URL: {self._truncate_url_for_logging(external_media_url)}")
-                            
-                            # Try to transcribe using the processed URL directly
-                            if not self.audio_transcriber.is_configured():
-                                logger.warning("Audio transcription service is not properly configured. Skipping transcription.")
-                            else:
-                                logger.info("🎯 Attempting to transcribe Evolution API processed audio")
-                                transcription = self.audio_transcriber.transcribe_with_fallback(external_media_url)
-                                
-                                if transcription:
-                                    logger.info(f"✅ Successfully transcribed processed audio: {transcription}")
-                                    data['transcription'] = transcription
-                                    transcription_successful = True
-                                else:
-                                    logger.warning("❌ Failed to transcribe processed audio message")
-                        
-                        # FALLBACK: If no processed mediaUrl, try the encrypted decryption approach
-                        elif media_key and not transcription_successful:
-                            logger.info("🔍 No processed audio file, trying encrypted decryption approach")
-                            # If media URL is from minio, convert to accessible URL
-                            if "minio:" in media_url:
-                                media_url = self._convert_minio_url(media_url)
-                                logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url)}")
-                            
-                            # Check if this is an encrypted WhatsApp URL that needs decryption
-                            is_encrypted_url = '.enc?' in media_url or media_url.endswith('.enc')
-                            logger.info(f"🔍 DEBUG: URL contains .enc: {is_encrypted_url}")
-                            logger.info(f"🔍 DEBUG: Media key present: {bool(media_key)}")
-                            logger.info(f"🔍 DEBUG: Media key value: {media_key if media_key else 'None'}")
-                            
-                            if is_encrypted_url and media_key:
-                                logger.info("🔓 Found encrypted WhatsApp audio with media key - attempting decryption")
-                                transcription = self.audio_transcriber.transcribe_encrypted_audio(media_url, media_key)
-                                
-                                if transcription:
-                                    logger.info(f"✅ Successfully transcribed encrypted audio: {transcription}")
-                                    data['transcription'] = transcription
-                                    transcription_successful = True
-                                else:
-                                    logger.warning("❌ Failed to transcribe encrypted audio message")
-                        
-                        else:
-                            logger.warning("❌ No processed audio file or media key available for transcription")
-                    else:
-                        logger.warning("No media URL found for audio message")
+                    logger.debug("Audio message received (transcription disabled)")
                 
                 # Extract message content (will use transcription if available)
                 message_content = self._extract_message_content(message)
@@ -360,10 +295,7 @@ class WhatsAppMessageHandler:
                     if media_url_to_send:
                         logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url_to_send)}")
 
-                        # Convert Minio URL to external if necessary
-                        if "minio:" in media_url_to_send:
-                            media_url_to_send = self._convert_minio_url(media_url_to_send)
-                            logger.info(f"Converted Minio URL: {self._truncate_url_for_logging(media_url_to_send)}")
+                        # Media URL processing (Minio conversion removed)
 
                         # Extract metadata based on media type
                         message_obj = data.get('message', {})
@@ -439,16 +371,7 @@ class WhatsAppMessageHandler:
 
                 # ================= End Media Handling =============
 
-                # If it's an audio message and transcription failed, don't proceed
-                if is_audio_message and not transcription_successful and not message_content.strip():
-                    logger.info("Skipping audio message processing as transcription failed and no content available")
-                    response_result = self._send_whatsapp_response(
-                        recipient=sender_id,
-                        text="Recebi seu áudio, mas não consegui transcrever o conteúdo. Poderia enviar sua mensagem em texto?",
-                        quoted_message=message
-                    )
-                    presence_updater.mark_message_sent()
-                    return
+                # Process all message types including audio (transcription no longer required)
                 
                 # Create agent config using instance-specific or global configuration
                 if instance_config:
@@ -518,7 +441,7 @@ class WhatsAppMessageHandler:
                     else:
                         message_type_param = "media"  # fallback
                 elif is_audio_message:
-                    # We use "text" because we've transcribed the audio
+                    # Audio messages are treated as text (transcription disabled)
                     message_type_param = "text"
                 else:
                     message_type_param = "text"
@@ -662,37 +585,6 @@ class WhatsAppMessageHandler:
         
         return response_payload
 
-    def _convert_minio_url(self, url: str) -> str:
-        """Convert internal minio URLs to use the configured external Minio URL."""
-        if not url or "minio:9000" not in url:
-            return url
-            
-        # Get the external Minio URL from config
-        minio_ext_url = config.whatsapp.minio_url
-        if not minio_ext_url:
-            return url
-            
-        try:
-            # Extract the path and query string from the URL
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            path_and_query = parsed.path
-            if parsed.query:
-                path_and_query += f"?{parsed.query}"
-                
-            # Create new URL with the external Minio address
-            # Ensure we have a proper URL format with protocol
-            if not minio_ext_url.startswith(('http://', 'https://')):
-                external_url = f"http://{minio_ext_url.rstrip('/')}"
-            else:
-                external_url = minio_ext_url.rstrip('/')
-                
-            converted_url = f"{external_url}{path_and_query}"
-            logger.info(f"\033[96mConverted internal minio URL to external URL: {self._truncate_url_for_logging(converted_url)}\033[0m")
-            return converted_url
-        except Exception as e:
-            logger.warning(f"\033[93mFailed to convert minio URL: {str(e)}\033[0m")
-            return url
     
     def _extract_media_url_from_payload(self, data: dict) -> Optional[str]:
         """Extract media URL from WhatsApp message payload with retry logic for file availability."""
@@ -793,7 +685,7 @@ class WhatsAppMessageHandler:
                 
                 # Quick head request to check file availability
                 try:
-                    response = requests.head(url.replace("minio:9000", "localhost:9000"), timeout=5)
+                    response = requests.head(url, timeout=5)
                     if response.status_code == 200:
                         logger.info(f"✅ File confirmed available after {attempt + 1} attempts")
                         return url
@@ -881,9 +773,7 @@ class WhatsAppMessageHandler:
         try:
             data = message.get('data', {})
             
-            # Check for transcription first (for audio messages)
-            if 'transcription' in data:
-                return data['transcription']
+            # Transcription disabled - process audio messages as raw audio
             
             # Check if we have a conversation message
             message_obj = data.get('message', {})

@@ -22,22 +22,17 @@ class AudioTranscriptionService:
     
     def __init__(self):
         """Initialize the audio transcription service."""
-        self.api_url = config.evolution_transcript.api_url
-        self.api_key = config.evolution_transcript.api_key
+        # Audio transcription is currently disabled
+        # This service is kept for backward compatibility but not actively used
+        self.api_url = ""
+        self.api_key = ""
         
-        # Get Minio URL from environment
-        self.minio_url = config.whatsapp.minio_url
-        logger.info(f"Using Minio URL from environment: {self.minio_url}")
-        
-        # Validate required configuration is present
-        if not self.api_url or not self.api_key:
-            logger.warning("\033[93mAudio transcription service not fully configured. "
-                         "EVOLUTION_TRANSCRIPT_API and EVOLUTION_TRANSCRIPT_API_KEY "
-                         "must be set in environment variables.\033[0m")
+        logger.debug("Audio transcription service initialized (currently disabled)")
     
     def is_configured(self) -> bool:
         """Check if the service is properly configured."""
-        return bool(self.api_url and self.api_key)
+        # Always return False since transcription is disabled
+        return False
     
     def transcribe_encrypted_audio(self, encrypted_url: str, media_key_b64: str) -> Optional[str]:
         """
