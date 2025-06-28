@@ -601,6 +601,15 @@ async def restart_instance(
         
         # Restart instance
         result = await handler.restart_instance(instance)
+        
+        # Also sync status with Evolution to update our database
+        if instance.channel_type == "whatsapp":
+            try:
+                from src.services.discovery_service import discovery_service
+                await discovery_service.sync_instance_status(instance_name, db)
+            except Exception as e:
+                logger.warning(f"Failed to sync instance status after restart: {e}")
+        
         return result
         
     except ValueError as e:
@@ -613,6 +622,7 @@ async def restart_instance(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to restart instance: {str(e)}"
         )
+
 
 
 @router.post("/instances/{instance_name}/logout")
@@ -648,6 +658,51 @@ async def logout_instance(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to logout instance: {str(e)}"
+        )
+
+
+@router.post("/instances/discover")
+async def discover_evolution_instances(
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Manually trigger Evolution instance discovery.
+    
+    Discovers instances from Evolution API and creates missing database entries.
+    Only creates new instances - does not modify existing ones.
+    """
+    try:
+        from src.services.discovery_service import discovery_service
+        
+        logger.info("Manual Evolution instance discovery triggered")
+        discovered_instances = await discovery_service.discover_evolution_instances(db)
+        
+        if discovered_instances:
+            return {
+                "status": "success",
+                "message": f"Discovered {len(discovered_instances)} Evolution instances",
+                "instances": [
+                    {
+                        "name": instance.name,
+                        "active": instance.is_active,
+                        "agent_id": instance.agent_id
+                    }
+                    for instance in discovered_instances
+                ]
+            }
+        else:
+            return {
+                "status": "success",
+                "message": "No new Evolution instances discovered",
+                "instances": []
+            }
+            
+    except Exception as e:
+        logger.error(f"Manual discovery failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Discovery failed: {str(e)}"
         )
 
 

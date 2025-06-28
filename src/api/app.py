@@ -200,6 +200,25 @@ async def startup_event():
     logger.info(f"API Port: {config.api.port}")
     logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
     
+    # Auto-discover existing Evolution instances (non-intrusive)
+    try:
+        logger.info("Starting Evolution instance auto-discovery...")
+        from src.services.discovery_service import discovery_service
+        from src.db.database import SessionLocal
+        
+        with SessionLocal() as db:
+            discovered_instances = await discovery_service.discover_evolution_instances(db)
+            if discovered_instances:
+                logger.info(f"Auto-discovered {len(discovered_instances)} Evolution instances:")
+                for instance in discovered_instances:
+                    logger.info(f"  - {instance.name} (active: {instance.is_active})")
+            else:
+                logger.info("No new Evolution instances discovered")
+    except Exception as e:
+        logger.warning(f"Evolution instance auto-discovery failed: {e}")
+        logger.debug(f"Auto-discovery error details: {str(e)}")
+        logger.info("Continuing without auto-discovery - instances can be created manually")
+    
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
 
