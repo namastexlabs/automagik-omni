@@ -13,6 +13,7 @@ from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory, QRCodeResponse, ConnectionStatus
 from src.ip_utils import ensure_ipv4_in_config
+from src.utils.instance_utils import normalize_instance_name, validate_instance_name
 
 logger = logging.getLogger(__name__)
 
@@ -146,12 +147,23 @@ async def create_instance(
                 detail="Invalid evolution_key. Please provide a valid Evolution API key."
             )
     
-    # Check if instance name already exists
-    existing = db.query(InstanceConfig).filter_by(name=instance_data.name).first()
+    # Normalize instance name for API compatibility
+    original_name = instance_data.name
+    normalized_name = normalize_instance_name(instance_data.name)
+    
+    # Update instance data with normalized name
+    instance_data.name = normalized_name
+    
+    # Log normalization if name changed
+    if original_name != normalized_name:
+        logger.info(f"Instance name normalized: '{original_name}' -> '{normalized_name}'")
+    
+    # Check if normalized instance name already exists
+    existing = db.query(InstanceConfig).filter_by(name=normalized_name).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Instance '{instance_data.name}' already exists"
+            detail=f"Instance '{normalized_name}' already exists (normalized from '{original_name}')"
         )
     
     # Validate channel type
