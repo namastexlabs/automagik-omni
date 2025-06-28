@@ -110,7 +110,11 @@ class TraceContext:
                 if status in ['completed', 'failed']:
                     trace.completed_at = utcnow()
                     if trace.received_at:
-                        delta = trace.completed_at - trace.received_at
+                        # Ensure both datetimes are timezone-aware for subtraction
+                        from src.utils.datetime_utils import to_utc
+                        completed_utc = to_utc(trace.completed_at) if trace.completed_at.tzinfo is None else trace.completed_at
+                        received_utc = to_utc(trace.received_at) if trace.received_at.tzinfo is None else trace.received_at
+                        delta = completed_utc - received_utc
                         trace.total_processing_time_ms = int(delta.total_seconds() * 1000)
                 
                 self.db_session.commit()
