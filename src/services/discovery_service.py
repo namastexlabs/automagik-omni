@@ -39,8 +39,8 @@ class DiscoveryService:
         # Get existing WhatsApp instances with Evolution API configuration
         existing_instances = db.query(InstanceConfig).filter(
             InstanceConfig.channel_type == "whatsapp",
-            InstanceConfig.evolution_api_url.isnot(None),
-            InstanceConfig.evolution_api_key.isnot(None)
+            InstanceConfig.evolution_url.isnot(None),
+            InstanceConfig.evolution_key.isnot(None)
         ).all()
         
         if not existing_instances:
@@ -52,11 +52,11 @@ class DiscoveryService:
         # Group instances by unique Evolution API servers
         evolution_servers = {}
         for instance in existing_instances:
-            server_key = f"{instance.evolution_api_url}::{instance.evolution_api_key}"
+            server_key = f"{instance.evolution_url}::{instance.evolution_key}"
             if server_key not in evolution_servers:
                 evolution_servers[server_key] = {
-                    "url": instance.evolution_api_url,
-                    "key": instance.evolution_api_key,
+                    "url": instance.evolution_url,
+                    "key": instance.evolution_key,
                     "instances": []
                 }
             evolution_servers[server_key]["instances"].append(instance)
@@ -142,11 +142,11 @@ class DiscoveryService:
             updated = True
             logger.debug(f"Updated {db_instance.name} status: {evo_instance.status} -> active={expected_active}")
         
-        # Only update agent_id if it's currently empty/default and Evolution has profile data
-        if (not db_instance.agent_id or db_instance.agent_id == "default-agent") and evo_instance.profileName:
-            db_instance.agent_id = evo_instance.profileName
+        # Only update default_agent if it's currently empty/default and Evolution has profile data
+        if (not db_instance.default_agent or db_instance.default_agent == "default-agent") and evo_instance.profileName:
+            db_instance.default_agent = evo_instance.profileName
             updated = True
-            logger.debug(f"Updated {db_instance.name} agent_id to Evolution profile: {evo_instance.profileName}")
+            logger.debug(f"Updated {db_instance.name} default_agent to Evolution profile: {evo_instance.profileName}")
         
         return updated
     
@@ -184,10 +184,11 @@ class DiscoveryService:
             new_instance = InstanceConfig(
                 name=evo_instance.instanceName,
                 channel_type="whatsapp",
-                agent_id=evo_instance.profileName or "default-agent",
-                evolution_api_url=evolution_url,
-                evolution_api_key=evolution_key,
-                is_active=evolution_status_map.get(evo_instance.status, False),
+                default_agent=evo_instance.profileName or "default-agent",
+                evolution_url=evolution_url,
+                evolution_key=evolution_key,
+                agent_api_url="http://localhost:8000",  # Default agent URL
+                agent_api_key="default-key",  # Default agent key
                 is_default=False  # Never make auto-discovered instances default
             )
             
@@ -221,14 +222,14 @@ class DiscoveryService:
             logger.warning(f"Instance {instance_name} not found in database")
             return None
             
-        if not db_instance.evolution_api_url or not db_instance.evolution_api_key:
+        if not db_instance.evolution_url or not db_instance.evolution_key:
             logger.warning(f"Instance {instance_name} missing Evolution API credentials")
             return None
         
         try:
             # Create Evolution client with instance-specific credentials
             from src.channels.whatsapp.evolution_client import EvolutionClient
-            evolution_client = EvolutionClient(db_instance.evolution_api_url, db_instance.evolution_api_key)
+            evolution_client = EvolutionClient(db_instance.evolution_url, db_instance.evolution_key)
             
             # Get current status from Evolution
             connection_state = await evolution_client.get_connection_state(instance_name)

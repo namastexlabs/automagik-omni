@@ -45,6 +45,9 @@ class InstanceConfig(Base):
     # Default instance flag (for backward compatibility)
     is_default = Column(Boolean, default=False, index=True)
     
+    # Instance status
+    is_active = Column(Boolean, default=False, index=True)  # Evolution connection status
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
