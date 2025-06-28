@@ -135,13 +135,16 @@ help: ## Show this help message
 	@echo -e "  $(FONT_CYAN)quality        $(FONT_RESET) Run all code quality checks"
 	@echo ""
 	@echo -e "$(FONT_BOLD)Service Management:$(FONT_RESET)"
-	@echo -e "  $(FONT_GREEN)install-service$(FONT_RESET) Install systemd service"
-	@echo -e "  $(FONT_GREEN)start-service  $(FONT_RESET) Start the systemd service"
-	@echo -e "  $(FONT_GREEN)stop-service   $(FONT_RESET) Stop the systemd service"
-	@echo -e "  $(FONT_GREEN)restart-service$(FONT_RESET) Restart the systemd service"
-	@echo -e "  $(FONT_GREEN)service-status $(FONT_RESET) Check service status"
-	@echo -e "  $(FONT_GREEN)logs           $(FONT_RESET) Show service logs (follow)"
-	@echo -e "  $(FONT_GREEN)logs-tail      $(FONT_RESET) Show recent service logs"
+	@echo -e "  $(FONT_GREEN)start-local    $(FONT_RESET) Start local PM2 service"
+	@echo -e "  $(FONT_GREEN)stop-local     $(FONT_RESET) Stop local PM2 service"
+	@echo -e "  $(FONT_GREEN)restart-local  $(FONT_RESET) Restart local PM2 service"
+	@echo -e "  $(FONT_GREEN)status-local   $(FONT_RESET) Check local PM2 service status"
+	@echo -e "  $(FONT_GREEN)logs-local     $(FONT_RESET) Show local PM2 service logs"
+	@echo -e "  $(FONT_GREEN)logs-follow-local$(FONT_RESET) Follow local PM2 service logs"
+	@echo -e "  $(FONT_GREEN)install-service$(FONT_RESET) Install service (delegates to local PM2)"
+	@echo -e "  $(FONT_GREEN)start-service  $(FONT_RESET) Start service (delegates to local PM2)"
+	@echo -e "  $(FONT_GREEN)stop-service   $(FONT_RESET) Stop service (delegates to local PM2)"
+	@echo -e "  $(FONT_GREEN)restart-service$(FONT_RESET) Restart service (delegates to local PM2)"
 	@echo ""
 	@echo -e "$(FONT_BOLD)Database & CLI:$(FONT_RESET)"
 	@echo -e "  $(FONT_YELLOW)db-init        $(FONT_RESET) Initialize database with default instance"
@@ -243,67 +246,69 @@ quality: lint typecheck ## Run all code quality checks
 	$(call print_success,All quality checks completed)
 
 # ===========================================
-# 🔧 Service Management
+# 🔧 Local PM2 Management
 # ===========================================
-.PHONY: restart-service install-service
-restart-service: ## Update systemd service (removes and recreates)
-	$(call print_status,Updating systemd service)
-	@sudo systemctl stop $(SERVICE_NAME) 2>/dev/null || true
-	@sudo rm -f $(SERVICE_FILE)
-	@$(MAKE) install-service
+.PHONY: setup-pm2 start-local stop-local restart-local status-local logs-local logs-follow-local
 
-install-service: ## Install PM2 service
-	$(call print_status,Installing PM2 service)
-	@if [ ! -d ".venv" ]; then \
-		$(call print_warning,Virtual environment not found - creating it now...); \
-		$(MAKE) install; \
+setup-pm2: ## Setup local PM2 ecosystem
+	$(call print_status,Setting up local PM2 ecosystem)
+	@if [ ! -f "ecosystem.config.js" ]; then \
+		$(call print_error,ecosystem.config.js not found in current directory); \
+		exit 1; \
 	fi
 	@$(call check_pm2)
-	@$(call print_status,Starting service with PM2...)
-	@cd $(PROJECT_ROOT)/.. && pm2 start ecosystem.config.js --only automagik-omni
+	@$(call print_success,PM2 ecosystem ready)
+
+start-local: setup-pm2 ## Start local PM2 service
+	$(call print_status,Starting local PM2 service)
+	@pm2 start ecosystem.config.js 2>/dev/null || pm2 restart automagik-omni
 	@pm2 save
-	@$(call print_success,PM2 service installed!)
+	@$(call print_success,Local PM2 service started)
 
-.PHONY: start-service
-start-service: ## Start PM2 service
-	$(call print_status,Starting PM2 service)
-	@$(call check_pm2)
-	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js --only automagik-omni
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service started!$(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)$(HUB) Recent logs:$(FONT_RESET)"
-	@pm2 logs automagik-omni --lines 20 --nostream
-
-.PHONY: stop-service
-stop-service: ## Stop PM2 service
-	$(call print_status,Stopping PM2 service)
+stop-local: ## Stop local PM2 service
+	$(call print_status,Stopping local PM2 service)
 	@$(call check_pm2)
 	@pm2 stop automagik-omni 2>/dev/null || true
-	$(call print_success,Service stopped)
+	@$(call print_success,Local PM2 service stopped)
 
-.PHONY: restart-service
-restart-service: ## Restart PM2 service
-	$(call print_status,Restarting PM2 service)
+restart-local: ## Restart local PM2 service
+	$(call print_status,Restarting local PM2 service)
 	@$(call check_pm2)
-	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js --only automagik-omni
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service restarted!$(FONT_RESET)"
+	@pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js
+	@$(call print_success,Local PM2 service restarted)
 
-.PHONY: service-status
-service-status: ## Check PM2 service status
-	$(call print_status,Checking PM2 service status)
+status-local: ## Check local PM2 service status
+	$(call print_status,Checking local PM2 service status)
 	@$(call check_pm2)
-	@pm2 show automagik-omni 2>/dev/null || echo "Service not found"
+	@pm2 show automagik-omni 2>/dev/null || echo "Service not running"
 
-.PHONY: logs
-logs: ## Show service logs (N=lines)
+logs-local: ## Show local PM2 service logs
 	$(eval N := $(or $(N),30))
 	$(call print_status,Recent logs)
-	@pm2 logs automagik-omni --lines $(N) --nostream 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
+	@pm2 logs automagik-omni --lines $(N) --nostream 2>/dev/null || echo "No logs available"
 
-.PHONY: logs-follow
-logs-follow: ## Follow service logs in real-time
-	$(call print_status,Following logs)
-	@echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"
-	@pm2 logs automagik-omni 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
+logs-follow-local: ## Follow local PM2 service logs
+	$(call print_status,Following logs - Press Ctrl+C to stop)
+	@pm2 logs automagik-omni 2>/dev/null || echo "No logs available"
+
+# ===========================================
+# 🔧 Service Management (Delegates to Local PM2)
+# ===========================================
+.PHONY: install-service start-service stop-service restart-service service-status logs logs-follow
+
+install-service: start-local ## Install service (delegates to local PM2)
+
+start-service: start-local ## Start service (delegates to local PM2)
+
+stop-service: stop-local ## Stop service (delegates to local PM2)
+
+restart-service: restart-local ## Restart service (delegates to local PM2)
+
+service-status: status-local ## Check service status (delegates to local PM2)
+
+logs: logs-local ## Show service logs (delegates to local PM2)
+
+logs-follow: logs-follow-local ## Follow service logs (delegates to local PM2)
 
 # ===========================================
 # 🗃️ Database & CLI Management
@@ -361,12 +366,12 @@ clean: ## Clean build artifacts and cache
 	$(call print_success,Cleanup completed)
 
 .PHONY: uninstall-service
-uninstall-service: ## Uninstall PM2 service
-	$(call print_status,Uninstalling PM2 service)
+uninstall-service: stop-local ## Uninstall local PM2 service
+	$(call print_status,Uninstalling local PM2 service)
 	@$(call check_pm2)
 	@pm2 delete automagik-omni 2>/dev/null || true
 	@pm2 save --force
-	@$(call print_success,PM2 service uninstalled!)
+	@$(call print_success,Local PM2 service uninstalled)
 
 # ===========================================
 # 🚀 Quick Commands
@@ -378,8 +383,8 @@ up: install dev ## Quick start: install + dev server
 check: quality test ## Quick check: quality + tests
 
 .PHONY: deploy-service
-deploy-service: install install-service start-service ## Deploy as service: install + service + start
-	$(call print_success_with_logo,Omni-Hub deployed as service and ready!)
+deploy-service: install start-local ## Deploy as service: install + local PM2 start
+	$(call print_success_with_logo,Omni-Hub deployed as local service and ready!)
 
 # ===========================================
 # 📊 Status & Info
