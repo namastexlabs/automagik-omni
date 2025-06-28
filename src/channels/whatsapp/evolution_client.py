@@ -6,6 +6,7 @@ Provides a clean interface to Evolution API endpoints.
 import logging
 import httpx
 from typing import Dict, List, Optional, Any
+from urllib.parse import quote
 from pydantic import BaseModel
 from src.config import config
 from src.ip_utils import replace_localhost_with_ipv4
@@ -155,23 +156,23 @@ class EvolutionClient:
     
     async def get_connection_state(self, instance_name: str) -> Dict[str, Any]:
         """Get connection state of an instance."""
-        return await self._request("GET", f"/instance/connectionState/{instance_name}")
+        return await self._request("GET", f"/instance/connectionState/{quote(instance_name, safe='')}")
     
     async def connect_instance(self, instance_name: str) -> Dict[str, Any]:
         """Get connection info and QR code for instance."""
-        return await self._request("GET", f"/instance/connect/{instance_name}")
+        return await self._request("GET", f"/instance/connect/{quote(instance_name, safe='')}")
     
     async def restart_instance(self, instance_name: str) -> Dict[str, Any]:
         """Restart a WhatsApp instance."""
-        return await self._request("PUT", f"/instance/restart/{instance_name}")
+        return await self._request("PUT", f"/instance/restart/{quote(instance_name, safe='')}")
     
     async def logout_instance(self, instance_name: str) -> Dict[str, Any]:
         """Logout a WhatsApp instance."""
-        return await self._request("DELETE", f"/instance/logout/{instance_name}")
+        return await self._request("DELETE", f"/instance/logout/{quote(instance_name, safe='')}")
     
     async def delete_instance(self, instance_name: str) -> Dict[str, Any]:
         """Delete a WhatsApp instance."""
-        return await self._request("DELETE", f"/instance/delete/{instance_name}")
+        return await self._request("DELETE", f"/instance/delete/{quote(instance_name, safe='')}")
     
     async def set_webhook(self, instance_name: str, webhook_url: str, events: Optional[List[str]] = None, webhook_base64: bool = True) -> Dict[str, Any]:
         """Set webhook URL for an instance."""
@@ -186,7 +187,7 @@ class EvolutionClient:
             "events": events
         }
         
-        return await self._request("POST", f"/webhook/set/{instance_name}", json=webhook_data)
+        return await self._request("POST", f"/webhook/set/{quote(instance_name, safe='')}", json=webhook_data)
     
     async def set_settings(self, instance_name: str, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Set settings for an instance."""
@@ -201,7 +202,7 @@ class EvolutionClient:
                 "syncFullHistory": True
             }
         
-        return await self._request("POST", f"/settings/set/{instance_name}", json=settings)
+        return await self._request("POST", f"/settings/set/{quote(instance_name, safe='')}", json=settings)
 
 
 # Global Evolution client instance

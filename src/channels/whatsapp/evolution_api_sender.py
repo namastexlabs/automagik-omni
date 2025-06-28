@@ -6,6 +6,7 @@ Handles sending messages back to Evolution API using webhook payload information
 import logging
 import requests
 from typing import Dict, Any, Optional, List
+from urllib.parse import quote
 import time
 import threading
 import random
@@ -181,7 +182,7 @@ class EvolutionApiSender:
         Returns:
             bool: Success status
         """
-        url = f"{self.server_url}/message/sendText/{self.instance_name}"
+        url = f"{self.server_url}/message/sendText/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
         
         headers = {
@@ -308,7 +309,7 @@ class EvolutionApiSender:
             logger.error("Cannot send media message: missing server URL, API key, or instance name")
             return False
         
-        url = f"{self.server_url}/message/sendMedia/{self.instance_name}"
+        url = f"{self.server_url}/message/sendMedia/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
         
         headers = {
@@ -355,7 +356,7 @@ class EvolutionApiSender:
             logger.error("Cannot send audio message: missing server URL, API key, or instance name")
             return False
         
-        url = f"{self.server_url}/message/sendWhatsAppAudio/{self.instance_name}"
+        url = f"{self.server_url}/message/sendWhatsAppAudio/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
         
         headers = {
@@ -395,7 +396,7 @@ class EvolutionApiSender:
             logger.error("Cannot send sticker: missing server URL, API key, or instance name")
             return False
         
-        url = f"{self.server_url}/message/sendSticker/{self.instance_name}"
+        url = f"{self.server_url}/message/sendSticker/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
         
         headers = {
@@ -435,7 +436,7 @@ class EvolutionApiSender:
             logger.error("Cannot send contact: missing server URL, API key, or instance name")
             return False
         
-        url = f"{self.server_url}/message/sendContact/{self.instance_name}"
+        url = f"{self.server_url}/message/sendContact/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
         
         headers = {
@@ -476,7 +477,7 @@ class EvolutionApiSender:
             logger.error("Cannot send reaction: missing server URL, API key, or instance name")
             return False
         
-        url = f"{self.server_url}/message/sendReaction/{self.instance_name}"
+        url = f"{self.server_url}/message/sendReaction/{quote(self.instance_name, safe='')}"
         
         headers = {
             "apikey": self.api_key,
@@ -518,7 +519,7 @@ class EvolutionApiSender:
             logger.error("Cannot fetch profile: missing server URL, API key, or instance name")
             return None
         
-        url = f"{self.server_url}/chat/fetchProfile/{self.instance_name}"
+        url = f"{self.server_url}/chat/fetchProfile/{quote(self.instance_name, safe='')}"
         formatted_number = self._prepare_recipient(phone_number)
         
         headers = {
@@ -557,7 +558,7 @@ class EvolutionApiSender:
             logger.error("Cannot update profile picture: missing server URL, API key, or instance name")
             return False
         
-        url = f"{self.server_url}/chat/updateProfilePicture/{self.instance_name}"
+        url = f"{self.server_url}/chat/updateProfilePicture/{quote(self.instance_name, safe='')}"
         
         headers = {
             "apikey": self.api_key,
@@ -596,7 +597,7 @@ class EvolutionApiSender:
             logger.error("Cannot send presence: missing server URL, API key, or instance name")
             return False
         
-        url = f"{self.server_url}/chat/sendPresence/{self.instance_name}"
+        url = f"{self.server_url}/chat/sendPresence/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
         
         headers = {
