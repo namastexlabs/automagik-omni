@@ -112,7 +112,7 @@ class EvolutionClient:
         
         # Set webhook URL if configured
         if not request.webhook and config.api.host and config.api.port:
-            webhook_url = replace_localhost_with_ipv4(f"http://{config.api.host}:{config.api.port}/webhook/evolution/{request.instanceName}")
+            webhook_url = replace_localhost_with_ipv4(f"http://{config.api.host}:{config.api.port}/webhook/evolution/{quote(request.instanceName, safe='')}")
             logger.debug(f"Auto-configuring webhook URL: {webhook_url}")
             request.webhook = {
                 "enabled": True,
