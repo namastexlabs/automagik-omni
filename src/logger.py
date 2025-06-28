@@ -95,6 +95,21 @@ class ColoredFormatter(logging.Formatter):
         # Make a copy of the record to avoid modifying the original
         record_copy = logging.makeLogRecord(record.__dict__)
         
+        # Convert timestamp to configured timezone
+        try:
+            # Convert record time (which is a UTC timestamp) to configured timezone
+            import pytz
+            from src.utils.datetime_utils import to_local
+            # Create timezone-aware UTC datetime from timestamp
+            utc_time = datetime.fromtimestamp(record.created, tz=pytz.UTC)
+            local_time = to_local(utc_time)
+            # Update the record with timezone-aware time
+            record_copy.created = local_time.timestamp()
+        except Exception as e:
+            # Fallback to original time if timezone conversion fails
+            # This ensures logging still works even if timezone config is broken
+            pass
+        
         # Add colors to the levelname if enabled
         if self.use_colors:
             levelname = record_copy.levelname
