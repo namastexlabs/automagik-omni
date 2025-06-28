@@ -71,6 +71,7 @@ module.exports = {
         PYTHONPATH: PROJECT_ROOT,
         API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
         API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || '0.0.0.0',
+        API_KEY: envVars.AUTOMAGIK_OMNI_API_KEY || '',
         NODE_ENV: 'production'
       },
       instances: 1,

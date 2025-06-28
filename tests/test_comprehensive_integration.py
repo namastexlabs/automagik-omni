@@ -11,7 +11,7 @@ from unittest.mock import patch, AsyncMock, Mock
 
 # Set test environment before any imports
 os.environ["ENVIRONMENT"] = "test"
-os.environ["OMNI_HUB_API_KEY"] = ""
+os.environ["AUTOMAGIK_OMNI_API_KEY"] = ""
 
 from src.db.database import Base
 from src.db.models import InstanceConfig

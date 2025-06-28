@@ -18,7 +18,7 @@ os.environ["DEFAULT_AGENT_NAME"] = "test-agent"
 os.environ["WHATSAPP_INSTANCE"] = "test-instance"
 os.environ["SESSION_ID_PREFIX"] = "test-"
 os.environ["LOG_LEVEL"] = "ERROR"  # Reduce log noise in tests
-os.environ["OMNI_HUB_API_KEY"] = ""  # Disable API key for tests
+os.environ["AUTOMAGIK_OMNI_API_KEY"] = ""  # Disable API key for tests
 os.environ["EVOLUTION_API_URL"] = "http://test-evolution-api"
 os.environ["EVOLUTION_API_KEY"] = "test-evolution-key"
 
