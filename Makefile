@@ -315,10 +315,17 @@ service-status: ## Check service status
 	$(call check_service_status)
 
 .PHONY: logs
-logs: ## Show service logs (follow)
-	$(call print_status,Following $(SERVICE_NAME) logs)
-	@journalctl -u $(SERVICE_NAME) -f --no-pager 2>/dev/null || \
-	{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -f --no-pager; }
+logs: ## Show service logs (N=lines FOLLOW=1 for follow mode)
+	$(eval N := $(or $(N),30))
+	$(call print_status,Recent $(SERVICE_NAME) logs)
+	@if [ "$(FOLLOW)" = "1" ]; then \
+		echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"; \
+		journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager 2>/dev/null || \
+		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager; }; \
+	else \
+		journalctl -u $(SERVICE_NAME) -n $(N) --no-pager 2>/dev/null || \
+		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -n $(N) --no-pager; }; \
+	fi
 
 .PHONY: logs-tail
 logs-tail: ## Show recent service logs
