@@ -292,6 +292,10 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
             
+            # Override instance name with the correct one from our database config
+            # to prevent URL conversion issues like "FlashinhoProTestonho" -> "flashinho-pro-testonho"
+            evolution_api_sender.instance_name = instance_config.whatsapp_instance
+            
             # Capture real media messages for testing purposes
             try:
                 from src.utils.test_capture import test_capture
