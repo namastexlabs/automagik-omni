@@ -174,7 +174,11 @@ install: ## Install project dependencies
 	$(call check_prerequisites)
 	$(call ensure_env_file)
 	$(call print_status,Installing dependencies with uv)
-	@$(UV) sync
+	@if ! $(UV) sync 2>/dev/null; then \
+		$(call print_warning,Installation failed - clearing UV cache and retrying...); \
+		$(UV) cache clean; \
+		$(UV) sync; \
+	fi
 	$(call print_success_with_logo,Dependencies installed successfully)
 
 .PHONY: dev
