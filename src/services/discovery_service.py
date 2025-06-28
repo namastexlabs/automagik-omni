@@ -182,6 +182,7 @@ class DiscoveryService:
                 evolution_key=evolution_key,
                 agent_api_url="http://localhost:8000",  # Default agent URL
                 agent_api_key="default-key",  # Default agent key
+                whatsapp_instance=evo_instance.instanceName,  # Preserve original case for Evolution API calls
                 is_default=False  # Never make auto-discovered instances default
             )
             
