@@ -8,6 +8,8 @@ import logging
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import Any
+import pytz
+from datetime import datetime
 
 # Load environment variables from .env file
 # This should be the ONLY place where load_dotenv is called in the entire application
@@ -84,6 +86,35 @@ class ApiConfig(BaseModel):
     description: str = "Multi-tenant WhatsApp instance management API"
     version: str = "0.2.0"
 
+class TimezoneConfig(BaseModel):
+    """Timezone configuration."""
+    timezone: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_TIMEZONE", "UTC"))
+    
+    @property
+    def tz(self) -> pytz.BaseTzInfo:
+        """Get the timezone object."""
+        try:
+            return pytz.timezone(self.timezone)
+        except pytz.UnknownTimeZoneError:
+            logger.warning(f"Unknown timezone '{self.timezone}', falling back to UTC")
+            return pytz.UTC
+    
+    def now(self) -> datetime:
+        """Get current datetime in configured timezone."""
+        return datetime.now(self.tz)
+    
+    def utc_to_local(self, utc_dt: datetime) -> datetime:
+        """Convert UTC datetime to local timezone."""
+        if utc_dt.tzinfo is None:
+            utc_dt = pytz.UTC.localize(utc_dt)
+        return utc_dt.astimezone(self.tz)
+    
+    def local_to_utc(self, local_dt: datetime) -> datetime:
+        """Convert local datetime to UTC."""
+        if local_dt.tzinfo is None:
+            local_dt = self.tz.localize(local_dt)
+        return local_dt.astimezone(pytz.UTC)
+
 class Config(BaseModel):
     """Main application configuration."""
     rabbitmq: RabbitMQConfig = RabbitMQConfig()
@@ -94,6 +125,7 @@ class Config(BaseModel):
     api: ApiConfig = ApiConfig()
     database: DatabaseConfig = DatabaseConfig()
     tracing: TracingConfig = TracingConfig()
+    timezone: TimezoneConfig = TimezoneConfig()
     
     @property
     def is_valid(self) -> bool:

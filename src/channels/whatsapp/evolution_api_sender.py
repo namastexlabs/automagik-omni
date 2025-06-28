@@ -5,7 +5,7 @@ Handles sending messages back to Evolution API using webhook payload information
 
 import logging
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import time
 import threading
 import random
@@ -289,6 +289,297 @@ class EvolutionApiSender:
         
         return quoted_payload
     
+    def send_media_message(self, recipient: str, media_type: str, media: str, mime_type: str, caption: Optional[str] = None, filename: Optional[str] = None) -> bool:
+        """
+        Send a media message (image, video, document) via Evolution API.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            media_type: Type of media (image, video, document)
+            media: URL or base64 data
+            mime_type: MIME type of the media
+            caption: Optional caption text
+            filename: Optional filename for documents
+            
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot send media message: missing server URL, API key, or instance name")
+            return False
+        
+        url = f"{self.server_url}/message/sendMedia/{self.instance_name}"
+        formatted_recipient = self._prepare_recipient(recipient)
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "number": formatted_recipient,
+            "mediatype": media_type,
+            "media": media,
+            "mimetype": mime_type
+        }
+        
+        if caption:
+            payload["caption"] = caption
+        if filename:
+            payload["fileName"] = filename
+        
+        try:
+            logger.info(f"Sending {media_type} message to {formatted_recipient}")
+            response = requests.post(url, headers=headers, json=payload)
+            
+            response.raise_for_status()
+            logger.info(f"Media message sent to {formatted_recipient}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to send media message: {str(e)}")
+            return False
+    
+    def send_audio_message(self, recipient: str, audio: str) -> bool:
+        """
+        Send a WhatsApp audio message via Evolution API.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            audio: URL or base64 data for the audio
+            
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot send audio message: missing server URL, API key, or instance name")
+            return False
+        
+        url = f"{self.server_url}/message/sendWhatsAppAudio/{self.instance_name}"
+        formatted_recipient = self._prepare_recipient(recipient)
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "number": formatted_recipient,
+            "audio": audio
+        }
+        
+        try:
+            logger.info(f"Sending audio message to {formatted_recipient}")
+            response = requests.post(url, headers=headers, json=payload)
+            
+            response.raise_for_status()
+            logger.info(f"Audio message sent to {formatted_recipient}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to send audio message: {str(e)}")
+            return False
+    
+    def send_sticker_message(self, recipient: str, sticker: str) -> bool:
+        """
+        Send a sticker via Evolution API.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            sticker: URL or base64 data for the sticker
+            
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot send sticker: missing server URL, API key, or instance name")
+            return False
+        
+        url = f"{self.server_url}/message/sendSticker/{self.instance_name}"
+        formatted_recipient = self._prepare_recipient(recipient)
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "number": formatted_recipient,
+            "sticker": sticker
+        }
+        
+        try:
+            logger.info(f"Sending sticker to {formatted_recipient}")
+            response = requests.post(url, headers=headers, json=payload)
+            
+            response.raise_for_status()
+            logger.info(f"Sticker sent to {formatted_recipient}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to send sticker: {str(e)}")
+            return False
+    
+    def send_contact_message(self, recipient: str, contacts: List[Dict[str, Any]]) -> bool:
+        """
+        Send contact card(s) via Evolution API.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            contacts: List of contact dictionaries
+            
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot send contact: missing server URL, API key, or instance name")
+            return False
+        
+        url = f"{self.server_url}/message/sendContact/{self.instance_name}"
+        formatted_recipient = self._prepare_recipient(recipient)
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "number": formatted_recipient,
+            "contact": contacts
+        }
+        
+        try:
+            logger.info(f"Sending contact(s) to {formatted_recipient}")
+            response = requests.post(url, headers=headers, json=payload)
+            
+            response.raise_for_status()
+            logger.info(f"Contact(s) sent to {formatted_recipient}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to send contact: {str(e)}")
+            return False
+    
+    def send_reaction_message(self, recipient: str, message_id: str, reaction: str) -> bool:
+        """
+        Send a reaction to a message via Evolution API.
+        
+        Args:
+            recipient: WhatsApp ID of the recipient
+            message_id: ID of the message to react to
+            reaction: Reaction emoji
+            
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot send reaction: missing server URL, API key, or instance name")
+            return False
+        
+        url = f"{self.server_url}/message/sendReaction/{self.instance_name}"
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "key": {
+                "remoteJid": recipient,
+                "fromMe": False,
+                "id": message_id
+            },
+            "reaction": reaction
+        }
+        
+        try:
+            logger.info(f"Sending reaction '{reaction}' to message {message_id}")
+            response = requests.post(url, headers=headers, json=payload)
+            
+            response.raise_for_status()
+            logger.info(f"Reaction sent to {recipient}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to send reaction: {str(e)}")
+            return False
+    
+    def fetch_profile(self, phone_number: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch a user's WhatsApp profile via Evolution API.
+        
+        Args:
+            phone_number: Phone number (will be formatted)
+            
+        Returns:
+            Optional[Dict]: Profile data if successful, None otherwise
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot fetch profile: missing server URL, API key, or instance name")
+            return None
+        
+        url = f"{self.server_url}/chat/fetchProfile/{self.instance_name}"
+        formatted_number = self._prepare_recipient(phone_number)
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "number": formatted_number
+        }
+        
+        try:
+            logger.info(f"Fetching profile for {formatted_number}")
+            response = requests.post(url, headers=headers, json=payload)
+            
+            response.raise_for_status()
+            profile_data = response.json()
+            logger.info(f"Profile fetched for {formatted_number}")
+            return profile_data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch profile: {str(e)}")
+            return None
+    
+    def update_profile_picture(self, picture_url: str) -> bool:
+        """
+        Update the instance's profile picture via Evolution API.
+        
+        Args:
+            picture_url: URL to the new profile picture
+            
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot update profile picture: missing server URL, API key, or instance name")
+            return False
+        
+        url = f"{self.server_url}/chat/updateProfilePicture/{self.instance_name}"
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "picture": picture_url
+        }
+        
+        try:
+            logger.info(f"Updating profile picture for instance {self.instance_name}")
+            response = requests.post(url, headers=headers, json=payload)
+            
+            response.raise_for_status()
+            logger.info(f"Profile picture updated for instance {self.instance_name}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to update profile picture: {str(e)}")
+            return False
+
     def send_presence(self, recipient: str, presence_type: str = "composing", refresh_seconds: int = 25) -> bool:
         """
         Send a presence update (typing indicator) to a WhatsApp user.

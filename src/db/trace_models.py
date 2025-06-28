@@ -12,6 +12,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Bool
 from sqlalchemy.orm import relationship
 from typing import Dict, Any, Optional
 from .database import Base
+from src.utils.datetime_utils import datetime_utcnow
 
 
 class MessageTrace(Base):
@@ -44,7 +45,7 @@ class MessageTrace(Base):
     agent_session_id = Column(String)  # Agent's session UUID from response
     
     # Timestamps for each major stage
-    received_at = Column(DateTime, default=datetime.utcnow, index=True)
+    received_at = Column(DateTime, default=datetime_utcnow, index=True)
     processing_started_at = Column(DateTime)
     agent_request_at = Column(DateTime)
     agent_response_at = Column(DateTime)
@@ -122,7 +123,7 @@ class TracePayload(Base):
     payload_size_compressed = Column(Integer)
     
     # Payload metadata
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=datetime_utcnow, index=True)
     status_code = Column(Integer)  # HTTP status codes
     error_details = Column(Text)
     

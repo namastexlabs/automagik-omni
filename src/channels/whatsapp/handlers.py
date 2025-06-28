@@ -18,7 +18,9 @@ from datetime import datetime
 
 from src.config import config
 from src.services.message_router import message_router
+from src.services.user_service import user_service
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
+from src.utils.datetime_utils import now
 
 # Remove the circular import
 # from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
@@ -110,7 +112,7 @@ class WhatsAppMessageHandler:
             os.makedirs(debug_dir, exist_ok=True)
             
             # Save webhook JSON
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = now().strftime("%Y%m%d_%H%M%S")
             json_filename = f"{timestamp}_{message_id}_webhook.json"
             json_path = os.path.join(debug_dir, json_filename)
             
@@ -479,6 +481,30 @@ class WhatsAppMessageHandler:
                 session_name = f"{session_id_prefix}{phone_number}"
                 
                 logger.info(f"Using session name: {session_name}")
+                
+                # Create or update user in our local database for stable identity
+                try:
+                    from src.db.database import get_db
+                    db_session = next(get_db())
+                    try:
+                        # Get instance name for user creation
+                        instance_name = instance_config.name if instance_config else "default"
+                        
+                        # Create/update user with current session info
+                        local_user = user_service.get_or_create_user_by_phone(
+                            phone_number=formatted_phone,
+                            instance_name=instance_name,
+                            display_name=user_name,
+                            session_name=session_name,
+                            db=db_session
+                        )
+                        
+                        logger.info(f"Local user created/updated: {local_user.id} for phone {formatted_phone}")
+                    finally:
+                        db_session.close()
+                except Exception as e:
+                    logger.error(f"Failed to create/update local user: {e}")
+                    # Continue processing even if user creation fails
                 
                 # Determine message_type parameter for Agent API
                 if is_media_message:

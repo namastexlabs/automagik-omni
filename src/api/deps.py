@@ -76,11 +76,17 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
         logger.info("No API key configured, allowing access (development mode)")
         return "development"
     
-    logger.debug(f"Expected API key: [{config.api.api_key}]")
-    logger.debug(f"Received credentials: [{credentials.credentials}]")
+    # Mask API keys for security (show only first 4 and last 4 characters)
+    def mask_key(key: str) -> str:
+        if len(key) <= 8:
+            return "*" * len(key)
+        return f"{key[:4]}{'*' * (len(key) - 8)}{key[-4:]}"
+    
+    logger.debug(f"Expected API key: [{mask_key(config.api.api_key)}]")
+    logger.debug(f"Received credentials: [{mask_key(credentials.credentials)}]")
     
     if credentials.credentials != config.api.api_key:
-        logger.warning(f"API key mismatch. Expected: [{config.api.api_key}], Got: [{credentials.credentials}]")
+        logger.warning(f"API key mismatch. Expected: [{mask_key(config.api.api_key)}], Got: [{mask_key(credentials.credentials)}]")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",

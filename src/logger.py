@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Optional
 
 from src.config import config
+from src.utils.datetime_utils import now
 
 class ColoredFormatter(logging.Formatter):
     """Custom formatter for colored and emoji-decorated log output."""
@@ -180,7 +181,7 @@ def setup_logging(level: Optional[str] = None, use_colors: bool = None,
             
             # Generate unique server restart ID
             server_id = str(uuid.uuid4())[:8]
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = now().strftime("%Y%m%d_%H%M%S")
             log_filename = f"omnihub_{timestamp}_{server_id}.log"
             log_filepath = os.path.join(config.logging.log_folder, log_filename)
             

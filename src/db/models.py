@@ -1,10 +1,13 @@
 """
-SQLAlchemy models for multi-tenant instance configuration.
+SQLAlchemy models for multi-tenant instance configuration and user management.
 """
 
+import uuid
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from .database import Base
+from src.utils.datetime_utils import datetime_utcnow
 
 
 class InstanceConfig(Base):
@@ -49,11 +52,58 @@ class InstanceConfig(Base):
     is_active = Column(Boolean, default=False, index=True)  # Evolution connection status
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime_utcnow)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
+    
+    # Relationships
+    users = relationship("User", back_populates="instance")
 
     def __repr__(self):
         return f"<InstanceConfig(name='{self.name}', is_default={self.is_default})>"
+
+
+class User(Base):
+    """
+    User model with stable identity and session tracking.
+    
+    This model provides a stable user identity across different sessions,
+    agents, and interactions while tracking their most recent session info.
+    """
+    __tablename__ = "users"
+
+    # Stable primary identifier (never changes)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    
+    # User identification (most stable identifier from WhatsApp)
+    phone_number = Column(String, nullable=False, index=True)
+    whatsapp_jid = Column(String, nullable=False, index=True)  # Formatted WhatsApp ID
+    
+    # Instance relationship
+    instance_name = Column(String, ForeignKey('instance_configs.name'), nullable=False, index=True)
+    instance = relationship("InstanceConfig", back_populates="users")
+    
+    # User information
+    display_name = Column(String, nullable=True)  # From pushName, can change
+    
+    # Session tracking (can change over time)
+    last_session_name_interaction = Column(String, nullable=True, index=True)
+    last_agent_user_id = Column(String, nullable=True)  # UUID from agent API, can change
+    
+    # Activity tracking
+    last_seen_at = Column(DateTime, default=datetime_utcnow, index=True)
+    message_count = Column(Integer, default=0)  # Total messages from this user
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
+
+    def __repr__(self):
+        return f"<User(id='{self.id}', phone='{self.phone_number}', instance='{self.instance_name}')>"
+    
+    @property
+    def unique_key(self) -> str:
+        """Generate unique key for phone + instance combination."""
+        return f"{self.instance_name}:{self.phone_number}"
 
 
 # Import trace models to ensure they're registered with SQLAlchemy

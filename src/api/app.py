@@ -122,6 +122,14 @@ app = FastAPI(
             "description": "Omnichannel instance management (WhatsApp, Slack, Discord)"
         },
         {
+            "name": "messages",
+            "description": "Message sending endpoints for all channel types"
+        },
+        {
+            "name": "traces",
+            "description": "Message tracing and analytics"
+        },
+        {
             "name": "webhooks", 
             "description": "Webhook endpoints for receiving messages"
         },
@@ -138,6 +146,16 @@ app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
 # Include trace management routes
 from src.api.routes.traces import router as traces_router
 app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
+
+# Include message sending routes
+try:
+    from src.api.routes.messages import router as messages_router
+    app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
+    logger.info(f"✅ Messages router included with {len(messages_router.routes)} routes")
+except Exception as e:
+    logger.error(f"❌ Failed to include messages router: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)

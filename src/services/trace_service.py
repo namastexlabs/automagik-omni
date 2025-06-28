@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from src.config import config
 from src.db.database import get_db
 from src.db.trace_models import MessageTrace, TracePayload
+from src.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class TraceContext:
                 
                 # Update total processing time if completing
                 if status in ['completed', 'failed']:
-                    trace.completed_at = datetime.utcnow()
+                    trace.completed_at = utcnow()
                     if trace.received_at:
                         delta = trace.completed_at - trace.received_at
                         trace.total_processing_time_ms = int(delta.total_seconds() * 1000)
@@ -123,7 +124,7 @@ class TraceContext:
     def log_agent_request(self, agent_payload: Dict[str, Any]) -> None:
         """Log agent API request payload."""
         self.log_stage("agent_request", agent_payload, "request")
-        self.update_trace_status("agent_called", agent_request_at=datetime.utcnow())
+        self.update_trace_status("agent_called", agent_request_at=utcnow())
     
     def log_agent_response(self, 
                           agent_response: Dict[str, Any], 
@@ -140,7 +141,7 @@ class TraceContext:
         
         self.update_trace_status(
             "processing",
-            agent_response_at=datetime.utcnow(),
+            agent_response_at=utcnow(),
             agent_processing_time_ms=processing_time_ms,
             agent_response_success=success,
             agent_response_length=message_length,
@@ -164,7 +165,7 @@ class TraceContext:
             final_status,
             error_message=error_msg,
             error_stage="evolution_send" if not success else None,
-            evolution_send_at=datetime.utcnow(),
+            evolution_send_at=utcnow(),
             evolution_response_code=response_code,
             evolution_success=success
         )
@@ -303,7 +304,7 @@ class TraceService:
             
         try:
             from datetime import timedelta
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = utcnow() - timedelta(days=days_old)
             
             # Delete old traces (payloads will be deleted via cascade)
             deleted_count = db_session.query(MessageTrace).filter(
@@ -369,7 +370,7 @@ def get_trace_context(message_data: Dict[str, Any],
     try:
         trace_context = TraceService.create_trace(message_data, instance_name, db)
         if trace_context:
-            trace_context.update_trace_status("processing", processing_started_at=datetime.utcnow())
+            trace_context.update_trace_status("processing", processing_started_at=utcnow())
         yield trace_context
     except Exception as e:
         if trace_context:
