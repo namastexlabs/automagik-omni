@@ -74,34 +74,36 @@ define print_success_with_logo
 endef
 
 define show_automagik_logo
-	@echo ""
-	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"
-	@echo ""
+	[ -z "$$AUTOMAGIK_QUIET_LOGO" ] && { \
+		echo ""; \
+		echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"; \
+		echo ""; \
+	} || true
 endef
 
 define check_prerequisites
 	@if ! command -v uv >/dev/null 2>&1; then \
-		$(call print_error,Missing uv package manager); \
+		echo -e "$(FONT_RED)$(ERROR) Missing uv package manager$(FONT_RESET)"; \
 		echo -e "$(FONT_YELLOW)💡 Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh$(FONT_RESET)"; \
 		exit 1; \
 	fi
 	@if ! command -v python3 >/dev/null 2>&1; then \
-		$(call print_error,Missing python3); \
+		echo -e "$(FONT_RED)$(ERROR) Missing python3$(FONT_RESET)"; \
 		exit 1; \
 	fi
 endef
 
 define check_pm2
 	@if ! command -v pm2 >/dev/null 2>&1; then \
-		$(call print_error,PM2 not found. Install with: npm install -g pm2); \
+		echo -e "$(FONT_RED)$(ERROR) PM2 not found. Install with: npm install -g pm2$(FONT_RESET)"; \
 		exit 1; \
 	fi
 endef
@@ -109,7 +111,7 @@ endef
 define ensure_env_file
 	@if [ ! -f ".env" ]; then \
 		cp .env.example .env 2>/dev/null || touch .env; \
-		$(call print_info,.env file created); \
+		echo -e "$(FONT_CYAN)$(INFO) .env file created$(FONT_RESET)"; \
 	fi
 endef
 
@@ -173,7 +175,7 @@ install: ## Install project dependencies
 	$(call ensure_env_file)
 	$(call print_status,Installing dependencies with uv)
 	@if ! $(UV) sync 2>/dev/null; then \
-		$(call print_warning,Installation failed - clearing UV cache and retrying...); \
+		echo -e "$(FONT_YELLOW)$(WARNING) Installation failed - clearing UV cache and retrying...$(FONT_RESET)"; \
 		$(UV) cache clean; \
 		$(UV) sync; \
 	fi
