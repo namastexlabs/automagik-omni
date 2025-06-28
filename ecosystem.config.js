@@ -63,14 +63,14 @@ module.exports = {
       name: 'automagik-omni',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/uvicorn',
-      args: 'src.api.app:app --host 0.0.0.0 --port ' + (envVars.AUTOMAGIK_OMNI_PORT || '8882'),
+      args: 'src.api.app:app --host 0.0.0.0 --port ' + (envVars.AUTOMAGIK_OMNI_API_PORT || '8882'),
       interpreter: 'none',
       version: extractVersionFromPyproject(PROJECT_ROOT),
       env: {
         ...envVars,
         PYTHONPATH: PROJECT_ROOT,
-        API_PORT: envVars.AUTOMAGIK_OMNI_PORT || '8882',
-        API_HOST: envVars.API_HOST || '0.0.0.0',
+        API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
+        API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || '0.0.0.0',
         NODE_ENV: 'production'
       },
       instances: 1,

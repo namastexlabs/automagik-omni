@@ -186,7 +186,7 @@ dev: ## Start development server with auto-reload
 	$(call print_status,Starting development server with auto-reload)
 	@if [ -f .env ]; then \
 		export $$(cat .env | grep -v '^#' | xargs) && \
-		$(UV) run uvicorn src.api.app:app --host $${API_HOST:-127.0.0.1} --port $${API_PORT:-8000} --reload --log-level $$(echo "$${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run uvicorn src.api.app:app --host $${AUTOMAGIK_OMNI_API_HOST:-127.0.0.1} --port $${AUTOMAGIK_OMNI_API_PORT:-8000} --reload --log-level $$(echo "$${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]'); \
 	else \
 		$(UV) run uvicorn src.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
 	fi

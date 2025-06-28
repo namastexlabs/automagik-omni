@@ -77,8 +77,8 @@ class TracingConfig(BaseModel):
 
 class ApiConfig(BaseModel):
     """API Server configuration."""
-    host: str = Field(default_factory=lambda: os.getenv("OMNI_API_HOST", "0.0.0.0"))
-    port: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_PORT", os.getenv("OMNI_API_PORT", "8882"))))
+    host: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_HOST", "0.0.0.0"))
+    port: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882")))
     api_key: str = Field(default_factory=lambda: os.getenv("OMNI_HUB_API_KEY", ""))
     title: str = "Omni-Hub API"
     description: str = "Multi-tenant WhatsApp instance management API"
