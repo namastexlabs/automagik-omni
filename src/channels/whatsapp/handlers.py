@@ -485,6 +485,18 @@ class WhatsAppMessageHandler:
                 if isinstance(agent_response, dict) and 'current_user_id' in agent_response:
                     current_user_id = agent_response['current_user_id']
                     logger.info(f"Agent API returned current user_id: {current_user_id} for session {session_name}")
+                    
+                    # Update our local user with the agent's user_id for future lookups
+                    try:
+                        from src.db.database import get_db
+                        db_session = next(get_db())
+                        try:
+                            user_service.update_user_agent_id(local_user.id, current_user_id, db_session)
+                            logger.info(f"Updated local user {local_user.id} with agent user_id: {current_user_id}")
+                        finally:
+                            db_session.close()
+                    except Exception as e:
+                        logger.error(f"Failed to update local user with agent user_id: {e}")
                 
                 # Extract message text and log additional information from agent response
                 if isinstance(agent_response, dict):

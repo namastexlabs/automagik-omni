@@ -130,10 +130,16 @@ def _resolve_recipient(user_id: Optional[str], phone_number: Optional[str], db: 
     
     # First: try to resolve user_id through our local user database
     if user_id:
-        # Look up user by our stable internal UUID
+        # Look up user by our stable internal UUID first
         user = user_service.get_user_by_id(user_id, db)
         if user:
-            logger.info(f"Resolved user_id {user_id} to phone {user.phone_number} via local database")
+            logger.info(f"Resolved user_id {user_id} to phone {user.phone_number} via local database (internal UUID)")
+            return user_service.resolve_user_to_jid(user)
+        
+        # Also try to find by agent user_id (for backward compatibility)
+        user = user_service.get_user_by_agent_id(user_id, db)
+        if user:
+            logger.info(f"Resolved user_id {user_id} to phone {user.phone_number} via local database (agent UUID)")
             return user_service.resolve_user_to_jid(user)
         
         # Fallback: try agent API lookup for backward compatibility

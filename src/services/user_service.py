@@ -224,6 +224,24 @@ class UserService:
             instance_name=instance_name
         ).first()
     
+    def get_user_by_agent_id(self, agent_user_id: str, db: Session) -> Optional[User]:
+        """
+        Get user by agent API user ID.
+        
+        Args:
+            agent_user_id: Agent API user UUID
+            db: Database session
+            
+        Returns:
+            Optional[User]: User record if found
+        """
+        user = db.query(User).filter_by(last_agent_user_id=agent_user_id).first()
+        if user:
+            logger.debug(f"Found user {user.id} with agent user_id {agent_user_id}")
+        else:
+            logger.debug(f"No user found with agent user_id {agent_user_id}")
+        return user
+    
     def resolve_user_to_jid(self, user: User) -> str:
         """
         Resolve user to WhatsApp JID for message sending.
