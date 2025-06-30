@@ -165,7 +165,7 @@ class EvolutionClient:
     
     async def restart_instance(self, instance_name: str) -> Dict[str, Any]:
         """Restart a WhatsApp instance."""
-        return await self._request("PUT", f"/instance/restart/{quote(instance_name, safe='')}")
+        return await self._request("POST", f"/instance/restart/{quote(instance_name, safe='')}")
     
     async def logout_instance(self, instance_name: str) -> Dict[str, Any]:
         """Logout a WhatsApp instance."""
