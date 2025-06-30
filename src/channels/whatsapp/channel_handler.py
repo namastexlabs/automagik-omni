@@ -68,8 +68,8 @@ class WhatsAppChannelHandler(ChannelHandler):
                 webhook_url = replace_localhost_with_ipv4(f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}")
                 
                 try:
-                    await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], True)
-                    logger.info(f"Updated webhook URL for existing instance: {webhook_url} (base64=True)")
+                    await evolution_client.set_webhook(instance.name, webhook_url, ["MESSAGES_UPSERT"], instance.webhook_base64)
+                    logger.info(f"Updated webhook URL for existing instance: {webhook_url} (base64={instance.webhook_base64})")
                     
                     # Also configure settings for existing instance
                     await evolution_client.set_settings(instance.name)
