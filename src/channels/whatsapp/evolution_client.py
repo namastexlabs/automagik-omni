@@ -164,8 +164,24 @@ class EvolutionClient:
         return await self._request("GET", f"/instance/connect/{quote(instance_name, safe='')}")
     
     async def restart_instance(self, instance_name: str) -> Dict[str, Any]:
-        """Restart a WhatsApp instance."""
-        return await self._request("POST", f"/instance/restart/{quote(instance_name, safe='')}")
+        """
+        Restart a WhatsApp instance.
+        
+        Note: This endpoint might not be available in all Evolution API versions.
+        If it fails with 404, the instance might need to be recreated.
+        """
+        try:
+            return await self._request("PUT", f"/instance/restart/{quote(instance_name, safe='')}")
+        except Exception as e:
+            # If restart endpoint doesn't exist, log but don't fail catastrophically
+            if "404" in str(e):
+                logger.warning(f"Restart endpoint not available for instance '{instance_name}'. This Evolution API version might not support instance restart.")
+                # Return a mock successful response
+                return {
+                    "status": "warning", 
+                    "message": "Restart endpoint not available, instance may need manual reconnection"
+                }
+            raise
     
     async def logout_instance(self, instance_name: str) -> Dict[str, Any]:
         """Logout a WhatsApp instance."""
