@@ -8,12 +8,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
+import time
 
 from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory, QRCodeResponse, ConnectionStatus
 from src.ip_utils import ensure_ipv4_in_config
 from src.utils.instance_utils import normalize_instance_name
+from src.core.telemetry import track_instance_operation
 
 logger = logging.getLogger(__name__)
 
