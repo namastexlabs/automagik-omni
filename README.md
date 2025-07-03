@@ -19,7 +19,49 @@ Copy the `.env.example` file (if available) to `.env` and fill in the required c
 ## Running the Application
 
 ```bash
+omnihub start
+```
+
+Or using the legacy method:
+```bash
 python -m src.main
+```
+
+## CLI Commands
+
+```bash
+# Main commands
+omnihub start              # Start the API server
+omnihub status             # Show system status
+omnihub health             # Health check
+
+# Instance management
+omnihub instance list      # List all instances
+omnihub instance add       # Add new instance
+omnihub instance show      # Show instance details
+
+# Telemetry management
+omnihub telemetry enable   # Enable usage analytics
+omnihub telemetry disable  # Disable usage analytics
+```
+
+## Telemetry
+
+Omni-Hub collects anonymous usage analytics to help improve the product. This includes:
+- CLI command usage patterns
+- API endpoint performance metrics
+- System information (OS, Python version)
+
+**No personal data, message content, or credentials are collected.**
+
+To disable telemetry:
+```bash
+omnihub telemetry disable
+```
+
+Or set environment variable:
+```bash
+export OMNI_HUB_DISABLE_TELEMETRY=true
 ```
 
 ## Development

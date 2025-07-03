@@ -7,9 +7,11 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from rich.console import Console
 from rich.table import Table
+import time
 
 from src.db.database import SessionLocal, create_tables
 from src.db.models import InstanceConfig
+from src.core.telemetry import track_command
 
 app = typer.Typer(help="Instance management commands")
 console = Console()
@@ -23,34 +25,44 @@ def get_db() -> Session:
 @app.command("list")
 def list_instances():
     """List all instance configurations."""
-    create_tables()
-    db = get_db()
+    start_time = time.time()
+    success = True
+    
     try:
-        instances = db.query(InstanceConfig).all()
+        create_tables()
+        db = get_db()
+        try:
+            instances = db.query(InstanceConfig).all()
 
-        if not instances:
-            console.print("[yellow]No instances found[/yellow]")
-            return
+            if not instances:
+                console.print("[yellow]No instances found[/yellow]")
+                track_command("instance_list", success=True, instance_count=0, duration_ms=(time.time() - start_time) * 1000)
+                return
 
-        table = Table(title="Instance Configurations")
-        table.add_column("Name", style="cyan")
-        table.add_column("WhatsApp Instance", style="green")
-        table.add_column("Agent API URL", style="blue")
-        table.add_column("Default Agent", style="magenta")
-        table.add_column("Is Default", style="red")
+            table = Table(title="Instance Configurations")
+            table.add_column("Name", style="cyan")
+            table.add_column("WhatsApp Instance", style="green")
+            table.add_column("Agent API URL", style="blue")
+            table.add_column("Default Agent", style="magenta")
+            table.add_column("Is Default", style="red")
 
-        for instance in instances:
-            table.add_row(
-                instance.name,
-                instance.whatsapp_instance,
-                instance.agent_api_url,
-                instance.default_agent,
-                "✓" if instance.is_default else "",
-            )
+            for instance in instances:
+                table.add_row(
+                    instance.name,
+                    instance.whatsapp_instance,
+                    instance.agent_api_url,
+                    instance.default_agent,
+                    "✓" if instance.is_default else "",
+                )
 
-        console.print(table)
-    finally:
-        db.close()
+            console.print(table)
+            track_command("instance_list", success=True, instance_count=len(instances), duration_ms=(time.time() - start_time) * 1000)
+        finally:
+            db.close()
+    except Exception as e:
+        success = False
+        track_command("instance_list", success=False, duration_ms=(time.time() - start_time) * 1000)
+        raise
 
 
 @app.command("show")
@@ -106,43 +118,54 @@ def add_instance(
     ),
 ):
     """Add a new instance configuration."""
-    create_tables()
-    db = get_db()
+    start_time = time.time()
+    
     try:
-        # Check if instance already exists
-        existing = db.query(InstanceConfig).filter_by(name=name).first()
-        if existing:
-            console.print(f"[red]Instance '{name}' already exists[/red]")
-            raise typer.Exit(1)
+        create_tables()
+        db = get_db()
+        try:
+            # Check if instance already exists
+            existing = db.query(InstanceConfig).filter_by(name=name).first()
+            if existing:
+                console.print(f"[red]Instance '{name}' already exists[/red]")
+                track_command("instance_add", success=False, error="instance_exists", duration_ms=(time.time() - start_time) * 1000)
+                raise typer.Exit(1)
 
-        # If making this default, unset other defaults
-        if make_default:
-            db.query(InstanceConfig).filter_by(is_default=True).update(
-                {"is_default": False}
+            # If making this default, unset other defaults
+            if make_default:
+                db.query(InstanceConfig).filter_by(is_default=True).update(
+                    {"is_default": False}
+                )
+
+            # Create new instance
+            instance = InstanceConfig(
+                name=name,
+                evolution_url=evolution_url,
+                evolution_key=evolution_key,
+                whatsapp_instance=whatsapp_instance,
+                session_id_prefix=session_id_prefix,
+                agent_api_url=agent_api_url,
+                agent_api_key=agent_api_key,
+                default_agent=default_agent,
+                agent_timeout=agent_timeout,
+                is_default=make_default,
             )
 
-        # Create new instance
-        instance = InstanceConfig(
-            name=name,
-            evolution_url=evolution_url,
-            evolution_key=evolution_key,
-            whatsapp_instance=whatsapp_instance,
-            session_id_prefix=session_id_prefix,
-            agent_api_url=agent_api_url,
-            agent_api_key=agent_api_key,
-            default_agent=default_agent,
-            agent_timeout=agent_timeout,
-            is_default=make_default,
-        )
+            db.add(instance)
+            db.commit()
 
-        db.add(instance)
-        db.commit()
-
-        console.print(f"[green]Instance '{name}' created successfully[/green]")
-        if make_default:
-            console.print(f"[green]Instance '{name}' set as default[/green]")
-    finally:
-        db.close()
+            console.print(f"[green]Instance '{name}' created successfully[/green]")
+            if make_default:
+                console.print(f"[green]Instance '{name}' set as default[/green]")
+            
+            track_command("instance_add", success=True, is_default=make_default, duration_ms=(time.time() - start_time) * 1000)
+        finally:
+            db.close()
+    except typer.Exit:
+        raise
+    except Exception as e:
+        track_command("instance_add", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        raise
 
 
 @app.command("update")

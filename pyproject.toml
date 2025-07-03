@@ -29,7 +29,8 @@ dependencies = [
 ]
 
 [project.scripts]
-omnihub = "src.cli.main:run"
+omnihub = "src.cli.main_cli:app"
+omnihub-legacy = "src.cli.main:run"
 omnihub-instance = "src.cli.instance_cli:app"
 
 [build-system]

@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 import json
 import time
 
+# Import telemetry
+from src.core.telemetry import track_api_request, track_webhook_processed, track_instance_operation
+
 # Import configuration first to ensure environment variables are loaded
 from src.config import config
 
@@ -83,6 +86,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Log response
         process_time = time.time() - start_time
         logger.info(f"API Response: {response.status_code} - {process_time:.3f}s")
+
+        # Track API request telemetry
+        try:
+            track_api_request(
+                endpoint=request.url.path,
+                method=request.method,
+                status_code=response.status_code,
+                duration_ms=process_time * 1000
+            )
+        except Exception as e:
+            # Never let telemetry break the API
+            logger.debug(f"Telemetry tracking failed: {e}")
 
         return response
 
@@ -311,10 +326,15 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         request: FastAPI request object
     """
     from src.services.trace_service import get_trace_context
+    
+    start_time = time.time()
+    success = True
+    payload_size = 0
 
     try:
         # Get the JSON data from the request
         data = await request.json()
+        payload_size = len(json.dumps(data).encode('utf-8'))
         logger.info(f"Received webhook for instance '{instance_config.name}'")
         logger.debug(f"Webhook data: {data}")
 
@@ -343,6 +363,18 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             # Pass instance_config and trace context to service for per-instance agent configuration
             agent_service.process_whatsapp_message(data, instance_config, trace)
 
+            # Track webhook processing telemetry
+            try:
+                track_webhook_processed(
+                    channel="whatsapp",
+                    success=True,
+                    duration_ms=(time.time() - start_time) * 1000,
+                    payload_size_kb=payload_size / 1024,
+                    instance_type="multi_tenant"
+                )
+            except Exception as e:
+                logger.debug(f"Webhook telemetry tracking failed: {e}")
+
             # Return success response
             return {
                 "status": "success",
@@ -351,6 +383,21 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             }
 
     except Exception as e:
+        success = False
+        
+        # Track failed webhook processing
+        try:
+            track_webhook_processed(
+                channel="whatsapp",
+                success=False,
+                duration_ms=(time.time() - start_time) * 1000,
+                payload_size_kb=payload_size / 1024,
+                instance_type="multi_tenant",
+                error=str(e)[:100]  # Truncate error message
+            )
+        except Exception as te:
+            logger.debug(f"Webhook telemetry tracking failed: {te}")
+        
         logger.error(
             f"Error processing webhook for instance '{instance_config.name}': {e}",
             exc_info=True,
