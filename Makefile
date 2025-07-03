@@ -41,9 +41,9 @@ SERVICE_NAME := automagik-omni
 export
 
 # Default values (will be overridden by .env if present)
-HOST ?= 127.0.0.1
-PORT ?= 8000
-LOG_LEVEL ?= info
+AUTOMAGIK_OMNI_API_HOST ?= 0.0.0.0
+AUTOMAGIK_OMNI_API_PORT ?= 8882
+LOG_LEVEL ?= INFO
 
 # ===========================================
 # 🛠️ Utility Functions
@@ -188,9 +188,9 @@ dev: ## Start development server with auto-reload
 	$(call print_status,Starting development server with auto-reload)
 	@if [ -f .env ]; then \
 		export $$(cat .env | grep -v '^#' | xargs) && \
-		$(UV) run uvicorn src.api.app:app --host $${AUTOMAGIK_OMNI_API_HOST:-127.0.0.1} --port $${AUTOMAGIK_OMNI_API_PORT:-8000} --reload --log-level $$(echo "$${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run uvicorn src.api.app:app --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload --log-level $$(echo "$${LOG_LEVEL:-INFO}" | tr '[:upper:]' '[:lower:]'); \
 	else \
-		$(UV) run uvicorn src.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run uvicorn src.api.app:app --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
 	fi
 
 .PHONY: test

@@ -38,11 +38,11 @@ class LoggingConfig(BaseModel):
     date_format: str = "%H:%M:%S %Z"  # Time format with timezone info
     use_colors: bool = True
     shorten_paths: bool = Field(
-        default_factory=lambda: os.getenv("LOG_VERBOSITY", "short").lower() != "full"
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_LOG_VERBOSITY", "short").lower() != "full"
     )
-    log_folder: str = Field(default_factory=lambda: os.getenv("LOG_FOLDER", ""))
+    log_folder: str = Field(default_factory=lambda: os.getenv("LOG_FOLDER", "./logs"))
     enable_file_logging: bool = Field(
-        default_factory=lambda: bool(os.getenv("LOG_FOLDER", ""))
+        default_factory=lambda: bool(os.getenv("LOG_FOLDER", "./logs"))
     )
 
 
@@ -50,7 +50,7 @@ class DatabaseConfig(BaseModel):
     """Database configuration."""
 
     sqlite_path: str = Field(
-        default_factory=lambda: os.getenv("SQLITE_DB_PATH", "./data/omnihub.db")
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", "./data/automagik-omni.db")
     )
     url: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", ""))
 
@@ -129,9 +129,28 @@ class TimezoneConfig(BaseModel):
         return local_dt.astimezone(pytz.UTC)
 
 
+class EnvironmentConfig(BaseModel):
+    \"\"\"Environment configuration for unified Python architecture.\"\"\"
+
+    environment: str = Field(
+        default_factory=lambda: os.getenv(\"ENVIRONMENT\", \"development\")
+    )
+
+    @property
+    def is_development(self) -> bool:
+        \"\"\"Check if running in development mode.\"\"\"
+        return self.environment.lower() == \"development\"
+
+    @property
+    def is_production(self) -> bool:
+        \"\"\"Check if running in production mode.\"\"\"
+        return self.environment.lower() == \"production\"
+
+
 class Config(BaseModel):
     """Main application configuration."""
 
+    environment: EnvironmentConfig = EnvironmentConfig()
     logging: LoggingConfig = LoggingConfig()
     api: ApiConfig = ApiConfig()
     database: DatabaseConfig = DatabaseConfig()
