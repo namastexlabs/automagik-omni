@@ -9,12 +9,12 @@ from .bootstrap import ensure_default_instance
 
 __all__ = [
     "engine",
-    "SessionLocal", 
+    "SessionLocal",
     "get_db",
     "Base",
     "InstanceConfig",
     "User",
     "MessageTrace",
     "TracePayload",
-    "ensure_default_instance"
+    "ensure_default_instance",
 ]

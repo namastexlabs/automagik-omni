@@ -11,10 +11,13 @@ from typing import Generator
 
 logger = logging.getLogger(__name__)
 
+
 def get_database_url() -> str:
     """Get database URL from configuration."""
     from src.config import config
+
     return config.database.database_url
+
 
 def ensure_sqlite_directory(database_url: str) -> None:
     """Ensure SQLite directory exists."""
@@ -25,6 +28,7 @@ def ensure_sqlite_directory(database_url: str) -> None:
         logger.info(f"SQLite database directory ensured: {sqlite_dir}")
         logger.info(f"SQLite database file: {sqlite_path}")
 
+
 # Get database URL and ensure directory exists
 DATABASE_URL = get_database_url()
 ensure_sqlite_directory(DATABASE_URL)
@@ -32,8 +36,7 @@ ensure_sqlite_directory(DATABASE_URL)
 # SQLAlchemy engine
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
-        DATABASE_URL, 
-        connect_args={"check_same_thread": False}  # Needed for SQLite
+        DATABASE_URL, connect_args={"check_same_thread": False}  # Needed for SQLite
     )
 else:
     engine = create_engine(DATABASE_URL)

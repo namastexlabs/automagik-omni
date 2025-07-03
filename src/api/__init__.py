@@ -1,1 +1,1 @@
-"""API package for Omni Hub.""" 
+"""API package for Omni Hub."""

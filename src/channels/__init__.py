@@ -7,4 +7,4 @@ from src.channels.base import ChannelHandlerFactory
 from src.channels.whatsapp.channel_handler import WhatsAppChannelHandler
 
 # Register all channel handlers
-ChannelHandlerFactory.register_handler("whatsapp", WhatsAppChannelHandler)  
+ChannelHandlerFactory.register_handler("whatsapp", WhatsAppChannelHandler)
