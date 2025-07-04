@@ -17,14 +17,14 @@ class TestTelemetryClient:
 
     def test_telemetry_disabled_by_env_var(self):
         """Test that telemetry is disabled by environment variable."""
-        with patch.dict(os.environ, {"OMNI_HUB_DISABLE_TELEMETRY": "true"}):
+        with patch.dict(os.environ, {"AUTOMAGIK_OMNI_DISABLE_TELEMETRY": "true"}):
             client = TelemetryClient()
             assert not client.is_enabled()
 
     def test_telemetry_disabled_by_opt_out_file(self):
         """Test that telemetry is disabled by opt-out file."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            opt_out_file = Path(temp_dir) / ".omni-hub-no-telemetry"
+            opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
             opt_out_file.touch()
             
             with patch("pathlib.Path.home", return_value=Path(temp_dir)):
@@ -42,7 +42,7 @@ class TestTelemetryClient:
         # Clear any CI environment variables
         ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
-        env_without_ci.pop("OMNI_HUB_DISABLE_TELEMETRY", None)
+        env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
         
         with patch.dict(os.environ, env_without_ci, clear=True):
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -74,13 +74,13 @@ class TestTelemetryClient:
                 assert not client.is_enabled()
                 
                 # Check that opt-out file was created
-                opt_out_file = Path(temp_dir) / ".omni-hub-no-telemetry"
+                opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
                 assert opt_out_file.exists()
 
     def test_enable_telemetry(self):
         """Test enabling telemetry."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            opt_out_file = Path(temp_dir) / ".omni-hub-no-telemetry"
+            opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
             opt_out_file.touch()
             
             with patch("pathlib.Path.home", return_value=Path(temp_dir)):
@@ -95,7 +95,7 @@ class TestTelemetryClient:
 
     def test_track_command_disabled(self):
         """Test that tracking does nothing when disabled."""
-        with patch.dict(os.environ, {"OMNI_HUB_DISABLE_TELEMETRY": "true"}):
+        with patch.dict(os.environ, {"AUTOMAGIK_OMNI_DISABLE_TELEMETRY": "true"}):
             client = TelemetryClient()
             
             # Mock the _send_event method to ensure it's not called
@@ -116,7 +116,7 @@ class TestTelemetryClient:
         # Clear CI environment variables
         ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
-        env_without_ci.pop("OMNI_HUB_DISABLE_TELEMETRY", None)
+        env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
         
         with patch.dict(os.environ, env_without_ci, clear=True):
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -141,7 +141,7 @@ class TestTelemetryClient:
                 assert "project_name" in status
                 assert "project_version" in status
                 assert "endpoint" in status
-                assert status["project_name"] == "omni-hub"
+                assert status["project_name"] == "automagik-omni"
                 assert status["project_version"] == "0.2.0"
 
     def test_system_info_collection(self):
@@ -153,7 +153,7 @@ class TestTelemetryClient:
         assert "python_version" in system_info
         assert "architecture" in system_info
         assert "project_name" in system_info
-        assert system_info["project_name"] == "omni-hub"
+        assert system_info["project_name"] == "automagik-omni"
 
     def test_attributes_creation(self):
         """Test OTLP attribute creation."""
@@ -187,7 +187,7 @@ class TestTelemetryClient:
         # Clear CI environment variables
         ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
-        env_without_ci.pop("OMNI_HUB_DISABLE_TELEMETRY", None)
+        env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
         
         with patch.dict(os.environ, env_without_ci, clear=True):
             with tempfile.TemporaryDirectory() as temp_dir:

@@ -1,7 +1,7 @@
 [project]
-name = "omni-hub"
+name = "automagik-omni"
 version = "0.2.0"
-description = "A hub for multiple chat channels"
+description = "Automagik Omni: Multi-tenant omnichannel messaging hub"
 readme = "README.md"
 authors = [
     {name = "Felipe Rosa", email = "felipe@namastex.ai"},
@@ -29,6 +29,7 @@ dependencies = [
 ]
 
 [project.scripts]
+automagik-omni = "src.cli.main_cli:app"
 omnihub = "src.cli.main_cli:app"
 omnihub-legacy = "src.cli.main:run"
 omnihub-instance = "src.cli.instance_cli:app"

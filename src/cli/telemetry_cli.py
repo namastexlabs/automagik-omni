@@ -1,5 +1,5 @@
 """
-CLI commands for telemetry management in Omni-Hub.
+CLI commands for telemetry management in Automagik Omni.
 """
 
 import typer

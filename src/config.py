@@ -93,8 +93,8 @@ class ApiConfig(BaseModel):
     api_key: str = Field(
         default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_KEY", "")
     )
-    title: str = "Omni-Hub API"
-    description: str = "Multi-tenant WhatsApp instance management API"
+    title: str = "Automagik Omni API"
+    description: str = "Multi-tenant omnichannel messaging API"
     version: str = "0.2.0"
 
 
@@ -130,21 +130,21 @@ class TimezoneConfig(BaseModel):
 
 
 class EnvironmentConfig(BaseModel):
-    \"\"\"Environment configuration for unified Python architecture.\"\"\"
+    """Environment configuration for unified Python architecture."""
 
     environment: str = Field(
-        default_factory=lambda: os.getenv(\"ENVIRONMENT\", \"development\")
+        default_factory=lambda: os.getenv("ENVIRONMENT", "development")
     )
 
     @property
     def is_development(self) -> bool:
-        \"\"\"Check if running in development mode.\"\"\"
-        return self.environment.lower() == \"development\"
+        """Check if running in development mode."""
+        return self.environment.lower() == "development"
 
     @property
     def is_production(self) -> bool:
-        \"\"\"Check if running in production mode.\"\"\"
-        return self.environment.lower() == \"production\"
+        """Check if running in production mode."""
+        return self.environment.lower() == "production"
 
 
 class Config(BaseModel):

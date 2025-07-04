@@ -275,6 +275,15 @@ async def startup_event():
             "Continuing without auto-discovery - instances can be created manually"
         )
 
+    # Telemetry status logging
+    from src.core.telemetry import telemetry_client
+    if telemetry_client.is_enabled():
+        logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni")
+        logger.info("   • Collected: CLI usage, API performance, system info (no personal data)")
+        logger.info("   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true")
+    else:
+        logger.info("📊 Telemetry disabled")
+
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
 
