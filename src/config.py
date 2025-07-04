@@ -52,7 +52,7 @@ class DatabaseConfig(BaseModel):
     sqlite_path: str = Field(
         default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", "./data/automagik-omni.db")
     )
-    url: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", ""))
+    url: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_DATABASE_URL", ""))
 
     @property
     def database_url(self) -> str:
@@ -67,16 +67,16 @@ class TracingConfig(BaseModel):
     """Message tracing configuration."""
 
     enabled: bool = Field(
-        default_factory=lambda: os.getenv("ENABLE_TRACING", "true").lower() == "true"
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_ENABLE_TRACING", "true").lower() == "true"
     )
     retention_days: int = Field(
-        default_factory=lambda: int(os.getenv("TRACE_RETENTION_DAYS", "30"))
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_TRACE_RETENTION_DAYS", "30"))
     )
     max_payload_size: int = Field(
-        default_factory=lambda: int(os.getenv("TRACE_MAX_PAYLOAD_SIZE", "1048576"))
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_TRACE_MAX_PAYLOAD_SIZE", "1048576"))
     )  # 1MB
     include_sensitive_data: bool = Field(
-        default_factory=lambda: os.getenv("TRACE_INCLUDE_SENSITIVE", "false").lower()
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_TRACE_INCLUDE_SENSITIVE", "false").lower()
         == "true"
     )
 
