@@ -93,8 +93,8 @@ class ApiConfig(BaseModel):
     api_key: str = Field(
         default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_KEY", "")
     )
-    title: str = "Omni-Hub API"
-    description: str = "Multi-tenant WhatsApp instance management API"
+    title: str = "Automagik Omni API"
+    description: str = "Multi-tenant omnichannel messaging API"
     version: str = "0.2.0"
 
 

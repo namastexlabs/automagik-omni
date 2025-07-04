@@ -12,7 +12,7 @@ from src.cli.instance_cli import app as instance_app
 from src.cli.telemetry_cli import app as telemetry_app
 
 # Create main app
-app = typer.Typer(help="Omni-Hub: Multi-tenant WhatsApp instance management")
+app = typer.Typer(help="Automagik Omni: Multi-tenant omnichannel messaging hub")
 
 # Add sub-commands
 app.add_typer(instance_app, name="instance", help="Instance management commands")
@@ -29,16 +29,16 @@ def main(
     ),
 ):
     """
-    Omni-Hub: Multi-tenant WhatsApp instance management
+    Automagik Omni: Multi-tenant omnichannel messaging hub
     
-    A hub for managing multiple WhatsApp instances with per-instance configuration.
+    A platform for managing multiple messaging channels with per-instance configuration.
     """
     if no_telemetry:
         # Temporarily disable telemetry for this session
         telemetry_client.enabled = False
     
     if version:
-        typer.echo(f"Omni-Hub version {telemetry_client.project_version}")
+        typer.echo(f"Automagik Omni version {telemetry_client.project_version}")
         raise typer.Exit()
 
 
@@ -48,7 +48,7 @@ def start_api(
     port: int = typer.Option(8882, "--port", help="Port to bind to"),
     reload: bool = typer.Option(False, "--reload", help="Enable auto-reload"),
 ):
-    """Start the Omni-Hub API server."""
+    """Start the Automagik Omni API server."""
     start_time = time.time()
     
     try:
@@ -71,7 +71,7 @@ def start_api(
 
 @app.command("health")
 def health_check():
-    """Check the health of the Omni-Hub system."""
+    """Check the health of the Automagik Omni system."""
     start_time = time.time()
     
     try:
@@ -104,13 +104,13 @@ def health_check():
 
 @app.command("init")
 def init_project():
-    """Initialize a new Omni-Hub project."""
+    """Initialize a new Automagik Omni project."""
     start_time = time.time()
     
     try:
         from src.db.database import create_tables
         
-        typer.echo("🚀 Initializing Omni-Hub project...")
+        typer.echo("🚀 Initializing Automagik Omni project...")
         
         # Create database tables
         create_tables()
@@ -125,7 +125,7 @@ def init_project():
             
         if instance_count == 0:
             typer.echo("📋 No instances found. Create your first instance with:")
-            typer.echo("   omnihub instance add <name> [options]")
+            typer.echo("   automagik-omni instance add <name> [options]")
             
             # Track first run
             track_command("init_project", success=True, first_run=True, duration_ms=(time.time() - start_time) * 1000)
@@ -134,7 +134,7 @@ def init_project():
             typer.echo(f"📊 Found {instance_count} existing instances")
             track_command("init_project", success=True, first_run=False, duration_ms=(time.time() - start_time) * 1000)
         
-        typer.echo("✅ Omni-Hub project initialized successfully!")
+        typer.echo("✅ Automagik Omni project initialized successfully!")
         
     except Exception as e:
         track_command("init_project", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
@@ -151,7 +151,7 @@ def show_status():
         from src.db.models import InstanceConfig
         from src.config import config
         
-        typer.echo("📊 Omni-Hub Status")
+        typer.echo("📊 Automagik Omni Status")
         typer.echo("=" * 50)
         
         # Configuration status

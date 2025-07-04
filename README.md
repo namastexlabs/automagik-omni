@@ -1,6 +1,6 @@
-# Omnichannel Agent
+# Automagik Omni
 
-AI agent integration for OmniChannels.
+Multi-tenant omnichannel messaging hub with AI agent integration.
 
 ## Overview
 
@@ -19,6 +19,11 @@ Copy the `.env.example` file (if available) to `.env` and fill in the required c
 ## Running the Application
 
 ```bash
+automagik-omni start
+```
+
+Or using the legacy command:
+```bash
 omnihub start
 ```
 
@@ -31,23 +36,23 @@ python -m src.main
 
 ```bash
 # Main commands
-omnihub start              # Start the API server
-omnihub status             # Show system status
-omnihub health             # Health check
+automagik-omni start              # Start the API server
+automagik-omni status             # Show system status
+automagik-omni health             # Health check
 
 # Instance management
-omnihub instance list      # List all instances
-omnihub instance add       # Add new instance
-omnihub instance show      # Show instance details
+automagik-omni instance list      # List all instances
+automagik-omni instance add       # Add new instance
+automagik-omni instance show      # Show instance details
 
 # Telemetry management
-omnihub telemetry enable   # Enable usage analytics
-omnihub telemetry disable  # Disable usage analytics
+automagik-omni telemetry enable   # Enable usage analytics
+automagik-omni telemetry disable  # Disable usage analytics
 ```
 
 ## Telemetry
 
-Omni-Hub collects anonymous usage analytics to help improve the product. This includes:
+Automagik Omni collects anonymous usage analytics to help improve the product. This includes:
 - CLI command usage patterns
 - API endpoint performance metrics
 - System information (OS, Python version)
@@ -56,12 +61,12 @@ Omni-Hub collects anonymous usage analytics to help improve the product. This in
 
 To disable telemetry:
 ```bash
-omnihub telemetry disable
+automagik-omni telemetry disable
 ```
 
 Or set environment variable:
 ```bash
-export OMNI_HUB_DISABLE_TELEMETRY=true
+export AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true
 ```
 
 ## Development

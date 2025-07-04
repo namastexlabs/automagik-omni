@@ -32,13 +32,13 @@ class TelemetryClient:
         self.enabled = self._is_telemetry_enabled()
         
         # Project identification
-        self.project_name = "omni-hub"
+        self.project_name = "automagik-omni"
         self.project_version = "0.2.0"
         self.organization = "namastex"
 
     def _get_or_create_user_id(self) -> str:
         """Generate or retrieve anonymous user identifier."""
-        user_id_file = Path.home() / ".omni-hub" / "user_id"
+        user_id_file = Path.home() / ".automagik-omni" / "user_id"
         
         if user_id_file.exists():
             try:
@@ -59,11 +59,11 @@ class TelemetryClient:
     def _is_telemetry_enabled(self) -> bool:
         """Check if telemetry is enabled based on various opt-out mechanisms."""
         # Check environment variable
-        if os.getenv("OMNI_HUB_DISABLE_TELEMETRY", "false").lower() == "true":
+        if os.getenv("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", "false").lower() == "true":
             return False
         
         # Check for opt-out file
-        if (Path.home() / ".omni-hub-no-telemetry").exists():
+        if (Path.home() / ".automagik-omni-no-telemetry").exists():
             return False
         
         # Auto-disable in CI/testing environments
@@ -261,7 +261,7 @@ class TelemetryClient:
         """Enable telemetry."""
         self.enabled = True
         # Remove opt-out file if it exists
-        opt_out_file = Path.home() / ".omni-hub-no-telemetry"
+        opt_out_file = Path.home() / ".automagik-omni-no-telemetry"
         if opt_out_file.exists():
             try:
                 opt_out_file.unlink()
@@ -273,7 +273,7 @@ class TelemetryClient:
         self.enabled = False
         # Create opt-out file
         try:
-            opt_out_file = Path.home() / ".omni-hub-no-telemetry"
+            opt_out_file = Path.home() / ".automagik-omni-no-telemetry"
             opt_out_file.touch()
         except Exception:
             pass
@@ -291,8 +291,8 @@ class TelemetryClient:
             "project_name": self.project_name,
             "project_version": self.project_version,
             "endpoint": self.endpoint,
-            "opt_out_file_exists": (Path.home() / ".omni-hub-no-telemetry").exists(),
-            "env_var_disabled": os.getenv("OMNI_HUB_DISABLE_TELEMETRY", "false").lower() == "true"
+            "opt_out_file_exists": (Path.home() / ".automagik-omni-no-telemetry").exists(),
+            "env_var_disabled": os.getenv("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", "false").lower() == "true"
         }
 
 
