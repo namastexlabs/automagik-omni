@@ -79,6 +79,15 @@ def run():
             logger.error("Failed to start Agent service")
             sys.exit(1)
 
+        # Telemetry status logging
+        from src.core.telemetry import telemetry_client
+        if telemetry_client.is_enabled():
+            logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Omni-Hub")
+            logger.info("   • Collected: CLI usage, API performance, system info (no personal data)")
+            logger.info("   • Disable: 'omnihub telemetry disable' or OMNI_HUB_DISABLE_TELEMETRY=true")
+        else:
+            logger.info("📊 Telemetry disabled")
+
         logger.info("Agent application started successfully")
 
         # Start the FastAPI server instead of keeping the main thread alive with a sleep loop
