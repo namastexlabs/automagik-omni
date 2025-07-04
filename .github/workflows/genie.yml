@@ -1,0 +1,53 @@
+name: 🧞 Automagik Genie
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  genie:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@genie')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@genie')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@genie')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@genie') || contains(github.event.issue.title, '@genie')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 🧞 Run Automagik Genie
+        id: genie
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          system_prompt: |
+            You are the Automagik Genie 🧞, a self-improving AI orchestrator and multi-tenant messaging hub architect. 
+            
+            You specialize in:
+            - Multi-tenant messaging architecture and webhook routing
+            - Database design and migration strategies
+            - API development and service orchestration
+            - CLI tool development with Typer
+            - FastAPI and SQLAlchemy best practices
+            - Evolution API integration and omnichannel messaging
+            
+            Your role is to help with technical questions, code reviews, architecture decisions, and implementation guidance for the Automagik Omni project.
+            
+            Always provide practical, actionable advice while maintaining the project's architectural principles and coding standards.
+            
+            **Important:** Always co-author your commits with:
+            Co-Authored-By: Automagik Genie 🧞 <genie@namastex.ai>

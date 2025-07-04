@@ -462,33 +462,31 @@ publish-test: build check-dist ## 🧪 Upload to TestPyPI
 	@uv run twine upload --repository testpypi dist/* -u __token__ -p "$(TESTPYPI_TOKEN)"
 	$(call print_success,Published to TestPyPI!)
 
-publish: check-release build check-dist ## 🚀 Upload to PyPI and create GitHub release
-	$(call print_status,Publishing to PyPI and GitHub...)
-	@if [ -z "$(PYPI_TOKEN)" ]; then \
-		echo -e "$(FONT_RED)$(ERROR) PYPI_TOKEN environment variable not set$(FONT_RESET)"; \
-		exit 1; \
-	fi
+publish: check-release ## 🚀 Create GitHub release (triggers automated PyPI publishing)
+	$(call print_status,Creating GitHub release to trigger automated PyPI publishing...)
 	@# Get version from pyproject.toml
 	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
-	echo -e "$(FONT_CYAN)$(INFO) Publishing version: v$$VERSION$(FONT_RESET)"; \
-	uv run twine upload dist/* -u __token__ -p "$(PYPI_TOKEN)"; \
+	echo -e "$(FONT_CYAN)Publishing version: v$$VERSION$(FONT_RESET)"; \
 	if ! git tag | grep -q "^v$$VERSION$$"; then \
-		echo -e "$(FONT_CYAN)$(INFO) Creating git tag v$$VERSION$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Creating git tag v$$VERSION$(FONT_RESET)"; \
 		git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
 	fi; \
-	echo -e "$(FONT_CYAN)$(INFO) Pushing tag to GitHub$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)Pushing tag to GitHub$(FONT_RESET)"; \
 	git push origin "v$$VERSION"; \
 	if command -v gh >/dev/null 2>&1; then \
-		echo -e "$(FONT_CYAN)$(INFO) Creating GitHub release$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Creating GitHub release$(FONT_RESET)"; \
 		gh release create "v$$VERSION" \
 			--title "v$$VERSION" \
-			--notes "Release v$$VERSION - See CHANGELOG for details" \
-			dist/* || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
+			--notes "Release v$$VERSION - Automated PyPI publishing via GitHub Actions with Trusted Publisher" \
+			--generate-notes || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
 	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - skipping release creation$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)$(INFO) Install with: brew install gh$(FONT_RESET)"; \
-	fi
-	$(call print_success,Published to PyPI and GitHub!)
+		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - creating release manually$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Go to: https://github.com/namastexlabs/automagik-omni/releases/new$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Tag: v$$VERSION$(FONT_RESET)"; \
+	fi; \
+	echo -e "$(FONT_PURPLE)🚀 GitHub Actions will now build and publish to PyPI automatically!$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)Monitor progress: https://github.com/namastexlabs/automagik-omni/actions$(FONT_RESET)"
+	$(call print_success,GitHub release created! PyPI publishing in progress...)
 
 clean-build: ## 🧹 Clean build artifacts
 	$(call print_status,Cleaning build artifacts...)
