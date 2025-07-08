@@ -29,14 +29,14 @@ class MessageRouter:
         message_text: str,
         user_id: Optional[Union[str, int]] = None,
         user: Optional[Dict[str, Any]] = None,
-        session_name: str = None,
+        session_name: Optional[str] = None,
         message_type: str = "text",
         whatsapp_raw_payload: Optional[Dict[str, Any]] = None,
         session_origin: str = "whatsapp",
         agent_config: Optional[Dict[str, Any]] = None,
         media_contents: Optional[List[Dict[str, Any]]] = None,
         trace_context=None,
-    ) -> str:
+    ) -> Union[str, Dict[str, Any]]:
         """Route a message to the appropriate handler.
 
         Args:
@@ -64,9 +64,14 @@ class MessageRouter:
         logger.info(f"Session origin: {session_origin}")
 
         # Determine the agent name to use
-        agent_name = config.agent_api.default_agent_name
+        agent_name = None
         if agent_config and "name" in agent_config:
             agent_name = agent_config["name"]
+        
+        # If no agent name is specified in the config, use a default
+        if not agent_name:
+            agent_name = "default"
+        
         logger.info(f"Using agent name: {agent_name}")
 
         # If user_id is provided, prioritize it over user dict

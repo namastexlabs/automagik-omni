@@ -205,7 +205,7 @@ class AgentApiClient:
         logger.info(f"Making API request to {endpoint}")
         # Log payload summary without full content to avoid log clutter
         payload_summary = {
-            "message_length": len(payload.get("message", "")),
+            "message_length": len(payload.get("message_content", "")),
             "user_id": payload.get("user_id"),
             "session_name": payload.get("session_name"),
             "message_type": payload.get("message_type"),
@@ -216,6 +216,7 @@ class AgentApiClient:
 
         try:
             # Send request to the agent API
+            logger.info(f"Sending request to agent API with timeout: {self.timeout}s")
             response = requests.post(
                 endpoint, headers=headers, json=payload, timeout=self.timeout
             )
@@ -286,19 +287,34 @@ class AgentApiClient:
         except Timeout:
             logger.error(f"Timeout calling agent API after {self.timeout}s")
             return {
-                "error": "Desculpe, está demorando mais do que o esperado para responder. Por favor, tente novamente."
+                "error": "Desculpe, está demorando mais do que o esperado para responder. Por favor, tente novamente.",
+                "success": False,
+                "session_id": None,
+                "tool_calls": [],
+                "tool_outputs": [],
+                "usage": {},
             }
 
         except RequestException as e:
             logger.error(f"Error calling agent API: {e}")
             return {
-                "error": "Desculpe, encontrei um erro ao me comunicar com meu cérebro. Por favor, tente novamente."
+                "error": "Desculpe, encontrei um erro ao me comunicar com meu cérebro. Por favor, tente novamente.",
+                "success": False,
+                "session_id": None,
+                "tool_calls": [],
+                "tool_outputs": [],
+                "usage": {},
             }
 
         except Exception as e:
             logger.error(f"Unexpected error calling agent API: {e}", exc_info=True)
             return {
-                "error": "Desculpe, encontrei um erro inesperado. Por favor, tente novamente."
+                "error": "Desculpe, encontrei um erro inesperado. Por favor, tente novamente.",
+                "success": False,
+                "session_id": None,
+                "tool_calls": [],
+                "tool_outputs": [],
+                "usage": {},
             }
 
     def get_session_info(self, session_name: str) -> Optional[Dict[str, Any]]:
@@ -314,7 +330,7 @@ class AgentApiClient:
         endpoint = f"{self.api_url}/api/v1/sessions/{session_name}"
 
         try:
-            # Make the request
+            # Make the request using the configured timeout
             response = requests.get(
                 endpoint, headers=self._make_headers(), timeout=self.timeout
             )
@@ -454,6 +470,7 @@ class AgentApiClient:
             trace_context.log_agent_response(result, processing_time)
 
         # Fetch current session info to get the authoritative user_id
+        # Make this optional and non-blocking to prevent response delays
         current_user_id = None
         if session_name:
             try:
@@ -465,6 +482,8 @@ class AgentApiClient:
                     )
             except Exception as e:
                 logger.warning(f"Failed to fetch session info for {session_name}: {e}")
+                # Don't let session info failure affect the main response
+                current_user_id = None
 
         # Return the full response structure
         if isinstance(result, dict):
