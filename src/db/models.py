@@ -51,6 +51,10 @@ class InstanceConfig(Base):
     default_agent = Column(String, nullable=False)
     agent_timeout = Column(Integer, default=60)
 
+    # Automagik instance identification (for UI display)
+    automagik_instance_id = Column(String, nullable=True)
+    automagik_instance_name = Column(String, nullable=True)
+
     # Default instance flag (for backward compatibility)
     is_default = Column(Boolean, default=False, index=True)
 

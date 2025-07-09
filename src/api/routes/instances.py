@@ -75,6 +75,10 @@ class InstanceConfigCreate(BaseModel):
     agent_timeout: int = 60
     is_default: bool = False
 
+    # Automagik instance identification (for UI display)
+    automagik_instance_id: Optional[str] = Field(None, description="Automagik instance ID")
+    automagik_instance_name: Optional[str] = Field(None, description="Automagik instance name")
+
 
 class InstanceConfigUpdate(BaseModel):
     """Schema for updating instance configuration."""
@@ -89,6 +93,8 @@ class InstanceConfigUpdate(BaseModel):
     default_agent: Optional[str] = None
     agent_timeout: Optional[int] = None
     is_default: Optional[bool] = None
+    automagik_instance_id: Optional[str] = None
+    automagik_instance_name: Optional[str] = None
 
 
 class EvolutionStatusInfo(BaseModel):
@@ -118,6 +124,8 @@ class InstanceConfigResponse(BaseModel):
     default_agent: str
     agent_timeout: int
     is_default: bool
+    automagik_instance_id: Optional[str] = None
+    automagik_instance_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     evolution_status: Optional[EvolutionStatusInfo] = None
@@ -305,6 +313,8 @@ async def list_instances(
             "default_agent": instance.default_agent,
             "agent_timeout": instance.agent_timeout,
             "is_default": instance.is_default,
+            "automagik_instance_id": instance.automagik_instance_id,
+            "automagik_instance_name": instance.automagik_instance_name,
             "created_at": instance.created_at,
             "updated_at": instance.updated_at,
             "evolution_status": None,
@@ -388,6 +398,8 @@ async def get_instance(
         "default_agent": instance.default_agent,
         "agent_timeout": instance.agent_timeout,
         "is_default": instance.is_default,
+        "automagik_instance_id": instance.automagik_instance_id,
+        "automagik_instance_name": instance.automagik_instance_name,
         "created_at": instance.created_at,
         "updated_at": instance.updated_at,
         "evolution_status": None,
