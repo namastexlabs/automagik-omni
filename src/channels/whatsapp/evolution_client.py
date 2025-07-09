@@ -110,7 +110,7 @@ class EvolutionClient:
         logger.info(f"Creating Evolution instance: {request.instanceName}")
         logger.debug(f"Instance creation request: {request.dict()}")
 
-        # Set webhook URL if configured
+        # Set webhook URL if not already configured
         if not request.webhook and config.api.host and config.api.port:
             webhook_url = replace_localhost_with_ipv4(
                 f"http://{config.api.host}:{config.api.port}/webhook/evolution/{quote(request.instanceName, safe='')}"
@@ -120,12 +120,14 @@ class EvolutionClient:
                 "enabled": True,
                 "url": webhook_url,
                 "webhookByEvents": True,
-                "webhookBase64": True,
+                "webhookBase64": True,  # Default fallback
                 "events": ["MESSAGES_UPSERT"],
             }
-            logger.debug(f"Webhook configuration: {request.webhook}")
-        else:
+            logger.debug(f"Auto-configured webhook: {request.webhook}")
+        elif request.webhook:
             logger.debug(f"Using provided webhook config: {request.webhook}")
+        else:
+            logger.debug("No webhook configuration provided")
 
         # Convert to dict and exclude None values to avoid Evolution API validation errors
         payload = request.dict(exclude_none=True)

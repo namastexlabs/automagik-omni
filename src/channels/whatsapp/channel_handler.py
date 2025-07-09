@@ -154,12 +154,22 @@ class WhatsAppChannelHandler(ChannelHandler):
                 f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
             )
 
-            # Prepare Evolution API request (without webhook initially to avoid 403 errors)
+            # Prepare Evolution API request with webhook configuration
+            webhook_config = {
+                "enabled": True,
+                "url": webhook_url,
+                "webhookByEvents": True,
+                "webhookBase64": instance.webhook_base64,
+                "events": ["MESSAGES_UPSERT"],
+            }
+            logger.info(f"Creating instance '{instance.name}' with webhook_base64={instance.webhook_base64}")
+            
             evolution_request = EvolutionCreateRequest(
                 instanceName=instance.name,
                 integration=integration,
                 qrcode=auto_qr,
                 number=phone_number,
+                webhook=webhook_config,
             )
 
             response = await evolution_client.create_instance(evolution_request)
