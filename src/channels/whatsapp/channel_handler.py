@@ -176,8 +176,7 @@ class WhatsAppChannelHandler(ChannelHandler):
             logger.info(f"WhatsApp instance created: {response}")
             logger.debug(f"Response type: {type(response)}")
 
-            # Note: Webhook is already configured during instance creation above
-            # Additional settings configuration if needed
+            # Configure additional settings if needed
             try:
                 await evolution_client.set_settings(instance.name)
                 logger.info(
@@ -186,6 +185,24 @@ class WhatsAppChannelHandler(ChannelHandler):
             except Exception as config_error:
                 logger.debug(
                     f"Additional settings configuration not needed or failed: {config_error}"
+                )
+
+            # Post-creation webhook update to ensure correct base64 setting
+            # This is needed because Evolution API v2.3.0 doesn't properly respect 
+            # webhookBase64 setting during instance creation
+            try:
+                await evolution_client.set_webhook(
+                    instance.name,
+                    webhook_url,
+                    ["MESSAGES_UPSERT"],
+                    instance.webhook_base64,
+                )
+                logger.info(
+                    f"Updated webhook configuration post-creation: {webhook_url} (base64={instance.webhook_base64})"
+                )
+            except Exception as webhook_error:
+                logger.warning(
+                    f"Failed to update webhook configuration post-creation: {webhook_error}"
                 )
 
             # Handle different response formats from Evolution API

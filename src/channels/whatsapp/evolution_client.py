@@ -131,6 +131,7 @@ class EvolutionClient:
 
         # Convert to dict and exclude None values to avoid Evolution API validation errors
         payload = request.dict(exclude_none=True)
+        logger.info(f"Evolution API payload: {payload}")
 
         # Remove optional fields that cause validation issues if empty
         optional_fields_to_remove = ["token", "msgCall", "number"]
@@ -226,6 +227,7 @@ class EvolutionClient:
             "webhookBase64": webhook_base64,
             "events": events,
         }
+        logger.info(f"Setting webhook for {instance_name} with data: {webhook_data}")
 
         return await self._request(
             "POST", f"/webhook/set/{quote(instance_name, safe='')}", json=webhook_data
