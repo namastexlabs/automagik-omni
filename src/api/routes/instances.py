@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 import time
 
 from src.api.deps import get_database, verify_api_key
-from src.db.models import InstanceConfig
+from src.db.models import InstanceConfig, User
 from src.channels.base import ChannelHandlerFactory, QRCodeResponse, ConnectionStatus
 from src.ip_utils import ensure_ipv4_in_config
 from src.utils.instance_utils import normalize_instance_name
@@ -519,7 +519,16 @@ async def delete_instance(
         )
         # Continue with database deletion even if external service fails
 
-    # Always delete from database
+    # Delete associated users first to avoid foreign key constraint issues
+    users_to_delete = db.query(User).filter_by(instance_name=instance_name).all()
+    user_count = len(users_to_delete)
+    
+    if user_count > 0:
+        logger.info(f"Deleting {user_count} users associated with instance '{instance_name}'")
+        for user in users_to_delete:
+            db.delete(user)
+    
+    # Now delete the instance
     db.delete(instance)
     db.commit()
 
