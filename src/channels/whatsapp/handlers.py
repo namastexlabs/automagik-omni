@@ -470,6 +470,7 @@ class WhatsAppMessageHandler:
                 logger.info(f"Using session name: {session_name}")
 
                 # Create or update user in our local database for stable identity
+                local_user = None  # Initialize outside try block so it's accessible later
                 try:
                     from src.db.database import get_db
 
@@ -557,30 +558,35 @@ class WhatsAppMessageHandler:
                 current_user_id = None
                 if (
                     isinstance(agent_response, dict)
-                    and "current_user_id" in agent_response
+                    and "user_id" in agent_response
                 ):
-                    current_user_id = agent_response["current_user_id"]
+                    current_user_id = agent_response["user_id"]
                     logger.info(
                         f"Agent API returned current user_id: {current_user_id} for session {session_name}"
                     )
 
                     # Update our local user with the agent's user_id for future lookups
-                    try:
-                        from src.db.database import get_db
-
-                        db_session = next(get_db())
+                    if local_user:
                         try:
-                            user_service.update_user_agent_id(
-                                local_user.id, current_user_id, db_session
+                            from src.db.database import get_db
+
+                            db_session = next(get_db())
+                            try:
+                                user_service.update_user_agent_id(
+                                    local_user.id, current_user_id, db_session
+                                )
+                                logger.info(
+                                    f"Updated local user {local_user.id} with agent user_id: {current_user_id}"
+                                )
+                            finally:
+                                db_session.close()
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to update local user with agent user_id: {e}"
                             )
-                            logger.info(
-                                f"Updated local user {local_user.id} with agent user_id: {current_user_id}"
-                            )
-                        finally:
-                            db_session.close()
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to update local user with agent user_id: {e}"
+                    else:
+                        logger.warning(
+                            f"Cannot update agent user_id - local user not created for session {session_name}"
                         )
 
                 # Extract message text and log additional information from agent response
