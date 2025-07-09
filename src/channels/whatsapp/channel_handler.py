@@ -155,12 +155,13 @@ class WhatsAppChannelHandler(ChannelHandler):
             )
 
             # Prepare Evolution API request with webhook configuration
+            # Use the format that Evolution API v2.3.0 expects
             webhook_config = {
                 "enabled": True,
                 "url": webhook_url,
-                "webhookByEvents": True,
-                "webhookBase64": instance.webhook_base64,
                 "events": ["MESSAGES_UPSERT"],
+                "base64": instance.webhook_base64,  # Use "base64" not "webhookBase64"
+                "byEvents": False,  # Use "byEvents" not "webhookByEvents"
             }
             logger.info(f"Creating instance '{instance.name}' with webhook_base64={instance.webhook_base64}")
             

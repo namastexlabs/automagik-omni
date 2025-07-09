@@ -220,17 +220,20 @@ class EvolutionClient:
         if events is None:
             events = ["MESSAGES_UPSERT"]
 
-        webhook_data = {
-            "enabled": True,
-            "url": webhook_url,
-            "webhookByEvents": True,
-            "webhookBase64": webhook_base64,
-            "events": events,
+        # Use the correct format that Evolution API v2.3.0 expects
+        webhook_payload = {
+            "webhook": {
+                "enabled": True,
+                "url": webhook_url,
+                "events": events,
+                "base64": webhook_base64,  # Use "base64" not "webhookBase64"
+                "byEvents": False,  # Use "byEvents" not "webhookByEvents"
+            }
         }
-        logger.info(f"Setting webhook for {instance_name} with data: {webhook_data}")
+        logger.info(f"Setting webhook for {instance_name} with payload: {webhook_payload}")
 
         return await self._request(
-            "POST", f"/webhook/set/{quote(instance_name, safe='')}", json=webhook_data
+            "POST", f"/webhook/set/{quote(instance_name, safe='')}", json=webhook_payload
         )
 
     async def set_settings(
