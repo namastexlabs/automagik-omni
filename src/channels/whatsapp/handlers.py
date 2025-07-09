@@ -516,13 +516,21 @@ class WhatsAppMessageHandler:
                 else:
                     message_type_param = "text"
 
+                # Use stored agent user_id if available from previous interactions
+                agent_user_id = None
+                if local_user and local_user.last_agent_user_id:
+                    agent_user_id = local_user.last_agent_user_id
+                    logger.info(
+                        f"Using stored agent user_id: {agent_user_id} for phone {formatted_phone}"
+                    )
+                
                 logger.info(
                     f"Routing message to API for user {user_dict['phone_number']}, session {session_name}: {message_content}"
                 )
                 try:
                     agent_response = message_router.route_message(
-                        user_id=None,  # Let the agent API manage user creation and ID assignment
-                        user=user_dict,
+                        user_id=agent_user_id,  # Pass the stored agent user_id if available
+                        user=user_dict if not agent_user_id else None,  # Only pass user dict if no user_id
                         session_name=session_name,
                         message_text=message_content,
                         message_type=message_type_param,
