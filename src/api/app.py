@@ -250,6 +250,21 @@ async def startup_event():
     logger.info(f"API Port: {config.api.port}")
     logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
 
+    # Run database migrations
+    try:
+        logger.info("Checking database migrations...")
+        from src.db.migrations import auto_migrate
+        
+        if auto_migrate():
+            logger.info("✅ Database migrations completed successfully")
+        else:
+            logger.error("❌ Database migrations failed")
+            # Don't stop the application, but log the error
+            logger.warning("Application starting despite migration issues - manual intervention may be required")
+    except Exception as e:
+        logger.error(f"❌ Database migration error: {e}")
+        logger.warning("Application starting despite migration issues - manual intervention may be required")
+
     # Auto-discover existing Evolution instances (non-intrusive)
     try:
         logger.info("Starting Evolution instance auto-discovery...")
