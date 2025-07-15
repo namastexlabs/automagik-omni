@@ -6,6 +6,7 @@ Manages the lifecycle of message traces through the Omni-Hub system.
 import time
 import logging
 import uuid
+import json
 from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 from sqlalchemy.orm import Session
@@ -193,6 +194,29 @@ class TraceContext:
             evolution_success=success,
         )
 
+    def update_session_info(self, session_name: str, agent_session_id: str = None) -> None:
+        """Update trace with session information after agent processing."""
+        try:
+            trace = (
+                self.db_session.query(MessageTrace)
+                .filter(MessageTrace.trace_id == self.trace_id)
+                .first()
+            )
+
+            if trace:
+                trace.session_name = session_name
+                if agent_session_id:
+                    trace.agent_session_id = agent_session_id
+
+                self.db_session.commit()
+                logger.info(f"✅ Updated trace {self.trace_id} with session: {session_name}, agent_session: {agent_session_id}")
+            else:
+                logger.error(f"❌ Trace {self.trace_id} not found for session update - this indicates trace creation failed")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update trace session info: {e}", exc_info=True)
+            # Don't let tracing failures break message processing
+
 
 class TraceService:
     """
@@ -230,9 +254,13 @@ class TraceService:
             # Determine message type and metadata
             message_type = TraceService._determine_message_type(message_obj)
             has_media = TraceService._has_media(message_obj)
-            has_quoted = "contextInfo" in data and "quotedMessage" in data.get(
-                "contextInfo", {}
-            )
+            context_info = data.get("contextInfo", {})
+            has_quoted = "contextInfo" in data and context_info is not None and "quotedMessage" in context_info
+            
+            # Enhanced logging for audio debugging
+            if message_type == "audio":
+                logger.info(f"🎵 TRACE: Creating trace for audio message, type={message_type}, has_media={has_media}")
+            logger.info(f"📝 TRACE: Creating trace for message type={message_type}, instance={instance_name}")
 
             # Extract message content length
             message_length = 0
@@ -273,7 +301,8 @@ class TraceService:
             return context
 
         except Exception as e:
-            logger.error(f"Failed to create message trace: {e}")
+            logger.error(f"Failed to create message trace: {e}", exc_info=True)
+            logger.error(f"Message data that failed: {json.dumps(message_data, indent=2)[:500]}")
             return None
 
     @staticmethod
@@ -418,6 +447,8 @@ def get_trace_context(
             trace_context.update_trace_status(
                 "processing", processing_started_at=utcnow()
             )
+        else:
+            logger.warning(f"No trace context created for instance {instance_name}")
         yield trace_context
     except Exception as e:
         if trace_context:

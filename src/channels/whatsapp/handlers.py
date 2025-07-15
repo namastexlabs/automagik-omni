@@ -511,8 +511,8 @@ class WhatsAppMessageHandler:
                     else:
                         message_type_param = "media"  # fallback
                 elif is_audio_message:
-                    # Audio messages are treated as text (transcription disabled)
-                    message_type_param = "text"
+                    # Audio messages should be treated as audio, not text
+                    message_type_param = "audio"
                 else:
                     message_type_param = "text"
 
@@ -605,6 +605,10 @@ class WhatsAppMessageHandler:
                     success = agent_response.get("success", True)
                     tool_calls = agent_response.get("tool_calls", [])
                     usage = agent_response.get("usage", {})
+
+                    # Update trace with session information
+                    if trace_context:
+                        trace_context.update_session_info(session_name, session_id)
 
                     # Log detailed agent response information
                     logger.info(
@@ -998,11 +1002,11 @@ class WhatsAppMessageHandler:
             if "body" in data:
                 return data["body"]
 
-            # For audio messages, return empty string instead of placeholder
-            # This allows the calling code to handle audio messages properly
+            # For audio messages, return meaningful content to ensure proper session creation
+            # Empty content can cause session management issues
             message_type = data.get("messageType", "")
             if message_type in ["audioMessage", "audio", "voice", "ptt"]:
-                return ""
+                return "[Audio message - transcription will be handled by agent]"
 
             # For other message types, return empty string
             logger.warning(f"Could not extract message content from payload: {message}")

@@ -356,10 +356,18 @@ async def _handle_evolution_webhook(instance_config, request: Request):
     payload_size = 0
 
     try:
+        logger.info(f"🔄 WEBHOOK ENTRY: Starting webhook processing for instance '{instance_config.name}'")
+        
         # Get the JSON data from the request
         data = await request.json()
         payload_size = len(json.dumps(data).encode('utf-8'))
-        logger.info(f"Received webhook for instance '{instance_config.name}'")
+        logger.info(f"✅ WEBHOOK JSON PARSED: Received webhook for instance '{instance_config.name}'")
+        
+        # Enhanced logging for audio message debugging
+        message_obj = data.get("data", {}).get("message", {})
+        if "audioMessage" in message_obj:
+            logger.info(f"🎵 AUDIO MESSAGE DETECTED: {json.dumps(message_obj, indent=2)[:1000]}")
+        
         logger.debug(f"Webhook data: {data}")
 
         # Start message tracing
