@@ -261,6 +261,10 @@ class WhatsAppMessageHandler:
                 "video",
                 "documentMessage",
                 "document",
+                "audioMessage",
+                "audio",
+                "voice",
+                "ptt",
             ]
 
             if not (is_text_message or is_audio_message or is_media_message):
@@ -348,6 +352,8 @@ class WhatsAppMessageHandler:
                             media_meta = message_obj.get("videoMessage", {})
                         elif "documentMessage" in message_obj:
                             media_meta = message_obj.get("documentMessage", {})
+                        elif "audioMessage" in message_obj:
+                            media_meta = message_obj.get("audioMessage", {})
 
                         # Build media_contents payload as expected by Agent API
                         # PRIORITY 1: Use base64 data if available (preferred by agent API)
@@ -432,6 +438,10 @@ class WhatsAppMessageHandler:
                         elif "documentMessage" in message_obj:
                             media_item["name"] = media_meta.get("fileName", "document")
                             media_item["size_bytes"] = media_meta.get("fileLength", 0)
+                        elif "audioMessage" in message_obj:
+                            media_item["duration"] = media_meta.get("seconds", 0)
+                            media_item["size_bytes"] = media_meta.get("fileLength", 0)
+                            media_item["mimetype"] = media_meta.get("mimetype", "audio/ogg")
 
                         media_contents_to_send = [media_item]
 
