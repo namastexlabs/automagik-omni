@@ -5,6 +5,7 @@ Provides endpoints for querying message traces and analytics.
 
 import logging
 from datetime import datetime, timedelta
+from src.utils.datetime_utils import utcnow
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette import status
@@ -236,9 +237,9 @@ async def get_trace_analytics(
     try:
         # Default to last 24 hours if no dates provided
         if not start_date:
-            start_date = datetime.utcnow() - timedelta(hours=24)
+            start_date = utcnow() - timedelta(hours=24)
         if not end_date:
-            end_date = datetime.utcnow()
+            end_date = utcnow()
 
         query = db.query(MessageTrace).filter(
             and_(
@@ -360,7 +361,7 @@ async def cleanup_old_traces(
             # Count traces that would be deleted
             from datetime import timedelta
 
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = utcnow() - timedelta(days=days_old)
             count = (
                 db.query(MessageTrace)
                 .filter(MessageTrace.received_at < cutoff_date)

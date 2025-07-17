@@ -137,7 +137,7 @@ class WhatsAppChannelHandler(ChannelHandler):
 
                 return {
                     "evolution_response": {
-                        "instance": existing_instance.dict(),
+                        "instance": existing_instance.model_dump(),
                         "hash": {"apikey": existing_instance.apikey},
                     },
                     "evolution_instance_id": existing_instance.instanceId,

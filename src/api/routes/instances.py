@@ -154,7 +154,7 @@ async def create_instance(
 
     # Log incoming request payload (with sensitive data masked)
     logger.info(f"Creating instance: {instance_data.name}")
-    payload_data = instance_data.dict()
+    payload_data = instance_data.model_dump()
     # Mask sensitive fields for logging
     if "evolution_key" in payload_data and payload_data["evolution_key"]:
         payload_data["evolution_key"] = (
@@ -499,7 +499,7 @@ def update_instance(
         )
 
     # Update fields
-    update_data = instance_data.dict(exclude_unset=True)
+    update_data = instance_data.model_dump(exclude_unset=True)
 
     # Replace localhost with actual IPv4 addresses in URLs
     update_data = ensure_ipv4_in_config(update_data)

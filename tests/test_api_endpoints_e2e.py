@@ -899,7 +899,7 @@ class TestErrorHandling(TestAPIEndpoints):
         """Test invalid JSON payload handling."""
         response = client.post(
             "/api/v1/instances",
-            data="invalid json",
+            content="invalid json",
             headers={**auth_headers, "Content-Type": "application/json"}
         )
         assert response.status_code == 422
