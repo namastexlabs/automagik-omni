@@ -16,6 +16,11 @@ from src.ip_utils import replace_localhost_with_ipv4
 logger = logging.getLogger(__name__)
 
 
+class ValidationError(Exception):
+    """Custom exception for validation errors that should return 422."""
+    pass
+
+
 class WhatsAppChannelHandler(ChannelHandler):
     """WhatsApp channel handler implementation."""
 
@@ -62,7 +67,7 @@ class WhatsAppChannelHandler(ChannelHandler):
             logger.error(
                 f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://"
             )
-            raise Exception(
+            raise ValidationError(
                 f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://"
             )
 
@@ -233,6 +238,9 @@ class WhatsAppChannelHandler(ChannelHandler):
                 "existing_instance": False,
             }
 
+        except ValidationError as e:
+            logger.error(f"Failed to create WhatsApp instance: {e}")
+            raise  # Re-raise ValidationError as-is
         except Exception as e:
             logger.error(f"Failed to create WhatsApp instance: {e}")
             raise Exception(f"WhatsApp instance creation failed: {str(e)}")
