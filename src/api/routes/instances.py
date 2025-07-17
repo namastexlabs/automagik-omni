@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import time
 
 from src.api.deps import get_database, verify_api_key
@@ -136,8 +136,7 @@ class InstanceConfigResponse(BaseModel):
     updated_at: datetime
     evolution_status: Optional[EvolutionStatusInfo] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post(

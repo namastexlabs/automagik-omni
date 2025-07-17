@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette import status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from src.api.deps import get_database, verify_api_key
 from src.db.trace_models import MessageTrace
@@ -45,8 +45,7 @@ class TraceResponse(BaseModel):
     agent_response_success: Optional[bool]
     evolution_success: Optional[bool]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TracePayloadResponse(BaseModel):
@@ -66,8 +65,7 @@ class TracePayloadResponse(BaseModel):
     contains_base64: bool
     payload: Optional[Dict[str, Any]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TraceAnalytics(BaseModel):
