@@ -39,8 +39,8 @@ class TestTelemetryClient:
 
     def test_telemetry_enabled_by_default(self):
         """Test that telemetry is enabled by default in normal environments."""
-        # Clear any CI environment variables
-        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI"]
+        # Clear any CI environment variables and testing environment variables
+        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
         
@@ -65,17 +65,23 @@ class TestTelemetryClient:
 
     def test_disable_telemetry(self):
         """Test disabling telemetry."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
-                client = TelemetryClient()
-                assert client.is_enabled()
-                
-                client.disable()
-                assert not client.is_enabled()
-                
-                # Check that opt-out file was created
-                opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
-                assert opt_out_file.exists()
+        # Clear CI environment variables and testing environment variables
+        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
+        env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
+        env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
+        
+        with patch.dict(os.environ, env_without_ci, clear=True):
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with patch("pathlib.Path.home", return_value=Path(temp_dir)):
+                    client = TelemetryClient()
+                    assert client.is_enabled()
+                    
+                    client.disable()
+                    assert not client.is_enabled()
+                    
+                    # Check that opt-out file was created
+                    opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
+                    assert opt_out_file.exists()
 
     def test_enable_telemetry(self):
         """Test enabling telemetry."""
@@ -93,17 +99,19 @@ class TestTelemetryClient:
                 # Check that opt-out file was removed
                 assert not opt_out_file.exists()
 
-    def test_track_command_disabled(self):
+    @patch('src.core.telemetry.urlopen')
+    def test_track_command_disabled(self, mock_urlopen):
         """Test that tracking does nothing when disabled."""
         with patch.dict(os.environ, {"AUTOMAGIK_OMNI_DISABLE_TELEMETRY": "true"}):
             client = TelemetryClient()
             
-            # Mock the _send_event method to ensure it's not called
-            with patch.object(client, '_send_event') as mock_send:
-                client.track_command("test_command", success=True)
-                mock_send.assert_not_called()
+            # Call track_command - it should not make HTTP request when disabled
+            client.track_command("test_command", success=True)
+            
+            # Verify that urlopen was NOT called since telemetry is disabled
+            mock_urlopen.assert_not_called()
 
-    @patch('urllib.request.urlopen')
+    @patch('src.core.telemetry.urlopen')
     def test_track_command_enabled(self, mock_urlopen):
         """Test that tracking works when enabled."""
         # Setup mock response
@@ -113,8 +121,8 @@ class TestTelemetryClient:
         mock_response.__exit__ = MagicMock(return_value=None)
         mock_urlopen.return_value = mock_response
         
-        # Clear CI environment variables
-        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI"]
+        # Clear CI environment variables and testing environment variables
+        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
         
@@ -176,7 +184,7 @@ class TestTelemetryClient:
         long_string_attr = next(attr for attr in event_attrs if attr["key"] == "event.long_string")
         assert len(long_string_attr["value"]["stringValue"]) == 500
 
-    @patch('urllib.request.urlopen')
+    @patch('src.core.telemetry.urlopen')
     def test_network_error_handling(self, mock_urlopen):
         """Test that network errors are handled gracefully."""
         from urllib.error import URLError
@@ -184,8 +192,8 @@ class TestTelemetryClient:
         # Setup mock to raise network error
         mock_urlopen.side_effect = URLError("Network error")
         
-        # Clear CI environment variables
-        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI"]
+        # Clear CI environment variables and testing environment variables
+        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
         

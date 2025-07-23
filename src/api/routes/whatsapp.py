@@ -7,7 +7,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig
@@ -64,8 +64,7 @@ class WhatsAppInstanceResponse(BaseModel):
     evolution_profile_name: Optional[str] = None
     qr_code: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WhatsAppConnectionState(BaseModel):

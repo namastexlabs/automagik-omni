@@ -7,12 +7,13 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import time
 
 from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig, User
 from src.channels.base import ChannelHandlerFactory, QRCodeResponse, ConnectionStatus
+from src.channels.whatsapp.channel_handler import ValidationError
 from src.ip_utils import ensure_ipv4_in_config
 from src.utils.instance_utils import normalize_instance_name
 from src.core.telemetry import track_instance_operation
@@ -58,6 +59,9 @@ class InstanceConfigCreate(BaseModel):
     session_id_prefix: Optional[str] = Field(
         None, description="Session ID prefix (WhatsApp)"
     )
+    webhook_base64: Optional[bool] = Field(
+        None, description="Send base64 encoded data in webhooks (WhatsApp)"
+    )
 
     # WhatsApp-specific creation parameters (not stored in DB)
     phone_number: Optional[str] = Field(None, description="Phone number for WhatsApp")
@@ -88,6 +92,7 @@ class InstanceConfigUpdate(BaseModel):
     evolution_key: Optional[str] = None
     whatsapp_instance: Optional[str] = None
     session_id_prefix: Optional[str] = None
+    webhook_base64: Optional[bool] = None
     agent_api_url: Optional[str] = None
     agent_api_key: Optional[str] = None
     default_agent: Optional[str] = None
@@ -124,14 +129,14 @@ class InstanceConfigResponse(BaseModel):
     default_agent: str
     agent_timeout: int
     is_default: bool
+    is_active: bool
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     evolution_status: Optional[EvolutionStatusInfo] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post(
@@ -148,7 +153,7 @@ async def create_instance(
 
     # Log incoming request payload (with sensitive data masked)
     logger.info(f"Creating instance: {instance_data.name}")
-    payload_data = instance_data.dict()
+    payload_data = instance_data.model_dump()
     # Mask sensitive fields for logging
     if "evolution_key" in payload_data and payload_data["evolution_key"]:
         payload_data["evolution_key"] = (
@@ -205,6 +210,14 @@ async def create_instance(
         logger.info(
             f"Instance name normalized: '{original_name}' -> '{normalized_name}'"
         )
+        
+        # Check if normalization removed too much content (validation)
+        # If the normalized name is significantly shorter or only contains basic chars after heavy modification
+        if len(normalized_name) < len(original_name) * 0.5 or "!" in original_name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Instance name '{original_name}' contains invalid characters. Use only letters, numbers, hyphens, and underscores."
+            )
 
     # Check if normalized instance name already exists
     existing = db.query(InstanceConfig).filter_by(name=normalized_name).first()
@@ -227,8 +240,9 @@ async def create_instance(
         )
 
     # Create database instance first (without creation parameters)
-    db_instance_data = instance_data.dict(
-        exclude={"phone_number", "auto_qr", "integration"}
+    db_instance_data = instance_data.model_dump(
+        exclude={"phone_number", "auto_qr", "integration"},
+        exclude_unset=False
     )
 
     # Replace localhost with actual IPv4 addresses in URLs
@@ -259,8 +273,11 @@ async def create_instance(
             # Update instance with Evolution API details
             if "evolution_apikey" in creation_result:
                 db_instance.evolution_key = creation_result["evolution_apikey"]
-                db.commit()
-                db.refresh(db_instance)
+            
+            # Mark instance as active after successful creation
+            db_instance.is_active = True
+            db.commit()
+            db.refresh(db_instance)
 
             # Log whether we used existing or created new
             if creation_result.get("existing_instance"):
@@ -272,6 +289,14 @@ async def create_instance(
                     f"Created new Evolution instance for '{instance_data.name}'"
                 )
 
+    except ValidationError as e:
+        # Rollback database if validation fails
+        db.delete(db_instance)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid configuration: {str(e)}",
+        )
     except Exception as e:
         # Rollback database if external service creation fails
         db.delete(db_instance)
@@ -313,6 +338,7 @@ async def list_instances(
             "default_agent": instance.default_agent,
             "agent_timeout": instance.agent_timeout,
             "is_default": instance.is_default,
+            "is_active": instance.is_active,
             "automagik_instance_id": instance.automagik_instance_id,
             "automagik_instance_name": instance.automagik_instance_name,
             "created_at": instance.created_at,
@@ -398,6 +424,7 @@ async def get_instance(
         "default_agent": instance.default_agent,
         "agent_timeout": instance.agent_timeout,
         "is_default": instance.is_default,
+        "is_active": instance.is_active,
         "automagik_instance_id": instance.automagik_instance_id,
         "automagik_instance_name": instance.automagik_instance_name,
         "created_at": instance.created_at,
@@ -471,7 +498,7 @@ def update_instance(
         )
 
     # Update fields
-    update_data = instance_data.dict(exclude_unset=True)
+    update_data = instance_data.model_dump(exclude_unset=True)
 
     # Replace localhost with actual IPv4 addresses in URLs
     update_data = ensure_ipv4_in_config(update_data)
@@ -540,9 +567,22 @@ async def delete_instance(
         for user in users_to_delete:
             db.delete(user)
     
+    # If deleting the default instance, find another instance to set as default
+    was_default = instance.is_default
+    
     # Now delete the instance
     db.delete(instance)
     db.commit()
+
+    # Set a new default instance if we just deleted the default
+    if was_default:
+        remaining_instances = db.query(InstanceConfig).all()
+        if remaining_instances:
+            # Set the first remaining instance as default
+            new_default = remaining_instances[0]
+            new_default.is_default = True
+            db.commit()
+            logger.info(f"Set '{new_default.name}' as new default instance after deleting '{instance_name}'")
 
     logger.info(f"Instance '{instance_name}' deleted from database")
 

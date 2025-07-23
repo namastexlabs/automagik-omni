@@ -5,12 +5,13 @@ Provides endpoints for querying message traces and analytics.
 
 import logging
 from datetime import datetime, timedelta
+from src.utils.datetime_utils import utcnow
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette import status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from src.api.deps import get_database, verify_api_key
 from src.db.trace_models import MessageTrace
@@ -44,8 +45,7 @@ class TraceResponse(BaseModel):
     agent_response_success: Optional[bool]
     evolution_success: Optional[bool]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TracePayloadResponse(BaseModel):
@@ -65,8 +65,7 @@ class TracePayloadResponse(BaseModel):
     contains_base64: bool
     payload: Optional[Dict[str, Any]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TraceAnalytics(BaseModel):
@@ -104,6 +103,10 @@ async def list_traces(
         None, description="Filter by status (received, processing, completed, failed)"
     ),
     message_type: Optional[str] = Query(None, description="Filter by message type"),
+    session_name: Optional[str] = Query(None, description="Filter by session name"),
+    agent_session_id: Optional[str] = Query(None, description="Filter by agent session ID"),
+    sender_phone: Optional[str] = Query(None, description="Filter by sender phone (alias for phone)"),
+    has_media: Optional[bool] = Query(None, description="Filter by media presence"),
     start_date: Optional[datetime] = Query(
         None, description="Start date filter (ISO format)"
     ),
@@ -125,12 +128,20 @@ async def list_traces(
         # Apply filters
         if phone:
             query = query.filter(MessageTrace.sender_phone == phone)
+        if sender_phone:  # Alternative parameter name for consistency
+            query = query.filter(MessageTrace.sender_phone == sender_phone)
         if instance_name:
             query = query.filter(MessageTrace.instance_name == instance_name)
         if status:
             query = query.filter(MessageTrace.status == status)
         if message_type:
             query = query.filter(MessageTrace.message_type == message_type)
+        if session_name:
+            query = query.filter(MessageTrace.session_name == session_name)
+        if agent_session_id:
+            query = query.filter(MessageTrace.agent_session_id == agent_session_id)
+        if has_media is not None:
+            query = query.filter(MessageTrace.has_media == has_media)
         if start_date:
             query = query.filter(MessageTrace.received_at >= start_date)
         if end_date:
@@ -236,9 +247,9 @@ async def get_trace_analytics(
     try:
         # Default to last 24 hours if no dates provided
         if not start_date:
-            start_date = datetime.utcnow() - timedelta(hours=24)
+            start_date = utcnow() - timedelta(hours=24)
         if not end_date:
-            end_date = datetime.utcnow()
+            end_date = utcnow()
 
         query = db.query(MessageTrace).filter(
             and_(
@@ -360,7 +371,7 @@ async def cleanup_old_traces(
             # Count traces that would be deleted
             from datetime import timedelta
 
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = utcnow() - timedelta(days=days_old)
             count = (
                 db.query(MessageTrace)
                 .filter(MessageTrace.received_at < cutoff_date)

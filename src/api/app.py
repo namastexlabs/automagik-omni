@@ -3,6 +3,7 @@ FastAPI application for receiving Evolution API webhooks.
 """
 
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -141,8 +142,78 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 # Create database tables on startup
 create_tables()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for FastAPI application."""
+    # Startup
+    logger.info("Initializing application...")
+    logger.info(f"Log level set to: {config.logging.level}")
+    logger.info(f"API Host: {config.api.host}")
+    logger.info(f"API Port: {config.api.port}")
+    logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
+
+    # Run database migrations
+    try:
+        logger.info("Checking database migrations...")
+        from src.db.migrations import auto_migrate
+        
+        if auto_migrate():
+            logger.info("✅ Database migrations completed successfully")
+        else:
+            logger.error("❌ Database migrations failed")
+            # Don't stop the application, but log the error
+            logger.warning("Application starting despite migration issues - manual intervention may be required")
+    except Exception as e:
+        logger.error(f"❌ Database migration error: {e}")
+        logger.warning("Application starting despite migration issues - manual intervention may be required")
+
+    # Auto-discover existing Evolution instances (non-intrusive)
+    try:
+        logger.info("Starting Evolution instance auto-discovery...")
+        from src.services.discovery_service import discovery_service
+        from src.db.database import SessionLocal
+
+        with SessionLocal() as db:
+            discovered_instances = await discovery_service.discover_evolution_instances(
+                db
+            )
+            if discovered_instances:
+                logger.info(
+                    f"Auto-discovered {len(discovered_instances)} Evolution instances:"
+                )
+                for instance in discovered_instances:
+                    logger.info(f"  - {instance.name} (active: {instance.is_active})")
+            else:
+                logger.info("No new Evolution instances discovered")
+    except Exception as e:
+        logger.warning(f"Evolution instance auto-discovery failed: {e}")
+        logger.debug(f"Auto-discovery error details: {str(e)}")
+        logger.info(
+            "Continuing without auto-discovery - instances can be created manually"
+        )
+
+    # Telemetry status logging
+    from src.core.telemetry import telemetry_client
+    if telemetry_client.is_enabled():
+        logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni")
+        logger.info("   • Collected: CLI usage, API performance, system info (no personal data)")
+        logger.info("   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true")
+    else:
+        logger.info("📊 Telemetry disabled")
+
+    # Application ready - instances will be created via API endpoints
+    logger.info("API ready - use /api/v1/instances to create instances")
+    
+    yield
+    
+    # Shutdown (cleanup if needed)
+    logger.info("Shutting down application...")
+
+
 # Create FastAPI app with authentication configuration
 app = FastAPI(
+    lifespan=lifespan,
     title=config.api.title,
     description=config.api.description,
     version=config.api.version,
@@ -238,69 +309,6 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-
-# Initialize default instance on startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup."""
-
-    logger.info("Initializing application...")
-    logger.info(f"Log level set to: {config.logging.level}")
-    logger.info(f"API Host: {config.api.host}")
-    logger.info(f"API Port: {config.api.port}")
-    logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
-
-    # Run database migrations
-    try:
-        logger.info("Checking database migrations...")
-        from src.db.migrations import auto_migrate
-        
-        if auto_migrate():
-            logger.info("✅ Database migrations completed successfully")
-        else:
-            logger.error("❌ Database migrations failed")
-            # Don't stop the application, but log the error
-            logger.warning("Application starting despite migration issues - manual intervention may be required")
-    except Exception as e:
-        logger.error(f"❌ Database migration error: {e}")
-        logger.warning("Application starting despite migration issues - manual intervention may be required")
-
-    # Auto-discover existing Evolution instances (non-intrusive)
-    try:
-        logger.info("Starting Evolution instance auto-discovery...")
-        from src.services.discovery_service import discovery_service
-        from src.db.database import SessionLocal
-
-        with SessionLocal() as db:
-            discovered_instances = await discovery_service.discover_evolution_instances(
-                db
-            )
-            if discovered_instances:
-                logger.info(
-                    f"Auto-discovered {len(discovered_instances)} Evolution instances:"
-                )
-                for instance in discovered_instances:
-                    logger.info(f"  - {instance.name} (active: {instance.is_active})")
-            else:
-                logger.info("No new Evolution instances discovered")
-    except Exception as e:
-        logger.warning(f"Evolution instance auto-discovery failed: {e}")
-        logger.debug(f"Auto-discovery error details: {str(e)}")
-        logger.info(
-            "Continuing without auto-discovery - instances can be created manually"
-        )
-
-    # Telemetry status logging
-    from src.core.telemetry import telemetry_client
-    if telemetry_client.is_enabled():
-        logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni")
-        logger.info("   • Collected: CLI usage, API performance, system info (no personal data)")
-        logger.info("   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true")
-    else:
-        logger.info("📊 Telemetry disabled")
-
-    # Application ready - instances will be created via API endpoints
-    logger.info("API ready - use /api/v1/instances to create instances")
 
 
 @app.get("/health")

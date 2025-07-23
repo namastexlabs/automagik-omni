@@ -254,6 +254,30 @@ def mock_evolution_api_sender():
 
 
 @pytest.fixture
+def mock_message_router():
+    """Mock MessageRouter to prevent external agent API calls."""
+    with patch("src.services.message_router.message_router") as mock_router:
+        mock_router.route_message.return_value = {
+            "response": "Test response from mocked agent",
+            "success": True,
+            "user_data": {"user_id": "test-user-123"}
+        }
+        yield mock_router
+
+
+@pytest.fixture
+def mock_agent_api_client():
+    """Mock AgentApiClient to prevent external API calls."""
+    with patch("src.services.agent_api_client.agent_api_client") as mock_client:
+        mock_client.process_message.return_value = {
+            "response": "Test agent response",
+            "success": True
+        }
+        mock_client.health_check.return_value = True
+        yield mock_client
+
+
+@pytest.fixture
 def mock_requests():
     """Mock requests library for HTTP calls."""
     with patch("requests.post") as mock_post:

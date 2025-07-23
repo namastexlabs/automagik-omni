@@ -108,7 +108,7 @@ class EvolutionClient:
     async def create_instance(self, request: EvolutionCreateRequest) -> Dict[str, Any]:
         """Create a new WhatsApp instance in Evolution API."""
         logger.info(f"Creating Evolution instance: {request.instanceName}")
-        logger.debug(f"Instance creation request: {request.dict()}")
+        logger.debug(f"Instance creation request: {request.model_dump()}")
 
         # Set webhook URL if not already configured
         if not request.webhook and config.api.host and config.api.port:
@@ -130,7 +130,7 @@ class EvolutionClient:
             logger.debug("No webhook configuration provided")
 
         # Convert to dict and exclude None values to avoid Evolution API validation errors
-        payload = request.dict(exclude_none=True)
+        payload = request.model_dump(exclude_none=True)
         logger.info(f"Evolution API payload: {payload}")
 
         # Remove optional fields that cause validation issues if empty
