@@ -126,10 +126,10 @@ async def list_traces(
         query = db.query(MessageTrace)
 
         # Apply filters
-        if phone:
-            query = query.filter(MessageTrace.sender_phone == phone)
-        if sender_phone:  # Alternative parameter name for consistency
-            query = query.filter(MessageTrace.sender_phone == sender_phone)
+        # Handle phone filtering (accept either parameter name)
+        phone_filter = phone or sender_phone
+        if phone_filter:
+            query = query.filter(MessageTrace.sender_phone == phone_filter)
         if instance_name:
             query = query.filter(MessageTrace.instance_name == instance_name)
         if status:
