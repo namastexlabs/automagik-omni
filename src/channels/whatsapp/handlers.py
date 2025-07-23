@@ -527,29 +527,66 @@ class WhatsAppMessageHandler:
                     message_type_param = "text"
 
                 # Use stored agent user_id if available from previous interactions
+                # IMPORTANT: Check if the stored agent_user_id is from the same instance/agent
                 agent_user_id = None
+                current_agent_name = agent_config.get("name") if agent_config else "default"
+                
                 if local_user and local_user.last_agent_user_id:
-                    agent_user_id = local_user.last_agent_user_id
+                    # Check if this is the same instance/agent combination
+                    # For now, we'll clear the user_id if switching between instances
+                    # TODO: In the future, store per-instance user_ids
+                    stored_session_prefix = local_user.last_session_name_interaction.split('_')[0] if local_user.last_session_name_interaction else None
+                    current_session_prefix = session_name.split('_')[0] if session_name else None
+                    
+                    if stored_session_prefix == current_session_prefix:
+                        agent_user_id = local_user.last_agent_user_id
+                        logger.info(
+                            f"Using stored agent user_id: {agent_user_id} for phone {formatted_phone} (same instance: {current_session_prefix})"
+                        )
+                    else:
+                        logger.info(
+                            f"Instance switch detected for {formatted_phone}: {stored_session_prefix} -> {current_session_prefix}, will create new session"
+                        )
+                else:
                     logger.info(
-                        f"Using stored agent user_id: {agent_user_id} for phone {formatted_phone}"
+                        f"No stored agent user_id for phone {formatted_phone}, will create new user via agent API"
                     )
                 
                 logger.info(
                     f"Routing message to API for user {user_dict['phone_number']}, session {session_name}: {message_content}"
                 )
                 try:
-                    agent_response = message_router.route_message(
-                        user_id=agent_user_id,  # Pass the stored agent user_id if available
-                        user=user_dict if not agent_user_id else None,  # Only pass user dict if no user_id
-                        session_name=session_name,
-                        message_text=message_content,
-                        message_type=message_type_param,
-                        whatsapp_raw_payload=message,
-                        session_origin="whatsapp",
-                        agent_config=agent_config,
-                        media_contents=media_contents_to_send,
-                        trace_context=trace_context,
-                    )
+                    # Fixed logic: Either use stored user_id OR user creation dict, never both as None
+                    if agent_user_id:
+                        # Use stored agent user_id, don't pass user dict
+                        agent_response = message_router.route_message(
+                            user_id=agent_user_id,
+                            user=None,  # Don't pass user dict when we have user_id
+                            session_name=session_name,
+                            message_text=message_content,
+                            message_type=message_type_param,
+                            whatsapp_raw_payload=message,
+                            session_origin="whatsapp",
+                            agent_config=agent_config,
+                            media_contents=media_contents_to_send,
+                            trace_context=trace_context,
+                        )
+                        logger.info(f"Used existing user_id: {agent_user_id}")
+                    else:
+                        # No stored user_id, trigger user creation via user dict
+                        agent_response = message_router.route_message(
+                            user_id=None,  # Don't pass user_id when creating new user
+                            user=user_dict,  # Pass user dict for creation
+                            session_name=session_name,
+                            message_text=message_content,
+                            message_type=message_type_param,
+                            whatsapp_raw_payload=message,
+                            session_origin="whatsapp",
+                            agent_config=agent_config,
+                            media_contents=media_contents_to_send,
+                            trace_context=trace_context,
+                        )
+                        logger.info(f"Triggered user creation for phone: {formatted_phone}")
                 except TypeError as te:
                     # Fallback for older versions of MessageRouter without media parameters
                     logger.warning(
