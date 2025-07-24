@@ -8,26 +8,19 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
 
-from src.api.app import app
 from src.db.trace_models import MessageTrace
 from src.db.models import InstanceConfig
-from src.db.database import get_db
 from src.utils.datetime_utils import utcnow
 
 
 class TestSessionFilteringIntegration:
     """Integration tests for session filtering with real database."""
 
-    @pytest.fixture
-    def client(self):
-        return TestClient(app)
 
     @pytest.fixture
-    def db_session(self):
-        """Get a real database session for testing."""
-        db = next(get_db())
-        yield db
-        db.close()
+    def db_session(self, override_get_db):
+        """Get test database session."""
+        yield override_get_db
 
     def setup_test_data(self, db: Session):
         """Set up test traces with different session configurations."""
@@ -35,6 +28,37 @@ class TestSessionFilteringIntegration:
         
         # Clean up any existing test data
         db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).delete()
+        db.query(InstanceConfig).filter(InstanceConfig.name.in_(["test_instance_a", "test_instance_b"])).delete()
+        
+        # Create required test instances first
+        test_instances = [
+            InstanceConfig(
+                name="test_instance_a",
+                channel_type="whatsapp",
+                evolution_url="http://test-evolution.com",
+                evolution_key="test-evolution-key",
+                whatsapp_instance="test_whatsapp_a",
+                agent_api_url="http://test-agent.com",
+                agent_api_key="test-agent-key",
+                default_agent="test_agent",
+                is_active=True
+            ),
+            InstanceConfig(
+                name="test_instance_b",
+                channel_type="whatsapp",
+                evolution_url="http://test-evolution.com",
+                evolution_key="test-evolution-key",
+                whatsapp_instance="test_whatsapp_b",
+                agent_api_url="http://test-agent.com",
+                agent_api_key="test-agent-key",
+                default_agent="test_agent",
+                is_active=True
+            )
+        ]
+        
+        for instance in test_instances:
+            db.add(instance)
+        db.commit()
         
         test_traces = [
             MessageTrace(
@@ -113,16 +137,17 @@ class TestSessionFilteringIntegration:
     def cleanup_test_data(self, db: Session):
         """Clean up test data after tests."""
         db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).delete()
+        db.query(InstanceConfig).filter(InstanceConfig.name.in_(["test_instance_a", "test_instance_b"])).delete()
         db.commit()
 
-    def test_filter_by_agent_session_id_functional(self, client, db_session):
+    def test_filter_by_agent_session_id_functional(self, test_client, db_session):
         """Functional test for filtering by agent session ID."""
         test_traces = self.setup_test_data(db_session)
         
         try:
             # Filter for specific agent session
             target_session = "agent_session_abc123"
-            response = client.get(
+            response = test_client.get(
                 f"/api/v1/traces?agent_session_id={target_session}",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -142,14 +167,14 @@ class TestSessionFilteringIntegration:
         finally:
             self.cleanup_test_data(db_session)
 
-    def test_filter_by_session_name_functional(self, client, db_session):
+    def test_filter_by_session_name_functional(self, test_client, db_session):
         """Functional test for filtering by session name."""
         test_traces = self.setup_test_data(db_session)
         
         try:
             # Filter for specific session name
             target_session = "user_john_session"
-            response = client.get(
+            response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -168,13 +193,13 @@ class TestSessionFilteringIntegration:
         finally:
             self.cleanup_test_data(db_session)
 
-    def test_filter_by_has_media_functional(self, client, db_session):
+    def test_filter_by_has_media_functional(self, test_client, db_session):
         """Functional test for filtering by media presence."""
         test_traces = self.setup_test_data(db_session)
         
         try:
             # Filter for traces with media
-            response = client.get(
+            response = test_client.get(
                 "/api/v1/traces?has_media=true",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -194,7 +219,7 @@ class TestSessionFilteringIntegration:
         finally:
             self.cleanup_test_data(db_session)
 
-    def test_combined_session_filters_functional(self, client, db_session):
+    def test_combined_session_filters_functional(self, test_client, db_session):
         """Functional test for combining session and instance filters."""
         test_traces = self.setup_test_data(db_session)
         
@@ -203,7 +228,7 @@ class TestSessionFilteringIntegration:
             target_session = "user_john_session"
             target_instance = "test_instance_a"
             
-            response = client.get(
+            response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&instance_name={target_instance}",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -225,19 +250,19 @@ class TestSessionFilteringIntegration:
         finally:
             self.cleanup_test_data(db_session)
 
-    def test_session_isolation_functional(self, client, db_session):
+    def test_session_isolation_functional(self, test_client, db_session):
         """Functional test for session isolation between instances."""
         test_traces = self.setup_test_data(db_session)
         
         try:
             # Filter by instance A only
-            response_a = client.get(
+            response_a = test_client.get(
                 "/api/v1/traces?instance_name=test_instance_a",
                 headers={"Authorization": "Bearer namastex888"}
             )
             
             # Filter by instance B only
-            response_b = client.get(
+            response_b = test_client.get(
                 "/api/v1/traces?instance_name=test_instance_b",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -266,13 +291,13 @@ class TestSessionFilteringIntegration:
         finally:
             self.cleanup_test_data(db_session)
 
-    def test_null_agent_session_id_functional(self, client, db_session):
+    def test_null_agent_session_id_functional(self, test_client, db_session):
         """Functional test for handling null agent session IDs."""
         test_traces = self.setup_test_data(db_session)
         
         try:
             # Filter for non-existent session ID - should return empty
-            response = client.get(
+            response = test_client.get(
                 "/api/v1/traces?agent_session_id=nonexistent_session_123",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -287,21 +312,35 @@ class TestSessionFilteringIntegration:
         finally:
             self.cleanup_test_data(db_session)
 
-    def test_phone_alias_parameter_functional(self, client, db_session):
+    def test_phone_alias_parameter_functional(self, test_client, db_session):
         """Functional test for phone parameter aliases."""
         test_traces = self.setup_test_data(db_session)
         
         try:
             target_phone = "+5511999999999"
             
+            # Debug: Check if data was created
+            traces_in_db = db_session.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
+            print(f"\n\nDEBUG: Found {len(traces_in_db)} test traces in database")
+            for trace in traces_in_db:
+                print(f"  - {trace.trace_id}: phone={trace.sender_phone}")
+            
+            # Debug: Get all traces from API
+            all_response = test_client.get(
+                "/api/v1/traces",
+                headers={"Authorization": "Bearer namastex888"}
+            )
+            all_traces = all_response.json()
+            print(f"\nDEBUG: API returned {len(all_traces)} total traces")
+            
             # Test with 'phone' parameter
-            response1 = client.get(
+            response1 = test_client.get(
                 f"/api/v1/traces?phone={target_phone}",
                 headers={"Authorization": "Bearer namastex888"}
             )
             
             # Test with 'sender_phone' parameter  
-            response2 = client.get(
+            response2 = test_client.get(
                 f"/api/v1/traces?sender_phone={target_phone}",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -316,6 +355,12 @@ class TestSessionFilteringIntegration:
             test_traces1 = [t for t in traces1 if t.get("trace_id", "").startswith("test_")]
             test_traces2 = [t for t in traces2 if t.get("trace_id", "").startswith("test_")]
             
+            # Debug: Print what we got
+            print(f"\nResponse 1 (phone): {len(traces1)} total traces, {len(test_traces1)} test traces")
+            print(f"Response 2 (sender_phone): {len(traces2)} total traces, {len(test_traces2)} test traces")
+            if test_traces1:
+                print(f"Test traces found: {[t['trace_id'] for t in test_traces1]}")
+            
             # Should get 3 traces with that phone number
             assert len(test_traces1) == 3
             assert len(test_traces2) == 3
@@ -328,14 +373,14 @@ class TestSessionFilteringIntegration:
         finally:
             self.cleanup_test_data(db_session)
 
-    def test_pagination_with_session_filtering_functional(self, client, db_session):
+    def test_pagination_with_session_filtering_functional(self, test_client, db_session):
         """Functional test for pagination with session filtering."""
         test_traces = self.setup_test_data(db_session)
         
         try:
             # Filter by session that has 2 traces, limit to 1
             target_session = "user_john_session"
-            response = client.get(
+            response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&limit=1&offset=0",
                 headers={"Authorization": "Bearer namastex888"}
             )
@@ -348,7 +393,7 @@ class TestSessionFilteringIntegration:
             assert len(session_traces) == 1
             
             # Test offset
-            response_offset = client.get(
+            response_offset = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&limit=1&offset=1",
                 headers={"Authorization": "Bearer namastex888"}
             )

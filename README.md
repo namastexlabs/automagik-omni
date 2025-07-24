@@ -69,6 +69,37 @@ Or set environment variable:
 export AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true
 ```
 
+## Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+npm run test
+
+# Run tests with coverage
+npm run coverage
+
+# Run specific test file
+pytest tests/test_specific.py
+```
+
+### Test Database Configuration
+
+By default, tests use an in-memory SQLite database for isolation. To test with PostgreSQL or a persistent database, set the `TEST_DATABASE_URL` environment variable:
+
+```bash
+# Test with PostgreSQL
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:15401/automagik_omni_test"
+npm run test
+
+# Test with persistent SQLite
+export TEST_DATABASE_URL="sqlite:///./test_data/test.db"
+npm run test
+```
+
+**Important**: The test database is completely wiped and recreated for each test function to ensure test isolation.
+
 ## Development
 
 This project uses `uv` as the package manager. To add new dependencies:

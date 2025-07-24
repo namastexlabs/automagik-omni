@@ -1,6 +1,6 @@
 # Automagik Omni API Documentation
 
-*Generated automatically on Thu Jul 17 17:47:51 -03 2025 by the API documentation generator*
+*Generated automatically on Thu Jul 17 18:10:41 -03 2025 by the API documentation generator*
 
 This document provides comprehensive examples for all Automagik Omni API endpoints with real curl commands, request/response examples, and usage patterns.
 
@@ -105,13 +105,13 @@ curl -s -X GET -H 'Authorization: Bearer namastex888' -H 'Content-Type: applicat
     "automagik_instance_id": "automagik-1752087186026-k28555wiq",
     "automagik_instance_name": "AutomagikAPI Local",
     "created_at": "2025-07-09T21:29:31.274476",
-    "updated_at": "2025-07-17T20:35:36.302314",
+    "updated_at": "2025-07-17T20:51:16.560698",
     "evolution_status": {
-      "state": "connecting",
+      "state": "close",
       "owner_jid": null,
       "profile_name": null,
       "profile_picture_url": null,
-      "last_updated": "2025-07-17T17:47:51.635032",
+      "last_updated": "2025-07-17T18:10:41.792949",
       "error": null
     }
   },
@@ -139,7 +139,7 @@ curl -s -X GET -H 'Authorization: Bearer namastex888' -H 'Content-Type: applicat
       "owner_jid": null,
       "profile_name": null,
       "profile_picture_url": null,
-      "last_updated": "2025-07-17T17:47:51.663644",
+      "last_updated": "2025-07-17T18:10:41.815650",
       "error": null
     }
   }

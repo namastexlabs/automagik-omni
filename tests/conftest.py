@@ -38,11 +38,27 @@ from src.db.models import InstanceConfig  # Import models to register with Base
 
 @pytest.fixture(scope="function")
 def test_db() -> Generator[Session, None, None]:
-    """Create a test database session with in-memory SQLite."""
-    # Create in-memory database
-    engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}
-    )
+    """Create a test database session.
+    
+    Uses database from environment configuration if TEST_DATABASE_URL is set,
+    otherwise defaults to in-memory SQLite for isolation.
+    """
+    # Check for test-specific database URL first
+    test_db_url = os.environ.get("TEST_DATABASE_URL")
+    
+    if test_db_url:
+        # Use the test database from environment
+        if test_db_url.startswith("sqlite"):
+            engine = create_engine(
+                test_db_url, connect_args={"check_same_thread": False}
+            )
+        else:
+            engine = create_engine(test_db_url)
+    else:
+        # Default to in-memory SQLite for test isolation
+        engine = create_engine(
+            "sqlite:///:memory:", connect_args={"check_same_thread": False}
+        )
 
     # Drop and recreate all tables to ensure fresh schema
     Base.metadata.drop_all(bind=engine)
@@ -75,17 +91,22 @@ def override_get_db(test_db: Session):
 def test_client(override_get_db):
     """Create FastAPI test client with overridden database."""
     from src.api.app import app
-    from src.api.deps import verify_api_key
+    from src.api.deps import verify_api_key, get_database
 
     # Mock authentication for tests
     def mock_verify_api_key():
         return "test-api-key"
 
+    # Override database dependency to use test database
+    def override_db_dependency():
+        yield override_get_db
+
     app.dependency_overrides[verify_api_key] = mock_verify_api_key
+    app.dependency_overrides[get_database] = override_db_dependency
 
     # Mock Evolution API calls to prevent external dependencies
     with patch(
-        "src.channels.whatsapp.channel_handler.get_evolution_client"
+        "src.channels.whatsapp.evolution_client.get_evolution_client"
     ) as mock_client:
         mock_evolution = Mock()
 
