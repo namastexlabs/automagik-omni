@@ -16,24 +16,40 @@ from src.utils.datetime_utils import utcnow
 class TestSessionFilteringIntegration:
     """Integration tests for session filtering with real database."""
 
+    @pytest.fixture(autouse=True)
+    def ensure_clean_state(self, test_db):
+        """Ensure clean state before and after each test."""
+        # Import app here to ensure clean state
+        from src.api.app import app
+        # Clear any leftover dependency overrides
+        app.dependency_overrides.clear()
+        # Clean before test
+        self.cleanup_test_data(test_db)
+        yield
+        # Clean after test
+        self.cleanup_test_data(test_db)
+        # Clear overrides again after test
+        app.dependency_overrides.clear()
 
     @pytest.fixture
-    def db_session(self, override_get_db):
+    def db_session(self, test_db):
         """Get test database session."""
-        yield override_get_db
+        yield test_db
 
     def setup_test_data(self, db: Session):
         """Set up test traces with different session configurations."""
         base_time = utcnow()
         
-        # Clean up any existing test data
+        # Clean up any existing test data first - more comprehensive cleanup
         db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).delete()
-        db.query(InstanceConfig).filter(InstanceConfig.name.in_(["test_instance_a", "test_instance_b"])).delete()
+        db.query(MessageTrace).filter(MessageTrace.instance_name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
+        db.query(InstanceConfig).filter(InstanceConfig.name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
+        db.commit()  # Ensure cleanup is committed before creating new data
         
         # Create required test instances first
         test_instances = [
             InstanceConfig(
-                name="test_instance_a",
+                name="session_filter_test_a",
                 channel_type="whatsapp",
                 evolution_url="http://test-evolution.com",
                 evolution_key="test-evolution-key",
@@ -44,7 +60,7 @@ class TestSessionFilteringIntegration:
                 is_active=True
             ),
             InstanceConfig(
-                name="test_instance_b",
+                name="session_filter_test_b",
                 channel_type="whatsapp",
                 evolution_url="http://test-evolution.com",
                 evolution_key="test-evolution-key",
@@ -63,7 +79,7 @@ class TestSessionFilteringIntegration:
         test_traces = [
             MessageTrace(
                 trace_id="test_trace_001",
-                instance_name="test_instance_a",
+                instance_name="session_filter_test_a",
                 session_name="user_john_session",
                 agent_session_id="agent_session_abc123",
                 sender_phone="+5511999999999",
@@ -76,7 +92,7 @@ class TestSessionFilteringIntegration:
             ),
             MessageTrace(
                 trace_id="test_trace_002", 
-                instance_name="test_instance_a",
+                instance_name="session_filter_test_a",
                 session_name="user_john_session",
                 agent_session_id="agent_session_abc123",
                 sender_phone="+5511999999999",
@@ -89,7 +105,7 @@ class TestSessionFilteringIntegration:
             ),
             MessageTrace(
                 trace_id="test_trace_003",
-                instance_name="test_instance_b",
+                instance_name="session_filter_test_b",
                 session_name="user_john_session_b",
                 agent_session_id="agent_session_def456",
                 sender_phone="+5511999999999",
@@ -102,7 +118,7 @@ class TestSessionFilteringIntegration:
             ),
             MessageTrace(
                 trace_id="test_trace_004",
-                instance_name="test_instance_a",
+                instance_name="session_filter_test_a",
                 session_name="user_jane_session",
                 agent_session_id="agent_session_ghi789",
                 sender_phone="+5511888888888",
@@ -115,7 +131,7 @@ class TestSessionFilteringIntegration:
             ),
             MessageTrace(
                 trace_id="test_trace_005",
-                instance_name="test_instance_a",
+                instance_name="session_filter_test_a",
                 session_name="anonymous_session",
                 agent_session_id=None,
                 sender_phone="+5511777777777",
@@ -136,16 +152,48 @@ class TestSessionFilteringIntegration:
 
     def cleanup_test_data(self, db: Session):
         """Clean up test data after tests."""
-        db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).delete()
-        db.query(InstanceConfig).filter(InstanceConfig.name.in_(["test_instance_a", "test_instance_b"])).delete()
-        db.commit()
+        try:
+            # Clean up test traces
+            db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).delete()
+            db.query(MessageTrace).filter(MessageTrace.instance_name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
+            # Clean up test instances
+            db.query(InstanceConfig).filter(InstanceConfig.name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
+            # Also clean up any traces from instance 'aaaa' which is polluting our tests
+            db.query(MessageTrace).filter(MessageTrace.instance_name == "aaaa").delete()
+            db.query(InstanceConfig).filter(InstanceConfig.name == "aaaa").delete()
+            db.commit()
+            # Force session to refresh
+            db.expire_all()
+        except Exception as e:
+            db.rollback()
+            print(f"Error during cleanup: {e}")
 
     def test_filter_by_agent_session_id_functional(self, test_client, db_session):
         """Functional test for filtering by agent session ID."""
         test_traces = self.setup_test_data(db_session)
         
+        # Debug: verify data was created
+        created_traces = db_session.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
+        print(f"\nDEBUG: Created {len(created_traces)} test traces in DB")
+        for trace in created_traces:
+            print(f"  - {trace.trace_id}: instance={trace.instance_name}, agent_session={trace.agent_session_id}")
+        
+        # Ensure data is committed and visible to the test client
+        db_session.commit()
+        
         try:
-            # Filter for specific agent session
+            # First, test without any filters to see what's in the database
+            response_all = test_client.get(
+                "/api/v1/traces",
+                headers={"Authorization": "Bearer namastex888"}
+            )
+            print(f"\nDEBUG: All traces response: {response_all.status_code}")
+            all_traces = response_all.json()
+            print(f"DEBUG: Total traces in API: {len(all_traces)}")
+            if all_traces:
+                print(f"  First trace: {all_traces[0]}")
+            
+            # Filter for specific agent session 
             target_session = "agent_session_abc123"
             response = test_client.get(
                 f"/api/v1/traces?agent_session_id={target_session}",
@@ -155,8 +203,18 @@ class TestSessionFilteringIntegration:
             assert response.status_code == 200
             traces = response.json()
             
-            # Should return 2 traces with the target agent session ID
-            agent_session_traces = [t for t in traces if t.get("agent_session_id") == target_session]
+            # Debug output
+            print(f"\nDEBUG: Total traces returned: {len(traces)}")
+            if traces:
+                print(f"First trace: {traces[0]}")
+            
+            # Should return 2 traces with the target agent session ID (filter only test traces)
+            test_traces_only = [t for t in traces if t.get("trace_id", "").startswith("test_")]
+            print(f"DEBUG: Test traces found: {len(test_traces_only)}")
+            
+            agent_session_traces = [t for t in test_traces_only if t.get("agent_session_id") == target_session]
+            print(f"DEBUG: Agent session traces found: {len(agent_session_traces)}")
+            
             assert len(agent_session_traces) == 2
             
             # All returned traces should have the target agent session ID
@@ -179,11 +237,14 @@ class TestSessionFilteringIntegration:
                 headers={"Authorization": "Bearer namastex888"}
             )
             
+            if response.status_code != 200:
+                print(f"ERROR: Status {response.status_code}, Response: {response.json()}")
             assert response.status_code == 200
             traces = response.json()
             
-            # Should return 2 traces with the target session name
-            session_traces = [t for t in traces if t.get("session_name") == target_session]
+            # Should return 2 traces with the target session name (filter only test traces)
+            test_traces_only = [t for t in traces if t.get("trace_id", "").startswith("test_")]
+            session_traces = [t for t in test_traces_only if t.get("session_name") == target_session]
             assert len(session_traces) == 2
             
             # All returned traces should have the target session name
@@ -207,8 +268,9 @@ class TestSessionFilteringIntegration:
             assert response.status_code == 200
             traces = response.json()
             
-            # Should return only traces with media
-            media_traces = [t for t in traces if t.get("has_media") == True]
+            # Should return only traces with media (filter only test traces)
+            test_traces_only = [t for t in traces if t.get("trace_id", "").startswith("test_")]
+            media_traces = [t for t in test_traces_only if t.get("has_media") == True]
             
             # At least our test trace with media should be present
             test_media_trace = next((t for t in media_traces if t.get("trace_id") == "test_trace_004"), None)
@@ -226,7 +288,7 @@ class TestSessionFilteringIntegration:
         try:
             # Filter by session name and instance
             target_session = "user_john_session"
-            target_instance = "test_instance_a"
+            target_instance = "session_filter_test_a"
             
             response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&instance_name={target_instance}",
@@ -236,9 +298,10 @@ class TestSessionFilteringIntegration:
             assert response.status_code == 200
             traces = response.json()
             
-            # Should return only traces matching both criteria
+            # Should return only traces matching both criteria (filter only test traces)
+            test_traces_only = [t for t in traces if t.get("trace_id", "").startswith("test_")]
             filtered_traces = [
-                t for t in traces 
+                t for t in test_traces_only 
                 if t.get("session_name") == target_session and t.get("instance_name") == target_instance
             ]
             assert len(filtered_traces) == 2
@@ -257,13 +320,13 @@ class TestSessionFilteringIntegration:
         try:
             # Filter by instance A only
             response_a = test_client.get(
-                "/api/v1/traces?instance_name=test_instance_a",
+                "/api/v1/traces?instance_name=session_filter_test_a",
                 headers={"Authorization": "Bearer namastex888"}
             )
             
             # Filter by instance B only
             response_b = test_client.get(
-                "/api/v1/traces?instance_name=test_instance_b",
+                "/api/v1/traces?instance_name=session_filter_test_b",
                 headers={"Authorization": "Bearer namastex888"}
             )
             
@@ -283,10 +346,10 @@ class TestSessionFilteringIntegration:
             
             # Verify no cross-contamination
             for trace in test_traces_a:
-                assert trace["instance_name"] == "test_instance_a"
+                assert trace["instance_name"] == "session_filter_test_a"
                 
             for trace in test_traces_b:
-                assert trace["instance_name"] == "test_instance_b"
+                assert trace["instance_name"] == "session_filter_test_b"
                 
         finally:
             self.cleanup_test_data(db_session)
@@ -320,10 +383,20 @@ class TestSessionFilteringIntegration:
             target_phone = "+5511999999999"
             
             # Debug: Check if data was created
+            all_traces_in_db = db_session.query(MessageTrace).all()
+            print(f"\n\nDEBUG: Total traces in database: {len(all_traces_in_db)}")
+            
             traces_in_db = db_session.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
-            print(f"\n\nDEBUG: Found {len(traces_in_db)} test traces in database")
+            print(f"DEBUG: Found {len(traces_in_db)} test traces in database")
             for trace in traces_in_db:
                 print(f"  - {trace.trace_id}: phone={trace.sender_phone}")
+                
+            # Show non-test traces
+            non_test_traces = [t for t in all_traces_in_db if not t.trace_id.startswith("test_")]
+            if non_test_traces:
+                print(f"\nDEBUG: Found {len(non_test_traces)} non-test traces:")
+                for trace in non_test_traces[:3]:  # Show first 3
+                    print(f"  - {trace.trace_id}: instance={trace.instance_name}, phone={trace.sender_phone}")
             
             # Debug: Get all traces from API
             all_response = test_client.get(
@@ -332,16 +405,21 @@ class TestSessionFilteringIntegration:
             )
             all_traces = all_response.json()
             print(f"\nDEBUG: API returned {len(all_traces)} total traces")
+            if all_traces:
+                print(f"  First trace: {all_traces[0]}")
             
             # Test with 'phone' parameter
+            from urllib.parse import quote
+            encoded_phone = quote(target_phone)
+            print(f"\nDEBUG: Filtering by phone={target_phone} (encoded: {encoded_phone})")
             response1 = test_client.get(
-                f"/api/v1/traces?phone={target_phone}",
+                f"/api/v1/traces?phone={encoded_phone}",
                 headers={"Authorization": "Bearer namastex888"}
             )
             
             # Test with 'sender_phone' parameter  
             response2 = test_client.get(
-                f"/api/v1/traces?sender_phone={target_phone}",
+                f"/api/v1/traces?sender_phone={encoded_phone}",
                 headers={"Authorization": "Bearer namastex888"}
             )
             
@@ -358,6 +436,8 @@ class TestSessionFilteringIntegration:
             # Debug: Print what we got
             print(f"\nResponse 1 (phone): {len(traces1)} total traces, {len(test_traces1)} test traces")
             print(f"Response 2 (sender_phone): {len(traces2)} total traces, {len(test_traces2)} test traces")
+            if traces1:
+                print(f"All traces from phone filter: {[t['trace_id'] for t in traces1]}")
             if test_traces1:
                 print(f"Test traces found: {[t['trace_id'] for t in test_traces1]}")
             
@@ -388,8 +468,9 @@ class TestSessionFilteringIntegration:
             assert response.status_code == 200
             traces = response.json()
             
-            # Should return exactly 1 trace
-            session_traces = [t for t in traces if t.get("session_name") == target_session]
+            # Should return exactly 1 trace (filter only test traces)
+            test_traces_only = [t for t in traces if t.get("trace_id", "").startswith("test_")]
+            session_traces = [t for t in test_traces_only if t.get("session_name") == target_session]
             assert len(session_traces) == 1
             
             # Test offset
@@ -401,7 +482,8 @@ class TestSessionFilteringIntegration:
             assert response_offset.status_code == 200
             traces_offset = response_offset.json()
             
-            session_traces_offset = [t for t in traces_offset if t.get("session_name") == target_session]
+            test_traces_only_offset = [t for t in traces_offset if t.get("trace_id", "").startswith("test_")]
+            session_traces_offset = [t for t in test_traces_only_offset if t.get("session_name") == target_session]
             
             # Should return the second trace (if any)
             if len(session_traces_offset) > 0:

@@ -3,6 +3,7 @@ FastAPI application for receiving Evolution API webhooks.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -139,8 +140,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return masked
 
 
-# Create database tables on startup
-create_tables()
+# Note: create_tables() has been moved to lifespan function to ensure proper test isolation
+# Database tables will be created during app startup in the lifespan function
 
 
 @asynccontextmanager
@@ -153,45 +154,61 @@ async def lifespan(app: FastAPI):
     logger.info(f"API Port: {config.api.port}")
     logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
 
-    # Run database migrations
-    try:
-        logger.info("Checking database migrations...")
-        from src.db.migrations import auto_migrate
-        
-        if auto_migrate():
-            logger.info("✅ Database migrations completed successfully")
-        else:
-            logger.error("❌ Database migrations failed")
-            # Don't stop the application, but log the error
+    # Skip database setup in test environment (handled by test fixtures)
+    if os.environ.get("ENVIRONMENT") != "test":
+        # Create database tables
+        try:
+            create_tables()
+            logger.info("✅ Database tables created/verified")
+        except Exception as e:
+            logger.error(f"❌ Failed to create database tables: {e}")
+            # Let the app continue - tables might already exist
+
+        # Run database migrations
+        try:
+            logger.info("Checking database migrations...")
+            from src.db.migrations import auto_migrate
+            
+            if auto_migrate():
+                logger.info("✅ Database migrations completed successfully")
+            else:
+                logger.error("❌ Database migrations failed")
+                # Don't stop the application, but log the error
+                logger.warning("Application starting despite migration issues - manual intervention may be required")
+        except Exception as e:
+            logger.error(f"❌ Database migration error: {e}")
             logger.warning("Application starting despite migration issues - manual intervention may be required")
-    except Exception as e:
-        logger.error(f"❌ Database migration error: {e}")
-        logger.warning("Application starting despite migration issues - manual intervention may be required")
+    else:
+        logger.info("Skipping database setup in test environment")
 
     # Auto-discover existing Evolution instances (non-intrusive)
-    try:
-        logger.info("Starting Evolution instance auto-discovery...")
-        from src.services.discovery_service import discovery_service
-        from src.db.database import SessionLocal
+    # Skip auto-discovery in test environment to prevent database conflicts
+    if os.environ.get("ENVIRONMENT") != "test":
+        try:
+            logger.info("Starting Evolution instance auto-discovery...")
+            from src.services.discovery_service import discovery_service
+            from src.db.database import SessionLocal
 
-        with SessionLocal() as db:
-            discovered_instances = await discovery_service.discover_evolution_instances(
-                db
-            )
-            if discovered_instances:
-                logger.info(
-                    f"Auto-discovered {len(discovered_instances)} Evolution instances:"
+            with SessionLocal() as db:
+                discovered_instances = await discovery_service.discover_evolution_instances(
+                    db
                 )
-                for instance in discovered_instances:
-                    logger.info(f"  - {instance.name} (active: {instance.is_active})")
-            else:
-                logger.info("No new Evolution instances discovered")
-    except Exception as e:
-        logger.warning(f"Evolution instance auto-discovery failed: {e}")
-        logger.debug(f"Auto-discovery error details: {str(e)}")
-        logger.info(
-            "Continuing without auto-discovery - instances can be created manually"
-        )
+                if discovered_instances:
+                    logger.info(
+                        f"Auto-discovered {len(discovered_instances)} Evolution instances:"
+                    )
+                    for instance in discovered_instances:
+                        logger.info(f"  - {instance.name} (active: {instance.is_active})")
+                else:
+                    logger.info("No new Evolution instances discovered")
+        except Exception as e:
+            logger.warning(f"Evolution instance auto-discovery failed: {e}")
+            logger.debug(f"Auto-discovery error details: {str(e)}")
+            logger.info(
+                "Continuing without auto-discovery - instances can be created manually"
+            )
+    else:
+        logger.info("Skipping Evolution instance auto-discovery in test environment")
 
     # Telemetry status logging
     from src.core.telemetry import telemetry_client

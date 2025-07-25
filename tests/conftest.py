@@ -71,7 +71,11 @@ def test_db() -> Generator[Session, None, None]:
     try:
         yield db
     finally:
+        # Ensure any pending transactions are rolled back
+        db.rollback()
         db.close()
+        # Drop tables again to ensure clean state for next test
+        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
@@ -88,18 +92,22 @@ def override_get_db(test_db: Session):
 
 
 @pytest.fixture
-def test_client(override_get_db):
+def test_client(test_db):
     """Create FastAPI test client with overridden database."""
-    from src.api.app import app
+    # Import after environment is set and before app is created
     from src.api.deps import verify_api_key, get_database
+    
+    # Import app AFTER setting up the test environment
+    from src.api.app import app
 
     # Mock authentication for tests
     def mock_verify_api_key():
         return "test-api-key"
 
     # Override database dependency to use test database
+    # Create a proper generator function that yields the test database session
     def override_db_dependency():
-        yield override_get_db
+        yield test_db
 
     app.dependency_overrides[verify_api_key] = mock_verify_api_key
     app.dependency_overrides[get_database] = override_db_dependency
@@ -136,7 +144,7 @@ def test_client(override_get_db):
 
         # Mock startup database operations properly
         with patch("src.db.database.get_db") as mock_startup_db:
-            mock_startup_db.return_value = iter([override_get_db])
+            mock_startup_db.return_value = iter([test_db])
 
             with patch("src.db.bootstrap.ensure_default_instance") as mock_bootstrap:
                 # Create default instance in test database
@@ -151,8 +159,8 @@ def test_client(override_get_db):
                     default_agent="test_agent",
                     is_default=True,
                 )
-                override_get_db.add(default_instance)
-                override_get_db.commit()
+                test_db.add(default_instance)
+                test_db.commit()
                 mock_bootstrap.return_value = default_instance
 
                 try:
