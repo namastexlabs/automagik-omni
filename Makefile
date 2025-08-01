@@ -194,7 +194,7 @@ dev: ## Start development server with auto-reload
 	fi
 
 .PHONY: test
-test: ## Run the test suite
+test: ## Run the test suite (auto-detects database)
 	$(call check_prerequisites)
 	$(call print_status,Running test suite)
 	@$(UV) run pytest tests/ -v --tb=short
@@ -214,6 +214,38 @@ test-coverage-summary: ## Show coverage summary only
 	$(call print_status,Running coverage summary)
 	@$(UV) run pytest tests/ --cov=src --cov-report=term --tb=no -q
 	$(call print_success,Coverage summary completed)
+
+.PHONY: test-postgres
+test-postgres: ## Run tests with PostgreSQL (requires Docker or local PostgreSQL)
+	$(call check_prerequisites)
+	$(call print_status,Setting up PostgreSQL for testing)
+	@if [ -z "$$POSTGRES_HOST" ]; then \
+		echo "$(FONT_YELLOW)$(WARNING) POSTGRES_HOST not set, using setup script...$(FONT_RESET)"; \
+		./scripts/setup-test-postgres.sh; \
+	fi
+	@POSTGRES_HOST=$${POSTGRES_HOST:-localhost} $(UV) run pytest tests/ -v --tb=short
+	$(call print_success,PostgreSQL tests completed)
+
+.PHONY: test-postgres-setup
+test-postgres-setup: ## Setup PostgreSQL test environment with Docker
+	$(call print_status,Setting up PostgreSQL test environment)
+	@./scripts/setup-test-postgres.sh
+	$(call print_success,PostgreSQL test environment ready)
+
+.PHONY: test-postgres-teardown
+test-postgres-teardown: ## Stop and remove PostgreSQL test container
+	$(call print_status,Tearing down PostgreSQL test environment)
+	@./scripts/setup-test-postgres.sh stop
+	@./scripts/setup-test-postgres.sh remove
+	$(call print_success,PostgreSQL test environment removed)
+
+.PHONY: test-sqlite
+test-sqlite: ## Force tests to use SQLite (override PostgreSQL if set)
+	$(call check_prerequisites)
+	$(call print_status,Running tests with SQLite)
+	@unset POSTGRES_HOST POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB TEST_DATABASE_URL && \
+	$(UV) run pytest tests/ -v --tb=short
+	$(call print_success,SQLite tests completed)
 
 .PHONY: lint
 lint: ## Run code linting with ruff

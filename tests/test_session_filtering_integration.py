@@ -19,22 +19,12 @@ class TestSessionFilteringIntegration:
     @pytest.fixture(autouse=True)
     def ensure_clean_state(self, test_db):
         """Ensure clean state before and after each test."""
-        # Import app here to ensure clean state
-        from src.api.app import app
-        # Clear any leftover dependency overrides
-        app.dependency_overrides.clear()
         # Clean before test
         self.cleanup_test_data(test_db)
         yield
         # Clean after test
         self.cleanup_test_data(test_db)
-        # Clear overrides again after test
-        app.dependency_overrides.clear()
 
-    @pytest.fixture
-    def db_session(self, test_db):
-        """Get test database session."""
-        yield test_db
 
     def setup_test_data(self, db: Session):
         """Set up test traces with different session configurations."""
@@ -168,18 +158,18 @@ class TestSessionFilteringIntegration:
             db.rollback()
             print(f"Error during cleanup: {e}")
 
-    def test_filter_by_agent_session_id_functional(self, test_client, db_session):
+    def test_filter_by_agent_session_id_functional(self, test_client, test_db):
         """Functional test for filtering by agent session ID."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         # Debug: verify data was created
-        created_traces = db_session.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
+        created_traces = test_db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
         print(f"\nDEBUG: Created {len(created_traces)} test traces in DB")
         for trace in created_traces:
             print(f"  - {trace.trace_id}: instance={trace.instance_name}, agent_session={trace.agent_session_id}")
         
         # Ensure data is committed and visible to the test client
-        db_session.commit()
+        test_db.commit()
         
         try:
             # First, test without any filters to see what's in the database
@@ -223,11 +213,11 @@ class TestSessionFilteringIntegration:
                 assert trace["trace_id"] in ["test_trace_001", "test_trace_002"]
                 
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)
 
-    def test_filter_by_session_name_functional(self, test_client, db_session):
+    def test_filter_by_session_name_functional(self, test_client, test_db):
         """Functional test for filtering by session name."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         try:
             # Filter for specific session name
@@ -252,11 +242,11 @@ class TestSessionFilteringIntegration:
                 assert trace["session_name"] == target_session
                 
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)
 
-    def test_filter_by_has_media_functional(self, test_client, db_session):
+    def test_filter_by_has_media_functional(self, test_client, test_db):
         """Functional test for filtering by media presence."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         try:
             # Filter for traces with media
@@ -279,11 +269,11 @@ class TestSessionFilteringIntegration:
             assert test_media_trace["message_type"] == "image"
                 
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)
 
-    def test_combined_session_filters_functional(self, test_client, db_session):
+    def test_combined_session_filters_functional(self, test_client, test_db):
         """Functional test for combining session and instance filters."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         try:
             # Filter by session name and instance
@@ -311,11 +301,11 @@ class TestSessionFilteringIntegration:
                 assert trace["instance_name"] == target_instance
                 
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)
 
-    def test_session_isolation_functional(self, test_client, db_session):
+    def test_session_isolation_functional(self, test_client, test_db):
         """Functional test for session isolation between instances."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         try:
             # Filter by instance A only
@@ -352,11 +342,11 @@ class TestSessionFilteringIntegration:
                 assert trace["instance_name"] == "session_filter_test_b"
                 
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)
 
-    def test_null_agent_session_id_functional(self, test_client, db_session):
+    def test_null_agent_session_id_functional(self, test_client, test_db):
         """Functional test for handling null agent session IDs."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         try:
             # Filter for non-existent session ID - should return empty
@@ -373,20 +363,20 @@ class TestSessionFilteringIntegration:
             assert len(test_traces_returned) == 0
             
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)
 
-    def test_phone_alias_parameter_functional(self, test_client, db_session):
+    def test_phone_alias_parameter_functional(self, test_client, test_db):
         """Functional test for phone parameter aliases."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         try:
             target_phone = "+5511999999999"
             
             # Debug: Check if data was created
-            all_traces_in_db = db_session.query(MessageTrace).all()
+            all_traces_in_db = test_db.query(MessageTrace).all()
             print(f"\n\nDEBUG: Total traces in database: {len(all_traces_in_db)}")
             
-            traces_in_db = db_session.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
+            traces_in_db = test_db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
             print(f"DEBUG: Found {len(traces_in_db)} test traces in database")
             for trace in traces_in_db:
                 print(f"  - {trace.trace_id}: phone={trace.sender_phone}")
@@ -451,11 +441,11 @@ class TestSessionFilteringIntegration:
             assert trace_ids1 == trace_ids2
             
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)
 
-    def test_pagination_with_session_filtering_functional(self, test_client, db_session):
+    def test_pagination_with_session_filtering_functional(self, test_client, test_db):
         """Functional test for pagination with session filtering."""
-        test_traces = self.setup_test_data(db_session)
+        test_traces = self.setup_test_data(test_db)
         
         try:
             # Filter by session that has 2 traces, limit to 1
@@ -491,4 +481,4 @@ class TestSessionFilteringIntegration:
                 assert session_traces[0]["trace_id"] != session_traces_offset[0]["trace_id"]
             
         finally:
-            self.cleanup_test_data(db_session)
+            self.cleanup_test_data(test_db)

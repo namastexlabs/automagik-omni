@@ -7,8 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from src.utils.datetime_utils import utcnow
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
-from starlette import status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from pydantic import BaseModel, ConfigDict
@@ -87,7 +86,7 @@ class TraceQuery(BaseModel):
 
     phone: Optional[str] = None
     instance_name: Optional[str] = None
-    status: Optional[str] = None
+    trace_status: Optional[str] = None
     message_type: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -99,7 +98,7 @@ class TraceQuery(BaseModel):
 async def list_traces(
     phone: Optional[str] = Query(None, description="Filter by sender phone number"),
     instance_name: Optional[str] = Query(None, description="Filter by instance name"),
-    status: Optional[str] = Query(
+    trace_status: Optional[str] = Query(
         None, description="Filter by status (received, processing, completed, failed)"
     ),
     message_type: Optional[str] = Query(None, description="Filter by message type"),
@@ -132,8 +131,8 @@ async def list_traces(
             query = query.filter(MessageTrace.sender_phone == phone_filter)
         if instance_name:
             query = query.filter(MessageTrace.instance_name == instance_name)
-        if status:
-            query = query.filter(MessageTrace.status == status)
+        if trace_status:
+            query = query.filter(MessageTrace.status == trace_status)
         if message_type:
             query = query.filter(MessageTrace.message_type == message_type)
         if session_name:
