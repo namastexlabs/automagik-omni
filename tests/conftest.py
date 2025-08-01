@@ -34,7 +34,6 @@ if "src.config" in sys.modules:
 # Import after setting environment
 from src.db.database import Base
 from src.db.models import InstanceConfig  # Import models to register with Base
-from src.db.trace_models import MessageTrace, TracePayload  # Import trace models to register with Base
 
 
 def _create_postgresql_test_database():

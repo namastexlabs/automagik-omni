@@ -3,7 +3,6 @@ Unit tests for database models and operations.
 """
 
 import pytest
-from unittest.mock import patch
 from sqlalchemy.exc import IntegrityError
 
 from src.db.models import InstanceConfig

@@ -4,18 +4,16 @@ These tests simulate actual user workflows and integration patterns.
 """
 
 import pytest
-import json
 import time
 import os
 import tempfile
-from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.api.app import app
-from src.db.models import InstanceConfig, Base
+from src.db.models import Base
 
 
 class TestRealWorldScenarios:

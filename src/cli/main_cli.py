@@ -3,11 +3,9 @@ Main CLI application for Omni-Hub with telemetry support.
 """
 
 import typer
-from typing import Optional
 import time
-import os
 
-from src.core.telemetry import track_command, disable_telemetry, telemetry_client
+from src.core.telemetry import track_command, telemetry_client
 from src.cli.instance_cli import app as instance_app
 from src.cli.telemetry_cli import app as telemetry_app
 
@@ -75,7 +73,7 @@ def health_check():
     start_time = time.time()
     
     try:
-        from src.db.database import SessionLocal, engine
+        from src.db.database import SessionLocal
         from src.config import config
         
         # Check database connection

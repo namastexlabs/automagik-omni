@@ -59,7 +59,7 @@ def list_instances():
             track_command("instance_list", success=True, instance_count=len(instances), duration_ms=(time.time() - start_time) * 1000)
         finally:
             db.close()
-    except Exception as e:
+    except Exception:
         success = False
         track_command("instance_list", success=False, duration_ms=(time.time() - start_time) * 1000)
         raise

@@ -13,7 +13,7 @@ import json
 import time
 
 # Import telemetry
-from src.core.telemetry import track_api_request, track_webhook_processed, track_instance_operation
+from src.core.telemetry import track_api_request, track_webhook_processed
 
 # Import configuration first to ensure environment variables are loaded
 from src.config import config

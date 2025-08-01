@@ -4,10 +4,8 @@ Tests for telemetry functionality.
 
 import os
 import tempfile
-import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-import pytest
 
 from src.core.telemetry import TelemetryClient, telemetry_client
 

@@ -9,19 +9,14 @@ preserving all relationships and data integrity.
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
 import logging
-from sqlalchemy import create_engine, MetaData, Table, select, text
-from sqlalchemy.orm import sessionmaker
-from urllib.parse import urlparse
+from sqlalchemy import create_engine, text
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.config import config
-from src.db.models import Base, InstanceConfig, User
-from src.db.trace_models import MessageTrace, TracePayload
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -190,7 +185,7 @@ def migrate_database():
                         SELECT setval('trace_payloads_id_seq', {max_id}, true)
                     """))
         
-        logger.info(f"\n✅ Migration completed successfully!")
+        logger.info("\n✅ Migration completed successfully!")
         logger.info(f"   Total records migrated: {total_records}")
         
         # Verify migration
@@ -219,7 +214,7 @@ def main():
     sqlite_url = get_sqlite_url()
     postgres_url = get_postgres_url()
     
-    print(f"\nThis will migrate data from:")
+    print("\nThis will migrate data from:")
     print(f"  Source: {sqlite_url}")
     print(f"  Target: {postgres_url}")
     print("\n⚠️  WARNING: This will DELETE all existing data in the PostgreSQL database!")

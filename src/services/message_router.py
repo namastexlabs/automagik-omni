@@ -8,7 +8,6 @@ import logging
 from typing import Dict, Any, Optional, Union, List
 
 from src.services.agent_api_client import agent_api_client
-from src.config import config
 
 # Configure logging
 logger = logging.getLogger("src.services.message_router")

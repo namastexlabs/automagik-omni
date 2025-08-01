@@ -11,7 +11,6 @@ from typing import Dict, Any, Optional, List, Union
 import requests
 from requests.exceptions import RequestException, Timeout
 
-from src.config import config
 
 # Configure logging
 logger = logging.getLogger("src.services.agent_api_client")

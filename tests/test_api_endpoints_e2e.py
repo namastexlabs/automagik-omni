@@ -5,19 +5,15 @@ database migrations, and real-world scenarios.
 """
 
 import pytest
-import json
 import time
 import os
 import tempfile
-import sqlite3
-from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 
 from src.db.models import InstanceConfig, Base
-from src.config import config
 from src.api.app import app
 
 

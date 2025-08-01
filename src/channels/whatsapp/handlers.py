@@ -15,7 +15,6 @@ import json
 import os
 import base64
 
-from src.config import config
 from src.services.message_router import message_router
 from src.services.user_service import user_service
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService

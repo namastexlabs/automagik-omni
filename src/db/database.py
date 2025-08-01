@@ -36,7 +36,7 @@ ensure_sqlite_directory(DATABASE_URL)
 
 # Initialize database (create if needed for PostgreSQL)
 if not initialize_database(DATABASE_URL):
-    logger.error(f"Failed to initialize database. Please check your database configuration and permissions.")
+    logger.error("Failed to initialize database. Please check your database configuration and permissions.")
     # Continue anyway - let SQLAlchemy fail with a more specific error if needed
 
 # SQLAlchemy engine

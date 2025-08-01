@@ -20,7 +20,7 @@ if __name__ == "__main__":
     sqlite_url = get_sqlite_url()
     postgres_url = get_postgres_url()
     
-    print(f"\nMigrating data from:")
+    print("\nMigrating data from:")
     print(f"  Source: {sqlite_url}")
     print(f"  Target: {postgres_url}")
     print("\nStarting migration...")

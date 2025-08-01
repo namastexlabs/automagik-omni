@@ -4,9 +4,8 @@ Tests actual API behavior with real database interactions.
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from sqlalchemy.orm import Session
-from fastapi.testclient import TestClient
 
 from src.db.trace_models import MessageTrace
 from src.db.models import InstanceConfig

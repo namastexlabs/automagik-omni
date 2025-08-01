@@ -124,4 +124,3 @@ class User(Base):
 
 
 # Import trace models to ensure they're registered with SQLAlchemy
-from . import trace_models

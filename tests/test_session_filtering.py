@@ -4,14 +4,13 @@ Tests edge cases like cross-instance sessions and data isolation.
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
 
 from src.api.app import app
 from src.db.trace_models import MessageTrace
-from src.db.models import InstanceConfig
 from src.utils.datetime_utils import utcnow
 
 
@@ -141,22 +140,25 @@ class TestSessionFilteringAPI:
 
     def test_null_agent_session_id_handling(self, client, sample_traces):
         """Test handling of traces with null agent_session_id."""
-        with patch('src.api.deps.get_database') as mock_get_db:
-            mock_session = Mock(spec=Session)
-            mock_query = Mock()
-            
-            mock_session.query.return_value = mock_query
-            mock_query.filter.return_value = mock_query
-            mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
-            mock_query.limit.return_value = mock_query
-            mock_query.all.return_value = []  # No matches
-            
-            def mock_db_generator():
-                yield mock_session
-            
-            mock_get_db.return_value = mock_db_generator()
-            
+        from src.api.deps import get_database
+        
+        mock_session = Mock(spec=Session)
+        mock_query = Mock()
+        
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = []  # No matches
+        
+        def mock_db_generator():
+            yield mock_session
+        
+        # Override the dependency on the app
+        app.dependency_overrides[get_database] = mock_db_generator
+        
+        try:
             # Filter should handle null values gracefully
             non_existent_session = "nonexistent_session_id"
             
@@ -168,28 +170,60 @@ class TestSessionFilteringAPI:
             assert response.status_code == 200
             # Should return empty list, not error
             assert response.json() == []
+        finally:
+            # Clean up
+            app.dependency_overrides.clear()
 
     def test_phone_alias_parameter(self, client, sample_traces):
         """Test that both 'phone' and 'sender_phone' parameters work."""
-        target_phone = "+5511999999999"
-        expected_traces = [t for t in sample_traces if t.sender_phone == target_phone]
+        from src.api.deps import get_database
         
-        with patch('src.api.deps.get_database') as mock_get_db:
-            mock_session = Mock(spec=Session)
-            mock_query = Mock()
-            
-            mock_session.query.return_value = mock_query
-            mock_query.filter.return_value = mock_query
-            mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
-            mock_query.limit.return_value = mock_query
-            mock_query.all.return_value = expected_traces
-            
-            def mock_db_generator():
-                yield mock_session
-            
-            mock_get_db.return_value = mock_db_generator()
-            
+        target_phone = "+5511999999999"
+        
+        # Create mock traces with proper to_dict method
+        mock_traces = []
+        for i, trace in enumerate([t for t in sample_traces if t.sender_phone == target_phone]):
+            mock_trace = Mock()
+            mock_trace.to_dict.return_value = {
+                "trace_id": f"trace_{i:03d}",
+                "instance_name": "test_instance",
+                "whatsapp_message_id": None,
+                "sender_phone": target_phone,
+                "sender_name": "Test User",
+                "message_type": "text",
+                "has_media": False,
+                "has_quoted_message": False,
+                "session_name": "test_session",
+                "agent_session_id": None,
+                "status": "completed",
+                "error_message": None,
+                "error_stage": None,
+                "received_at": "2023-01-01T10:00:00",
+                "completed_at": "2023-01-01T10:01:00",
+                "agent_processing_time_ms": 1000,
+                "total_processing_time_ms": 2000,
+                "agent_response_success": True,
+                "evolution_success": True,
+            }
+            mock_traces.append(mock_trace)
+        
+        mock_session = Mock(spec=Session)
+        mock_query = Mock()
+        
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = mock_traces
+        
+        def mock_db_generator():
+            yield mock_session
+        
+        # Override the dependency on the app
+        app.dependency_overrides[get_database] = mock_db_generator
+        
+        try:
             # Test with 'phone' parameter
             response1 = client.get(
                 f"/api/v1/traces?phone={target_phone}",
@@ -204,6 +238,9 @@ class TestSessionFilteringAPI:
             
             assert response1.status_code == 200
             assert response2.status_code == 200
+        finally:
+            # Clean up
+            app.dependency_overrides.clear()
 
     def test_session_filtering_with_pagination(self, client, sample_traces):
         """Test session filtering works with pagination."""
@@ -237,24 +274,27 @@ class TestSessionFilteringEdgeCases:
 
     def test_empty_session_parameters(self):
         """Test behavior with empty session parameters."""
+        from src.api.deps import get_database
+        
         client = TestClient(app)
         
-        with patch('src.api.deps.get_database') as mock_get_db:
-            mock_session = Mock(spec=Session)
-            mock_query = Mock()
-            
-            mock_session.query.return_value = mock_query
-            mock_query.filter.return_value = mock_query
-            mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
-            mock_query.limit.return_value = mock_query
-            mock_query.all.return_value = []
-            
-            def mock_db_generator():
-                yield mock_session
-            
-            mock_get_db.return_value = mock_db_generator()
-            
+        mock_session = Mock(spec=Session)
+        mock_query = Mock()
+        
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = []
+        
+        def mock_db_generator():
+            yield mock_session
+        
+        # Override the dependency on the app
+        app.dependency_overrides[get_database] = mock_db_generator
+        
+        try:
             # Empty session_name parameter should be ignored
             response = client.get(
                 "/api/v1/traces?session_name=",
@@ -262,27 +302,33 @@ class TestSessionFilteringEdgeCases:
             )
             
             assert response.status_code == 200
+        finally:
+            # Clean up
+            app.dependency_overrides.clear()
 
     def test_unicode_session_names(self):
         """Test handling of unicode characters in session names."""
+        from src.api.deps import get_database
+        
         client = TestClient(app)
         
-        with patch('src.api.deps.get_database') as mock_get_db:
-            mock_session = Mock(spec=Session)
-            mock_query = Mock()
-            
-            mock_session.query.return_value = mock_query
-            mock_query.filter.return_value = mock_query
-            mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
-            mock_query.limit.return_value = mock_query
-            mock_query.all.return_value = []
-            
-            def mock_db_generator():
-                yield mock_session
-            
-            mock_get_db.return_value = mock_db_generator()
-            
+        mock_session = Mock(spec=Session)
+        mock_query = Mock()
+        
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = []
+        
+        def mock_db_generator():
+            yield mock_session
+        
+        # Override the dependency on the app
+        app.dependency_overrides[get_database] = mock_db_generator
+        
+        try:
             # Unicode session name
             unicode_session = "用户_会话_测试"
             response = client.get(
@@ -291,27 +337,33 @@ class TestSessionFilteringEdgeCases:
             )
             
             assert response.status_code == 200
+        finally:
+            # Clean up
+            app.dependency_overrides.clear()
 
     def test_very_long_session_ids(self):
         """Test handling of very long session identifiers."""
+        from src.api.deps import get_database
+        
         client = TestClient(app)
         
-        with patch('src.api.deps.get_database') as mock_get_db:
-            mock_session = Mock(spec=Session)
-            mock_query = Mock()
-            
-            mock_session.query.return_value = mock_query
-            mock_query.filter.return_value = mock_query
-            mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
-            mock_query.limit.return_value = mock_query
-            mock_query.all.return_value = []
-            
-            def mock_db_generator():
-                yield mock_session
-            
-            mock_get_db.return_value = mock_db_generator()
-            
+        mock_session = Mock(spec=Session)
+        mock_query = Mock()
+        
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = []
+        
+        def mock_db_generator():
+            yield mock_session
+        
+        # Override the dependency on the app
+        app.dependency_overrides[get_database] = mock_db_generator
+        
+        try:
             # Very long session ID (1000 characters)
             long_session_id = "a" * 1000
             response = client.get(
@@ -320,3 +372,6 @@ class TestSessionFilteringEdgeCases:
             )
             
             assert response.status_code == 200
+        finally:
+            # Clean up
+            app.dependency_overrides.clear()
