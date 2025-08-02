@@ -38,6 +38,10 @@ omnihub-instance = "src.cli.instance_cli:app"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
 [dependency-groups]
 dev = [
     "black>=25.1.0",
