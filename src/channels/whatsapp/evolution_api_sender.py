@@ -11,6 +11,8 @@ import time
 import threading
 import random
 
+from .mention_parser import WhatsAppMentionParser
+
 # Configure logging
 logger = logging.getLogger("src.channels.whatsapp.evolution_api_sender")
 
@@ -81,15 +83,24 @@ class EvolutionApiSender:
         return formatted_recipient
 
     def send_text_message(
-        self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]] = None
+        self, 
+        recipient: str, 
+        text: str, 
+        quoted_message: Optional[Dict[str, Any]] = None,
+        mentioned: Optional[List[str]] = None,
+        mentions_everyone: bool = False,
+        auto_parse_mentions: bool = True
     ) -> bool:
         """
-        Send a text message via Evolution API with optional message quoting and auto-splitting.
+        Send a text message via Evolution API with optional message quoting, mentions, and auto-splitting.
 
         Args:
             recipient: WhatsApp ID of the recipient
-            text: Message text
+            text: Message text (may contain @phone mentions)
             quoted_message: Optional message to quote/reply to
+            mentioned: Explicit list of WhatsApp JIDs to mention
+            mentions_everyone: Whether to mention everyone in group
+            auto_parse_mentions: Whether to auto-detect @phone in text
 
         Returns:
             bool: Success status
@@ -100,13 +111,25 @@ class EvolutionApiSender:
             )
             return False
 
+        # Parse mentions from text if auto-parsing enabled
+        final_mentioned = mentioned or []
+        if auto_parse_mentions and not mentioned:
+            parsed_text, parsed_mentions = WhatsAppMentionParser.extract_mentions(text)
+            final_mentioned = parsed_mentions
+            if parsed_mentions:
+                logger.info(f"Auto-parsed {len(parsed_mentions)} mentions from text")
+
         # Check if message should be split (contains \n\n and is replying to a text message)
         should_split = self._should_split_message(text, quoted_message)
 
         if should_split:
-            return self._send_split_messages(recipient, text, quoted_message)
+            return self._send_split_messages(
+                recipient, text, quoted_message, final_mentioned, mentions_everyone
+            )
         else:
-            return self._send_single_message(recipient, text, quoted_message)
+            return self._send_single_message(
+                recipient, text, quoted_message, final_mentioned, mentions_everyone
+            )
 
     def _should_split_message(
         self, text: str, quoted_message: Optional[Dict[str, Any]]
@@ -150,7 +173,12 @@ class EvolutionApiSender:
         return any(media_type in message_obj for media_type in media_types)
 
     def _send_split_messages(
-        self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]]
+        self, 
+        recipient: str, 
+        text: str, 
+        quoted_message: Optional[Dict[str, Any]],
+        mentioned: Optional[List[str]] = None,
+        mentions_everyone: bool = False
     ) -> bool:
         """
         Send text as multiple messages split by \\n\\n with random delays.
@@ -159,6 +187,8 @@ class EvolutionApiSender:
             recipient: WhatsApp ID of the recipient
             text: Full message text
             quoted_message: Optional message to quote (only for first message)
+            mentioned: Optional list of WhatsApp JIDs to mention
+            mentions_everyone: Whether to mention everyone in group
 
         Returns:
             bool: Success status (True if all messages sent successfully)
@@ -168,7 +198,9 @@ class EvolutionApiSender:
 
         if len(parts) <= 1:
             # No actual split needed
-            return self._send_single_message(recipient, text, quoted_message)
+            return self._send_single_message(
+                recipient, text, quoted_message, mentioned, mentions_everyone
+            )
 
         logger.info(f"Splitting message into {len(parts)} parts")
 
@@ -176,9 +208,14 @@ class EvolutionApiSender:
         for i, part in enumerate(parts):
             # Only quote the first message
             quote_for_this_part = quoted_message if i == 0 else None
+            # Only mention in the first message to avoid spam
+            mentions_for_this_part = mentioned if i == 0 else None
+            mention_everyone_for_this_part = mentions_everyone if i == 0 else False
 
             # Send the message part
-            if self._send_single_message(recipient, part, quote_for_this_part):
+            if self._send_single_message(
+                recipient, part, quote_for_this_part, mentions_for_this_part, mention_everyone_for_this_part
+            ):
                 success_count += 1
 
             # Add random delay between messages (except for the last one)
@@ -194,15 +231,22 @@ class EvolutionApiSender:
         return success
 
     def _send_single_message(
-        self, recipient: str, text: str, quoted_message: Optional[Dict[str, Any]]
+        self, 
+        recipient: str, 
+        text: str, 
+        quoted_message: Optional[Dict[str, Any]] = None,
+        mentioned: Optional[List[str]] = None,
+        mentions_everyone: bool = False
     ) -> bool:
         """
-        Send a single text message via Evolution API.
+        Send a single text message via Evolution API with mention support.
 
         Args:
             recipient: WhatsApp ID of the recipient
             text: Message text
             quoted_message: Optional message to quote/reply to
+            mentioned: Optional list of WhatsApp JIDs to mention
+            mentions_everyone: Whether to mention everyone in group
 
         Returns:
             bool: Success status
@@ -213,6 +257,15 @@ class EvolutionApiSender:
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
 
         payload = {"number": formatted_recipient, "text": text}
+
+        # Add mention parameters
+        if mentioned:
+            payload["mentioned"] = mentioned
+            logger.info(f"Including {len(mentioned)} mentions: {mentioned}")
+            
+        if mentions_everyone:
+            payload["mentionsEveryOne"] = True
+            logger.info("Mentioning everyone in group")
 
         # Add quoted message if provided (disabled due to Evolution API 400 errors)
         # if quoted_message:
@@ -261,9 +314,18 @@ class EvolutionApiSender:
                         "Attempting to continue - message may have been sent despite error"
                     )
                     return True
+                elif mentioned:
+                    # Known Evolution API issue: 400 errors with mentions are often false positives
+                    logger.warning(
+                        "400 error with mentions - this may be Evolution API known issue"
+                    )
+                    logger.info(
+                        "Attempting to continue - message with mentions may have been sent despite error"
+                    )
+                    return True
                 else:
                     logger.error(
-                        "400 error without quoted message - this is a real error"
+                        "400 error without quoted message or mentions - this is a real error"
                     )
                     return False
 

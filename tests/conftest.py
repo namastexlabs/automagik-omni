@@ -34,6 +34,8 @@ if "src.config" in sys.modules:
 # Import after setting environment
 from src.db.database import Base
 from src.db.models import InstanceConfig  # Import models to register with Base
+from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
+from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 
 
 def _create_postgresql_test_database():
@@ -463,3 +465,87 @@ class AsyncMockResponse:
 def async_mock_response():
     """Factory for creating async mock responses."""
     return AsyncMockResponse
+
+
+# ===== MENTION TESTING FIXTURES =====
+
+@pytest.fixture
+def mention_parser():
+    """WhatsApp mention parser instance for testing."""
+    return WhatsAppMentionParser()
+
+
+@pytest.fixture
+def mock_evolution_sender():
+    """Mock Evolution API sender configured for testing."""
+    sender = Mock(spec=EvolutionApiSender)
+    sender.server_url = "https://test-evolution.com"
+    sender.api_key = "test-evolution-key"
+    sender.instance_name = "test-instance"
+    sender.send_text_message.return_value = True
+    return sender
+
+
+@pytest.fixture
+def mock_instance_config():
+    """Mock instance configuration for mention testing."""
+    config = Mock(spec=InstanceConfig)
+    config.name = "test-instance"
+    config.evolution_url = "https://test-evolution.com"
+    config.evolution_key = "test-evolution-key"
+    config.whatsapp_instance = "test-whatsapp-instance"
+    config.agent_api_url = "https://test-agent.com"
+    config.agent_api_key = "test-agent-key"
+    config.default_agent = "test-agent"
+    return config
+
+
+@pytest.fixture
+def sample_mention_texts():
+    """Sample texts with various mention formats for testing."""
+    return {
+        "basic": "Hello @5511999999999, how are you?",
+        "international": "Contact @+5511888888888 for support",
+        "with_spaces": "Meeting with @55 11 999999999 at 3pm",
+        "multiple": "Team: @5511111111111, @5511222222222, @5511333333333",
+        "mixed": "Call @5511999999999 or email user@domain.com",
+        "no_mentions": "Regular message without any mentions",
+        "split_message": "First part with @5511999999999\n\nSecond part without mentions"
+    }
+
+
+@pytest.fixture
+def expected_mention_jids():
+    """Expected WhatsApp JIDs for sample mention texts."""
+    return {
+        "basic": ["5511999999999@s.whatsapp.net"],
+        "international": ["5511888888888@s.whatsapp.net"],
+        "with_spaces": ["5511999999999@s.whatsapp.net"],
+        "multiple": [
+            "5511111111111@s.whatsapp.net",
+            "5511222222222@s.whatsapp.net", 
+            "5511333333333@s.whatsapp.net"
+        ],
+        "mixed": ["5511999999999@s.whatsapp.net"],
+        "no_mentions": [],
+        "split_message": ["5511999999999@s.whatsapp.net"]
+    }
+
+
+@pytest.fixture
+def mock_evolution_response():
+    """Mock successful Evolution API HTTP response."""
+    response = Mock()
+    response.status_code = 200
+    response.raise_for_status.return_value = None
+    response.json.return_value = {"status": "success", "message": "sent"}
+    return response
+
+
+@pytest.fixture
+def mention_api_headers():
+    """Standard headers for mention API testing."""
+    return {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer namastex888"
+    }

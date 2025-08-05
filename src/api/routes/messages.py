@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
+from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
 from src.services.user_service import user_service
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,20 @@ class SendTextRequest(BaseModel):
     text: str = Field(description="Message text to send")
     quoted_message_id: Optional[str] = Field(
         None, description="ID of message to quote/reply to"
+    )
+    
+    # NEW: Mention support
+    auto_parse_mentions: bool = Field(
+        default=True, 
+        description="Automatically detect and convert @phone mentions in text"
+    )
+    mentioned: Optional[List[str]] = Field(
+        default=None,
+        description="Explicit list of phone numbers to mention (overrides auto-parsing)"
+    )
+    mentions_everyone: bool = Field(
+        default=False,
+        description="Mention everyone in group chat"
     )
 
 
@@ -262,11 +277,21 @@ async def send_text_message(
         # Create Evolution API sender with instance config
         sender = EvolutionApiSender(config_override=instance_config)
 
-        # Send the message
+        # Prepare mention parameters
+        mentioned_jids = None
+        if request.mentioned:
+            # Convert phone numbers to WhatsApp JIDs
+            mentioned_jids = WhatsAppMentionParser.parse_explicit_mentions(request.mentioned)
+            logger.info(f"Converted {len(request.mentioned)} explicit mentions to JIDs")
+
+        # Send the message with mention support
         success = sender.send_text_message(
             recipient=recipient,
             text=request.text,
             quoted_message=None,  # TODO: Implement quoted message lookup
+            mentioned=mentioned_jids,
+            mentions_everyone=request.mentions_everyone,
+            auto_parse_mentions=request.auto_parse_mentions
         )
 
         return MessageResponse(
