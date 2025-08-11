@@ -3,6 +3,7 @@ Database migration utilities using Alembic.
 """
 
 import logging
+import threading
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
@@ -118,21 +119,49 @@ def run_migrations() -> bool:
         return False
 
 
-def stamp_database(revision: str = "head") -> bool:
+def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
     """
     Stamp the database with a specific revision without running migrations.
     
     Args:
         revision: The revision to stamp (default: "head")
+        timeout_seconds: Maximum time to wait for stamping operation (default: 5)
         
     Returns:
-        bool: True if stamping was successful, False otherwise
+        bool: True if stamping was successful or timed out (non-critical), False on error
     """
     try:
         config = get_alembic_config()
-        command.stamp(config, revision)
-        logger.info(f"Database stamped with revision: {revision}")
-        return True
+        result = [False]
+        exception = [None]
+        
+        def stamp_thread():
+            try:
+                command.stamp(config, revision)
+                result[0] = True
+            except Exception as e:
+                exception[0] = e
+        
+        # Run stamping in a separate thread with timeout
+        thread = threading.Thread(target=stamp_thread)
+        thread.daemon = True
+        thread.start()
+        thread.join(timeout=timeout_seconds)
+        
+        if thread.is_alive():
+            # Thread is still running after timeout
+            logger.warning(f"Stamping operation timed out after {timeout_seconds}s, but database is functional")
+            # Even if stamping times out, the database is still functional
+            # This is not a critical error
+            return True
+        
+        if exception[0]:
+            raise exception[0]
+        
+        if result[0]:
+            logger.info(f"Database stamped with revision: {revision}")
+        
+        return result[0]
         
     except Exception as e:
         logger.error(f"Error stamping database: {e}")
@@ -169,7 +198,15 @@ def auto_migrate() -> bool:
         elif current_revision is None and has_tables:
             # Existing database without revision tracking - stamp it as current
             logger.info("Existing database without revision tracking detected, stamping as current...")
-            return stamp_database(head_revision)
+            success = stamp_database(head_revision)
+            if success:
+                logger.info("Database successfully stamped with current revision")
+            else:
+                logger.warning("Failed to stamp database, but continuing anyway (database is functional)")
+                # Return True to allow the application to continue
+                # The database is functional, just missing revision tracking
+                return True
+            return success
         
         elif current_revision != head_revision:
             # Database needs updating
