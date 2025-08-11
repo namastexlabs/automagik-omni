@@ -1,5 +1,6 @@
 """
 SQLAlchemy models for multi-tenant instance configuration and user management.
+Updated with unified field names for both automagik and hive agent implementations.
 """
 
 import uuid
@@ -45,26 +46,17 @@ class InstanceConfig(Base):
     # discord_token = Column(String, nullable=True)
     # discord_guild_id = Column(String, nullable=True)
 
-    # Unified Agent API configuration (works for both Automagik and Hive)
+    # Unified Agent Configuration (supports both automagik and hive implementations)
     agent_instance_type = Column(String, default="automagik", nullable=False)  # "automagik" or "hive"
-    agent_api_url = Column(String, nullable=False)
-    agent_api_key = Column(String, nullable=False)
-    agent_id = Column(String, default="default", nullable=True)  # Agent name/ID - defaults to "default" for backward compatibility
-    agent_type = Column(String, default="agent", nullable=False)  # "agent" or "team" (team only for hive)
-    agent_timeout = Column(Integer, default=60)
-    agent_stream_mode = Column(Boolean, default=False, nullable=False)  # Enable streaming (mainly for hive)
+    agent_api_url = Column(String, nullable=False)  # Works for both automagik and hive
+    agent_api_key = Column(String, nullable=False)  # Works for both automagik and hive
+    agent_id = Column(String, nullable=False)  # For automagik: agent name, for hive: agent/team ID
+    agent_type = Column(String, default="agent", nullable=False)  # "agent" or "team" (hive-specific distinction)
+    agent_timeout = Column(Integer, default=60, nullable=False)  # Works for both (hive uses 30, automagik 60)
+    agent_stream_mode = Column(Boolean, default=False, nullable=False)  # Works for both (automagik: False, hive: True)
     
-    # Legacy field for backward compatibility (will be migrated to agent_id)
-    default_agent = Column(String, nullable=True)  # Deprecated - use agent_id instead
-    
-    # Legacy AutomagikHive fields (deprecated - kept for migration)
-    hive_enabled = Column(Boolean, default=False, nullable=True)  # Deprecated - use agent_instance_type
-    hive_api_url = Column(String, nullable=True)  # Deprecated - use agent_api_url
-    hive_api_key = Column(String, nullable=True)  # Deprecated - use agent_api_key
-    hive_agent_id = Column(String, nullable=True)  # Deprecated - use agent_id with agent_type="agent"
-    hive_team_id = Column(String, nullable=True)  # Deprecated - use agent_id with agent_type="team"
-    hive_timeout = Column(Integer, nullable=True)  # Deprecated - use agent_timeout
-    hive_stream_mode = Column(Boolean, nullable=True)  # Deprecated - use agent_stream_mode
+    # Legacy field for backward compatibility (will be removed in future migration)
+    default_agent = Column(String, nullable=True)  # Deprecated, use agent_id instead
 
     # Automagik instance identification (for UI display)
     automagik_instance_id = Column(String, nullable=True)
@@ -88,70 +80,56 @@ class InstanceConfig(Base):
     def __repr__(self):
         return f"<InstanceConfig(name='{self.name}', is_default={self.is_default})>"
 
-    # Helper properties for unified schema
-    @property
-    def is_hive(self) -> bool:
-        """Check if this is a Hive instance."""
+    def is_hive_enabled(self) -> bool:
+        """Check if this instance is configured for AutomagikHive."""
         return self.agent_instance_type == "hive"
     
-    @property
-    def is_automagik(self) -> bool:
-        """Check if this is an Automagik instance."""
+    def is_automagik_enabled(self) -> bool:
+        """Check if this instance is configured for standard Automagik."""
         return self.agent_instance_type == "automagik"
-    
-    @property
-    def is_team(self) -> bool:
-        """Check if configured for team mode (Hive only)."""
-        return self.agent_type == "team" and self.is_hive
+
+    def has_complete_agent_config(self) -> bool:
+        """Check if instance has complete agent configuration (works for both types)."""
+        return (
+            bool(self.agent_api_url) and 
+            bool(self.agent_api_key) and
+            bool(self.agent_id)
+        )
     
     @property
     def streaming_enabled(self) -> bool:
-        """Check if streaming is enabled."""
-        return self.agent_stream_mode and self.is_hive
+        """Property for compatibility with message router streaming logic."""
+        return self.is_hive_enabled() and self.agent_stream_mode
     
     def get_agent_config(self) -> dict:
-        """Get unified agent configuration as dictionary."""
-        # Use default_agent if agent_id is not set (backward compatibility)
-        agent_identifier = self.agent_id or self.default_agent or "default"
-        
-        config = {
-            "instance_type": self.agent_instance_type or "automagik",
+        """Get agent configuration as dictionary (unified for both types)."""
+        return {
+            "instance_type": self.agent_instance_type,
             "api_url": self.agent_api_url,
             "api_key": self.agent_api_key,
-            "agent_id": agent_identifier,
-            "agent_type": self.agent_type or "agent",
-            "timeout": self.agent_timeout or 60,
-            "stream_mode": self.agent_stream_mode or False
+            "agent_id": self.agent_id,
+            "agent_type": self.agent_type,
+            "timeout": self.agent_timeout,
+            "stream_mode": self.agent_stream_mode
         }
-        return config
-    
-    # Backward compatibility methods
+
+    # Legacy methods for backward compatibility
     def has_hive_config(self) -> bool:
-        """Legacy: Check if instance has complete AutomagikHive configuration."""
-        # Check new unified fields
-        if self.is_hive:
-            return bool(self.agent_api_url) and bool(self.agent_api_key) and bool(self.agent_id)
-        # Fall back to legacy fields if they exist
-        return (
-            self.hive_enabled and 
-            bool(self.hive_api_url) and 
-            bool(self.hive_api_key) and
-            (bool(self.hive_agent_id) or bool(self.hive_team_id))
-        )
+        """Legacy method for backward compatibility."""
+        return self.is_hive_enabled() and self.has_complete_agent_config()
     
     def get_hive_config(self) -> dict:
-        """Legacy: Get AutomagikHive configuration as dictionary."""
-        # Use new unified fields if this is a hive instance
-        if self.is_hive:
-            return self.get_agent_config()
-        # Fall back to legacy fields
+        """Legacy method for backward compatibility."""
+        if not self.is_hive_enabled():
+            return {}
+        
         return {
-            "api_url": self.hive_api_url,
-            "api_key": self.hive_api_key,
-            "agent_id": self.hive_agent_id,
-            "team_id": self.hive_team_id,
-            "timeout": self.hive_timeout,
-            "stream_mode": self.hive_stream_mode
+            "api_url": self.agent_api_url,
+            "api_key": self.agent_api_key,
+            "agent_id": self.agent_id if self.agent_type == "agent" else None,
+            "team_id": self.agent_id if self.agent_type == "team" else None,
+            "timeout": self.agent_timeout,
+            "stream_mode": self.agent_stream_mode
         }
 
 
