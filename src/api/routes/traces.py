@@ -112,6 +112,9 @@ async def list_traces(
     end_date: Optional[datetime] = Query(
         None, description="End date filter (ISO format)"
     ),
+    all_time: bool = Query(
+        False, description="If true, fetch all data without date filters (overrides start_date/end_date)"
+    ),
     limit: int = Query(
         50, ge=1, le=1000, description="Maximum number of traces to return"
     ),
@@ -141,10 +144,19 @@ async def list_traces(
             query = query.filter(MessageTrace.agent_session_id == agent_session_id)
         if has_media is not None:
             query = query.filter(MessageTrace.has_media == has_media)
-        if start_date:
-            query = query.filter(MessageTrace.received_at >= start_date)
-        if end_date:
-            query = query.filter(MessageTrace.received_at <= end_date)
+        
+        # Handle date filtering with all_time parameter
+        if not all_time:
+            # Apply date filters only if all_time is false
+            if start_date is None and end_date is None:
+                # Default to last 24 hours if no dates provided
+                start_date = utcnow() - timedelta(hours=24)
+                end_date = utcnow()
+            
+            if start_date:
+                query = query.filter(MessageTrace.received_at >= start_date)
+            if end_date:
+                query = query.filter(MessageTrace.received_at <= end_date)
 
         # Order by most recent first
         query = query.order_by(desc(MessageTrace.received_at))
@@ -237,6 +249,9 @@ async def get_trace_analytics(
     end_date: Optional[datetime] = Query(
         None, description="End date for analytics (ISO format)"
     ),
+    all_time: bool = Query(
+        False, description="If true, fetch all data without date filters (overrides start_date/end_date)"
+    ),
     instance_name: Optional[str] = Query(None, description="Filter by instance name"),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
@@ -244,18 +259,23 @@ async def get_trace_analytics(
     """Get analytics summary for message traces."""
 
     try:
-        # Default to last 24 hours if no dates provided
-        if not start_date:
-            start_date = utcnow() - timedelta(hours=24)
-        if not end_date:
-            end_date = utcnow()
-
-        query = db.query(MessageTrace).filter(
-            and_(
-                MessageTrace.received_at >= start_date,
-                MessageTrace.received_at <= end_date,
+        # Handle all_time parameter
+        if all_time:
+            # When all_time is true, don't apply any date filters
+            query = db.query(MessageTrace)
+        else:
+            # Default to last 24 hours if no dates provided and all_time is false
+            if not start_date:
+                start_date = utcnow() - timedelta(hours=24)
+            if not end_date:
+                end_date = utcnow()
+            
+            query = db.query(MessageTrace).filter(
+                and_(
+                    MessageTrace.received_at >= start_date,
+                    MessageTrace.received_at <= end_date,
+                )
             )
-        )
 
         if instance_name:
             query = query.filter(MessageTrace.instance_name == instance_name)
