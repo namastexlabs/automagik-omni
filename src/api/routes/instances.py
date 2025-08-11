@@ -142,6 +142,12 @@ class InstanceConfigResponse(BaseModel):
     is_active: bool
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
+    
+    # Profile information from Evolution API
+    profile_name: Optional[str] = None
+    profile_pic_url: Optional[str] = None
+    owner_jid: Optional[str] = None
+    
     created_at: datetime
     updated_at: datetime
     evolution_status: Optional[EvolutionStatusInfo] = None
@@ -357,6 +363,9 @@ async def list_instances(
             "is_active": instance.is_active,
             "automagik_instance_id": instance.automagik_instance_id,
             "automagik_instance_name": instance.automagik_instance_name,
+            "profile_name": getattr(instance, 'profile_name', None),
+            "profile_pic_url": getattr(instance, 'profile_pic_url', None),
+            "owner_jid": getattr(instance, 'owner_jid', None),
             "created_at": instance.created_at,
             "updated_at": instance.updated_at,
             # Include unified fields
@@ -448,6 +457,9 @@ async def get_instance(
         "is_active": instance.is_active,
         "automagik_instance_id": instance.automagik_instance_id,
         "automagik_instance_name": instance.automagik_instance_name,
+        "profile_name": getattr(instance, 'profile_name', None),
+        "profile_pic_url": getattr(instance, 'profile_pic_url', None),
+        "owner_jid": getattr(instance, 'owner_jid', None),
         "created_at": instance.created_at,
         "updated_at": instance.updated_at,
         # Include unified fields

@@ -70,6 +70,11 @@ class InstanceConfig(Base):
     automagik_instance_id = Column(String, nullable=True)
     automagik_instance_name = Column(String, nullable=True)
 
+    # Profile information from Evolution API
+    profile_name = Column(String, nullable=True)  # WhatsApp display name
+    profile_pic_url = Column(String, nullable=True)  # Profile picture URL
+    owner_jid = Column(String, nullable=True)  # WhatsApp JID (owner field from Evolution)
+
     # Default instance flag (for backward compatibility)
     is_default = Column(Boolean, default=False, index=True)
 

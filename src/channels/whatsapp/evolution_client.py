@@ -19,9 +19,9 @@ class EvolutionInstance(BaseModel):
 
     instanceName: str
     instanceId: Optional[str] = None
-    owner: Optional[str] = None
+    ownerJid: Optional[str] = None  # Evolution returns ownerJid, not owner
     profileName: Optional[str] = None
-    profilePictureUrl: Optional[str] = None
+    profilePicUrl: Optional[str] = None  # Evolution returns profilePicUrl, not profilePictureUrl
     profileStatus: Optional[str] = None
     status: str  # "open", "close", "connecting", "created"
     serverUrl: Optional[str] = None
@@ -156,8 +156,18 @@ class EvolutionClient:
         instances: List[EvolutionInstance] = []
         if isinstance(data, list):
             for item in data:
-                if "instance" in item:
-                    instances.append(EvolutionInstance(**item["instance"]))
+                # Evolution API returns instances directly, map 'name' to 'instanceName'
+                if "name" in item:
+                    # Map Evolution API fields to our model
+                    instance_data = {
+                        "instanceName": item["name"],
+                        "instanceId": item.get("id"),
+                        "ownerJid": item.get("ownerJid"),
+                        "profileName": item.get("profileName"),
+                        "profilePicUrl": item.get("profilePicUrl"),
+                        "status": item.get("connectionStatus", "unknown"),
+                    }
+                    instances.append(EvolutionInstance(**instance_data))
 
         return instances
 
