@@ -51,12 +51,11 @@ class AgentApiClient:
             self.api_key = ""
             self.default_agent_name = ""
             self.timeout = 60
-            logger.warning(
-                "Agent API client initialized without instance config - will not function without valid configuration"
+            logger.debug(
+                "Agent API client initialized without instance config - using default values"
             )
 
-        if not self.api_key:
-            logger.warning("Agent API key not set. API requests will likely fail.")
+        # Configuration will be validated when actually needed
 
         self.is_healthy = False
 

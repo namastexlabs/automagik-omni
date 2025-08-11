@@ -25,11 +25,7 @@ class UserManagementService:
         self.api_key = config.agent_api.api_key or "namastex888"
         self.timeout = getattr(config.agent_api, "timeout", 30)
 
-        # Verify required configuration
-        if not self.api_key:
-            logger.warning(
-                "Agent API key not set. User management API requests will likely fail."
-            )
+        # Configuration will be validated when actually needed
 
         logger.info(f"User Management Service initialized with URL: {self.api_url}")
 
