@@ -26,7 +26,7 @@ def apply_streaming_patch():
         # Import the modules we need to patch
         from src.channels.whatsapp.handlers import WhatsAppMessageHandler, message_handler
         from src.channels.whatsapp.streaming_handler import streaming_handler, integrate_streaming_with_handler
-        from src.services.message_router_enhanced import message_router
+        from src.services.message_router import message_router
         
         logger.info("Applying streaming integration patch to WhatsApp handlers...")
         
@@ -142,7 +142,7 @@ def test_streaming_integration() -> bool:
     """
     try:
         from src.db.models import InstanceConfig
-        from src.services.message_router_enhanced import message_router
+        from src.services.message_router import message_router
         
         logger.info("Testing streaming integration...")
         
@@ -183,7 +183,8 @@ def test_streaming_integration() -> bool:
 
 
 # Auto-apply patch on import if desired
-AUTO_APPLY_PATCH = True
+# Disabled - patch is now applied explicitly in app.py
+AUTO_APPLY_PATCH = False
 
 if AUTO_APPLY_PATCH:
     try:

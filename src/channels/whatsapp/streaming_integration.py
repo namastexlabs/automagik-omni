@@ -98,6 +98,7 @@ class WhatsAppMessageChunker:
     def process_stream_content(self, accumulated_content: str, new_content: str) -> tuple[str, List[str]]:
         """
         Process new streaming content and return ready chunks for delivery.
+        Only sends messages when a double newline (\\n\\n) is encountered.
         
         Args:
             accumulated_content: Previously accumulated content
@@ -108,18 +109,22 @@ class WhatsAppMessageChunker:
         """
         combined_content = accumulated_content + new_content
         
-        # Find complete chunks (ending with newline)
-        if '\n' in combined_content:
-            # Split at last newline to keep incomplete content
-            *complete_parts, remaining = combined_content.split('\n')
+        # Check for double newline (paragraph break)
+        if '\n\n' in combined_content:
+            # Split at double newlines
+            parts = combined_content.split('\n\n')
             
-            # Join complete parts and create chunks
-            if complete_parts:
-                complete_text = '\n'.join(complete_parts)
-                chunks = self.split_on_newlines(complete_text)
-                return remaining, chunks
+            # All parts except the last are complete paragraphs
+            complete_chunks = parts[:-1]
+            
+            # The last part is the remaining incomplete content
+            remaining = parts[-1]
+            
+            # Filter out empty chunks and return
+            ready_chunks = [chunk.strip() for chunk in complete_chunks if chunk.strip()]
+            return remaining, ready_chunks
         
-        # No complete chunks yet, keep accumulating
+        # No double newline yet, keep accumulating
         return combined_content, []
 
 
@@ -305,46 +310,47 @@ class AutomagikHiveStreamer:
                 
                 logger.info(f"Starting agent streaming for {recipient}, agent: {agent_id}")
                 
-                # Stream from AutomagikHive
-                async for event in self.hive_client.stream_agent_conversation(agent_id, message):
-                    if event.event == HiveEventType.RUN_RESPONSE_CONTENT:
-                        # Process content chunk
-                        accumulated_content, ready_chunks = self.message_chunker.process_stream_content(
-                            accumulated_content, event.content
-                        )
-                        
-                        # Send ready chunks to WhatsApp
-                        for chunk in ready_chunks:
-                            if chunk.strip():  # Only send non-empty chunks
-                                success = await self.message_queue_handler.send_message_with_delay(
-                                    recipient, chunk
-                                )
-                                if success:
-                                    message_count += 1
-                                else:
-                                    logger.warning(f"Failed to send chunk to {recipient}")
-                    
-                    elif event.event == HiveEventType.RUN_COMPLETED:
-                        # Send any remaining accumulated content
-                        if accumulated_content.strip():
-                            final_chunks = self.message_chunker.split_on_newlines(accumulated_content)
-                            for chunk in final_chunks:
-                                if chunk.strip():
-                                    await self.message_queue_handler.send_message_with_delay(
+                # Stream from AutomagikHive using context manager
+                async with self.hive_client.stream_agent_conversation(agent_id, message) as stream:
+                    async for event in stream:
+                        if event.event == HiveEventType.RUN_RESPONSE_CONTENT:
+                            # Process content chunk
+                            accumulated_content, ready_chunks = self.message_chunker.process_stream_content(
+                                accumulated_content, event.content
+                            )
+                            
+                            # Send ready chunks to WhatsApp
+                            for chunk in ready_chunks:
+                                if chunk.strip():  # Only send non-empty chunks
+                                    success = await self.message_queue_handler.send_message_with_delay(
                                         recipient, chunk
                                     )
-                                    message_count += 1
+                                    if success:
+                                        message_count += 1
+                                    else:
+                                        logger.warning(f"Failed to send chunk to {recipient}")
                         
-                        logger.info(f"Streaming completed for {recipient}, sent {message_count} messages")
-                        break
-                    
-                    elif event.event == HiveEventType.ERROR:
-                        logger.error(f"Stream error for {recipient}: {event.error_message}")
-                        # Send error message to user
-                        await self.message_queue_handler.send_message_with_delay(
-                            recipient, "Sorry, I encountered an error processing your request. Please try again."
-                        )
-                        return False
+                        elif event.event == HiveEventType.RUN_COMPLETED:
+                            # Send any remaining accumulated content
+                            if accumulated_content.strip():
+                                final_chunks = self.message_chunker.split_on_newlines(accumulated_content)
+                                for chunk in final_chunks:
+                                    if chunk.strip():
+                                        await self.message_queue_handler.send_message_with_delay(
+                                            recipient, chunk
+                                        )
+                                        message_count += 1
+                            
+                            logger.info(f"Streaming completed for {recipient}, sent {message_count} messages")
+                            break
+                        
+                        elif event.event == HiveEventType.ERROR:
+                            logger.error(f"Stream error for {recipient}: {event.error_message}")
+                            # Send error message to user
+                            await self.message_queue_handler.send_message_with_delay(
+                                recipient, "Sorry, I encountered an error processing your request. Please try again."
+                            )
+                            return False
             
             return True
             
@@ -401,46 +407,47 @@ class AutomagikHiveStreamer:
                 
                 logger.info(f"Starting team streaming for {recipient}, team: {team_id}")
                 
-                # Stream from AutomagikHive
-                async for event in self.hive_client.stream_team_conversation(team_id, message):
-                    if event.event == HiveEventType.RUN_RESPONSE_CONTENT:
-                        # Process content chunk
-                        accumulated_content, ready_chunks = self.message_chunker.process_stream_content(
-                            accumulated_content, event.content
-                        )
-                        
-                        # Send ready chunks to WhatsApp
-                        for chunk in ready_chunks:
-                            if chunk.strip():  # Only send non-empty chunks
-                                success = await self.message_queue_handler.send_message_with_delay(
-                                    recipient, chunk
-                                )
-                                if success:
-                                    message_count += 1
-                                else:
-                                    logger.warning(f"Failed to send chunk to {recipient}")
-                    
-                    elif event.event == HiveEventType.RUN_COMPLETED:
-                        # Send any remaining accumulated content
-                        if accumulated_content.strip():
-                            final_chunks = self.message_chunker.split_on_newlines(accumulated_content)
-                            for chunk in final_chunks:
-                                if chunk.strip():
-                                    await self.message_queue_handler.send_message_with_delay(
+                # Stream from AutomagikHive using context manager
+                async with self.hive_client.stream_team_conversation(team_id, message) as stream:
+                    async for event in stream:
+                        if event.event == HiveEventType.RUN_RESPONSE_CONTENT:
+                            # Process content chunk
+                            accumulated_content, ready_chunks = self.message_chunker.process_stream_content(
+                                accumulated_content, event.content
+                            )
+                            
+                            # Send ready chunks to WhatsApp
+                            for chunk in ready_chunks:
+                                if chunk.strip():  # Only send non-empty chunks
+                                    success = await self.message_queue_handler.send_message_with_delay(
                                         recipient, chunk
                                     )
-                                    message_count += 1
+                                    if success:
+                                        message_count += 1
+                                    else:
+                                        logger.warning(f"Failed to send chunk to {recipient}")
                         
-                        logger.info(f"Team streaming completed for {recipient}, sent {message_count} messages")
-                        break
-                    
-                    elif event.event == HiveEventType.ERROR:
-                        logger.error(f"Team stream error for {recipient}: {event.error_message}")
-                        # Send error message to user
-                        await self.message_queue_handler.send_message_with_delay(
-                            recipient, "Sorry, I encountered an error processing your request. Please try again."
-                        )
-                        return False
+                        elif event.event == HiveEventType.RUN_COMPLETED:
+                            # Send any remaining accumulated content
+                            if accumulated_content.strip():
+                                final_chunks = self.message_chunker.split_on_newlines(accumulated_content)
+                                for chunk in final_chunks:
+                                    if chunk.strip():
+                                        await self.message_queue_handler.send_message_with_delay(
+                                            recipient, chunk
+                                        )
+                                        message_count += 1
+                            
+                            logger.info(f"Team streaming completed for {recipient}, sent {message_count} messages")
+                            break
+                        
+                        elif event.event == HiveEventType.ERROR:
+                            logger.error(f"Team stream error for {recipient}: {event.error_message}")
+                            # Send error message to user
+                            await self.message_queue_handler.send_message_with_delay(
+                                recipient, "Sorry, I encountered an error processing your request. Please try again."
+                            )
+                            return False
             
             return True
             

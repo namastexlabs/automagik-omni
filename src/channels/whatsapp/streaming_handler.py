@@ -9,7 +9,7 @@ import asyncio
 import logging
 import threading
 from typing import Dict, Any, Optional
-from src.services.message_router_enhanced import message_router
+from src.services.message_router import message_router
 from src.db.models import InstanceConfig
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,17 @@ class WhatsAppStreamingHandler:
             return
         
         # Check if streaming should be used
-        if message_router.should_use_streaming(instance_config):
+        logger.debug(f"Checking streaming for recipient {recipient}")
+        logger.debug(f"Instance config type: {type(instance_config)}")
+        logger.debug(f"Instance config name: {getattr(instance_config, 'name', 'N/A')}")
+        logger.debug(f"Instance agent_instance_type: {getattr(instance_config, 'agent_instance_type', 'N/A')}")
+        logger.debug(f"Instance agent_stream_mode: {getattr(instance_config, 'agent_stream_mode', 'N/A')}")
+        logger.debug(f"Instance agent_id: {getattr(instance_config, 'agent_id', 'N/A')}")
+        
+        should_stream = message_router.should_use_streaming(instance_config)
+        logger.debug(f"should_use_streaming returned: {should_stream}")
+        
+        if should_stream:
             logger.info(f"Using AutomagikHive streaming for {recipient}")
             self._handle_streaming_message(message, recipient, instance_config, trace_context)
         else:
@@ -298,7 +308,11 @@ def integrate_streaming_with_handler(original_process_message_func):
         """Enhanced process message with streaming support."""
         
         # Check if we should use streaming
+        logger.debug(f"[DECORATOR] Checking streaming, instance_config type: {type(instance_config)}")
+        logger.debug(f"[DECORATOR] Instance name: {getattr(instance_config, 'name', 'N/A') if instance_config else 'None'}")
+        
         if instance_config and message_router.should_use_streaming(instance_config):
+            logger.debug(f"[DECORATOR] Streaming check PASSED, calling streaming handler")
             # Use streaming handler
             streaming_handler.handle_message_with_streaming(
                 message=message,
@@ -307,6 +321,7 @@ def integrate_streaming_with_handler(original_process_message_func):
                 original_handler=lambda m, ic, tc: original_process_message_func(self, m, ic, tc)
             )
         else:
+            logger.debug(f"[DECORATOR] Streaming check FAILED, using original handler")
             # Use original handler
             original_process_message_func(self, message, instance_config, trace_context)
     

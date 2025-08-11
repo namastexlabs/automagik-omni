@@ -31,10 +31,17 @@ from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
 from src.db.database import create_tables
 
-# Initialize channel handlers
-
 # Configure logging
 logger = logging.getLogger("src.api.app")
+
+# Initialize channel handlers
+# Apply streaming patch for WhatsApp handlers BEFORE they are used elsewhere
+try:
+    from src.channels.whatsapp.streaming_patch import apply_streaming_patch
+    if apply_streaming_patch():
+        logger.info("WhatsApp streaming integration enabled successfully")
+except Exception as e:
+    logger.warning(f"Failed to apply WhatsApp streaming patch: {e}")
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

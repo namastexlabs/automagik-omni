@@ -73,13 +73,19 @@ class InstanceConfigCreate(BaseModel):
     # Common agent configuration
     agent_api_url: str
     agent_api_key: str
-    default_agent: str
+    default_agent: Optional[str] = None
     agent_timeout: int = 60
     is_default: bool = False
 
     # Automagik instance identification (for UI display)
     automagik_instance_id: Optional[str] = Field(None, description="Automagik instance ID")
     automagik_instance_name: Optional[str] = Field(None, description="Automagik instance name")
+    
+    # Unified agent fields (optional for creation, use defaults if not provided)
+    agent_instance_type: Optional[str] = Field(default="automagik", description="Agent instance type: automagik or hive")
+    agent_id: Optional[str] = Field(default=None, description="Agent or team ID")
+    agent_type: Optional[str] = Field(default="agent", description="Agent type: agent or team")
+    agent_stream_mode: Optional[bool] = Field(default=False, description="Enable streaming mode")
 
 
 class InstanceConfigUpdate(BaseModel):
@@ -98,6 +104,12 @@ class InstanceConfigUpdate(BaseModel):
     is_default: Optional[bool] = None
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
+    
+    # Unified agent fields
+    agent_instance_type: Optional[str] = None
+    agent_id: Optional[str] = None
+    agent_type: Optional[str] = None
+    agent_stream_mode: Optional[bool] = None
 
 
 class EvolutionStatusInfo(BaseModel):
@@ -124,7 +136,7 @@ class InstanceConfigResponse(BaseModel):
     webhook_base64: Optional[bool]
     agent_api_url: str
     agent_api_key: str
-    default_agent: str
+    default_agent: Optional[str]
     agent_timeout: int
     is_default: bool
     is_active: bool
@@ -133,6 +145,12 @@ class InstanceConfigResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     evolution_status: Optional[EvolutionStatusInfo] = None
+    
+    # Unified agent fields
+    agent_instance_type: Optional[str] = None
+    agent_id: Optional[str] = None
+    agent_type: Optional[str] = None
+    agent_stream_mode: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -341,6 +359,11 @@ async def list_instances(
             "automagik_instance_name": instance.automagik_instance_name,
             "created_at": instance.created_at,
             "updated_at": instance.updated_at,
+            # Include unified fields
+            "agent_instance_type": getattr(instance, 'agent_instance_type', None),
+            "agent_id": getattr(instance, 'agent_id', None),
+            "agent_type": getattr(instance, 'agent_type', None),
+            "agent_stream_mode": getattr(instance, 'agent_stream_mode', None),
             "evolution_status": None,
         }
 
@@ -427,6 +450,11 @@ async def get_instance(
         "automagik_instance_name": instance.automagik_instance_name,
         "created_at": instance.created_at,
         "updated_at": instance.updated_at,
+        # Include unified fields
+        "agent_instance_type": getattr(instance, 'agent_instance_type', None),
+        "agent_id": getattr(instance, 'agent_id', None),
+        "agent_type": getattr(instance, 'agent_type', None),
+        "agent_stream_mode": getattr(instance, 'agent_stream_mode', None),
         "evolution_status": None,
     }
 

@@ -450,17 +450,38 @@ class WhatsAppMessageHandler:
 
                 # Create agent config using instance-specific or global configuration
                 if instance_config:
-                    # Use per-instance configuration
-                    agent_config = {
-                        "name": instance_config.default_agent,
-                        "type": "whatsapp",
-                        "api_url": instance_config.agent_api_url,
-                        "api_key": instance_config.agent_api_key,
-                        "timeout": instance_config.agent_timeout,
-                    }
-                    logger.info(
-                        f"Using instance-specific agent config: {instance_config.name} -> {instance_config.default_agent}"
-                    )
+                    # Use per-instance configuration with unified fields
+                    # Check if this is a Hive instance
+                    if hasattr(instance_config, 'agent_instance_type') and instance_config.agent_instance_type == 'hive':
+                        # Use unified fields for Hive configuration
+                        agent_config = {
+                            "name": instance_config.agent_id or instance_config.default_agent,
+                            "type": "whatsapp",
+                            "api_url": instance_config.agent_api_url,
+                            "api_key": instance_config.agent_api_key,
+                            "timeout": instance_config.agent_timeout,
+                            "instance_type": instance_config.agent_instance_type,
+                            "agent_type": getattr(instance_config, 'agent_type', 'agent'),
+                            "stream_mode": getattr(instance_config, 'agent_stream_mode', False),
+                            "instance_config": instance_config,  # Pass the full config for routing decisions
+                        }
+                        logger.info(
+                            f"Using Hive configuration: {instance_config.name} -> {instance_config.agent_instance_type}:{instance_config.agent_id} (type: {instance_config.agent_type})"
+                        )
+                    else:
+                        # Use legacy fields for Automagik
+                        agent_config = {
+                            "name": instance_config.agent_id or instance_config.default_agent,
+                            "type": "whatsapp",
+                            "api_url": instance_config.agent_api_url,
+                            "api_key": instance_config.agent_api_key,
+                            "timeout": instance_config.agent_timeout,
+                            "instance_type": getattr(instance_config, 'agent_instance_type', 'automagik'),
+                            "instance_config": instance_config,  # Pass the full config for routing decisions
+                        }
+                        logger.info(
+                            f"Using Automagik configuration: {instance_config.name} -> {instance_config.agent_id or instance_config.default_agent}"
+                        )
                 else:
                     # No instance configuration available - use defaults
                     agent_config = {"name": "", "type": "whatsapp"}
@@ -692,14 +713,40 @@ class WhatsAppMessageHandler:
                         f"Ignoring AUTOMAGIK message for user {user_dict['phone_number']}, session {session_name}: {response_to_send}"
                     )
                 else:
-                    # Send the response immediately while the typing indicator is still active
-                    # Include the original message for quoting (reply)
-                    self._send_whatsapp_response(
-                        recipient=sender_id,
-                        text=response_to_send,
-                        quoted_message=message,
-                        trace_context=trace_context,
-                    )
+                    # Check if we have streaming chunks to send progressively
+                    if isinstance(agent_response, dict) and "streaming_chunks" in agent_response:
+                        streaming_chunks = agent_response.get("streaming_chunks", [])
+                        if streaming_chunks:
+                            logger.info(f"Sending {len(streaming_chunks)} streaming chunks progressively")
+                            for i, chunk in enumerate(streaming_chunks):
+                                # Send each chunk as a separate message
+                                # First chunk gets the quoted message, rest don't
+                                self._send_whatsapp_response(
+                                    recipient=sender_id,
+                                    text=chunk,
+                                    quoted_message=message if i == 0 else None,
+                                    trace_context=trace_context,
+                                )
+                                # Small delay between chunks for natural flow
+                                if i < len(streaming_chunks) - 1:
+                                    time.sleep(0.5)  # 500ms between chunks
+                        else:
+                            # No chunks, send the full response
+                            self._send_whatsapp_response(
+                                recipient=sender_id,
+                                text=response_to_send,
+                                quoted_message=message,
+                                trace_context=trace_context,
+                            )
+                    else:
+                        # Send the response immediately while the typing indicator is still active
+                        # Include the original message for quoting (reply)
+                        self._send_whatsapp_response(
+                            recipient=sender_id,
+                            text=response_to_send,
+                            quoted_message=message,
+                            trace_context=trace_context,
+                        )
 
                     # Mark message as sent but let the typing indicator continue for a short time
                     # This creates a more natural transition

@@ -19,6 +19,7 @@ class HiveEventType(str, Enum):
     RUN_COMPLETED = "RunCompleted"
     ERROR = "Error"
     HEARTBEAT = "Heartbeat"
+    TEAM_TOOL_CALL_STARTED = "TeamToolCallStarted"
 
 
 class BaseHiveEvent(BaseModel):
@@ -92,13 +93,25 @@ class HeartbeatEvent(BaseHiveEvent):
     event: HiveEventType = Field(default=HiveEventType.HEARTBEAT)
 
 
+class TeamToolCallStartedEvent(BaseHiveEvent):
+    """Event emitted when a team tool call starts."""
+    event: HiveEventType = Field(default=HiveEventType.TEAM_TOOL_CALL_STARTED)
+    tool_call_id: Optional[str] = Field(None, description="Unique identifier for the tool call")
+    tool_name: Optional[str] = Field(None, description="Name of the tool being called")
+    function_name: Optional[str] = Field(None, description="Function name being called")
+    parameters: Optional[Dict[str, Any]] = Field(None, description="Parameters passed to the tool")
+    agent_id: Optional[str] = Field(None, description="Agent ID making the tool call")
+    team_id: Optional[str] = Field(None, description="Team ID for the tool call")
+
+
 # Union type for all possible events
 HiveEvent = Union[
     RunStartedEvent,
     RunResponseContentEvent, 
     RunCompletedEvent,
     ErrorEvent,
-    HeartbeatEvent
+    HeartbeatEvent,
+    TeamToolCallStartedEvent
 ]
 
 
@@ -160,7 +173,8 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
             # Team event mappings
             "teamrunresponseconteent": "RunResponseContent",
             "teamrunstarted": "RunStarted", 
-            "teamruncompleted": "RunCompleted"
+            "teamruncompleted": "RunCompleted",
+            "teamtoolcallstarted": "TeamToolCallStarted"
         }
         
         mapped_type = event_type_mapping.get(event_type.lower())
@@ -183,7 +197,8 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
         HiveEventType.RUN_RESPONSE_CONTENT: RunResponseContentEvent,
         HiveEventType.RUN_COMPLETED: RunCompletedEvent,
         HiveEventType.ERROR: ErrorEvent,
-        HiveEventType.HEARTBEAT: HeartbeatEvent
+        HiveEventType.HEARTBEAT: HeartbeatEvent,
+        HiveEventType.TEAM_TOOL_CALL_STARTED: TeamToolCallStartedEvent
     }
     
     event_class = event_class_map.get(event_enum, BaseHiveEvent)
