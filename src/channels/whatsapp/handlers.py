@@ -41,7 +41,6 @@ class WhatsAppMessageHandler:
         self.is_running = False
         self.send_response_callback = send_response_callback
         self.audio_transcriber = AudioTranscriptionService()
-        logger.debug("WhatsApp message handler initialized")
 
     def start(self):
         """Start the message processing thread."""
@@ -52,14 +51,12 @@ class WhatsAppMessageHandler:
             )
             self.processing_thread.daemon = True
             self.processing_thread.start()
-            logger.info("WhatsApp message handler started")
 
     def stop(self):
         """Stop the message processing thread."""
         self.is_running = False
         if self.processing_thread and self.processing_thread.is_alive():
             self.processing_thread.join(timeout=5.0)
-            logger.info("WhatsApp message handler stopped")
 
     def handle_message(
         self, message: Dict[str, Any], instance_config=None, trace_context=None

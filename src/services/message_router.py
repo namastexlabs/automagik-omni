@@ -36,7 +36,6 @@ class MessageRouter:
     
     def __init__(self):
         """Initialize the MessageRouter."""
-        logger.info("Enhanced message router initialized with AutomagikHive streaming support")
     
     def route_message(
         self,

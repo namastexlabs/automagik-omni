@@ -28,7 +28,6 @@ def apply_streaming_patch():
         from src.channels.whatsapp.streaming_handler import streaming_handler, integrate_streaming_with_handler
         from src.services.message_router import message_router
         
-        logger.info("Applying streaming integration patch to WhatsApp handlers...")
         
         # Store the original _process_message method
         original_process_message = WhatsAppMessageHandler._process_message
@@ -46,8 +45,6 @@ def apply_streaming_patch():
         import src.channels.whatsapp.handlers as handlers_module
         handlers_module.message_router = message_router
         
-        logger.info("✅ Streaming integration patch applied successfully!")
-        logger.info("WhatsApp handlers now support AutomagikHive streaming")
         
         return True
         

@@ -38,8 +38,7 @@ logger = logging.getLogger("src.api.app")
 # Apply streaming patch for WhatsApp handlers BEFORE they are used elsewhere
 try:
     from src.channels.whatsapp.streaming_patch import apply_streaming_patch
-    if apply_streaming_patch():
-        logger.info("WhatsApp streaming integration enabled successfully")
+    apply_streaming_patch()
 except Exception as e:
     logger.warning(f"Failed to apply WhatsApp streaming patch: {e}")
 
@@ -272,9 +271,6 @@ try:
     from src.api.routes.messages import router as messages_router
 
     app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
-    logger.info(
-        f"✅ Messages router included with {len(messages_router.routes)} routes"
-    )
 except Exception as e:
     logger.error(f"❌ Failed to include messages router: {e}")
     import traceback

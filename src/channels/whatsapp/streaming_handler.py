@@ -28,7 +28,6 @@ class WhatsAppStreamingHandler:
         self.loop = None
         self.loop_thread = None
         self.is_running = False
-        logger.info("WhatsApp streaming handler initialized")
     
     def start_event_loop(self):
         """Start the async event loop in a separate thread."""
@@ -43,7 +42,6 @@ class WhatsAppStreamingHandler:
         while self.loop is None:
             threading.Event().wait(0.01)
         
-        logger.info("Async event loop started for streaming")
     
     def _run_event_loop(self):
         """Run the async event loop."""
@@ -58,7 +56,6 @@ class WhatsAppStreamingHandler:
         self.is_running = False
         if self.loop_thread:
             self.loop_thread.join(timeout=1.0)
-        logger.info("Async event loop stopped")
     
     def handle_message_with_streaming(
         self,
