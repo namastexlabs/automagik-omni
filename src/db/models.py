@@ -117,7 +117,13 @@ class InstanceConfig(Base):
     def get_agent_config(self) -> dict:
         """Get unified agent configuration as dictionary."""
         # Use default_agent if agent_id is not set (backward compatibility)
-        agent_identifier = self.agent_id or self.default_agent or "default"
+        # Check if agent_id is meaningful (not the default value)
+        if self.agent_id and self.agent_id != "default":
+            agent_identifier = self.agent_id
+        elif self.default_agent:
+            agent_identifier = self.default_agent
+        else:
+            agent_identifier = "default"
         
         config = {
             "instance_type": self.agent_instance_type or "automagik",

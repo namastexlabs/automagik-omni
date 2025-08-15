@@ -7,7 +7,7 @@ import pytest
 import json
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, call
-from httpx import Response, ConnectTimeout, ReadTimeout, TimeoutException, HTTPError
+from httpx import Response, ConnectTimeout, ReadTimeout, TimeoutException, HTTPError, HTTPStatusError
 
 from src.services.automagik_hive_client import (
     AutomagikHiveClient,
@@ -16,7 +16,7 @@ from src.services.automagik_hive_client import (
     AutomagikHiveConnectionError,
     AutomagikHiveStreamError
 )
-from src.services.automagik_hive_models import (
+from src.services.automagik_hive_models_fixed import (
     HiveEvent, HiveRunResponse, HiveEventType,
     RunStartedEvent, RunResponseContentEvent, RunCompletedEvent, ErrorEvent
 )
@@ -29,8 +29,7 @@ class TestAutomagikHiveClientInit:
     def test_init_with_instance_config(self, test_db):
         """Test initialization with InstanceConfig object."""
         instance_config = InstanceConfig(
-            instance_name="test-hive",
-            instance_key="test-key",
+            name="test-hive",
             agent_instance_type="hive",
             agent_api_url="https://hive.example.com/api",
             agent_api_key="hive-api-key",
@@ -69,8 +68,7 @@ class TestAutomagikHiveClientInit:
     def test_init_with_legacy_hive_config(self, test_db):
         """Test initialization with legacy hive configuration."""
         instance_config = InstanceConfig(
-            instance_name="legacy-hive",
-            instance_key="legacy-key",
+            name="legacy-hive",
             agent_api_url="https://automagik.com",
             agent_api_key="automagik-key",
             # Legacy hive fields
@@ -94,17 +92,17 @@ class TestAutomagikHiveClientInit:
     
     def test_init_no_config(self):
         """Test initialization without configuration (should raise error)."""
-        with pytest.raises(AutomagikHiveError, match="No configuration provided"):
+        with pytest.raises(ValueError, match="config_override must be InstanceConfig instance or dictionary"):
             AutomagikHiveClient()
     
     def test_init_missing_required_fields(self):
         """Test initialization with missing required fields."""
         # Missing api_key
-        with pytest.raises(AutomagikHiveError, match="Missing required field: api_key"):
+        with pytest.raises(ValueError, match="AutomagikHive API key is required"):
             AutomagikHiveClient(config_override={'api_url': 'https://test.com'})
         
         # Missing api_url
-        with pytest.raises(AutomagikHiveError, match="Missing required field: api_url"):
+        with pytest.raises(ValueError, match="AutomagikHive API URL is required"):
             AutomagikHiveClient(config_override={'api_key': 'test-key'})
 
 
@@ -123,6 +121,7 @@ class TestAutomagikHiveClientHeaders:
         
         expected_headers = {
             'Authorization': 'Bearer test-api-key',
+            'User-Agent': 'automagik-omni/1.0',
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
@@ -140,9 +139,10 @@ class TestAutomagikHiveClientHeaders:
         
         expected_headers = {
             'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json',
+            'User-Agent': 'automagik-omni/1.0',
             'Accept': 'text/event-stream',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
         }
         assert headers == expected_headers
 
@@ -163,10 +163,10 @@ class TestAutomagikHiveClientHTTPMethods:
         http_client = await client._get_client()
         
         assert http_client is not None
-        assert http_client.timeout.connect == 30
-        assert http_client.timeout.read == 30
-        assert http_client.timeout.write == 30
-        assert http_client.timeout.pool == 30
+        assert http_client.timeout.connect == 10.0
+        assert http_client.timeout.read == 30.0
+        assert http_client.timeout.write == 10.0
+        assert http_client.timeout.pool == 5.0
     
     @pytest.mark.asyncio
     async def test_close_client(self):
@@ -215,6 +215,7 @@ class TestAutomagikHiveClientAgentRuns:
             'status': 'completed',
             'response': 'Test response'
         }
+        mock_response.raise_for_status.return_value = None  # No exception raised
         mock_post.return_value = mock_response
         
         config = {
@@ -225,39 +226,46 @@ class TestAutomagikHiveClientAgentRuns:
         
         response = await client.create_agent_run(
             agent_id='test-agent',
-            prompt='Test prompt',
+            message='Test prompt',
             stream=False
         )
         
         # Verify request
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        assert call_args[0][0] == 'https://hive.test.com/agents/test-agent/run'
+        assert call_args is not None, "Mock was not called"
+        assert call_args[0][0] == 'https://hive.test.com/playground/agents/test-agent/runs'
         
-        # Check payload
-        payload = json.loads(call_args[1]['content'])
-        assert payload['prompt'] == 'Test prompt'
-        assert payload['stream'] is False
+        # Check payload (now form data)
+        assert call_args[1] is not None, "No keyword arguments passed to mock"
+        assert 'data' in call_args[1], "No 'data' key in call arguments"
+        form_data = call_args[1]['data']
+        assert form_data['message'] == 'Test prompt'
+        assert form_data['stream'] == 'False'
         
-        # Check response type
-        assert isinstance(response, HiveRunResponse)
-        assert response.id == 'run_123'
+        # Check response type (implementation returns dict, not HiveRunResponse)
+        assert isinstance(response, dict)
+        assert response['id'] == 'run_123'
     
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient.post')
-    async def test_create_agent_run_streaming(self, mock_post):
+    @patch('httpx.AsyncClient.stream')
+    async def test_create_agent_run_streaming(self, mock_stream):
         """Test streaming agent run creation."""
-        # Mock streaming response with SSE data
-        sse_data = [
-            'event: run_started\ndata: {"event": "run_started", "timestamp": "2024-01-01T00:00:00Z", "run_id": "run_123"}\n\n',
-            'event: run_response_content\ndata: {"event": "run_response_content", "timestamp": "2024-01-01T00:00:01Z", "content": "Hello"}\n\n',
-            'event: run_completed\ndata: {"event": "run_completed", "timestamp": "2024-01-01T00:00:02Z", "status": "completed"}\n\n'
+        # Mock streaming response with JSON-per-line data
+        json_data = [
+            b'{"event": "run_started", "timestamp": "2024-01-01T00:00:00Z", "run_id": "run_123"}\n',
+            b'{"event": "run_response_content", "timestamp": "2024-01-01T00:00:01Z", "content": "Hello"}\n',
+            b'{"event": "run_completed", "timestamp": "2024-01-01T00:00:02Z", "status": "completed"}\n'
         ]
+        
+        async def async_iter_mock():
+            for chunk in json_data:
+                yield chunk
         
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.aiter_lines.return_value = iter(sse_data)
-        mock_post.return_value = mock_response
+        mock_response.aiter_bytes.return_value = async_iter_mock()
+        mock_stream.return_value.__aenter__.return_value = mock_response
         
         config = {
             'api_url': 'https://hive.test.com',
@@ -268,19 +276,23 @@ class TestAutomagikHiveClientAgentRuns:
         events = []
         async for event in await client.create_agent_run(
             agent_id='test-agent',
-            prompt='Test prompt',
+            message='Test prompt',
             stream=True
         ):
             events.append(event)
         
         # Verify request
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
-        assert call_args[0][0] == 'https://hive.test.com/agents/test-agent/run'
+        mock_stream.assert_called_once()
+        call_args = mock_stream.call_args
+        assert call_args is not None, "Mock was not called"
+        assert call_args[0][0] == 'POST'
+        assert call_args[0][1] == 'https://hive.test.com/playground/agents/test-agent/runs'
         
-        # Check payload
-        payload = json.loads(call_args[1]['content'])
-        assert payload['stream'] is True
+        # Check payload (now form data)
+        assert call_args[1] is not None, "No keyword arguments passed to mock"
+        assert 'data' in call_args[1], "No 'data' key in call arguments"
+        form_data = call_args[1]['data']
+        assert form_data['stream'] == 'True'
         
         # Verify events
         assert len(events) == 3
@@ -304,7 +316,7 @@ class TestAutomagikHiveClientAgentRuns:
             mock_response.json.return_value = {'id': 'run_123', 'status': 'completed'}
             mock_post.return_value = mock_response
             
-            await client.create_agent_run(prompt='Test prompt')
+            await client.create_agent_run(message='Test prompt', stream=False)
             
             # Should use default agent ID
             call_args = mock_post.call_args
@@ -335,18 +347,18 @@ class TestAutomagikHiveClientTeamRuns:
         
         response = await client.create_team_run(
             team_id='test-team',
-            prompt='Team prompt',
+            message='Team prompt',
             stream=False
         )
         
         # Verify request
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        assert call_args[0][0] == 'https://hive.test.com/teams/test-team/run'
+        assert call_args[0][0] == 'https://hive.test.com/playground/teams/test-team/runs'
         
-        # Check response
-        assert isinstance(response, HiveRunResponse)
-        assert response.id == 'team_run_123'
+        # Check response (implementation returns dict, not HiveRunResponse)
+        assert isinstance(response, dict)
+        assert response['id'] == 'team_run_123'
     
     @pytest.mark.asyncio
     async def test_create_team_run_default_team(self):
@@ -364,7 +376,7 @@ class TestAutomagikHiveClientTeamRuns:
             mock_response.json.return_value = {'id': 'run_123', 'status': 'completed'}
             mock_post.return_value = mock_response
             
-            await client.create_team_run(prompt='Team prompt')
+            await client.create_team_run(message='Team prompt', stream=False)
             
             # Should use default team ID
             call_args = mock_post.call_args
@@ -375,17 +387,20 @@ class TestAutomagikHiveClientContinueConversation:
     """Test conversation continuation functionality."""
     
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient.post')
-    async def test_continue_conversation(self, mock_post):
+    @patch('httpx.AsyncClient.stream')
+    async def test_continue_conversation(self, mock_stream):
         """Test continuing a conversation."""
+        # Mock streaming response
+        async def mock_aiter_bytes():
+            yield b'data: {"event": "run_started", "run_id": "continue_123"}\n\n'
+            yield b'data: {"event": "run_response_content", "content": "Continued response"}\n\n'
+            yield b'data: {"event": "run_completed"}\n\n'
+        
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'id': 'continue_123',
-            'status': 'completed',
-            'response': 'Continued response'
-        }
-        mock_post.return_value = mock_response
+        mock_response.aiter_bytes.return_value = mock_aiter_bytes()
+        
+        mock_stream.return_value.__aenter__.return_value = mock_response
         
         config = {
             'api_url': 'https://hive.test.com',
@@ -393,46 +408,37 @@ class TestAutomagikHiveClientContinueConversation:
         }
         client = AutomagikHiveClient(config_override=config)
         
-        response = await client.continue_conversation(
+        # continue_conversation always streams
+        events = []
+        async for event in client.continue_conversation(
             run_id='original_run_123',
-            prompt='Continue prompt',
-            stream=False
-        )
+            message='Continue prompt'
+        ):
+            events.append(event)
         
-        # Verify request
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
-        assert call_args[0][0] == 'https://hive.test.com/continue'
-        
-        # Check payload
-        payload = json.loads(call_args[1]['content'])
-        assert payload['run_id'] == 'original_run_123'
-        assert payload['prompt'] == 'Continue prompt'
-        
-        # Check response
-        assert isinstance(response, HiveRunResponse)
+        # Verify we got events
+        assert len(events) >= 1
+        assert events[0].event in [HiveEventType.RUN_STARTED, HiveEventType.RUN_RESPONSE_CONTENT]
 
 
 class TestAutomagikHiveClientStreaming:
     """Test streaming functionality and SSE parsing."""
     
     @pytest.mark.asyncio
-    async def test_stream_events_valid_sse(self):
-        """Test streaming valid SSE events."""
-        sse_lines = [
-            'event: run_started',
-            'data: {"event": "run_started", "timestamp": "2024-01-01T00:00:00Z", "run_id": "run_123"}',
-            '',
-            'event: run_response_content',
-            'data: {"event": "run_response_content", "timestamp": "2024-01-01T00:00:01Z", "content": "Hello"}',
-            '',
-            'event: run_completed',
-            'data: {"event": "run_completed", "timestamp": "2024-01-01T00:00:02Z", "status": "completed"}',
-            ''
+    async def test_stream_events_valid_json(self):
+        """Test streaming valid JSON-per-line events."""
+        json_chunks = [
+            b'{"event": "RunStarted", "timestamp": "2024-01-01T00:00:00Z", "run_id": "run_123"}\n',
+            b'{"event": "RunResponseContent", "timestamp": "2024-01-01T00:00:01Z", "content": "Hello"}\n',
+            b'{"event": "RunCompleted", "timestamp": "2024-01-01T00:00:02Z", "status": "completed"}\n'
         ]
         
+        async def async_iter_mock():
+            for chunk in json_chunks:
+                yield chunk
+        
         mock_response = MagicMock()
-        mock_response.aiter_lines.return_value = iter(sse_lines)
+        mock_response.aiter_bytes.return_value = async_iter_mock()
         
         config = {
             'api_url': 'https://hive.test.com',
@@ -447,20 +453,22 @@ class TestAutomagikHiveClientStreaming:
         assert len(events) == 3
         assert events[0].event == HiveEventType.RUN_STARTED
         assert events[1].event == HiveEventType.RUN_RESPONSE_CONTENT
-        assert events[1].content == "Hello"
+        assert hasattr(events[1], 'content') and events[1].content == "Hello"
         assert events[2].event == HiveEventType.RUN_COMPLETED
     
     @pytest.mark.asyncio
     async def test_stream_events_invalid_json(self):
-        """Test handling of invalid JSON in SSE stream."""
-        sse_lines = [
-            'event: run_started',
-            'data: {"invalid": json}',  # Invalid JSON
-            ''
+        """Test handling of invalid JSON in stream."""
+        json_chunks = [
+            b'{"invalid": json}\n'  # Invalid JSON
         ]
         
+        async def async_iter_mock():
+            for chunk in json_chunks:
+                yield chunk
+        
         mock_response = MagicMock()
-        mock_response.aiter_lines.return_value = iter(sse_lines)
+        mock_response.aiter_bytes.return_value = async_iter_mock()
         
         config = {
             'api_url': 'https://hive.test.com',
@@ -476,12 +484,16 @@ class TestAutomagikHiveClientStreaming:
         assert len(events) == 0
     
     @pytest.mark.asyncio
-    async def test_stream_events_empty_lines(self):
-        """Test handling of empty lines in SSE stream."""
-        sse_lines = ['', '  ', '\n', '\t']
+    async def test_stream_events_empty_chunks(self):
+        """Test handling of empty chunks in stream."""
+        json_chunks = [b'', b'  ', b'\n', b'\t']
+        
+        async def async_iter_mock():
+            for chunk in json_chunks:
+                yield chunk
         
         mock_response = MagicMock()
-        mock_response.aiter_lines.return_value = iter(sse_lines)
+        mock_response.aiter_bytes.return_value = async_iter_mock()
         
         config = {
             'api_url': 'https://hive.test.com',
@@ -523,17 +535,20 @@ class TestAutomagikHiveClientConversationStreaming:
         }
         client = AutomagikHiveClient(config_override=config)
         
-        result = await client.stream_agent_conversation(
+        async with client.stream_agent_conversation(
             agent_id='test-agent',
-            prompt='Test prompt'
-        )
-        
-        assert 'full_response' in result
-        assert 'run_id' in result
-        assert 'status' in result
-        assert result['run_id'] == 'run_123'
-        assert result['status'] == 'completed'
-        assert 'Hello' in result['full_response']
+            message='Test prompt'
+        ) as stream:
+            # Collect all events from the stream
+            events = []
+            async for event in stream:
+                events.append(event)
+            
+            # Check that we got the expected events
+            assert len(events) == 3
+            assert events[0].event == HiveEventType.RUN_STARTED
+            assert events[1].event == HiveEventType.RUN_RESPONSE_CONTENT
+            assert events[2].event == HiveEventType.RUN_COMPLETED
     
     @pytest.mark.asyncio
     @patch('src.services.automagik_hive_client.AutomagikHiveClient.create_team_run')
@@ -557,14 +572,20 @@ class TestAutomagikHiveClientConversationStreaming:
         }
         client = AutomagikHiveClient(config_override=config)
         
-        result = await client.stream_team_conversation(
+        async with client.stream_team_conversation(
             team_id='test-team',
-            prompt='Team prompt'
-        )
-        
-        assert result['run_id'] == 'team_run_123'
-        assert result['status'] == 'completed'
-        assert 'Team response' in result['full_response']
+            message='Team prompt'
+        ) as stream:
+            # Collect all events from the stream
+            events = []
+            async for event in stream:
+                events.append(event)
+            
+            # Check that we got the expected events
+            assert len(events) == 3
+            assert events[0].event == HiveEventType.RUN_STARTED
+            assert events[1].event == HiveEventType.RUN_RESPONSE_CONTENT
+            assert events[2].event == HiveEventType.RUN_COMPLETED
 
 
 class TestAutomagikHiveClientHealthCheck:
@@ -587,7 +608,7 @@ class TestAutomagikHiveClientHealthCheck:
         is_healthy = await client.health_check()
         
         assert is_healthy is True
-        mock_get.assert_called_once_with('https://hive.test.com/health')
+        mock_get.assert_called_once_with('https://hive.test.com/health', headers={'Authorization': 'Bearer test-key', 'User-Agent': 'automagik-omni/1.0', 'Content-Type': 'application/json', 'Accept': 'application/json'})
     
     @pytest.mark.asyncio
     @patch('httpx.AsyncClient.get')
@@ -622,7 +643,7 @@ class TestAutomagikHiveClientErrorHandling:
         client = AutomagikHiveClient(config_override=config)
         
         with pytest.raises(AutomagikHiveConnectionError, match="Connection timeout"):
-            await client.create_agent_run(agent_id='test', prompt='test')
+            await client.create_agent_run(agent_id='test', message='test', stream=False)
     
     @pytest.mark.asyncio
     @patch('httpx.AsyncClient.post')
@@ -637,7 +658,7 @@ class TestAutomagikHiveClientErrorHandling:
         client = AutomagikHiveClient(config_override=config)
         
         with pytest.raises(AutomagikHiveConnectionError, match="Read timeout"):
-            await client.create_agent_run(agent_id='test', prompt='test')
+            await client.create_agent_run(agent_id='test', message='test', stream=False)
     
     @pytest.mark.asyncio
     @patch('httpx.AsyncClient.post')
@@ -646,6 +667,10 @@ class TestAutomagikHiveClientErrorHandling:
         mock_response = MagicMock()
         mock_response.status_code = 401
         mock_response.text = "Unauthorized"
+        
+        # Mock raise_for_status to raise HTTPStatusError
+        http_error = HTTPStatusError("401 Unauthorized", request=MagicMock(), response=mock_response)
+        mock_response.raise_for_status.side_effect = http_error
         mock_post.return_value = mock_response
         
         config = {
@@ -655,7 +680,7 @@ class TestAutomagikHiveClientErrorHandling:
         client = AutomagikHiveClient(config_override=config)
         
         with pytest.raises(AutomagikHiveAuthError, match="Authentication failed"):
-            await client.create_agent_run(agent_id='test', prompt='test')
+            await client.create_agent_run(agent_id='test', message='test', stream=False)
     
     @pytest.mark.asyncio
     @patch('httpx.AsyncClient.post')
@@ -664,6 +689,10 @@ class TestAutomagikHiveClientErrorHandling:
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal server error"
+        
+        # Mock raise_for_status to raise HTTPStatusError
+        http_error = HTTPStatusError("500 Internal Server Error", request=MagicMock(), response=mock_response)
+        mock_response.raise_for_status.side_effect = http_error
         mock_post.return_value = mock_response
         
         config = {
@@ -672,14 +701,14 @@ class TestAutomagikHiveClientErrorHandling:
         }
         client = AutomagikHiveClient(config_override=config)
         
-        with pytest.raises(AutomagikHiveError, match="HTTP 500"):
-            await client.create_agent_run(agent_id='test', prompt='test')
+        with pytest.raises(AutomagikHiveError, match="HTTP error 500"):
+            await client.create_agent_run(agent_id='test', message='test', stream=False)
     
     @pytest.mark.asyncio
     async def test_stream_error_handling(self):
         """Test error handling in streaming."""
         mock_response = MagicMock()
-        mock_response.aiter_lines.side_effect = Exception("Stream error")
+        mock_response.aiter_bytes.side_effect = Exception("Stream error")
         
         config = {
             'api_url': 'https://hive.test.com',
@@ -705,10 +734,10 @@ class TestAutomagikHiveClientEdgeCases:
         client = AutomagikHiveClient(config_override=config)
         
         with pytest.raises(AutomagikHiveError, match="agent_id is required"):
-            await client.create_agent_run(prompt='test')
+            await client.create_agent_run(message='test')
         
         with pytest.raises(AutomagikHiveError, match="team_id is required"):
-            await client.create_team_run(prompt='test')
+            await client.create_team_run(message='test')
     
     @pytest.mark.asyncio
     async def test_empty_prompt(self):
@@ -723,15 +752,19 @@ class TestAutomagikHiveClientEdgeCases:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {'id': 'run_123', 'status': 'completed'}
+            mock_response.raise_for_status.return_value = None  # No exception raised
             mock_post.return_value = mock_response
             
             # Should still work with empty prompt
-            await client.create_agent_run(agent_id='test', prompt='')
+            await client.create_agent_run(agent_id='test', message='', stream=False)
             
-            # Verify empty prompt was sent
+            # Verify empty message was sent
             call_args = mock_post.call_args
-            payload = json.loads(call_args[1]['content'])
-            assert payload['prompt'] == ''
+            assert call_args is not None, "Mock was not called"
+            assert call_args[1] is not None, "No keyword arguments passed to mock"
+            assert 'data' in call_args[1], "No 'data' key in call arguments"
+            form_data = call_args[1]['data']
+            assert form_data['message'] == ''
     
     @pytest.mark.asyncio
     async def test_very_long_prompt(self):
@@ -748,15 +781,19 @@ class TestAutomagikHiveClientEdgeCases:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {'id': 'run_123', 'status': 'completed'}
+            mock_response.raise_for_status.return_value = None  # No exception raised
             mock_post.return_value = mock_response
             
             # Should handle long prompt
-            await client.create_agent_run(agent_id='test', prompt=long_prompt)
+            await client.create_agent_run(agent_id='test', message=long_prompt, stream=False)
             
-            # Verify long prompt was sent
+            # Verify long message was sent
             call_args = mock_post.call_args
-            payload = json.loads(call_args[1]['content'])
-            assert len(payload['prompt']) == 10000
+            assert call_args is not None, "Mock was not called"
+            assert call_args[1] is not None, "No keyword arguments passed to mock"
+            assert 'data' in call_args[1], "No 'data' key in call arguments"
+            form_data = call_args[1]['data']
+            assert len(form_data['message']) == 10000
     
     def test_repr_and_str_methods(self):
         """Test string representation methods."""

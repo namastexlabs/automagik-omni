@@ -529,18 +529,18 @@ class TestUserModel:
         """Test basic user creation."""
         user = User(
             phone_number="+1234567890",
-            first_name="Test",
-            last_name="User",
-            email="test@example.com"
+            whatsapp_jid="1234567890@s.whatsapp.net",
+            instance_name="test-instance",
+            display_name="Test User"
         )
         test_db.add(user)
         test_db.commit()
         
         assert user.id is not None
         assert user.phone_number == "+1234567890"
-        assert user.first_name == "Test"
-        assert user.last_name == "User"
-        assert user.email == "test@example.com"
+        assert user.whatsapp_jid == "1234567890@s.whatsapp.net"
+        assert user.display_name == "Test User"
+        assert user.instance_name == "test-instance"
     
     def test_user_with_instance(self, test_db):
         """Test user associated with an instance."""
@@ -556,11 +556,12 @@ class TestUserModel:
         # Create user with instance
         user = User(
             phone_number="+9876543210",
-            instance_id=instance.id
+            whatsapp_jid="9876543210@s.whatsapp.net",
+            instance_name=instance.name
         )
         test_db.add(user)
         test_db.commit()
         
-        assert user.instance_id == instance.id
+        assert user.instance_name == instance.name
         assert user.instance == instance
         assert instance.users == [user]

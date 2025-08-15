@@ -52,27 +52,32 @@ class AutomagikHiveClient:
         """
         # Extract configuration from InstanceConfig or dict
         if isinstance(config_override, InstanceConfig):
-            # Try unified fields first, fall back to legacy fields
+            # Try legacy fields first for backward compatibility, then unified fields
             self.api_url = (
-                getattr(config_override, 'agent_api_url', None) or 
-                getattr(config_override, 'hive_api_url', None)
+                getattr(config_override, 'hive_api_url', None) or 
+                getattr(config_override, 'agent_api_url', None)
             )
             self.api_key = (
-                getattr(config_override, 'agent_api_key', None) or 
-                getattr(config_override, 'hive_api_key', None)
+                getattr(config_override, 'hive_api_key', None) or 
+                getattr(config_override, 'agent_api_key', None)
             )
             self.default_agent_id = (
-                getattr(config_override, 'agent_id', None) or 
-                getattr(config_override, 'hive_agent_id', None)
+                getattr(config_override, 'hive_agent_id', None) or 
+                getattr(config_override, 'agent_id', None)
             )
-            self.default_team_id = getattr(config_override, 'agent_id', None) if getattr(config_override, 'agent_type', None) == 'team' else None
+            self.default_team_id = (
+                getattr(config_override, 'hive_team_id', None) or 
+                getattr(config_override, 'team_id', None)
+            )
             self.timeout = (
-                getattr(config_override, 'agent_timeout', None) or 
-                getattr(config_override, 'hive_timeout', 30)
+                getattr(config_override, 'hive_timeout', None) or 
+                getattr(config_override, 'agent_timeout', None) or
+                30
             )
             self.stream_mode = (
-                getattr(config_override, 'agent_stream_mode', None) or 
-                getattr(config_override, 'hive_stream_mode', True)
+                getattr(config_override, 'hive_stream_mode', None) or 
+                getattr(config_override, 'agent_stream_mode', None) or
+                True
             )
         elif isinstance(config_override, dict):
             self.api_url = config_override.get('api_url')
@@ -165,8 +170,8 @@ class AutomagikHiveClient:
     
     async def create_agent_run(
         self,
-        agent_id: str,
-        message: str,
+        agent_id: Optional[str] = None,
+        message: str = "",
         stream: bool = True,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -191,6 +196,11 @@ class AutomagikHiveClient:
             AutomagikHiveConnectionError: Connection failed
             AutomagikHiveStreamError: Streaming error
         """
+        if not agent_id:
+            agent_id = self.default_agent_id
+            if not agent_id:
+                raise AutomagikHiveError("agent_id is required")
+                
         endpoint = f"{self.api_url}/playground/agents/{agent_id}/runs"
         
         request_data = {
@@ -208,8 +218,8 @@ class AutomagikHiveClient:
     
     async def create_team_run(
         self,
-        team_id: str,
-        message: str,
+        team_id: Optional[str] = None,
+        message: str = "",
         stream: bool = True,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -229,6 +239,11 @@ class AutomagikHiveClient:
         Returns:
             HiveRunResponse if stream=False, AsyncIterator[HiveEvent] if stream=True
         """
+        if not team_id:
+            team_id = self.default_team_id
+            if not team_id:
+                raise AutomagikHiveError("team_id is required")
+                
         endpoint = f"{self.api_url}/playground/teams/{team_id}/runs"
         
         request_data = {
@@ -244,7 +259,7 @@ class AutomagikHiveClient:
         else:
             return await self._create_non_streaming_run(endpoint, request_data)
     
-    async def continue_conversation(
+    def continue_conversation(
         self,
         run_id: str,
         message: str,
@@ -276,7 +291,7 @@ class AutomagikHiveClient:
             metadata=metadata
         )
         
-        return self._create_streaming_run(endpoint, request_data.dict())
+        return self._create_streaming_run(endpoint, request_data.model_dump())
     
     async def _create_non_streaming_run(self, endpoint: str, payload: dict) -> Dict[str, Any]:
         """Create a non-streaming run using multipart/form-data."""
@@ -817,3 +832,11 @@ class AutomagikHiveClient:
         except Exception as e:
             logger.warning(f"Health check failed: {e}")
             return False
+    
+    def __repr__(self) -> str:
+        """String representation of the client without exposing sensitive data."""
+        return f"<AutomagikHiveClient(api_url='{self.api_url}', agent_id='{self.default_agent_id}')>"
+    
+    def __str__(self) -> str:
+        """String representation of the client."""
+        return f"AutomagikHiveClient({self.api_url})"

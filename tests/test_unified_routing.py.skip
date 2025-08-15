@@ -1,27 +1,27 @@
 """
 Comprehensive tests for unified message routing.
-Tests the UnifiedMessageRouter with unified fields and routing decisions.
+Tests the MessageRouter with unified fields and routing decisions.
 """
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, call
 from typing import Dict, Any
 
-from src.services.message_router_unified import UnifiedMessageRouter
+from src.services.message_router import MessageRouter
 from src.db.models import InstanceConfig, User
 
 
-class TestUnifiedMessageRouterInit:
+class TestMessageRouterInit:
     """Test router initialization."""
     
     def test_router_initialization(self):
         """Test router can be initialized successfully."""
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         assert router is not None
         assert hasattr(router, 'logger')
 
 
-class TestUnifiedMessageRouterRouteTypeDetermination:
+class TestMessageRouterRouteTypeDetermination:
     """Test routing type determination logic."""
     
     def test_determine_route_type_hive_streaming(self, test_db):
@@ -38,7 +38,7 @@ class TestUnifiedMessageRouterRouteTypeDetermination:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         route_type = router._determine_route_type_unified(instance_config)
         
         assert route_type == "hive_streaming"
@@ -57,7 +57,7 @@ class TestUnifiedMessageRouterRouteTypeDetermination:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         route_type = router._determine_route_type_unified(instance_config)
         
         assert route_type == "hive_standard"
@@ -75,7 +75,7 @@ class TestUnifiedMessageRouterRouteTypeDetermination:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         route_type = router._determine_route_type_unified(instance_config)
         
         assert route_type == "automagik"
@@ -93,14 +93,14 @@ class TestUnifiedMessageRouterRouteTypeDetermination:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         route_type = router._determine_route_type_unified(instance_config)
         
         # Should default to automagik for unknown types
         assert route_type == "automagik"
 
 
-class TestUnifiedMessageRouterStreamingLogic:
+class TestMessageRouterStreamingLogic:
     """Test streaming decision logic."""
     
     def test_should_use_streaming_unified_true(self, test_db):
@@ -117,7 +117,7 @@ class TestUnifiedMessageRouterStreamingLogic:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         should_stream = router.should_use_streaming_unified(instance_config)
         
         assert should_stream is True
@@ -136,7 +136,7 @@ class TestUnifiedMessageRouterStreamingLogic:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         should_stream = router.should_use_streaming_unified(instance_config)
         
         assert should_stream is False
@@ -155,7 +155,7 @@ class TestUnifiedMessageRouterStreamingLogic:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         should_stream = router.should_use_streaming_unified(instance_config)
         
         assert should_stream is False
@@ -174,19 +174,19 @@ class TestUnifiedMessageRouterStreamingLogic:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         should_stream = router.should_use_streaming_unified(instance_config)
         
         assert should_stream is False
 
 
-class TestUnifiedMessageRouterMainProcessing:
+class TestMessageRouterMainProcessing:
     """Test the main process_message_unified method."""
     
     @pytest.mark.asyncio
     async def test_process_message_unified_no_config(self):
         """Test processing without instance config raises error."""
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         
         with pytest.raises(ValueError, match="instance_config is required"):
             await router.process_message_unified(
@@ -199,7 +199,7 @@ class TestUnifiedMessageRouterMainProcessing:
             )
     
     @pytest.mark.asyncio
-    @patch('src.services.message_router_unified.UnifiedMessageRouter._process_hive_streaming')
+    @patch('src.services.message_router_unified.MessageRouter._process_hive_streaming')
     async def test_process_message_unified_hive_streaming(self, mock_process_streaming, test_db):
         """Test processing routes to Hive streaming."""
         # Setup instance config for streaming
@@ -221,7 +221,7 @@ class TestUnifiedMessageRouterMainProcessing:
             "route_type": "hive_streaming"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router.process_message_unified(
             message_text="Test message",
             user_id="user123",
@@ -237,7 +237,7 @@ class TestUnifiedMessageRouterMainProcessing:
         assert result["response"] == "Streaming response"
     
     @pytest.mark.asyncio
-    @patch('src.services.message_router_unified.UnifiedMessageRouter._process_hive_standard')
+    @patch('src.services.message_router_unified.MessageRouter._process_hive_standard')
     async def test_process_message_unified_hive_standard(self, mock_process_standard, test_db):
         """Test processing routes to Hive standard."""
         # Setup instance config for standard
@@ -259,7 +259,7 @@ class TestUnifiedMessageRouterMainProcessing:
             "route_type": "hive_standard"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router.process_message_unified(
             message_text="Test message",
             user_id="user123",
@@ -275,7 +275,7 @@ class TestUnifiedMessageRouterMainProcessing:
         assert result["response"] == "Standard response"
     
     @pytest.mark.asyncio
-    @patch('src.services.message_router_unified.UnifiedMessageRouter._process_automagik_standard')
+    @patch('src.services.message_router_unified.MessageRouter._process_automagik_standard')
     async def test_process_message_unified_automagik(self, mock_process_automagik, test_db):
         """Test processing routes to Automagik."""
         # Setup instance config for Automagik
@@ -296,7 +296,7 @@ class TestUnifiedMessageRouterMainProcessing:
             "route_type": "automagik"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router.process_message_unified(
             message_text="Test message",
             user_id="user123",
@@ -312,7 +312,7 @@ class TestUnifiedMessageRouterMainProcessing:
         assert result["response"] == "Automagik response"
 
 
-class TestUnifiedMessageRouterHiveStreaming:
+class TestMessageRouterHiveStreaming:
     """Test Hive streaming processing."""
     
     @pytest.mark.asyncio
@@ -342,7 +342,7 @@ class TestUnifiedMessageRouterHiveStreaming:
             "status": "completed"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router._process_hive_streaming(
             message_text="Test message",
             user_id="user123",
@@ -391,7 +391,7 @@ class TestUnifiedMessageRouterHiveStreaming:
             "status": "completed"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router._process_hive_streaming(
             message_text="Team message",
             user_id="user123",
@@ -413,7 +413,7 @@ class TestUnifiedMessageRouterHiveStreaming:
         assert result["response"] == "Team streaming response"
     
     @pytest.mark.asyncio
-    @patch('src.services.message_router_unified.UnifiedMessageRouter._process_automagik_standard')
+    @patch('src.services.message_router_unified.MessageRouter._process_automagik_standard')
     @patch('src.services.automagik_hive_client.AutomagikHiveClient')
     async def test_process_hive_streaming_fallback(self, mock_client_class, mock_automagik_fallback, test_db):
         """Test Hive streaming fallback to Automagik on error."""
@@ -441,7 +441,7 @@ class TestUnifiedMessageRouterHiveStreaming:
             "source": "automagik"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router._process_hive_streaming(
             message_text="Test message",
             user_id="user123",
@@ -458,7 +458,7 @@ class TestUnifiedMessageRouterHiveStreaming:
         assert result["response"] == "Fallback response"
 
 
-class TestUnifiedMessageRouterHiveStandard:
+class TestMessageRouterHiveStandard:
     """Test Hive standard processing."""
     
     @pytest.mark.asyncio
@@ -491,7 +491,7 @@ class TestUnifiedMessageRouterHiveStandard:
         
         mock_client.create_agent_run.return_value = mock_response
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router._process_hive_standard(
             message_text="Standard message",
             user_id="user123",
@@ -544,7 +544,7 @@ class TestUnifiedMessageRouterHiveStandard:
         
         mock_client.create_team_run.return_value = mock_response
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router._process_hive_standard(
             message_text="Team standard message",
             user_id="user123",
@@ -567,7 +567,7 @@ class TestUnifiedMessageRouterHiveStandard:
         assert result["response"] == "Standard team response"
     
     @pytest.mark.asyncio
-    @patch('src.services.message_router_unified.UnifiedMessageRouter._process_automagik_standard')
+    @patch('src.services.message_router_unified.MessageRouter._process_automagik_standard')
     @patch('src.services.automagik_hive_client.AutomagikHiveClient')
     async def test_process_hive_standard_fallback(self, mock_client_class, mock_automagik_fallback, test_db):
         """Test Hive standard fallback to Automagik on error."""
@@ -595,7 +595,7 @@ class TestUnifiedMessageRouterHiveStandard:
             "source": "automagik"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router._process_hive_standard(
             message_text="Test message",
             user_id="user123",
@@ -612,7 +612,7 @@ class TestUnifiedMessageRouterHiveStandard:
         assert result["response"] == "Automagik fallback response"
 
 
-class TestUnifiedMessageRouterAutomagikStandard:
+class TestMessageRouterAutomagikStandard:
     """Test Automagik standard processing."""
     
     @pytest.mark.asyncio
@@ -639,7 +639,7 @@ class TestUnifiedMessageRouterAutomagikStandard:
             "status": "success"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router._process_automagik_standard(
             message_text="Automagik message",
             user_id="user123",
@@ -659,12 +659,12 @@ class TestUnifiedMessageRouterAutomagikStandard:
         assert result["source"] == "automagik_hive"
 
 
-class TestUnifiedMessageRouterResponseNormalization:
+class TestMessageRouterResponseNormalization:
     """Test response normalization methods."""
     
     def test_normalize_hive_response_dict(self):
         """Test normalization of dictionary response."""
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         
         input_response = {
             "full_response": "Test response",
@@ -682,7 +682,7 @@ class TestUnifiedMessageRouterResponseNormalization:
     
     def test_normalize_hive_response_object(self):
         """Test normalization of object response."""
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         
         # Mock response object
         mock_response = MagicMock()
@@ -699,7 +699,7 @@ class TestUnifiedMessageRouterResponseNormalization:
     
     def test_normalize_hive_response_string(self):
         """Test normalization of string response."""
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         
         result = router._normalize_hive_response("Simple string response")
         
@@ -708,7 +708,7 @@ class TestUnifiedMessageRouterResponseNormalization:
         assert result["original_response"] == "Simple string response"
 
 
-class TestUnifiedMessageRouterStreamingHelpers:
+class TestMessageRouterStreamingHelpers:
     """Test streaming helper methods."""
     
     @pytest.mark.asyncio
@@ -722,7 +722,7 @@ class TestUnifiedMessageRouterStreamingHelpers:
             "status": "completed"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         kwargs = {
             "message_text": "Agent test",
             "user_id": "user123",
@@ -755,7 +755,7 @@ class TestUnifiedMessageRouterStreamingHelpers:
             "status": "completed"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         kwargs = {
             "message_text": "Team test",
             "user_id": "user456",
@@ -778,7 +778,7 @@ class TestUnifiedMessageRouterStreamingHelpers:
         assert result["full_response"] == "Team conversation"
 
 
-class TestUnifiedMessageRouterErrorHandling:
+class TestMessageRouterErrorHandling:
     """Test error handling in routing."""
     
     @pytest.mark.asyncio
@@ -797,7 +797,7 @@ class TestUnifiedMessageRouterErrorHandling:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         
         with patch('src.services.automagik_hive_client.AutomagikHiveClient') as mock_client_class:
             mock_client = AsyncMock()
@@ -840,7 +840,7 @@ class TestUnifiedMessageRouterErrorHandling:
         test_db.add(instance_config)
         test_db.commit()
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         
         with patch('src.services.automagik_hive_client.AutomagikHiveClient') as mock_client_class:
             mock_client = AsyncMock()
@@ -868,7 +868,7 @@ class TestUnifiedMessageRouterErrorHandling:
             assert result["response"] == "Default agent response"
 
 
-class TestUnifiedMessageRouterIntegration:
+class TestMessageRouterIntegration:
     """Integration tests for complete message routing flow."""
     
     @pytest.mark.asyncio
@@ -904,7 +904,7 @@ class TestUnifiedMessageRouterIntegration:
             "status": "completed"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router.process_message_unified(
             message_text="Integration test message",
             user_id=user.id,
@@ -957,7 +957,7 @@ class TestUnifiedMessageRouterIntegration:
             "status": "success"
         }
         
-        router = UnifiedMessageRouter()
+        router = MessageRouter()
         result = await router.process_message_unified(
             message_text="Automagik integration test",
             user_id=user.id,
