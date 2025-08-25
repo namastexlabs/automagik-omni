@@ -125,7 +125,11 @@ class HealthMonitor:
                         except Exception as e:
                             logger.error(f"Health callback error: {e}")
                     
-                    logger.info(f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}")
+                    # Only log status changes that indicate problems or recovery
+                    if health_status.status in ['degraded', 'unhealthy'] or (previous_status in ['degraded', 'unhealthy'] and health_status.status == 'healthy'):
+                        logger.info(f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}")
+                    else:
+                        logger.debug(f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}")
                     previous_status = health_status.status
                 
                 await asyncio.sleep(self.check_interval)

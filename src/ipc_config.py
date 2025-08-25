@@ -43,7 +43,7 @@ class IPCConfig:
             return cls.DEFAULT_SOCKET_DIR
         
         # Fallback to user directory
-        logger.info(f"Cannot write to {cls.DEFAULT_SOCKET_DIR}, using user directory: {cls.USER_SOCKET_DIR}")
+        logger.debug(f"Cannot write to {cls.DEFAULT_SOCKET_DIR}, using user directory: {cls.USER_SOCKET_DIR}")
         cls._ensure_directory(cls.USER_SOCKET_DIR)
         return cls.USER_SOCKET_DIR
     

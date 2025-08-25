@@ -480,7 +480,7 @@ class AgentApiClient:
         )
         
         # Debug log the result from run_agent
-        logger.info(f"DEBUG: run_agent returned: {result}")
+        logger.debug(f"run_agent returned: {result}")
 
         # Record processing time and log response
         processing_time = int((time.time() - start_time) * 1000)
@@ -622,7 +622,7 @@ class AgentApiClient:
             if response.status_code == 200:
                 try:
                     response_data = response.json()
-                    logger.info(f"Raw Hive API response: {response_data}")
+                    logger.debug(f"Raw Hive API response: {response_data}")
                     
                     # Extract the content from Hive response
                     content = response_data.get('content', 'No response content')

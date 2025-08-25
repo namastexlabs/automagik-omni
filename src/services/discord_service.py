@@ -105,9 +105,17 @@ class DiscordService:
         
         logger.info(f"🏥 Checking API health before starting Discord bot...")
         
-        if not wait_for_api_health(api_host, api_port, health_timeout):
-            logger.error("❌ API is not healthy - cannot start Discord bot")
-            logger.error("🚨 Make sure the API server is running and healthy")
+        api_url = f"http://{api_host}:{api_port}"
+        
+        # Run health check in async context
+        try:
+            is_healthy = asyncio.run(wait_for_api_health(api_url, health_timeout))
+            if not is_healthy:
+                logger.error("❌ API is not healthy - cannot start Discord bot")
+                logger.error("🚨 Make sure the API server is running and healthy")
+                return False
+        except Exception as e:
+            logger.error(f"❌ Health check failed: {e}")
             return False
         
         logger.info("✅ API is healthy - proceeding with Discord bot startup")
