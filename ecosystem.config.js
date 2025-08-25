@@ -1,9 +1,8 @@
 // ===================================================================
-// 🌐 Automagik-Omni - Standalone PM2 Configuration
+// 🌐 Automagik-Omni - Dual Service PM2 Configuration with Health Checks
 // ===================================================================
-// This file enables automagik-omni to run independently
-// It extracts the same configuration from the central ecosystem
-
+// This file manages both the API server and Discord bot services with proper startup ordering
+// It ensures API is healthy before Discord bot attempts to start
 const path = require('path');
 const fs = require('fs');
 
@@ -57,15 +56,31 @@ if (fs.existsSync(envPath)) {
   });
 }
 
+// Create logs and scripts directories if they don't exist
+const logsDir = path.join(PROJECT_ROOT, 'logs');
+const scriptsDir = path.join(PROJECT_ROOT, 'scripts');
+
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+if (!fs.existsSync(scriptsDir)) {
+  fs.mkdirSync(scriptsDir, { recursive: true });
+}
+
+const version = extractVersionFromPyproject(PROJECT_ROOT);
+
 module.exports = {
   apps: [
+    // ===================================================================
+    // 🚀 Automagik-Omni API Server (Priority 1 - Starts First)
+    // ===================================================================
     {
-      name: 'automagik-omni',
+      name: 'automagik-omni-api',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/uvicorn',
       args: 'src.api.app:app --host 0.0.0.0 --port ' + (envVars.AUTOMAGIK_OMNI_API_PORT || '8882'),
       interpreter: 'none',
-      version: extractVersionFromPyproject(PROJECT_ROOT),
+      version: version,
       env: {
         ...envVars,
         PYTHONPATH: PROJECT_ROOT,
@@ -83,12 +98,101 @@ module.exports = {
       min_uptime: '10s',
       restart_delay: 1000,
       kill_timeout: 5000,
-      error_file: path.join(PROJECT_ROOT, 'logs/err.log'),
-      out_file: path.join(PROJECT_ROOT, 'logs/out.log'),
-      log_file: path.join(PROJECT_ROOT, 'logs/combined.log'),
+      error_file: path.join(PROJECT_ROOT, 'logs/api-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/api-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/api-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+
+    // ===================================================================
+    // ⏳ API Health Check Wait Script (Priority 2 - Waits for API)
+    // ===================================================================
+    {
+      name: 'automagik-omni-wait',
+      cwd: PROJECT_ROOT,
+      script: '.venv/bin/python',
+      args: 'scripts/wait_for_api.py',
+      interpreter: 'none',
+      version: version,
+      env: {
+        ...envVars,
+        PYTHONPATH: PROJECT_ROOT,
+        AUTOMAGIK_OMNI_API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || 'localhost',
+        AUTOMAGIK_OMNI_API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
+        DISCORD_HEALTH_CHECK_TIMEOUT: '120',
+        NODE_ENV: 'production'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false, // Don't restart - it's a one-time check
+      watch: false,
+      restart_delay: 0,
+      kill_timeout: 2000,
+      error_file: path.join(PROJECT_ROOT, 'logs/wait-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/wait-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/wait-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+
+    // ===================================================================
+    // 🤖 Automagik-Omni Discord Bot Service (Priority 3 - Starts After API)
+    // ===================================================================
+    {
+      name: 'automagik-omni-discord',
+      cwd: PROJECT_ROOT,
+      script: '.venv/bin/python',
+      args: 'src/commands/discord_cmd.py start ' + (envVars.DEFAULT_DISCORD_INSTANCE || 'testonho-discord'),
+      interpreter: 'none',
+      version: version,
+      env: {
+        ...envVars,
+        PYTHONPATH: PROJECT_ROOT,
+        DISCORD_BOT_TOKEN: envVars.DISCORD_BOT_TOKEN || '',
+        DISCORD_CLIENT_ID: envVars.DISCORD_CLIENT_ID || '',
+        DEFAULT_DISCORD_INSTANCE: envVars.DEFAULT_DISCORD_INSTANCE || 'default',
+        AUTOMAGIK_OMNI_API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || 'localhost',
+        AUTOMAGIK_OMNI_API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
+        DISCORD_HEALTH_CHECK_TIMEOUT: '60',
+        NODE_ENV: 'production'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      max_restarts: 5,
+      min_uptime: '30s',
+      restart_delay: 10000, // Wait 10s before restart to allow API recovery
+      kill_timeout: 10000,
+      error_file: path.join(PROJECT_ROOT, 'logs/discord-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/discord-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/discord-combined.log'),
       merge_logs: true,
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
-  ]
+  ],
+
+  // ===================================================================
+  // 🔧 PM2 Deploy Configuration (Optional)
+  // ===================================================================
+  deploy: {
+    production: {
+      user: 'deploy',
+      host: 'your-server.com',
+      ref: 'origin/main',
+      repo: 'git@github.com:your-org/automagik-omni.git',
+      path: '/var/www/automagik-omni',
+      'pre-deploy-local': '',
+      'post-deploy': 'uv sync && pm2 reload ecosystem_with_health_check.config.js --env production',
+      'pre-setup': '',
+      env: {
+        NODE_ENV: 'production'
+      }
+    }
+  }
 };

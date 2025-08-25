@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
+from src.channels.message_sender import OmniChannelMessageSender
 from src.services.user_service import user_service
 
 logger = logging.getLogger(__name__)
@@ -167,7 +168,7 @@ class MessageResponse(BaseModel):
 
 
 def _resolve_recipient(
-    user_id: Optional[str], phone_number: Optional[str], db: Session
+    user_id: Optional[str], phone_number: Optional[str], db: Session, channel_type: str = "whatsapp"
 ) -> str:
     """
     Resolve user_id or phone_number to WhatsApp JID using the new user service.
@@ -232,7 +233,12 @@ def _resolve_recipient(
     # Direct phone number usage
     if phone_number:
         logger.info(f"Using provided phone number directly: {phone_number}")
-        return _format_phone_to_jid(phone_number)
+        # For Discord, return as-is (it's a channel ID)
+        # For WhatsApp, format to JID
+        if channel_type == "discord":
+            return phone_number
+        else:
+            return _format_phone_to_jid(phone_number)
 
 
 def _format_phone_to_jid(phone_number: str) -> str:
@@ -271,21 +277,21 @@ async def send_text_message(
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper formatting)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
-        # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        # Create omnichannel message sender
+        sender = OmniChannelMessageSender(instance_config)
 
-        # Prepare mention parameters
+        # Prepare mention parameters (WhatsApp-specific)
         mentioned_jids = None
-        if request.mentioned:
+        if instance_config.channel_type == "whatsapp" and request.mentioned:
             # Convert phone numbers to WhatsApp JIDs
             mentioned_jids = WhatsAppMentionParser.parse_explicit_mentions(request.mentioned)
             logger.info(f"Converted {len(request.mentioned)} explicit mentions to JIDs")
 
-        # Send the message with mention support
-        success = sender.send_text_message(
+        # Send the message with channel-appropriate handling
+        result = await sender.send_text_message(
             recipient=recipient,
             text=request.text,
             quoted_message=None,  # TODO: Implement quoted message lookup
@@ -295,9 +301,9 @@ async def send_text_message(
         )
 
         return MessageResponse(
-            success=success,
-            status="sent" if success else "failed",
-            message_id=None,  # Evolution API doesn't return message ID in current implementation
+            success=result.get("success", False),
+            status="sent" if result.get("success") else "failed",
+            message_id=None,  # Message ID not always available
         )
 
     except HTTPException:
