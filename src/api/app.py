@@ -261,9 +261,6 @@ app = FastAPI(
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
 
-# Include agent routes for message processing
-from src.api.routes.agent import router as agent_router
-app.include_router(agent_router, tags=["agent"])
 
 # Include trace management routes
 from src.api.routes.traces import router as traces_router
