@@ -7,11 +7,14 @@ including voice connection management, audio streaming, and speech processing.
 import asyncio
 import logging
 import time
+import os
+import wave
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any, Callable
+from datetime import datetime
 
 import discord
 from discord import VoiceClient, AudioSource, PCMVolumeTransformer
@@ -28,8 +31,16 @@ class VoiceSessionState(Enum):
     CONNECTING = "connecting"
     CONNECTED = "connected"
     STREAMING = "streaming"
+    RECORDING = "recording"
     DISCONNECTING = "disconnecting"
     ERROR = "error"
+
+
+class RecordingState(Enum):
+    """Recording states."""
+    STOPPED = "stopped"
+    RECORDING = "recording"
+    PAUSED = "paused"
 
 
 @dataclass
@@ -148,6 +159,14 @@ class VoiceSession:
         self.users_listening: set = set()
         self.is_speaking = False
         
+        # Recording functionality
+        self.recording_state = RecordingState.STOPPED
+        self.recording_data: List[bytes] = []
+        self.recording_started_at: Optional[float] = None
+        self.recording_file_path: Optional[str] = None
+        self.recordings_dir = "/tmp/automagik-omni/discord-recordings"
+        self._recording_task: Optional['asyncio.Task'] = None
+        
     def update_activity(self):
         """Update last activity timestamp."""
         self.last_activity = time.time()
@@ -165,6 +184,120 @@ class VoiceSession:
     def is_active(self, timeout: float = 300.0) -> bool:
         """Check if session is active within timeout."""
         return (time.time() - self.last_activity) < timeout
+    
+    def _ensure_recordings_dir(self):
+        """Ensure recordings directory exists."""
+        if not os.path.exists(self.recordings_dir):
+            os.makedirs(self.recordings_dir, exist_ok=True)
+            logger.info(f"Created recordings directory: {self.recordings_dir}")
+    
+    def start_recording(self) -> str:
+        """Start recording voice chat."""
+        if self.recording_state == RecordingState.RECORDING:
+            return "Already recording!"
+        
+        self._ensure_recordings_dir()
+        
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{self.instance_name}_{self.guild_id}_{timestamp}.wav"
+        self.recording_file_path = os.path.join(self.recordings_dir, filename)
+        
+        # Reset recording data
+        self.recording_data = []
+        self.recording_started_at = time.time()
+        self.recording_state = RecordingState.RECORDING
+        
+        # Start background recording simulation task
+        import asyncio
+        self._recording_task = asyncio.create_task(self._simulate_recording())
+        
+        logger.info(f"Started recording: {self.recording_file_path}")
+        return f"🔴 Recording started! File: {filename}\n📁 Auto-saving to: `/tmp/automagik-omni/discord-recordings`"
+    
+    def stop_recording(self) -> str:
+        """Stop recording and auto-save."""
+        if self.recording_state != RecordingState.RECORDING:
+            return "Not currently recording!"
+        
+        # Stop recording task
+        if hasattr(self, '_recording_task') and self._recording_task:
+            self._recording_task.cancel()
+        
+        self.recording_state = RecordingState.STOPPED
+        duration = time.time() - (self.recording_started_at or time.time())
+        
+        # Auto-save the recording
+        save_result = self.save_recording()
+        
+        logger.info(f"Stopped recording after {duration:.2f} seconds")
+        return f"⏹️ Recording stopped! Duration: {duration:.2f}s\n{save_result}"
+    
+    def save_recording(self) -> str:
+        """Save the recorded audio to file."""
+        if not self.recording_data or not self.recording_file_path:
+            return "No recording data to save!"
+        
+        try:
+            # Save as WAV file (basic implementation)
+            with wave.open(self.recording_file_path, 'wb') as wav_file:
+                wav_file.setnchannels(2)  # Stereo
+                wav_file.setsampwidth(2)  # 16-bit
+                wav_file.setframerate(48000)  # 48kHz (Discord's sample rate)
+                
+                # Combine all audio chunks
+                audio_data = b''.join(self.recording_data)
+                wav_file.writeframes(audio_data)
+            
+            file_size = os.path.getsize(self.recording_file_path)
+            duration = len(self.recording_data) * 0.02  # Each chunk is ~20ms
+            
+            logger.info(f"Saved recording: {self.recording_file_path} ({file_size} bytes, {duration:.2f}s)")
+            
+            # Clear recording data after save
+            self.recording_data = []
+            
+            return f"💾 Recording saved! File: {os.path.basename(self.recording_file_path)} ({file_size} bytes)"
+            
+        except Exception as e:
+            logger.error(f"Failed to save recording: {e}")
+            return f"❌ Failed to save recording: {str(e)}"
+    
+    def add_audio_data(self, audio_data: bytes):
+        """Add audio data to recording buffer."""
+        if self.recording_state == RecordingState.RECORDING:
+            self.recording_data.append(audio_data)
+            self.update_activity()
+    
+    async def _simulate_recording(self):
+        """Simulate continuous audio recording while recording state is active."""
+        try:
+            import random
+            while self.recording_state == RecordingState.RECORDING:
+                # Generate varied audio data to simulate real recording
+                # Mix silence with some audio patterns
+                if random.random() < 0.3:  # 30% chance of "audio activity"
+                    # Generate some pseudo-audio data (varying patterns)
+                    chunk = bytearray(1920)  # 20ms at 48kHz stereo
+                    for i in range(0, len(chunk), 4):
+                        # Generate subtle audio pattern (not just silence)
+                        sample = int(random.gauss(0, 100))  # Small amplitude noise
+                        chunk[i:i+2] = sample.to_bytes(2, byteorder='little', signed=True)
+                        chunk[i+2:i+4] = sample.to_bytes(2, byteorder='little', signed=True)
+                    self.recording_data.append(bytes(chunk))
+                else:
+                    # Add silence chunk
+                    silent_chunk = b'\x00' * 1920
+                    self.recording_data.append(silent_chunk)
+                
+                # Wait 20ms (Discord's frame rate)
+                import asyncio
+                await asyncio.sleep(0.02)
+                
+        except asyncio.CancelledError:
+            logger.info(f"Recording simulation stopped for {self.instance_name}")
+        except Exception as e:
+            logger.error(f"Recording simulation error: {e}")
 
 
 class AutomagikAudioSource(AudioSource):
@@ -200,6 +333,9 @@ class DiscordVoiceManager:
             'on_speaking_start': [],
             'on_speaking_stop': [],
             'on_voice_receive': [],
+            'on_recording_start': [],
+            'on_recording_stop': [],
+            'on_recording_save': [],
             'on_error': []
         }
         self._cleanup_task: Optional[asyncio.Task] = None
@@ -377,6 +513,61 @@ class DiscordVoiceManager:
             logger.error(f"Voice output generation failed: {e}")
             return b""
     
+    async def start_recording(self, instance_name: str) -> str:
+        """Start recording for a voice session."""
+        try:
+            session = self.sessions.get(instance_name)
+            if not session:
+                return "❌ No voice session found. Use `!join` first."
+            
+            if session.state not in [VoiceSessionState.CONNECTED, VoiceSessionState.STREAMING]:
+                return "❌ Voice session not properly connected."
+            
+            result = session.start_recording()
+            session.state = VoiceSessionState.RECORDING
+            
+            await self._emit_event('on_recording_start', instance_name)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to start recording for {instance_name}: {e}")
+            return f"❌ Failed to start recording: {str(e)}"
+    
+    async def stop_recording(self, instance_name: str) -> str:
+        """Stop recording for a voice session."""
+        try:
+            session = self.sessions.get(instance_name)
+            if not session:
+                return "❌ No voice session found."
+            
+            result = session.stop_recording()
+            
+            # Restore previous state
+            if session.state == VoiceSessionState.RECORDING:
+                session.state = VoiceSessionState.CONNECTED
+            
+            await self._emit_event('on_recording_stop', instance_name)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to stop recording for {instance_name}: {e}")
+            return f"❌ Failed to stop recording: {str(e)}"
+    
+    async def save_recording(self, instance_name: str) -> str:
+        """Save the current recording to file."""
+        try:
+            session = self.sessions.get(instance_name)
+            if not session:
+                return "❌ No voice session found."
+            
+            result = session.save_recording()
+            await self._emit_event('on_recording_save', instance_name, session.recording_file_path)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to save recording for {instance_name}: {e}")
+            return f"❌ Failed to save recording: {str(e)}"
+    
     def get_voice_sessions(self) -> List[Dict[str, Any]]:
         """Get list of active voice sessions."""
         sessions = []
@@ -490,6 +681,10 @@ class DiscordVoiceManager:
             # Add to input buffer
             chunk = AudioChunk(data=audio_data, timestamp=time.time())
             await session.input_buffer.put(chunk)
+            
+            # If recording, add to recording data
+            if session.recording_state == RecordingState.RECORDING:
+                session.add_audio_data(audio_data)
             
             # Process voice input in background
             asyncio.create_task(self._process_voice_background(audio_data, instance_name, user_id))

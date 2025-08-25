@@ -7,6 +7,7 @@ event management, message routing, and health monitoring.
 
 import asyncio
 import logging
+import time
 from typing import Dict, Optional, Any, List
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -135,6 +136,12 @@ class AutomagikBot(commands.Bot):
         # Start periodic heartbeat task
         asyncio.create_task(self._periodic_heartbeat())
         
+        # Add help command
+        @self.command(name='help')
+        async def help_command(ctx):
+            """Display all available bot commands with beautiful formatting."""
+            await self.manager._handle_help_command(self.instance_name, ctx)
+        
         # Add voice commands
         @self.command(name='join')
         async def join_voice(ctx):
@@ -146,10 +153,6 @@ class AutomagikBot(commands.Bot):
             """Leave the current voice channel."""
             await self.manager._handle_voice_leave(self.instance_name, ctx)
             
-        @self.command(name='record')
-        async def record_voice(ctx, action: str = 'toggle'):
-            """Start or stop recording voice chat (toggle/start/stop)."""
-            await self.manager._handle_voice_record(self.instance_name, ctx, action)
     
     async def send_channel_message(self, channel_id: int, content: str) -> bool:
         """
@@ -810,27 +813,87 @@ class DiscordBotManager:
             logger.error(f"Voice leave error for {instance_name}: {e}")
             await ctx.send("❌ Error leaving voice channel!")
     
-    async def _handle_voice_record(self, instance_name: str, ctx, action: str):
-        """Handle !record command - start/stop/toggle voice recording."""
+    
+    async def _handle_help_command(self, instance_name: str, ctx):
+        """Handle !help command - display all available commands with beautiful formatting."""
         try:
-            session = self.voice_manager.get_session_by_instance(instance_name)
-            if not session:
-                await ctx.send("❌ Not connected to any voice channel! Use `!join` first.")
-                return
+            # Create a beautiful embed for the help message
+            embed = discord.Embed(
+                title="🤖 Automagik Omni Discord Bot Commands",
+                description="Welcome to Automagik Omni! Here are all available commands:",
+                color=0x7289da  # Discord blurple color
+            )
             
-            # For now, just acknowledge the command (recording implementation would go here)
-            if action.lower() in ['start', 'toggle']:
-                await ctx.send("🔴 **Recording started!** Voice chat is now being recorded.")
-                logger.info(f"Voice recording started for {instance_name}")
-            elif action.lower() == 'stop':
-                await ctx.send("⏹️ **Recording stopped!** Voice recording has ended.")
-                logger.info(f"Voice recording stopped for {instance_name}")
-            else:
-                await ctx.send("❓ Usage: `!record start/stop/toggle`")
-                
+            # Add bot info
+            bot = self.bots.get(instance_name)
+            if bot:
+                embed.set_thumbnail(url=bot.user.avatar.url if bot.user.avatar else None)
+            
+            # Command categories
+            embed.add_field(
+                name="🎤 Voice Commands",
+                value=(
+                    "`!join` - Join your current voice channel\n"
+                    "`!leave` - Leave the current voice channel"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="ℹ️ Information Commands",
+                value="`!help` - Show this help message",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="💬 Chat Features",
+                value=(
+                    "• **Mention me** (@bot) to start a conversation\n"
+                    "• **Direct Messages** are always processed\n"
+                    "• Powered by Automagik AI agents"
+                ),
+                inline=False
+            )
+            
+            # Add usage tips
+            embed.add_field(
+                name="💡 Tips",
+                value=(
+                    "• Use `!join` to bring me into voice chat\n"
+                    "• Use `!leave` when done with voice\n"
+                    "• Mention me in channels to chat\n"
+                    "• DM me anytime for private conversations"
+                ),
+                inline=False
+            )
+            
+            # Add footer with instance info
+            embed.set_footer(
+                text=f"Instance: {instance_name} | Automagik Omni v1.0",
+                icon_url="https://cdn.discordapp.com/emojis/1234567890123456789.png"  # Would use actual emoji if available
+            )
+            
+            # Add timestamp
+            embed.timestamp = datetime.now(timezone.utc)
+            
+            await ctx.send(embed=embed)
+            logger.info(f"Help command executed for {instance_name}")
+            
         except Exception as e:
-            logger.error(f"Voice record error for {instance_name}: {e}")
-            await ctx.send("❌ Error with voice recording!")
+            logger.error(f"Help command error for {instance_name}: {e}")
+            # Fallback to simple text message if embed fails
+            help_text = (
+                "🤖 **Automagik Omni Discord Bot Commands**\n\n"
+                "🎤 **Voice Commands:**\n"
+                "`!join` - Join your voice channel\n"
+                "`!leave` - Leave voice channel\n"
+                "`!record [toggle/start/stop]` - Control voice recording\n\n"
+                "ℹ️ **Other Commands:**\n"
+                "`!help` - Show this help message\n\n"
+                "💬 **Chat:** Mention me or DM me to chat!\n"
+                f"Instance: {instance_name}"
+            )
+            await ctx.send(help_text)
     
     async def _cleanup_bot(self, instance_name: str):
         """Cleanup bot resources."""
