@@ -50,6 +50,7 @@ class AutomagikBot(commands.Bot):
         self.manager = manager
         self.start_time = None
         self.last_heartbeat = datetime.now(timezone.utc)
+        self._heartbeat_task = None
         
     async def on_ready(self):
         """Called when bot is ready."""
@@ -60,11 +61,21 @@ class AutomagikBot(commands.Bot):
         logger.info(f"Bot user: {self.user}")
         logger.info(f"Connected to {len(self.guilds)} guilds")
         
+        # Update health monitor heartbeat
+        health_monitor = self.manager.health_monitors.get(self.instance_name)
+        if health_monitor:
+            health_monitor.heartbeat()
+        
         await self.manager._handle_bot_ready(self)
     
     async def on_message(self, message):
         """Handle incoming messages."""
         self.last_heartbeat = datetime.now(timezone.utc)
+        
+        # Update health monitor heartbeat
+        health_monitor = self.manager.health_monitors.get(self.instance_name)
+        if health_monitor:
+            health_monitor.heartbeat()
         
         # Ignore messages from bots (including self)
         if message.author.bot:
@@ -104,8 +115,26 @@ class AutomagikBot(commands.Bot):
                     exc_info=True)
         await self.manager._handle_bot_error(self.instance_name, event, args, kwargs)
     
+    async def _periodic_heartbeat(self):
+        """Send periodic heartbeats to health monitor to prevent false degradation."""
+        try:
+            while not self.is_closed():
+                await asyncio.sleep(30)  # Heartbeat every 30 seconds
+                
+                health_monitor = self.manager.health_monitors.get(self.instance_name)
+                if health_monitor:
+                    health_monitor.heartbeat()
+                    
+        except asyncio.CancelledError:
+            logger.info(f"Periodic heartbeat stopped for {self.instance_name}")
+        except Exception as e:
+            logger.error(f"Error in periodic heartbeat for {self.instance_name}: {e}")
+    
     async def setup_hook(self):
         """Setup hook to register commands after bot is ready."""
+        # Start periodic heartbeat task
+        asyncio.create_task(self._periodic_heartbeat())
+        
         # Add voice commands
         @self.command(name='join')
         async def join_voice(ctx):
