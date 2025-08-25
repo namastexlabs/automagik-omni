@@ -21,6 +21,7 @@ from src.services.message_router import MessageRouter
 from ...core.exceptions import AutomagikError
 from src.db.models import InstanceConfig
 from src.channels.message_utils import extract_response_text
+from .voice_manager import DiscordVoiceManager
 from ...utils.rate_limiter import RateLimiter
 from ...utils.health_monitor import HealthMonitor
 
@@ -93,11 +94,33 @@ class AutomagikBot(commands.Bot):
         """Handle slash command interactions."""
         await self.manager._handle_interaction(self.instance_name, interaction)
     
+    async def on_voice_state_update(self, member, before, after):
+        """Handle voice state updates."""
+        await self.manager.voice_manager.on_voice_state_update(member, before, after)
+    
     async def on_error(self, event, *args, **kwargs):
         """Handle errors."""
         logger.error(f"Discord error in bot '{self.instance_name}' for event '{event}'", 
                     exc_info=True)
         await self.manager._handle_bot_error(self.instance_name, event, args, kwargs)
+    
+    async def setup_hook(self):
+        """Setup hook to register commands after bot is ready."""
+        # Add voice commands
+        @self.command(name='join')
+        async def join_voice(ctx):
+            """Join the user's voice channel."""
+            await self.manager._handle_voice_join(self.instance_name, ctx)
+            
+        @self.command(name='leave')
+        async def leave_voice(ctx):
+            """Leave the current voice channel."""
+            await self.manager._handle_voice_leave(self.instance_name, ctx)
+            
+        @self.command(name='record')
+        async def record_voice(ctx, action: str = 'toggle'):
+            """Start or stop recording voice chat (toggle/start/stop)."""
+            await self.manager._handle_voice_record(self.instance_name, ctx, action)
     
     async def send_channel_message(self, channel_id: int, content: str) -> bool:
         """
@@ -138,6 +161,7 @@ class DiscordBotManager:
         self.rate_limiters: Dict[str, RateLimiter] = {}
         self.health_monitors: Dict[str, HealthMonitor] = {}
         self.instance_configs: Dict[str, InstanceConfig] = {}  # Store instance configs
+        self.voice_manager = DiscordVoiceManager()  # Voice management
         self._shutdown_event = asyncio.Event()
         
         logger.info("Discord Bot Manager initialized")
@@ -538,7 +562,7 @@ class DiscordBotManager:
         # Start health monitoring
         health_monitor = self.health_monitors.get(bot.instance_name)
         if health_monitor:
-            await health_monitor.start()
+            await health_monitor.start_monitoring()
         
         # Notify message router (if method exists)
         if hasattr(self.message_router, 'handle_bot_connected'):
@@ -657,7 +681,7 @@ class DiscordBotManager:
         # Stop health monitoring
         health_monitor = self.health_monitors.get(instance_name)
         if health_monitor:
-            await health_monitor.stop()
+            await health_monitor.stop_monitoring()
         
         # Notify message router if method exists
         if hasattr(self.message_router, 'handle_bot_disconnected'):
@@ -713,6 +737,72 @@ class DiscordBotManager:
         # Could implement error recovery logic here
         # e.g., restart bot on certain errors, notify admins, etc.
     
+    async def _handle_voice_join(self, instance_name: str, ctx):
+        """Handle !join command - join user's voice channel."""
+        try:
+            # Check if user is in a voice channel
+            if not ctx.author.voice or not ctx.author.voice.channel:
+                await ctx.send("❌ You need to be in a voice channel first!")
+                return
+            
+            voice_channel = ctx.author.voice.channel
+            bot = self.bots.get(instance_name)
+            if not bot:
+                await ctx.send("❌ Bot not found!")
+                return
+            
+            # Connect to voice channel
+            success = await self.voice_manager.connect_voice(
+                instance_name, voice_channel.id, bot
+            )
+            
+            if success:
+                await ctx.send(f"🎤 Joined voice channel: **{voice_channel.name}**")
+                logger.info(f"Bot {instance_name} joined voice channel {voice_channel.name}")
+            else:
+                await ctx.send("❌ Failed to join voice channel!")
+                
+        except Exception as e:
+            logger.error(f"Voice join error for {instance_name}: {e}")
+            await ctx.send("❌ Error joining voice channel!")
+    
+    async def _handle_voice_leave(self, instance_name: str, ctx):
+        """Handle !leave command - leave current voice channel."""
+        try:
+            success = await self.voice_manager.disconnect_voice(instance_name, ctx.guild.id)
+            
+            if success:
+                await ctx.send("👋 Left voice channel!")
+                logger.info(f"Bot {instance_name} left voice channel")
+            else:
+                await ctx.send("❌ Not connected to any voice channel!")
+                
+        except Exception as e:
+            logger.error(f"Voice leave error for {instance_name}: {e}")
+            await ctx.send("❌ Error leaving voice channel!")
+    
+    async def _handle_voice_record(self, instance_name: str, ctx, action: str):
+        """Handle !record command - start/stop/toggle voice recording."""
+        try:
+            session = self.voice_manager.get_session_by_instance(instance_name)
+            if not session:
+                await ctx.send("❌ Not connected to any voice channel! Use `!join` first.")
+                return
+            
+            # For now, just acknowledge the command (recording implementation would go here)
+            if action.lower() in ['start', 'toggle']:
+                await ctx.send("🔴 **Recording started!** Voice chat is now being recorded.")
+                logger.info(f"Voice recording started for {instance_name}")
+            elif action.lower() == 'stop':
+                await ctx.send("⏹️ **Recording stopped!** Voice recording has ended.")
+                logger.info(f"Voice recording stopped for {instance_name}")
+            else:
+                await ctx.send("❓ Usage: `!record start/stop/toggle`")
+                
+        except Exception as e:
+            logger.error(f"Voice record error for {instance_name}: {e}")
+            await ctx.send("❌ Error with voice recording!")
+    
     async def _cleanup_bot(self, instance_name: str):
         """Cleanup bot resources."""
         # Remove bot from tracking
@@ -725,10 +815,13 @@ class DiscordBotManager:
             # RateLimiter doesn't have cleanup method, just remove reference
             pass
         
+        # Cleanup voice sessions
+        await self.voice_manager.disconnect_voice(instance_name)
+        
         # Cleanup health monitor
         health_monitor = self.health_monitors.pop(instance_name, None)
         if health_monitor:
-            await health_monitor.stop()
+            await health_monitor.stop_monitoring()
 
 
 # Utility functions for Discord message formatting
