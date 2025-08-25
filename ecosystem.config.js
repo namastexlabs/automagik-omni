@@ -139,13 +139,13 @@ module.exports = {
     },
 
     // ===================================================================
-    // 🤖 Automagik-Omni Discord Bot Service (Priority 3 - Starts After API)
+    // 🤖 Automagik-Omni Discord Service Manager (Priority 3 - Manages ALL Discord Bots)
     // ===================================================================
     {
       name: 'automagik-omni-discord',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/python',
-      args: 'src/commands/discord_cmd.py start ' + (envVars.DEFAULT_DISCORD_INSTANCE || 'testonho-discord'),
+      args: 'src/commands/discord_service_manager.py',
       interpreter: 'none',
       version: version,
       env: {

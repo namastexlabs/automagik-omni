@@ -61,6 +61,26 @@ class InstanceConfigCreate(BaseModel):
         None, description="Send base64 encoded data in webhooks (WhatsApp)"
     )
 
+    # Discord-specific fields
+    discord_bot_token: Optional[str] = Field(
+        None, description="Discord bot token (Discord)"
+    )
+    discord_client_id: Optional[str] = Field(
+        None, description="Discord client ID (Discord)"
+    )
+    discord_guild_id: Optional[str] = Field(
+        None, description="Discord guild ID (Discord)"
+    )
+    discord_default_channel_id: Optional[str] = Field(
+        None, description="Discord default channel ID (Discord)"
+    )
+    discord_voice_enabled: Optional[bool] = Field(
+        None, description="Enable voice features (Discord)"
+    )
+    discord_slash_commands_enabled: Optional[bool] = Field(
+        None, description="Enable slash commands (Discord)"
+    )
+
     # WhatsApp-specific creation parameters (not stored in DB)
     phone_number: Optional[str] = Field(None, description="Phone number for WhatsApp")
     auto_qr: Optional[bool] = Field(
@@ -97,6 +117,15 @@ class InstanceConfigUpdate(BaseModel):
     whatsapp_instance: Optional[str] = None
     session_id_prefix: Optional[str] = None
     webhook_base64: Optional[bool] = None
+    
+    # Discord-specific fields
+    discord_bot_token: Optional[str] = None
+    discord_client_id: Optional[str] = None
+    discord_guild_id: Optional[str] = None
+    discord_default_channel_id: Optional[str] = None
+    discord_voice_enabled: Optional[bool] = None
+    discord_slash_commands_enabled: Optional[bool] = None
+    
     agent_api_url: Optional[str] = None
     agent_api_key: Optional[str] = None
     default_agent: Optional[str] = None
@@ -134,6 +163,15 @@ class InstanceConfigResponse(BaseModel):
     whatsapp_instance: Optional[str]
     session_id_prefix: Optional[str]
     webhook_base64: Optional[bool]
+    
+    # Discord-specific fields
+    discord_bot_token: Optional[str] = None
+    discord_client_id: Optional[str] = None
+    discord_guild_id: Optional[str] = None
+    discord_default_channel_id: Optional[str] = None
+    discord_voice_enabled: Optional[bool] = None
+    discord_slash_commands_enabled: Optional[bool] = None
+    
     agent_api_url: str
     agent_api_key: str
     default_agent: Optional[str]
