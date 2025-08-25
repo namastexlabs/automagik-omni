@@ -151,9 +151,6 @@ module.exports = {
       env: {
         ...envVars,
         PYTHONPATH: PROJECT_ROOT,
-        DISCORD_BOT_TOKEN: envVars.DISCORD_BOT_TOKEN || '',
-        DISCORD_CLIENT_ID: envVars.DISCORD_CLIENT_ID || '',
-        DEFAULT_DISCORD_INSTANCE: envVars.DEFAULT_DISCORD_INSTANCE || 'default',
         AUTOMAGIK_OMNI_API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || 'localhost',
         AUTOMAGIK_OMNI_API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
         DISCORD_HEALTH_CHECK_TIMEOUT: '60',

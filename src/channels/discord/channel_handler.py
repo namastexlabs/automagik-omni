@@ -191,9 +191,9 @@ class DiscordChannelHandler(ChannelHandler):
 
     def _validate_bot_config(self, instance: InstanceConfig) -> Dict[str, str]:
         """Validate and extract Discord bot configuration."""
-        # Extract token from instance or environment
-        bot_token = getattr(instance, 'discord_bot_token', None) or config.get_env("DISCORD_BOT_TOKEN", "")
-        client_id = getattr(instance, 'discord_client_id', None) or config.get_env("DISCORD_CLIENT_ID", "")
+        # Extract token from instance configuration only
+        bot_token = getattr(instance, 'discord_bot_token', None) or ""
+        client_id = getattr(instance, 'discord_client_id', None) or ""
         
         # Validate configuration values
         if not bot_token or bot_token.lower() in ["string", "null", "undefined", ""]:
