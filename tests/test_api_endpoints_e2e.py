@@ -100,7 +100,9 @@ class TestAPIEndpoints:
         with patch('src.services.message_router.message_router') as mock_router, \
              patch('src.services.agent_api_client.agent_api_client') as mock_agent_client, \
              patch('src.channels.whatsapp.evolution_api_sender.requests.post') as mock_requests, \
-             patch('src.channels.whatsapp.evolution_client.EvolutionClient') as mock_evolution_client:
+             patch('src.services.discord_service.discord_service') as mock_discord_service, \
+             patch('src.channels.discord.utils.DiscordIDValidator.is_valid_snowflake') as mock_validator, \
+             patch('src.channels.whatsapp.evolution_api_client.EvolutionAPIClient') as mock_evolution_client:
             
             # Setup message router mock
             mock_router.route_message.return_value = {
@@ -133,6 +135,10 @@ class TestAPIEndpoints:
                 }
             }
             mock_evolution_client.return_value = mock_evolution_instance
+            
+            # Setup Discord service mocks
+            mock_discord_service.return_value = None  # No Discord service running
+            mock_validator.return_value = True  # Accept all channel IDs for tests
         
             # Create temporary database
             self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
@@ -179,7 +185,9 @@ class TestAPIEndpoints:
         with patch('src.services.message_router.message_router') as mock_router, \
              patch('src.services.agent_api_client.agent_api_client') as mock_agent_client, \
              patch('src.channels.whatsapp.evolution_api_sender.requests.post') as mock_requests, \
-             patch('src.channels.whatsapp.evolution_client.EvolutionClient') as mock_evolution_client:
+             patch('src.services.discord_service.discord_service') as mock_discord_service, \
+             patch('src.channels.discord.utils.DiscordIDValidator.is_valid_snowflake') as mock_validator, \
+             patch('src.channels.whatsapp.evolution_api_client.EvolutionAPIClient') as mock_evolution_client:
             
             # Setup message router mock
             mock_router.route_message.return_value = {
@@ -212,6 +220,10 @@ class TestAPIEndpoints:
                 }
             }
             mock_evolution_client.return_value = mock_evolution_instance
+            
+            # Setup Discord service mocks
+            mock_discord_service.return_value = None  # No Discord service running
+            mock_validator.return_value = True  # Accept all channel IDs for tests
             
             yield
         
@@ -248,7 +260,14 @@ class TestHealthEndpoints(TestAPIEndpoints):
         """Test health check endpoint works without authentication."""
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "healthy"}
+        data = response.json()
+        # Check the basic structure of the new health response
+        assert "status" in data
+        assert data["status"] == "healthy"
+        assert "timestamp" in data
+        assert "services" in data
+        assert "api" in data["services"]
+        assert data["services"]["api"]["status"] == "up"
     
     def test_health_check_performance(self, client):
         """Test health check responds quickly."""
@@ -512,10 +531,24 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
             mock_handler.return_value.delete_instance = mock_delete_instance
             
             response = client.delete("/api/v1/instances/extra-instance", headers=auth_headers)
-            assert response.status_code == 204
+            assert response.status_code == 200
     
     def test_set_default_instance(self, client, auth_headers):
         """Test setting instance as default."""
+        # First create an instance
+        create_response = client.post(
+            "/api/v1/instances",
+            json={
+                "name": "test-instance",
+                "channel_type": "whatsapp",
+                "evolution_url": "http://localhost:8080",
+                "evolution_key": "test-key"
+            },
+            headers=auth_headers
+        )
+        assert create_response.status_code == 201
+        
+        # Now set it as default
         response = client.post(
             "/api/v1/instances/test-instance/set-default", 
             headers=auth_headers
