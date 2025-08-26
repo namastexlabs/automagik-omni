@@ -259,11 +259,11 @@ def test_client(test_db):
             with patch("src.db.bootstrap.ensure_default_instance") as mock_bootstrap:
                 # Create default instance in test database
                 default_instance = InstanceConfig(
-                    name="test-default",
+                    name="test-instance",
                     channel_type="whatsapp",
                     evolution_url="http://test.com",
                     evolution_key="test-key",
-                    whatsapp_instance="test-default",
+                    whatsapp_instance="test-instance",
                     agent_api_url="http://agent.com",
                     agent_api_key="agent-key",
                     default_agent="test_agent",

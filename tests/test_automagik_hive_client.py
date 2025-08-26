@@ -14,7 +14,7 @@ from src.services.automagik_hive_client import (
     AutomagikHiveConnectionError,
     AutomagikHiveStreamError
 )
-from src.services.automagik_hive_models_fixed import (
+from src.services.automagik_hive_models import (
     HiveEventType,
     RunStartedEvent, RunResponseContentEvent, RunCompletedEvent
 )

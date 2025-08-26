@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, AsyncIterator, Union, List
 from contextlib import asynccontextmanager
 import httpx
 from httpx import ConnectTimeout, ReadTimeout, TimeoutException
-from .automagik_hive_models_fixed import (
+from .automagik_hive_models import (
     HiveEvent, HiveContinueRequest, HiveRunResponse,
     parse_hive_event, HiveEventType, ErrorEvent
 )

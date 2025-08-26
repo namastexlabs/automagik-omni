@@ -299,3 +299,96 @@ class OmniChannelMessageSender:
         except Exception as e:
             logger.error(f"Discord media send failed: {e}")
             return {"success": False, "error": str(e), "channel": "discord"}
+    
+    async def send_audio_message(
+        self,
+        recipient: str,
+        audio: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Send an audio message through the appropriate channel."""
+        try:
+            logger.info(f"OmniChannelMessageSender: Sending audio via {self.channel_type} to {recipient}")
+            if self.channel_type == "whatsapp":
+                sender = EvolutionApiSender(config_override=self.instance_config)
+                success = sender.send_audio_message(recipient=recipient, audio=audio)
+                return {"success": success, "channel": "whatsapp"}
+            elif self.channel_type == "discord":
+                logger.warning(f"Audio messages not directly supported on Discord for instance '{self.instance_config.name}' - use media message instead")
+                return {"success": False, "error": "Audio messages not supported on Discord - use media message with audio file", "channel": "discord"}
+            else:
+                logger.error(f"Unsupported channel type: {self.channel_type}")
+                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+        except Exception as e:
+            logger.error(f"Failed to send audio message via {self.channel_type}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_sticker_message(
+        self,
+        recipient: str,
+        sticker: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Send a sticker message through the appropriate channel."""
+        try:
+            logger.info(f"OmniChannelMessageSender: Sending sticker via {self.channel_type} to {recipient}")
+            if self.channel_type == "whatsapp":
+                sender = EvolutionApiSender(config_override=self.instance_config)
+                success = sender.send_sticker_message(recipient=recipient, sticker=sticker)
+                return {"success": success, "channel": "whatsapp"}
+            elif self.channel_type == "discord":
+                logger.warning(f"Sticker messages not supported on Discord for instance '{self.instance_config.name}' - use emojis or media instead")
+                return {"success": False, "error": "Sticker messages not supported on Discord - use emojis or media message", "channel": "discord"}
+            else:
+                logger.error(f"Unsupported channel type: {self.channel_type}")
+                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+        except Exception as e:
+            logger.error(f"Failed to send sticker message via {self.channel_type}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_contact_message(
+        self,
+        recipient: str,
+        contacts: list,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Send a contact message through the appropriate channel."""
+        try:
+            logger.info(f"OmniChannelMessageSender: Sending contacts via {self.channel_type} to {recipient}")
+            if self.channel_type == "whatsapp":
+                sender = EvolutionApiSender(config_override=self.instance_config)
+                success = sender.send_contact_message(recipient=recipient, contacts=contacts)
+                return {"success": success, "channel": "whatsapp"}
+            elif self.channel_type == "discord":
+                logger.warning(f"Contact messages not supported on Discord for instance '{self.instance_config.name}' - send as text instead")
+                return {"success": False, "error": "Contact messages not supported on Discord - send contact info as text message", "channel": "discord"}
+            else:
+                logger.error(f"Unsupported channel type: {self.channel_type}")
+                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+        except Exception as e:
+            logger.error(f"Failed to send contact message via {self.channel_type}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_reaction_message(
+        self,
+        recipient: str,
+        message_id: str,
+        emoji: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Send a reaction to a message through the appropriate channel."""
+        try:
+            logger.info(f"OmniChannelMessageSender: Sending reaction via {self.channel_type} to {recipient}")
+            if self.channel_type == "whatsapp":
+                sender = EvolutionApiSender(config_override=self.instance_config)
+                success = sender.send_reaction_message(recipient=recipient, message_id=message_id, emoji=emoji)
+                return {"success": success, "channel": "whatsapp"}
+            elif self.channel_type == "discord":
+                logger.warning(f"Direct message reactions not supported on Discord for instance '{self.instance_config.name}' - reactions work on server messages")
+                return {"success": False, "error": "Direct message reactions not supported on Discord - reactions only work on server messages", "channel": "discord"}
+            else:
+                logger.error(f"Unsupported channel type: {self.channel_type}")
+                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+        except Exception as e:
+            logger.error(f"Failed to send reaction via {self.channel_type}: {e}")
+            return {"success": False, "error": str(e)}

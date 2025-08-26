@@ -355,7 +355,7 @@ async def send_media_message(
             )
 
         # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        sender = OmniChannelMessageSender(instance_config)
 
         # Use media_url or base64
         media_source = request.media_url if request.media_url else request.media_base64
@@ -401,14 +401,15 @@ async def send_audio_message(
                 detail="Either audio_url or audio_base64 must be provided",
             )
 
-        # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        # Create cross-channel message sender with instance config
+        sender = OmniChannelMessageSender(instance_config)
 
         # Use audio_url or base64
         audio_source = request.audio_url if request.audio_url else request.audio_base64
 
         # Send the audio message
-        success = sender.send_audio_message(recipient=recipient, audio=audio_source)
+        result = await sender.send_audio_message(recipient=recipient, audio=audio_source)
+        success = result.get("success", False)
 
         return MessageResponse(success=success, status="sent" if success else "failed")
 
@@ -442,7 +443,7 @@ async def send_sticker_message(
             )
 
         # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        sender = OmniChannelMessageSender(instance_config)
 
         # Use sticker_url or base64
         sticker_source = (
@@ -479,7 +480,7 @@ async def send_contact_message(
         recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        sender = OmniChannelMessageSender(instance_config)
 
         # Convert contacts to Evolution API format
         contacts_data = []
@@ -496,9 +497,10 @@ async def send_contact_message(
             contacts_data.append(contact_data)
 
         # Send the contact
-        success = sender.send_contact_message(
+        result = await sender.send_contact_message(
             recipient=recipient, contacts=contacts_data
         )
+        success = result.get("success", False)
 
         return MessageResponse(success=success, status="sent" if success else "failed")
 
@@ -525,14 +527,15 @@ async def send_reaction_message(
         recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        sender = OmniChannelMessageSender(instance_config)
 
         # Send the reaction
-        success = sender.send_reaction_message(
+        result = await sender.send_reaction_message(
             recipient=recipient,
             message_id=request.message_id,
-            reaction=request.reaction,
+            emoji=request.reaction,
         )
+        success = result.get("success", False)
 
         return MessageResponse(success=success, status="sent" if success else "failed")
 
@@ -559,7 +562,7 @@ async def fetch_user_profile(
         recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        sender = OmniChannelMessageSender(instance_config)
 
         # Fetch the profile
         profile_data = sender.fetch_profile(recipient)
@@ -586,7 +589,7 @@ async def update_profile_picture(
 
     try:
         # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        sender = OmniChannelMessageSender(instance_config)
 
         # Update profile picture
         success = sender.update_profile_picture(request.picture_url)

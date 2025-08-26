@@ -759,3 +759,123 @@ async def disconnect_instance(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to disconnect instance: {str(e)}",
         )
+
+
+@router.post("/instances/{instance_name}/restart")
+async def restart_instance(
+    instance_name: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """Restart an instance connection."""
+    instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found",
+        )
+
+    # Get appropriate channel handler
+    try:
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        result = await handler.restart_instance(instance)
+
+        # Update instance as active after successful restart
+        instance.is_active = True
+        db.commit()
+
+        return {
+            "message": f"Instance '{instance_name}' restarted successfully",
+            "result": result
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to restart instance: {str(e)}",
+        )
+
+
+@router.post("/instances/{instance_name}/logout")
+async def logout_instance(
+    instance_name: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """Logout an instance (disconnect and clear session data)."""
+    instance = db.query(InstanceConfig).filter_by(name=instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found",
+        )
+
+    # Get appropriate channel handler
+    try:
+        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        result = await handler.logout_instance(instance)
+
+        # Update instance as inactive after logout
+        instance.is_active = False
+        db.commit()
+
+        return {
+            "message": f"Instance '{instance_name}' logged out successfully",
+            "result": result
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to logout instance: {str(e)}",
+        )
+
+
+@router.post("/instances/discover")
+async def discover_instances(
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """Discover available instances from external services."""
+    discovered_instances = []
+    
+    try:
+        # Get all configured instances to check their external status
+        instances = db.query(InstanceConfig).all()
+        
+        for instance in instances:
+            try:
+                handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+                status_info = await handler.get_status(instance)
+                
+                discovered_instances.append({
+                    "name": instance.name,
+                    "channel_type": instance.channel_type,
+                    "status": status_info.status,
+                    "configured": True,
+                    "active": instance.is_active,
+                    "channel_data": status_info.channel_data
+                })
+            except Exception as e:
+                # If we can't get status, still include the instance
+                discovered_instances.append({
+                    "name": instance.name,
+                    "channel_type": instance.channel_type,
+                    "status": "error",
+                    "configured": True,
+                    "active": False,
+                    "error": str(e)
+                })
+                
+        return {
+            "message": "Instance discovery completed",
+            "instances": discovered_instances,
+            "total_discovered": len(discovered_instances)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to discover instances: {str(e)}",
+        )
