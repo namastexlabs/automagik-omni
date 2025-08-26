@@ -10,7 +10,7 @@ Usage:
     apply_streaming_patch()
 """
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def apply_streaming_patch():
     """
     try:
         # Import the modules we need to patch
-        from src.channels.whatsapp.handlers import WhatsAppMessageHandler, message_handler
+        from src.channels.whatsapp.handlers import WhatsAppMessageHandler
         from src.channels.whatsapp.streaming_handler import streaming_handler, integrate_streaming_with_handler
         from src.services.message_router import message_router
         
@@ -88,9 +88,7 @@ def is_streaming_available() -> bool:
         True if streaming is available, False otherwise
     """
     try:
-        from src.channels.whatsapp.streaming_integration import AutomagikHiveStreamer
         from src.channels.whatsapp.streaming_handler import streaming_handler
-        from src.services.automagik_hive_client import AutomagikHiveClient
         
         # Check if components are importable and initialized
         return (

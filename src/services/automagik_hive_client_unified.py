@@ -7,15 +7,14 @@ both automagik and hive configurations use the same field names.
 import asyncio
 import json
 import logging
-from typing import Optional, Dict, Any, AsyncIterator, Union
-from contextlib import asynccontextmanager
+from typing import Optional, Dict, Any, AsyncIterator
 
 import httpx
 from httpx import ConnectTimeout, ReadTimeout, TimeoutException, HTTPError
 
 from .automagik_hive_models import (
-    HiveEvent, HiveRunRequest, HiveContinueRequest, HiveRunResponse,
-    parse_hive_event, HiveEventType, ErrorEvent
+    HiveEvent, HiveRunRequest, HiveRunResponse,
+    parse_hive_event, ErrorEvent
 )
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,7 @@ class UnifiedAutomagikHiveClient:
         self.stream_mode = instance_config.agent_stream_mode
         
         # Log configuration for debugging
-        logger.info(f"Initialized UnifiedAutomagikHiveClient:")
+        logger.info("Initialized UnifiedAutomagikHiveClient:")
         logger.info(f"  API URL: {self.api_url}")
         logger.info(f"  Agent Type: {instance_config.agent_type}")
         logger.info(f"  Agent ID: {instance_config.agent_id}")

@@ -1,0 +1,60 @@
+name: Validate PR Source Branch
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'main'
+    steps:
+      - name: Validate source branch
+        run: |
+          SOURCE_BRANCH="${{ github.head_ref }}"
+          echo "PR source branch: $SOURCE_BRANCH"
+          echo "Target branch: ${{ github.base_ref }}"
+          
+          # Allow PRs from dev branch
+          if [[ "$SOURCE_BRANCH" == "dev" ]]; then
+            echo "✅ PR from dev branch - allowed"
+            exit 0
+          fi
+          
+          # Allow PRs from hotfix branches (hotfix/*)
+          if [[ "$SOURCE_BRANCH" == hotfix/* ]]; then
+            echo "✅ PR from hotfix branch - allowed"
+            exit 0
+          fi
+          
+          # Allow PRs with hotfix: prefix in branch name
+          if [[ "$SOURCE_BRANCH" == hotfix:* ]]; then
+            echo "✅ PR from hotfix: prefixed branch - allowed"
+            exit 0
+          fi
+          
+          # Block all other branches
+          echo "❌ PR from '$SOURCE_BRANCH' is not allowed"
+          echo "Only PRs from 'dev' branch or 'hotfix/*' / 'hotfix:*' branches are allowed to main"
+          exit 1
+
+      - name: Comment on invalid PR
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `❌ **Invalid PR Source Branch**
+              
+              This PR is from branch \`${{ github.head_ref }}\` which is not allowed.
+              
+              **Allowed source branches for PRs to main:**
+              - \`dev\` branch
+              - \`hotfix/*\` branches (e.g., \`hotfix/critical-bug\`)
+              - \`hotfix:*\` branches (e.g., \`hotfix:patch-security\`)
+              
+              Please create your PR from one of these allowed branches.`
+            })

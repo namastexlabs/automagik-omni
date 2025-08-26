@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
+from src.channels.message_sender import OmniChannelMessageSender
+from src.channels.discord.utils import DiscordIDValidator
 from src.services.user_service import user_service
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,7 @@ class SendTextRequest(BaseModel):
         None, description="User ID (UUID string, if known)"
     )
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code (e.g., +5511999999999)"
+        None, description="Phone number with country code (e.g., +5511999999999) or Discord channel ID"
     )
     text: str = Field(description="Message text to send")
     quoted_message_id: Optional[str] = Field(
@@ -66,7 +68,7 @@ class SendMediaRequest(BaseModel):
         None, description="User ID (UUID string, if known)"
     )
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code"
+        None, description="Phone number with country code or Discord channel ID"
     )
     media_type: str = Field(description="Media type: image, video, document")
     media_url: Optional[str] = Field(None, description="URL to media file")
@@ -83,7 +85,7 @@ class SendAudioRequest(BaseModel):
         None, description="User ID (UUID string, if known)"
     )
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code"
+        None, description="Phone number with country code or Discord channel ID"
     )
     audio_url: Optional[str] = Field(None, description="URL to audio file")
     audio_base64: Optional[str] = Field(None, description="Base64 encoded audio data")
@@ -96,7 +98,7 @@ class SendStickerRequest(BaseModel):
         None, description="User ID (UUID string, if known)"
     )
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code"
+        None, description="Phone number with country code or Discord channel ID"
     )
     sticker_url: Optional[str] = Field(None, description="URL to sticker file")
     sticker_base64: Optional[str] = Field(
@@ -121,7 +123,7 @@ class SendContactRequest(BaseModel):
         None, description="User ID (UUID string, if known)"
     )
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code"
+        None, description="Phone number with country code or Discord channel ID"
     )
     contacts: List[ContactInfo] = Field(description="List of contacts to send")
 
@@ -133,7 +135,7 @@ class SendReactionRequest(BaseModel):
         None, description="User ID (UUID string, if known)"
     )
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code"
+        None, description="Phone number with country code or Discord channel ID"
     )
     message_id: str = Field(description="ID of message to react to")
     reaction: str = Field(description="Reaction emoji (e.g., 🚀, ❤️)")
@@ -146,7 +148,7 @@ class FetchProfileRequest(BaseModel):
         None, description="User ID (UUID string, if known)"
     )
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code"
+        None, description="Phone number with country code or Discord channel ID"
     )
 
 
@@ -167,18 +169,30 @@ class MessageResponse(BaseModel):
 
 
 def _resolve_recipient(
-    user_id: Optional[str], phone_number: Optional[str], db: Session
+    user_id: Optional[str], phone_number: Optional[str], db: Session, channel_type: str = "whatsapp"
 ) -> str:
     """
-    Resolve user_id or phone_number to WhatsApp JID using the new user service.
+    Resolve user_id or phone_number to the appropriate recipient identifier for the channel.
+    
+    For WhatsApp: Converts to WhatsApp JID format using the user service.
+    For Discord: Validates channel ID as Discord snowflake format.
 
     Resolution order:
     1. If user_id provided: lookup in our local user database
-    2. If not found locally: try agent API (backward compatibility)
-    3. If phone_number provided: use directly
+    2. If not found locally: try agent API (backward compatibility)  
+    3. If phone_number provided: validate and use directly
+
+    Args:
+        user_id: Optional user ID (UUID string)
+        phone_number: Optional phone number (WhatsApp) or channel ID (Discord)
+        db: Database session
+        channel_type: Channel type ("whatsapp", "discord", etc.)
 
     Returns:
-        str: WhatsApp JID (remoteJid) for the recipient
+        str: Channel-appropriate recipient identifier (WhatsApp JID or Discord channel ID)
+        
+    Raises:
+        HTTPException: If validation fails or required data is missing
     """
     if not user_id and not phone_number:
         raise HTTPException(
@@ -229,10 +243,21 @@ def _resolve_recipient(
             detail=f"User with ID {user_id} not found in local database or agent API",
         )
 
-    # Direct phone number usage
+    # Direct phone number/channel ID usage
     if phone_number:
-        logger.info(f"Using provided phone number directly: {phone_number}")
-        return _format_phone_to_jid(phone_number)
+        logger.info(f"Using provided phone number/channel ID directly: {phone_number}")
+        
+        # For Discord, validate as channel ID (snowflake format)
+        if channel_type == "discord":
+            if not DiscordIDValidator.is_valid_snowflake(phone_number):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid Discord channel ID format. Expected 15-21 digit snowflake, got: {phone_number}",
+                )
+            return phone_number
+        else:
+            # For WhatsApp, format to JID
+            return _format_phone_to_jid(phone_number)
 
 
 def _format_phone_to_jid(phone_number: str) -> str:
@@ -266,26 +291,26 @@ async def send_text_message(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Send a text message via WhatsApp."""
+    """Send a text message via the configured channel (WhatsApp or Discord)."""
 
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper formatting and validation)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
-        # Create Evolution API sender with instance config
-        sender = EvolutionApiSender(config_override=instance_config)
+        # Create omnichannel message sender
+        sender = OmniChannelMessageSender(instance_config)
 
-        # Prepare mention parameters
+        # Prepare mention parameters (WhatsApp-specific)
         mentioned_jids = None
-        if request.mentioned:
+        if instance_config.channel_type == "whatsapp" and request.mentioned:
             # Convert phone numbers to WhatsApp JIDs
             mentioned_jids = WhatsAppMentionParser.parse_explicit_mentions(request.mentioned)
             logger.info(f"Converted {len(request.mentioned)} explicit mentions to JIDs")
 
-        # Send the message with mention support
-        success = sender.send_text_message(
+        # Send the message with channel-appropriate handling
+        result = await sender.send_text_message(
             recipient=recipient,
             text=request.text,
             quoted_message=None,  # TODO: Implement quoted message lookup
@@ -295,9 +320,9 @@ async def send_text_message(
         )
 
         return MessageResponse(
-            success=success,
-            status="sent" if success else "failed",
-            message_id=None,  # Evolution API doesn't return message ID in current implementation
+            success=result.get("success", False),
+            status="sent" if result.get("success") else "failed",
+            message_id=None,  # Message ID not always available
         )
 
     except HTTPException:
@@ -314,13 +339,13 @@ async def send_media_message(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Send a media message (image, video, document) via WhatsApp."""
+    """Send a media message (image, video, document) via the configured channel."""
 
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper validation)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Validate media source
         if not request.media_url and not request.media_base64:
@@ -361,13 +386,13 @@ async def send_audio_message(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Send a WhatsApp audio message."""
+    """Send an audio message via the configured channel."""
 
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper validation)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Validate audio source
         if not request.audio_url and not request.audio_base64:
@@ -401,13 +426,13 @@ async def send_sticker_message(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Send a sticker via WhatsApp."""
+    """Send a sticker via the configured channel."""
 
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper validation)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Validate sticker source
         if not request.sticker_url and not request.sticker_base64:
@@ -445,13 +470,13 @@ async def send_contact_message(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Send contact card(s) via WhatsApp."""
+    """Send contact card(s) via the configured channel."""
 
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper validation)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Create Evolution API sender with instance config
         sender = EvolutionApiSender(config_override=instance_config)
@@ -491,13 +516,13 @@ async def send_reaction_message(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Send a reaction to a message via WhatsApp."""
+    """Send a reaction to a message via the configured channel."""
 
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper validation)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Create Evolution API sender with instance config
         sender = EvolutionApiSender(config_override=instance_config)
@@ -525,13 +550,13 @@ async def fetch_user_profile(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Fetch a user's WhatsApp profile."""
+    """Fetch a user's profile from the configured channel."""
 
     instance_config = get_instance_by_name(instance_name, db)
 
     try:
-        # Resolve recipient
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db)
+        # Resolve recipient (pass channel_type for proper validation)
+        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
 
         # Create Evolution API sender with instance config
         sender = EvolutionApiSender(config_override=instance_config)
@@ -577,16 +602,17 @@ async def update_profile_picture(
         return MessageResponse(success=False, status="error", error=str(e))
 
 
-@router.post("/{instance_name}/test-schema")
-async def test_schema_endpoint(
+@router.post("/{instance_name}/test-debug")
+async def test_debug_endpoint(
     instance_name: str,
     request: TestRequest,
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
     """Test endpoint for debugging schema generation."""
+
     return {
-        "message": "Test endpoint",
-        "user_id": request.user_id,
-        "test_field": request.test_field,
+        "message": f"Debug test successful for instance: {instance_name}",
+        "request_data": request.model_dump(),
+        "user_id_type": type(request.user_id).__name__,
     }

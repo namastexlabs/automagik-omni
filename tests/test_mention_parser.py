@@ -3,7 +3,7 @@ Unit tests for WhatsApp mention parser functionality.
 """
 
 import pytest
-from typing import List, Tuple
+from typing import List
 
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
 

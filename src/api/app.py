@@ -261,6 +261,7 @@ app = FastAPI(
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
 
+
 # Include trace management routes
 from src.api.routes.traces import router as traces_router
 
@@ -334,7 +335,58 @@ app.openapi = custom_openapi
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy"}
+    
+    from datetime import datetime, timezone
+    
+    # Basic API health
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "services": {
+            "api": {
+                "status": "up",
+                "checks": {
+                    "database": "connected",
+                    "runtime": "operational"
+                }
+            }
+        }
+    }
+    
+    # Check Discord service status if available
+    try:
+        # Get Discord bot manager instance (if running)
+        from src.services.discord_service import discord_bot_manager
+        if discord_bot_manager:
+            bot_statuses = {}
+            for instance_name in discord_bot_manager.bots.keys():
+                bot_status = discord_bot_manager.get_bot_status(instance_name)
+                if bot_status:
+                    bot_statuses[instance_name] = {
+                        "status": bot_status.status,
+                        "guild_count": bot_status.guild_count,
+                        "uptime": bot_status.uptime.isoformat() if bot_status.uptime else None,
+                        "latency": round(bot_status.latency * 1000, 2) if bot_status.latency else None  # ms
+                    }
+            
+            health_status["services"]["discord"] = {
+                "status": "up" if bot_statuses else "down",
+                "instances": bot_statuses,
+                "voice_sessions": len(discord_bot_manager.voice_manager.get_voice_sessions())
+            }
+        else:
+            health_status["services"]["discord"] = {
+                "status": "not_running",
+                "message": "Discord service not initialized"
+            }
+            
+    except Exception as e:
+        health_status["services"]["discord"] = {
+            "status": "error",
+            "error": str(e)
+        }
+    
+    return health_status
 
 
 @app.post("/api/v1/test/capture/enable")

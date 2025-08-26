@@ -249,7 +249,7 @@ class WhatsAppStreamingHandler:
                 if 'extendedTextMessage' in msg_data and 'text' in msg_data['extendedTextMessage']:
                     return msg_data['extendedTextMessage']['text']
             
-            logger.debug(f"No text content found in message structure")
+            logger.debug("No text content found in message structure")
             return None
             
         except Exception as e:
@@ -309,7 +309,7 @@ def integrate_streaming_with_handler(original_process_message_func):
         logger.debug(f"[DECORATOR] Instance name: {getattr(instance_config, 'name', 'N/A') if instance_config else 'None'}")
         
         if instance_config and message_router.should_use_streaming(instance_config):
-            logger.debug(f"[DECORATOR] Streaming check PASSED, calling streaming handler")
+            logger.debug("[DECORATOR] Streaming check PASSED, calling streaming handler")
             # Use streaming handler
             streaming_handler.handle_message_with_streaming(
                 message=message,
@@ -318,7 +318,7 @@ def integrate_streaming_with_handler(original_process_message_func):
                 original_handler=lambda m, ic, tc: original_process_message_func(self, m, ic, tc)
             )
         else:
-            logger.debug(f"[DECORATOR] Streaming check FAILED, using original handler")
+            logger.debug("[DECORATOR] Streaming check FAILED, using original handler")
             # Use original handler
             original_process_message_func(self, message, instance_config, trace_context)
     

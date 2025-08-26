@@ -2,13 +2,29 @@
 
 # Automagik Omni API Documentation Generator
 # This script tests all API endpoints and generates comprehensive markdown documentation
+#
+# Usage:
+#   From project root: ./scripts/generate_api_docs.sh
+#   From scripts dir:  ./generate_api_docs.sh
+#
+# Prerequisites:
+#   - API server running on localhost:8882
+#   - curl and jq installed
+#
+# Output:
+#   - Generates API_DOCUMENTATION.md in project root
+#   - Tests all endpoints with real API calls
+#   - Includes actual request/response examples
 
 set -e
 
 # Configuration
-API_BASE="http://localhost:18882"
+API_BASE="http://localhost:8882"
 API_KEY="namastex888"
-OUTPUT_FILE="API_DOCUMENTATION.md"
+# Get the absolute path to the project root (parent of scripts directory)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+OUTPUT_FILE="$PROJECT_ROOT/API_DOCUMENTATION.md"
 TEMP_DIR="/tmp/automagik_api_test"
 TEST_INSTANCE_NAME="test-doc-instance-$(date +%s)"
 
@@ -65,12 +81,12 @@ api_call() {
     
     curl_cmd="$curl_cmd $API_BASE$endpoint"
     
-    # Execute and capture response
+    # Execute and capture response with status code in one call
     local response
     local status_code
+    local temp_response="$TEMP_DIR/response.tmp"
     
-    if response=$(eval "$curl_cmd" 2>/dev/null); then
-        status_code=$(eval "$curl_cmd -w '%{http_code}'" -o /dev/null 2>/dev/null)
+    if status_code=$(eval "$curl_cmd -w '%{http_code}'" -o "$temp_response" 2>/dev/null) && response=$(cat "$temp_response" 2>/dev/null); then
         log_success "Response received (HTTP $status_code)"
     else
         log_error "Failed to call endpoint"
@@ -139,6 +155,11 @@ test_message_endpoints() {
         '{"phone_number": "+5511999999999", "contact": {"name": "John Doe", "phone": "+5511888888888"}}' \
         "Send Contact"
     
+    # Test send sticker
+    api_call "POST" "/api/v1/instance/$instance_name/send-sticker" \
+        '{"phone_number": "+5511999999999", "sticker_url": "https://example.com/sticker.webp"}' \
+        "Send Sticker"
+    
     # Test send reaction
     api_call "POST" "/api/v1/instance/$instance_name/send-reaction" \
         '{"phone_number": "+5511999999999", "message_id": "test_message_id", "emoji": "👍"}' \
@@ -148,6 +169,16 @@ test_message_endpoints() {
     api_call "POST" "/api/v1/instance/$instance_name/fetch-profile" \
         '{"phone_number": "+5511999999999"}' \
         "Fetch WhatsApp Profile"
+    
+    # Test update profile picture
+    api_call "POST" "/api/v1/instance/$instance_name/update-profile-picture" \
+        '{"picture_url": "https://example.com/profile.jpg"}' \
+        "Update Profile Picture"
+    
+    # Test schema validation
+    api_call "POST" "/api/v1/instance/$instance_name/test-schema" \
+        '{"test_data": {"message": "test", "type": "text"}}' \
+        "Test Schema Validation"
 }
 
 # Start generating documentation
@@ -162,7 +193,7 @@ This document provides comprehensive examples for all Automagik Omni API endpoin
 
 ## Base URL
 ```
-http://localhost:18882
+http://localhost:8882
 ```
 
 ## Authentication
@@ -184,9 +215,10 @@ All POST/PUT requests should use JSON content type:
 3. [Instance Operations](#instance-operations)
 4. [Message Sending](#message-sending)
 5. [Trace & Analytics](#trace--analytics)
-6. [Webhooks](#webhooks)
-7. [Error Handling](#error-handling)
-8. [Filtering & Pagination](#filtering--pagination)
+6. [Test Capture & Debugging](#test-capture--debugging)
+7. [Webhooks](#webhooks)
+8. [Error Handling](#error-handling)
+9. [Filtering & Pagination](#filtering--pagination)
 
 ---
 
@@ -245,6 +277,12 @@ api_call "PUT" "/api/v1/instances/$TEST_INSTANCE_NAME" \
     }' \
     "Update Instance Configuration"
 
+# Test instance deletion
+api_call "DELETE" "/api/v1/instances/$TEST_INSTANCE_NAME" "" "Delete Instance"
+
+# Test channel deletion
+api_call "DELETE" "/api/v1/instances/$OPERATION_INSTANCE/channel" "" "Delete Instance Channel"
+
 cat >> "$OUTPUT_FILE" << 'EOF'
 
 ## Instance Operations
@@ -298,9 +336,28 @@ if [ -n "$TRACE_ID" ]; then
 fi
 
 # Test analytics
-api_call "GET" "/api/v1/analytics/summary" "" "Get Analytics Summary"
+api_call "GET" "/api/v1/traces/analytics/summary" "" "Get Analytics Summary"
 
-api_call "GET" "/api/v1/analytics/summary?start_date=2025-01-01&end_date=2025-12-31" "" "Get Analytics for Date Range"
+api_call "GET" "/api/v1/traces/analytics/summary?start_date=2025-01-01&end_date=2025-12-31" "" "Get Analytics for Date Range"
+
+# Test traces by phone number
+api_call "GET" "/api/v1/traces/phone/+5511999999999" "" "Get Traces by Phone Number"
+
+# Test trace cleanup
+api_call "DELETE" "/api/v1/traces/cleanup?days_old=30&dry_run=true" "" "Cleanup Old Traces (Dry Run)"
+
+cat >> "$OUTPUT_FILE" << 'EOF'
+
+## Test Capture & Debugging
+
+EOF
+
+# Test capture endpoints
+api_call "POST" "/api/v1/test/capture/enable" "" "Enable Test Capture Mode"
+
+api_call "GET" "/api/v1/test/capture/status" "" "Get Test Capture Status"
+
+api_call "POST" "/api/v1/test/capture/disable" "" "Disable Test Capture Mode"
 
 cat >> "$OUTPUT_FILE" << 'EOF'
 
@@ -434,15 +491,15 @@ cat >> "$OUTPUT_FILE" << 'EOF'
 ```bash
 # Get recent completed text messages
 curl -H "Authorization: Bearer your_key" \
-  "http://localhost:18882/api/v1/traces?status=completed&message_type=text&limit=10"
+  "http://localhost:8882/api/v1/traces?status=completed&message_type=text&limit=10"
 
 # Get traces for specific instance in date range
 curl -H "Authorization: Bearer your_key" \
-  "http://localhost:18882/api/v1/traces?instance_name=my-instance&start_date=2025-07-01&end_date=2025-07-31"
+  "http://localhost:8882/api/v1/traces?instance_name=my-instance&start_date=2025-07-01&end_date=2025-07-31"
 
 # Get media messages only
 curl -H "Authorization: Bearer your_key" \
-  "http://localhost:18882/api/v1/traces?has_media=true&limit=5"
+  "http://localhost:8882/api/v1/traces?has_media=true&limit=5"
 ```
 
 ### Response Formats
@@ -479,11 +536,11 @@ Empty results return empty array:
    ```
 
 2. **Use the interactive docs:**
-   Visit `http://localhost:18882/api/v1/docs` for Swagger UI
+   Visit `http://localhost:8882/api/v1/docs` for Swagger UI
 
 3. **Health check:**
    ```bash
-   curl http://localhost:18882/health
+   curl http://localhost:8882/health
    ```
 
 ### Environment Variables

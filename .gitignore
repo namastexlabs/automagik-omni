@@ -189,3 +189,6 @@ backups/
 .env.staging
 nohup.out
 webhook_debug/
+
+# Generated API documentation
+API_DOCUMENTATION.md
