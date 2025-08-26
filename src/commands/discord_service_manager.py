@@ -10,7 +10,6 @@ Supports Discord feature toggles via environment variables:
 - DISCORD_VOICE_ENABLED=true/false (default: true)
 - DISCORD_MAX_INSTANCES=10 (default: 10)
 """
-import asyncio
 import os
 import sys
 import logging
@@ -45,7 +44,7 @@ class DiscordFeatureConfig:
         
     def log_config(self):
         """Log the current configuration."""
-        logger.info(f"Discord Feature Configuration:")
+        logger.info("Discord Feature Configuration:")
         logger.info(f"  - Discord Enabled: {self.enabled}")
         logger.info(f"  - Voice Enabled: {self.voice_enabled}")
         logger.info(f"  - Max Instances: {self.max_instances}")

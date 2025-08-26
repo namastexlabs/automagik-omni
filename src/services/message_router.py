@@ -5,7 +5,6 @@ Uses the Automagik API for user and session management.
 Supports both traditional API routing and AutomagikHive streaming.
 """
 import logging
-import asyncio
 from enum import Enum
 from typing import Dict, Any, Optional, Union, List
 from src.services.agent_api_client import agent_api_client
@@ -434,36 +433,36 @@ class MessageRouter:
         logger.debug(f"  - agent_id: {getattr(instance_config, 'agent_id', None)}")
         
         if not stream_mode:
-            logger.debug(f"Streaming disabled: stream_mode is False")
+            logger.debug("Streaming disabled: stream_mode is False")
             return False
         
         # For unified schema: check if this is a hive instance with streaming
         if hasattr(instance_config, 'is_hive') and instance_config.is_hive:
             # Require API configuration
             if not instance_config.agent_api_url or not instance_config.agent_api_key:
-                logger.debug(f"Streaming disabled: Missing API URL or key")
+                logger.debug("Streaming disabled: Missing API URL or key")
                 return False
             # Require agent_id
             if not instance_config.agent_id:
-                logger.debug(f"Streaming disabled: No agent_id configured")
+                logger.debug("Streaming disabled: No agent_id configured")
                 return False
-            logger.debug(f"Streaming ENABLED for Hive instance")
+            logger.debug("Streaming ENABLED for Hive instance")
             return True
         
         # Backward compatibility: check legacy hive fields
         if hasattr(instance_config, 'hive_enabled') and instance_config.hive_enabled:
             if not instance_config.hive_api_url or not instance_config.hive_api_key:
-                logger.debug(f"Streaming disabled (legacy): Missing Hive API URL or key")
+                logger.debug("Streaming disabled (legacy): Missing Hive API URL or key")
                 return False
             has_agent = hasattr(instance_config, 'hive_agent_id') and instance_config.hive_agent_id
             has_team = hasattr(instance_config, 'hive_team_id') and instance_config.hive_team_id
             if has_agent or has_team:
-                logger.debug(f"Streaming ENABLED (legacy Hive fields)")
+                logger.debug("Streaming ENABLED (legacy Hive fields)")
                 return True
-            logger.debug(f"Streaming disabled (legacy): No hive_agent_id or hive_team_id")
+            logger.debug("Streaming disabled (legacy): No hive_agent_id or hive_team_id")
             return False
         
-        logger.debug(f"Streaming disabled: Not a Hive instance")
+        logger.debug("Streaming disabled: Not a Hive instance")
         return False
     
     async def route_message_smart(

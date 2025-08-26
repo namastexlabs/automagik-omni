@@ -9,7 +9,7 @@ import re
 import json
 import logging
 from typing import List, Dict, Optional, Union, Any
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode
 from datetime import datetime
 from enum import IntFlag
 

@@ -5,7 +5,6 @@ Channel-agnostic message sender that routes messages to the appropriate channel 
 import logging
 from typing import Optional, Dict, Any
 from src.db.models import InstanceConfig
-from src.channels.base import ChannelHandlerFactory
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,6 @@ class OmniChannelMessageSender:
         logger.info(f"_send_discord_text called: recipient={recipient}, text_length={len(text)}")
         import aiohttp
         import os
-        import re
         from src.ipc_config import IPCConfig
         
         try:

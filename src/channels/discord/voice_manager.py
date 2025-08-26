@@ -13,11 +13,11 @@ from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 
 import discord
-from discord import VoiceClient, AudioSource, PCMVolumeTransformer
+from discord import VoiceClient, AudioSource
 
 from ...core.exceptions import AutomagikError
 

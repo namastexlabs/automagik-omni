@@ -5,10 +5,9 @@ This module handles modern Discord interactions including slash commands,
 buttons, select menus, and modals for the automagik-omni bot.
 """
 
-import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Callable, Union
+from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 
 import discord

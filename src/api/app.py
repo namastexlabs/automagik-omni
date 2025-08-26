@@ -335,7 +335,6 @@ app.openapi = custom_openapi
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    from src.channels.discord.bot_manager import DiscordBotManager
     
     from datetime import datetime, timezone
     

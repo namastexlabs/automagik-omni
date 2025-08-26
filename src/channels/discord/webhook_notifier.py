@@ -4,7 +4,6 @@ Discord Webhook Notifier
 Simple webhook-only notifications for Discord channels.
 No bot needed, just webhook URLs for sending messages.
 """
-import json
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -160,7 +159,7 @@ class DiscordWebhookNotifier:
             )
             
             if response.status_code in [200, 204]:
-                logger.info(f"Successfully sent Discord webhook message")
+                logger.info("Successfully sent Discord webhook message")
                 return True
             else:
                 logger.error(f"Failed to send Discord webhook: {response.status_code} - {response.text}")

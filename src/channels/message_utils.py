@@ -1,7 +1,7 @@
 """Utility functions for message processing across channels."""
 
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 
 logger = logging.getLogger(__name__)

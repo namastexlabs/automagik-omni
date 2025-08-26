@@ -1,7 +1,7 @@
 """
 Validation utilities for AutomagikHive integration.
 """
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from src.db.models import InstanceConfig
 
 

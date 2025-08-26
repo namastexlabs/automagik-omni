@@ -4,10 +4,8 @@ Tests client initialization, HTTP calls, SSE streaming, and error handling.
 """
 
 import pytest
-import json
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from httpx import Response, ConnectTimeout, ReadTimeout, TimeoutException, HTTPError, HTTPStatusError
+from unittest.mock import MagicMock, patch
+from httpx import ConnectTimeout, ReadTimeout, HTTPError, HTTPStatusError
 
 from src.services.automagik_hive_client import (
     AutomagikHiveClient,
@@ -17,8 +15,8 @@ from src.services.automagik_hive_client import (
     AutomagikHiveStreamError
 )
 from src.services.automagik_hive_models_fixed import (
-    HiveEvent, HiveRunResponse, HiveEventType,
-    RunStartedEvent, RunResponseContentEvent, RunCompletedEvent, ErrorEvent
+    HiveEventType,
+    RunStartedEvent, RunResponseContentEvent, RunCompletedEvent
 )
 from src.db.models import InstanceConfig
 

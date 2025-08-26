@@ -8,7 +8,6 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
 from src.db.models import InstanceConfig
-from src.config import config
 from src.utils.dependency_guard import requires_feature, LazyImport, DependencyError
 from src.services.message_router import message_router
 # Lazy imports with dependency guards
@@ -357,7 +356,7 @@ class DiscordChannelHandler(ChannelHandler):
                 channel_type="discord",
                 invite_url=bot_instance.invite_url,
                 status="success",
-                message=f"Discord bot invite URL ready. Use this URL to add the bot to Discord servers."
+                message="Discord bot invite URL ready. Use this URL to add the bot to Discord servers."
             )
         except Exception as e:
             logger.error(f"Failed to get Discord invite URL: {e}")

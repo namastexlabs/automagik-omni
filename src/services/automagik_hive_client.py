@@ -10,9 +10,9 @@ import logging
 from typing import Optional, Dict, Any, AsyncIterator, Union, List
 from contextlib import asynccontextmanager
 import httpx
-from httpx import ConnectTimeout, ReadTimeout, TimeoutException, HTTPError
+from httpx import ConnectTimeout, ReadTimeout, TimeoutException
 from .automagik_hive_models_fixed import (
-    HiveEvent, HiveRunRequest, HiveContinueRequest, HiveRunResponse,
+    HiveEvent, HiveContinueRequest, HiveRunResponse,
     parse_hive_event, HiveEventType, ErrorEvent
 )
 from ..db.models import InstanceConfig
@@ -399,7 +399,7 @@ class AutomagikHiveClient:
                 # Special handling: Check if this looks like concatenated JSON without newlines
                 # Hive sometimes sends all JSON objects concatenated on a single line
                 if text.startswith('{') and text.count('}{') > 0 and '\n' not in text:
-                    logger.debug(f"Detected concatenated JSON objects in single chunk without newlines")
+                    logger.debug("Detected concatenated JSON objects in single chunk without newlines")
                     # Process immediately without line splitting
                     json_objects = self._split_concatenated_json(text)
                     if json_objects:
@@ -517,7 +517,7 @@ class AutomagikHiveClient:
                     if json_buffer.strip() and not json_buffer.strip().startswith('{'):
                         if json_buffer.strip().startswith('"') and '}{' in json_buffer:
                             # Buffer is missing the opening brace, add it back
-                            logger.debug(f"Detected missing opening brace in buffer, fixing...")
+                            logger.debug("Detected missing opening brace in buffer, fixing...")
                             json_buffer = '{' + json_buffer
                             logger.debug(f"Fixed buffer now starts with: {json_buffer[:50]}...")
                     
@@ -527,7 +527,7 @@ class AutomagikHiveClient:
                     
                     # First check if we have concatenated objects
                     if remaining_buffer.count('}{') > 0:
-                        logger.debug(f"Detected concatenated JSON objects in buffer, attempting to split...")
+                        logger.debug("Detected concatenated JSON objects in buffer, attempting to split...")
                         json_objects = self._split_concatenated_json(remaining_buffer)
                         if json_objects:
                             logger.debug(f"Successfully split into {len(json_objects)} JSON objects")
@@ -590,7 +590,7 @@ class AutomagikHiveClient:
                 except json.JSONDecodeError as e:
                     # Try to split concatenated JSON objects
                     if json_buffer.count('}{') > 0:
-                        logger.debug(f"Detected concatenated JSON objects in final buffer, attempting to split...")
+                        logger.debug("Detected concatenated JSON objects in final buffer, attempting to split...")
                         json_objects = self._split_concatenated_json(json_buffer)
                         
                         if json_objects:
@@ -721,13 +721,13 @@ class AutomagikHiveClient:
                 event_type = event_data["event"]
                 if event_type == "TeamRunResponseContent":
                     event_data["event"] = "RunResponseContent"
-                    logger.debug(f"Mapped event type 'TeamRunResponseContent' to 'RunResponseContent'")
+                    logger.debug("Mapped event type 'TeamRunResponseContent' to 'RunResponseContent'")
                 elif event_type == "TeamRunStarted":
                     event_data["event"] = "RunStarted"
-                    logger.debug(f"Mapped event type 'TeamRunStarted' to 'RunStarted'")
+                    logger.debug("Mapped event type 'TeamRunStarted' to 'RunStarted'")
                 elif event_type == "TeamRunCompleted":
                     event_data["event"] = "RunCompleted"
-                    logger.debug(f"Mapped event type 'TeamRunCompleted' to 'RunCompleted'")
+                    logger.debug("Mapped event type 'TeamRunCompleted' to 'RunCompleted'")
             
             event = parse_hive_event(event_data)
             return event

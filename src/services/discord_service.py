@@ -6,12 +6,10 @@ import asyncio
 import logging
 import threading
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone
 
-from sqlalchemy.orm import Session
 from src.db.database import SessionLocal
 from src.db.models import InstanceConfig
-from src.channels.discord.bot_manager import DiscordBotManager, BotStatus
+from src.channels.discord.bot_manager import DiscordBotManager
 from src.services.message_router import MessageRouter
 from src.core.telemetry import track_command
 from src.utils.health_check import wait_for_api_health
@@ -104,7 +102,7 @@ class DiscordService:
         api_port = int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882"))
         health_timeout = int(os.getenv("DISCORD_HEALTH_CHECK_TIMEOUT", "60"))
         
-        logger.info(f"🏥 Checking API health before starting Discord bot...")
+        logger.info("🏥 Checking API health before starting Discord bot...")
         
         api_url = f"http://{api_host}:{api_port}"
         

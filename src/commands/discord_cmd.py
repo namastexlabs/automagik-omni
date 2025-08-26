@@ -3,7 +3,6 @@
 Discord command wrapper - provides a clean interface to Discord bot management.
 This script provides a simple command interface that integrates with the CLI system.
 """
-import asyncio
 import sys
 import logging
 from pathlib import Path

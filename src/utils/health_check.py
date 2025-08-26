@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import aiohttp
-from typing import Optional
 
 
 logger = logging.getLogger(__name__)

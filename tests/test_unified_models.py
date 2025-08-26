@@ -5,7 +5,6 @@ Tests the unified agent fields and helper methods in InstanceConfig.
 
 import pytest
 from sqlalchemy.exc import IntegrityError
-from unittest.mock import patch, MagicMock
 
 from src.db.models import InstanceConfig, User
 

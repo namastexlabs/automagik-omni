@@ -8,7 +8,6 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
-from datetime import datetime
 
 from src.services.discord_service import discord_service
 from src.core.telemetry import track_command

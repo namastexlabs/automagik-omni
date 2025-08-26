@@ -5,7 +5,6 @@ API endpoint tests for WhatsApp mention functionality.
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
-from sqlalchemy.orm import Session
 
 from src.api.app import app
 from src.db.models import InstanceConfig

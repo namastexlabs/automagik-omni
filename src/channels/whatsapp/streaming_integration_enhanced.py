@@ -5,17 +5,14 @@ This module extends the base streaming integration to provide comprehensive
 trace context support for streaming responses, capturing first token timing,
 incremental content, and complete final output for accurate analytics.
 """
-import asyncio
 import logging
-import threading
 import time
-from typing import Dict, Any, Optional, List, AsyncIterator
-from contextlib import asynccontextmanager
+from typing import Dict, Any, Optional
 
-from src.services.automagik_hive_client import AutomagikHiveClient, AutomagikHiveError
-from src.services.automagik_hive_models import HiveEvent, HiveEventType, RunResponseContentEvent
+from src.services.automagik_hive_client import AutomagikHiveClient
+from src.services.automagik_hive_models import HiveEventType
 from src.services.streaming_trace_context import StreamingTraceContext
-from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender, PresenceUpdater
+from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 from src.channels.whatsapp.streaming_integration import (
     WhatsAppMessageChunker,
     TypingIndicatorManager,
