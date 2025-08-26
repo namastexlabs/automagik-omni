@@ -15,6 +15,7 @@ from src.channels.discord.bot_manager import DiscordBotManager, BotStatus
 from src.services.message_router import MessageRouter
 from src.core.telemetry import track_command
 from src.utils.health_check import wait_for_api_health
+from src.utils.datetime_utils import utcnow
 import os
 
 logger = logging.getLogger("src.services.discord_service")
@@ -158,7 +159,7 @@ class DiscordService:
                     if success:
                         self._running_instances[instance_name] = {
                             'instance_config': instance,
-                            'started_at': datetime.now(timezone.utc),
+                            'started_at': utcnow(),  # ✅ FIXED: Using timezone-aware utility
                             'status': 'running'
                         }
                         track_command("discord_start", success=True, instance_name=instance_name)
@@ -273,7 +274,7 @@ class DiscordService:
                 'last_heartbeat': bot_status.last_heartbeat,
                 'uptime': bot_status.uptime,
                 'error_message': bot_status.error_message,
-                'started_at': instance_info.get('started_at'),
+                'started_at': instance_info.get('started_at'),  # ✅ Uses timezone-aware timestamp
                 'service_status': instance_info.get('status', 'unknown')
             }
         except Exception as e:
