@@ -25,6 +25,7 @@ from src.channels.message_utils import extract_response_text
 from .voice_manager import DiscordVoiceManager
 from ...utils.rate_limiter import RateLimiter
 from ...utils.health_monitor import HealthMonitor
+from src import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -906,7 +907,7 @@ class DiscordBotManager:
             
             # Add footer with instance info
             embed.set_footer(
-                text=f"Instance: {instance_name} | Automagik Omni v1.0",
+                text=f"Instance: {instance_name} | Automagik Omni v{__version__}",
                 icon_url="https://cdn.discordapp.com/emojis/1234567890123456789.png"  # Would use actual emoji if available
             )
             
