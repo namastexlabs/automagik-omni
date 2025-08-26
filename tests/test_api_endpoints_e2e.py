@@ -182,7 +182,6 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                     ("PUT", "/api/v1/instances/test-instance"),
                     ("DELETE", "/api/v1/instances/test-instance"),
                     ("GET", "/api/v1/traces"),
-                    # Note: test/capture endpoints are intentionally public for development
                 ]
                 
                 for method, endpoint in protected_endpoints:
@@ -295,22 +294,6 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
             # Should work without auth (webhook endpoints are public by design)
             assert response.status_code == 200
     
-    def test_test_capture_endpoints_no_auth_required(self, test_client):
-        """Test that test capture endpoints work without authentication (by design)."""
-        # Test enable endpoint
-        response = test_client.post("/api/v1/test/capture/enable")
-        assert response.status_code == 200
-        assert response.json()["status"] == "enabled"
-        
-        # Test status endpoint
-        response = test_client.get("/api/v1/test/capture/status")
-        assert response.status_code == 200
-        assert "enabled" in response.json()
-        
-        # Test disable endpoint
-        response = test_client.post("/api/v1/test/capture/disable")
-        assert response.status_code == 200
-        assert response.json()["status"] == "disabled"
     
     def test_cors_headers_present(self, test_client):
         """Test that CORS headers are properly configured or OPTIONS is handled."""
@@ -796,36 +779,6 @@ class TestWebhookEndpoints(TestAPIEndpoints):
             mock_handler.assert_called_once()
 
 
-class TestTestAndDevelopmentEndpoints(TestAPIEndpoints):
-    """Test endpoints for testing and development."""
-    
-    def test_enable_test_capture(self, test_client):
-        """Test enabling test capture."""
-        with patch('src.utils.test_capture.test_capture') as mock_capture:
-            response = test_client.post("/api/v1/test/capture/enable")
-            assert response.status_code == 200
-            assert response.json()["status"] == "enabled"
-            mock_capture.enable_capture.assert_called_once()
-    
-    def test_disable_test_capture(self, test_client):
-        """Test disabling test capture."""
-        with patch('src.utils.test_capture.test_capture') as mock_capture:
-            response = test_client.post("/api/v1/test/capture/disable")
-            assert response.status_code == 200
-            assert response.json()["status"] == "disabled"
-            mock_capture.disable_capture.assert_called_once()
-    
-    def test_test_capture_status(self, test_client):
-        """Test getting test capture status."""
-        with patch('src.utils.test_capture.test_capture') as mock_capture:
-            mock_capture.capture_enabled = True
-            mock_capture.save_directory = "/tmp/test"
-            
-            response = test_client.get("/api/v1/test/capture/status")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["enabled"] == True
-            assert data["directory"] == "/tmp/test"
 
 
 class TestErrorHandling(TestAPIEndpoints):

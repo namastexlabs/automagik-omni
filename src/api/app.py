@@ -246,15 +246,28 @@ app = FastAPI(
     openapi_tags=[
         {
             "name": "instances",
-            "description": "Omnichannel instance management (WhatsApp, Slack, Discord)",
+            "description": "Instance Management",
         },
         {
-            "name": "messages",
-            "description": "Message sending endpoints for all channel types",
+            "name": "messages", 
+            "description": "Message Operations",
         },
-        {"name": "traces", "description": "Message tracing and analytics"},
-        {"name": "webhooks", "description": "Webhook endpoints for receiving messages"},
-        {"name": "health", "description": "Health check and status endpoints"},
+        {
+            "name": "traces",
+            "description": "Message Tracing & Analytics", 
+        },
+        {
+            "name": "webhooks",
+            "description": "Webhook Receivers",
+        },
+        {
+            "name": "profiles",
+            "description": "User Profile Management",
+        },
+        {
+            "name": "health",
+            "description": "System Health & Status",
+        }
     ],
 )
 
@@ -291,17 +304,44 @@ app.add_middleware(
 )
 
 
-# Custom OpenAPI schema with Bearer token authentication
+# Custom OpenAPI schema with enhanced formatting and authentication
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
 
+    # Enhanced API description
+    enhanced_description = f"""
+{config.api.description}
+
+## Features
+
+- Multi-tenant architecture with isolated instances
+- Universal messaging across WhatsApp, Discord, and Slack
+- Message tracing and analytics
+- Bearer token authentication
+
+## Quick Start
+
+1. Include API key in `Authorization: Bearer <token>` header
+2. Create an instance for your channel
+3. Send messages using the unified endpoints
+4. Monitor activity via traces and health endpoints
+"""
+
     openapi_schema = get_openapi(
         title=config.api.title,
         version=config.api.version,
-        description=config.api.description,
+        description=enhanced_description,
         routes=app.routes,
     )
+
+    # Add server information
+    openapi_schema["servers"] = [
+        {
+            "url": f"http://{config.api.host}:{config.api.port}",
+            "description": "Development Server"
+        }
+    ]
 
     # Add Bearer token authentication scheme
     if "components" not in openapi_schema:
@@ -332,9 +372,13 @@ app.openapi = custom_openapi
 
 
 
-@app.get("/health")
+@app.get("/health", tags=["health"])
 async def health_check():
-    """Health check endpoint."""
+    """
+    System health check endpoint.
+    
+    Returns status for API, database, Discord services, and runtime information.
+    """
     
     from datetime import datetime, timezone
     
@@ -389,36 +433,6 @@ async def health_check():
     return health_status
 
 
-@app.post("/api/v1/test/capture/enable")
-async def enable_test_capture():
-    """Enable test capture for the next media message."""
-    from src.utils.test_capture import test_capture
-
-    test_capture.enable_capture()
-    return {
-        "status": "enabled",
-        "message": "Send a WhatsApp image/video to capture real test data",
-    }
-
-
-@app.post("/api/v1/test/capture/disable")
-async def disable_test_capture():
-    """Disable test capture."""
-    from src.utils.test_capture import test_capture
-
-    test_capture.disable_capture()
-    return {"status": "disabled", "message": "Test capture disabled"}
-
-
-@app.get("/api/v1/test/capture/status")
-async def test_capture_status():
-    """Get test capture status."""
-    from src.utils.test_capture import test_capture
-
-    return {
-        "enabled": test_capture.capture_enabled,
-        "directory": test_capture.save_directory,
-    }
 
 
 async def _handle_evolution_webhook(instance_config, request: Request):
@@ -517,13 +531,15 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/webhook/evolution/{instance_name}")
+@app.post("/webhook/evolution/{instance_name}", tags=["webhooks"])
 async def evolution_webhook_tenant(
     instance_name: str, request: Request, db: Session = Depends(get_database)
 ):
     """
     Multi-tenant webhook endpoint for Evolution API.
-    Uses per-instance configuration.
+    
+    Receives incoming messages from Evolution API instances and routes them to the appropriate tenant configuration.
+    Supports text, media, audio, and other message types with automatic transcription and processing.
     """
     # Get instance configuration
     instance_config = get_instance_by_name(instance_name, db)

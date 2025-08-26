@@ -21,9 +21,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/instances/supported-channels")
+@router.get("/instances/supported-channels",
+           summary="Get Supported Channels",
+           description="Retrieve list of all supported communication channels")
 async def get_supported_channels(api_key: str = Depends(verify_api_key)):
-    """Get list of supported channel types."""
+    """
+    Get list of supported channel types.
+    
+    Returns available channels (WhatsApp, Discord, Slack) with configuration requirements.
+    """
     try:
         supported_channels = ChannelHandlerFactory.get_supported_channels()
         return {
