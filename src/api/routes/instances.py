@@ -684,7 +684,7 @@ async def get_connection_status(
     # Get appropriate channel handler
     try:
         handler = ChannelHandlerFactory.get_handler(instance.channel_type)
-        status_response = await handler.get_connection_status(instance)
+        status_response = await handler.get_status(instance)
         return status_response
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
