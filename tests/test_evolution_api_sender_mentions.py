@@ -3,8 +3,7 @@ Unit tests for Evolution API sender mention functionality.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from typing import List, Optional
+from unittest.mock import Mock, patch
 
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 

@@ -39,11 +39,19 @@ class InstanceConfig(Base):
         Boolean, default=True, nullable=False
     )  # WhatsApp: send base64 in webhooks
 
+    # Discord-specific fields
+    discord_bot_token = Column(String, nullable=True)  # Bot authentication token
+    discord_client_id = Column(String, nullable=True)  # Application client ID
+    discord_guild_id = Column(String, nullable=True)  # Optional specific guild/server
+    discord_default_channel_id = Column(String, nullable=True)  # Default text channel
+    discord_voice_enabled = Column(Boolean, default=False, nullable=True)  # Voice support flag
+    discord_slash_commands_enabled = Column(Boolean, default=True, nullable=True)  # Slash commands
+    discord_webhook_url = Column(String, nullable=True)  # Optional webhook for notifications
+    discord_permissions = Column(Integer, nullable=True)  # Permission integer for bot
+    
     # Future channel-specific fields (to be added as needed)
     # slack_bot_token = Column(String, nullable=True)
     # slack_workspace = Column(String, nullable=True)
-    # discord_token = Column(String, nullable=True)
-    # discord_guild_id = Column(String, nullable=True)
 
     # Unified Agent API configuration (works for both Automagik and Hive)
     agent_instance_type = Column(String, default="automagik", nullable=False)  # "automagik" or "hive"
@@ -117,7 +125,13 @@ class InstanceConfig(Base):
     def get_agent_config(self) -> dict:
         """Get unified agent configuration as dictionary."""
         # Use default_agent if agent_id is not set (backward compatibility)
-        agent_identifier = self.agent_id or self.default_agent or "default"
+        # Check if agent_id is meaningful (not the default value)
+        if self.agent_id and self.agent_id != "default":
+            agent_identifier = self.agent_id
+        elif self.default_agent:
+            agent_identifier = self.default_agent
+        else:
+            agent_identifier = "default"
         
         config = {
             "instance_type": self.agent_instance_type or "automagik",

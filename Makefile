@@ -148,7 +148,14 @@ help: ## Show this help message
 	@echo -e "  $(FONT_GREEN)stop-service   $(FONT_RESET) Stop service (delegates to local PM2)"
 	@echo -e "  $(FONT_GREEN)restart-service$(FONT_RESET) Restart service (delegates to local PM2)"
 	@echo ""
-	@echo -e "$(FONT_BOLD)Database & CLI:$(FONT_RESET)"
+	@echo -e "$(FONT_BOLD)Discord Bot Management:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)discord-start  $(FONT_RESET) Start Discord bot (INSTANCE=name)"
+	@echo -e "  $(FONT_PURPLE)discord-stop   $(FONT_RESET) Stop Discord bot (INSTANCE=name)"  
+	@echo -e "  $(FONT_PURPLE)discord-restart$(FONT_RESET) Restart Discord bot (INSTANCE=name)"
+	@echo -e "  $(FONT_PURPLE)discord-status $(FONT_RESET) Show Discord bot status"
+	@echo -e "  $(FONT_PURPLE)discord-logs   $(FONT_RESET) Show Discord service logs"
+	@echo -e "  $(FONT_PURPLE)discord-list   $(FONT_RESET) List all Discord instances"
+	@echo ""	@echo -e "$(FONT_BOLD)Database & CLI:$(FONT_RESET)"
 	@echo -e "  $(FONT_YELLOW)db-init        $(FONT_RESET) Initialize database with default instance"
 	@echo -e "  $(FONT_YELLOW)cli-instances  $(FONT_RESET) List all instances via CLI"
 	@echo -e "  $(FONT_YELLOW)cli-create     $(FONT_RESET) Create new instance via CLI (interactive)"
@@ -165,6 +172,51 @@ help: ## Show this help message
 	@echo -e "  $(FONT_CYAN)check          $(FONT_RESET) Quick check: quality + tests"
 	@echo -e "  $(FONT_GREEN)deploy-service $(FONT_RESET) Deploy as service: install + service + start"
 	@echo ""
+
+# ===========================================
+# 🎮 Discord Bot Management
+# ===========================================
+.PHONY: discord-start discord-stop discord-restart discord-status discord-logs discord-list
+
+discord-start: ## Start Discord bot for specified instance
+	@if [ -z "$(INSTANCE)" ]; then \
+		echo "Usage: make discord-start INSTANCE=<instance-name>"; \
+		exit 1; \
+	fi
+	@echo "Starting Discord bot for instance: $(INSTANCE)..."
+	@uv run python -m src.cli.main_cli discord start $(INSTANCE)
+
+discord-stop: ## Stop Discord bot for specified instance
+	@if [ -z "$(INSTANCE)" ]; then \
+		echo "Usage: make discord-stop INSTANCE=<instance-name>"; \
+		exit 1; \
+	fi
+	@echo "Stopping Discord bot for instance: $(INSTANCE)..."
+	@uv run python -m src.cli.main_cli discord stop $(INSTANCE)
+
+discord-restart: ## Restart Discord bot for specified instance
+	@if [ -z "$(INSTANCE)" ]; then \
+		echo "Usage: make discord-restart INSTANCE=<instance-name>"; \
+		exit 1; \
+	fi
+	@echo "Restarting Discord bot for instance: $(INSTANCE)..."
+	@uv run python -m src.cli.main_cli discord restart $(INSTANCE)
+
+discord-status: ## Show Discord bot status
+	@echo "Discord bot status:"
+	@if [ -n "$(INSTANCE)" ]; then \
+		uv run python -m src.cli.main_cli discord status $(INSTANCE); \
+	else \
+		uv run python -m src.cli.main_cli discord status; \
+	fi
+
+discord-logs: ## Show Discord service logs
+	@echo "Showing Discord service logs..."
+	@pm2 logs automagik-omni-discord --lines 50
+
+discord-list: ## List all Discord instances
+	@echo "Available Discord instances:"
+	@uv run python -m src.cli.main_cli discord list
 
 # ===========================================
 # 🏗️ Development Commands
@@ -188,9 +240,9 @@ dev: ## Start development server with auto-reload
 	$(call print_status,Starting development server with auto-reload)
 	@if [ -f .env ]; then \
 		export $$(cat .env | grep -v '^#' | xargs) && \
-		$(UV) run uvicorn src.api.app:app --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload --log-level $$(echo "$${LOG_LEVEL:-INFO}" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run python -m uvicorn src.api.app:app --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload --workers 1 --log-level $$(echo "$${LOG_LEVEL:-INFO}" | tr '[:upper:]' '[:lower:]'); \
 	else \
-		$(UV) run uvicorn src.api.app:app --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run python -m uvicorn src.api.app:app --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload --workers 1 --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
 	fi
 
 .PHONY: test
@@ -351,7 +403,7 @@ logs-follow: logs-follow-local ## Follow service logs (delegates to local PM2)
 db-init: ## Initialize database with default instance
 	$(call check_prerequisites)
 	$(call print_status,Initializing database)
-	@$(UV) run python -c "from src.db.bootstrap import bootstrap_default_instance; bootstrap_default_instance()"
+	@$(UV) run python -c "from src.db.bootstrap import ensure_default_instance; from src.db.database import SessionLocal; db = SessionLocal(); ensure_default_instance(db); db.close()"
 	$(call print_success,Database initialized with default instance)
 
 .PHONY: cli-instances

@@ -306,6 +306,86 @@ class TraceService:
             return None
 
     @staticmethod
+    def create_streaming_trace(
+        message_data: Dict[str, Any], instance_name: str, db_session: Session
+    ) -> Optional["StreamingTraceContext"]:
+        """
+        Create a streaming trace context from message data.
+        
+        Args:
+            message_data: WhatsApp message data
+            instance_name: Instance name
+            db_session: Database session
+            
+        Returns:
+            StreamingTraceContext instance or None if creation fails
+        """
+        if not config.tracing.enabled:
+            return None
+            
+        try:
+            # Import here to avoid circular import
+            from src.services.streaming_trace_context import StreamingTraceContext
+            
+            # Use the same trace creation logic as create_trace but return StreamingTraceContext
+            data = message_data.get("data", {})
+            key = data.get("key", {})
+            message_obj = data.get("message", {})
+
+            # Generate trace ID
+            trace_id = str(uuid.uuid4())
+
+            # Determine message type and metadata
+            message_type = TraceService._determine_message_type(message_obj)
+            has_media = TraceService._has_media(message_obj)
+            context_info = data.get("contextInfo", {})
+            has_quoted = "contextInfo" in data and context_info is not None and "quotedMessage" in context_info
+            
+            logger.info(f"📝 STREAMING TRACE: Creating streaming trace for message type={message_type}, instance={instance_name}")
+
+            # Extract message content length
+            message_length = 0
+            if "conversation" in message_obj:
+                message_length = len(message_obj["conversation"])
+            elif "extendedTextMessage" in message_obj:
+                message_length = len(message_obj["extendedTextMessage"].get("text", ""))
+
+            # Create trace record
+            trace = MessageTrace(
+                trace_id=trace_id,
+                instance_name=instance_name,
+                whatsapp_message_id=key.get("id"),
+                sender_phone=TraceService._extract_phone(key.get("remoteJid", "")),
+                sender_name=data.get("pushName"),
+                sender_jid=key.get("remoteJid"),
+                message_type=message_type,
+                has_media=has_media,
+                has_quoted_message=has_quoted,
+                message_length=message_length,
+                status="received",
+            )
+
+            # Save to database
+            db_session.add(trace)
+            db_session.commit()
+
+            # Create streaming context object
+            context = StreamingTraceContext(trace_id, db_session)
+
+            # Log the initial webhook payload
+            context.log_stage("webhook_received", message_data, "webhook")
+
+            logger.info(
+                f"Created streaming trace {trace_id} for message {key.get('id')} from {trace.sender_phone}"
+            )
+
+            return context
+            
+        except Exception as e:
+            logger.error(f"Failed to create streaming trace: {e}")
+            return None
+
+    @staticmethod
     def get_trace(trace_id: str, db_session: Session) -> Optional[MessageTrace]:
         """Get a trace by ID."""
         try:

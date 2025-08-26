@@ -3,10 +3,8 @@ Integration tests for WhatsApp mention functionality end-to-end flow.
 """
 
 import pytest
-import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 from src.api.app import app
 from src.db.models import InstanceConfig
