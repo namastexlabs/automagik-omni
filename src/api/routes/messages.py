@@ -361,7 +361,7 @@ async def send_media_message(
         media_source = request.media_url if request.media_url else request.media_base64
 
         # Send the media message
-        success = sender.send_media_message(
+        success = await sender.send_media_message(
             recipient=recipient,
             media_type=request.media_type,
             media=media_source,
@@ -451,9 +451,10 @@ async def send_sticker_message(
         )
 
         # Send the sticker
-        success = sender.send_sticker_message(
+        result = await sender.send_sticker_message(
             recipient=recipient, sticker=sticker_source
         )
+        success = result.get("success", False)
 
         return MessageResponse(success=success, status="sent" if success else "failed")
 

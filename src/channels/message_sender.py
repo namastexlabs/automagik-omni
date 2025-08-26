@@ -392,3 +392,37 @@ class OmniChannelMessageSender:
         except Exception as e:
             logger.error(f"Failed to send reaction via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
+
+    def fetch_profile(self, recipient: str) -> Optional[Dict[str, Any]]:
+        """Fetch user profile information through the appropriate channel."""
+        try:
+            logger.info(f"OmniChannelMessageSender: Fetching profile via {self.channel_type} for {recipient}")
+            if self.channel_type == "whatsapp":
+                sender = EvolutionApiSender(config_override=self.instance_config)
+                return sender.fetch_profile(phone_number=recipient)
+            elif self.channel_type == "discord":
+                logger.warning(f"Profile fetching not supported on Discord for instance '{self.instance_config.name}'")
+                return None
+            else:
+                logger.error(f"Unsupported channel type: {self.channel_type}")
+                return None
+        except Exception as e:
+            logger.error(f"Failed to fetch profile via {self.channel_type}: {e}")
+            return None
+
+    def update_profile_picture(self, picture_url: str) -> bool:
+        """Update profile picture through the appropriate channel."""
+        try:
+            logger.info(f"OmniChannelMessageSender: Updating profile picture via {self.channel_type}")
+            if self.channel_type == "whatsapp":
+                sender = EvolutionApiSender(config_override=self.instance_config)
+                return sender.update_profile_picture(picture_url=picture_url)
+            elif self.channel_type == "discord":
+                logger.warning(f"Profile picture updates not supported on Discord for instance '{self.instance_config.name}'")
+                return False
+            else:
+                logger.error(f"Unsupported channel type: {self.channel_type}")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update profile picture via {self.channel_type}: {e}")
+            return False
