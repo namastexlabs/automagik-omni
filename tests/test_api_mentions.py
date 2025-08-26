@@ -9,7 +9,6 @@ from unittest.mock import Mock, patch
 from src.api.app import app
 from src.db.models import InstanceConfig
 # Import the messages module to enable proper mocking
-from src.api.routes import messages
 
 
 class TestApiMentions:
@@ -39,9 +38,9 @@ class TestApiMentions:
             "Authorization": "Bearer namastex888"
         }
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('src.api.routes.messages.EvolutionApiSender')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_with_auto_parse_mentions(
         self, mock_resolve, mock_sender_class, mock_get_instance, 
         client, mock_instance_config, api_headers
@@ -83,10 +82,10 @@ class TestApiMentions:
         assert call_args[1]["mentioned"] is None  # Should be None for auto-parsing
         assert call_args[1]["mentions_everyone"] is False
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
-    @patch('src.channels.whatsapp.mention_parser.WhatsAppMentionParser.parse_explicit_mentions')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('src.api.routes.messages.EvolutionApiSender')
+    @patch('src.api.routes.messages._resolve_recipient')
+    @patch('src.api.routes.messages.WhatsAppMentionParser.parse_explicit_mentions')
     def test_send_text_with_explicit_mentions(
         self, mock_parse_mentions, mock_resolve, mock_sender_class, 
         mock_get_instance, client, mock_instance_config, api_headers
@@ -132,9 +131,9 @@ class TestApiMentions:
         assert call_args[1]["mentioned"] == ["5511999999999@s.whatsapp.net", "5511888888888@s.whatsapp.net"]
         assert call_args[1]["auto_parse_mentions"] is False
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('src.api.routes.messages.EvolutionApiSender')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_with_mentions_everyone(
         self, mock_resolve, mock_sender_class, mock_get_instance,
         client, mock_instance_config, api_headers
@@ -172,9 +171,9 @@ class TestApiMentions:
         assert call_args[1]["mentions_everyone"] is True
         assert call_args[1]["mentioned"] is None
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('src.api.routes.messages.EvolutionApiSender')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_no_mentions(
         self, mock_resolve, mock_sender_class, mock_get_instance,
         client, mock_instance_config, api_headers
@@ -212,9 +211,9 @@ class TestApiMentions:
         assert call_args[1]["mentions_everyone"] is False
         assert call_args[1]["auto_parse_mentions"] is True  # Default value
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('src.api.routes.messages.EvolutionApiSender')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_sender_failure(
         self, mock_resolve, mock_sender_class, mock_get_instance,
         client, mock_instance_config, api_headers
@@ -295,9 +294,9 @@ class TestApiMentions:
         # Both explicit
         ({"phone_number": "+5511777777777", "text": "test", "auto_parse_mentions": False, "mentions_everyone": True}, False, True),
     ])
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('src.api.routes.messages.EvolutionApiSender')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_parameter_defaults(
         self, mock_resolve, mock_sender_class, mock_get_instance,
         client, mock_instance_config, api_headers,
