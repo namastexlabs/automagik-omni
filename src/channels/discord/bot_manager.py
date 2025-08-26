@@ -7,10 +7,11 @@ event management, message routing, and health monitoring.
 
 import asyncio
 import logging
+import random
 import time
 from typing import Dict, Optional, Any, List
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import os
 from aiohttp import web
@@ -40,6 +41,21 @@ class BotStatus:
     last_heartbeat: datetime
     uptime: Optional[datetime]
     error_message: Optional[str] = None
+
+
+@dataclass
+class CircuitBreakerState:
+    """Circuit breaker state for bot connection failures."""
+    failure_count: int = 0
+    last_failure_time: Optional[datetime] = None
+    is_open: bool = False
+    next_retry_time: Optional[datetime] = None
+    consecutive_failures: int = 0
+    
+    # Circuit breaker thresholds
+    failure_threshold: int = 3  # Open circuit after 3 consecutive failures
+    recovery_timeout: int = 300  # 5 minutes before attempting recovery
+    half_open_max_attempts: int = 2  # Max attempts in half-open state
 
 
 class AutomagikBot(commands.Bot):
@@ -195,6 +211,7 @@ class DiscordBotManager:
         self.instance_configs: Dict[str, InstanceConfig] = {}  # Store instance configs
         self.voice_manager = DiscordVoiceManager()  # Voice management
         self._shutdown_event = asyncio.Event()
+        self.circuit_breakers: Dict[str, CircuitBreakerState] = {}  # Circuit breaker tracking
         
         logger.info("Discord Bot Manager initialized")
     
@@ -427,167 +444,189 @@ class DiscordBotManager:
         
         logger.info("Discord Bot Manager shutdown complete")
     
-    async def _start_unix_socket_server(self, instance_name: str):
-        """
-        Start Unix domain socket server for IPC communication.
-        
-        This allows the API to send messages through the Discord bot
-        without needing network ports.
-        """
-        try:
-            # Import IPC configuration
-            from src.ipc_config import IPCConfig
-            
-            # Get socket path using centralized configuration
-            socket_path = IPCConfig.get_socket_path('discord', instance_name)
-            
-            # Clean up old socket if it exists
-            IPCConfig.cleanup_stale_socket(socket_path)
-            
-            # Create HTTP application for IPC
-            app = web.Application()
-            
-            # Add routes for IPC communication
-            app.router.add_post('/send', self._handle_ipc_send_message)
-            app.router.add_get('/health', self._handle_ipc_health_check)
-            app.router.add_get('/status', self._handle_ipc_status)
-            
-            # Store instance name in app for handler access
-            app['instance_name'] = instance_name
-            app['manager'] = self
-            
-            # Create and start Unix socket server
-            runner = web.AppRunner(app)
-            await runner.setup()
-            site = web.UnixSite(runner, socket_path)
-            await site.start()
-            
-            # Set socket permissions (owner read/write only for security)
-            os.chmod(socket_path, 0o600)
-            
-            logger.info(f"Unix socket server started for '{instance_name}' at {socket_path}")
-            
-        except Exception as e:
-            logger.error(f"Failed to start Unix socket server for '{instance_name}': {e}")
-    
-    async def _handle_ipc_send_message(self, request: web.Request) -> web.Response:
-        """Handle IPC message send request via Unix socket."""
-        try:
-            instance_name = request.app['instance_name']
-            manager = request.app['manager']
-            
-            # Parse JSON request
-            data = await request.json()
-            channel_id = data.get('channel_id')
-            text = data.get('text')
-            
-            if not channel_id or not text:
-                return web.json_response(
-                    {'success': False, 'error': 'Missing channel_id or text'},
-                    status=400
-                )
-            
-            # Convert channel_id to int if it's a string
-            try:
-                channel_id = int(channel_id)
-            except (ValueError, TypeError):
-                return web.json_response(
-                    {'success': False, 'error': 'Invalid channel_id'},
-                    status=400
-                )
-            
-            # Send message through the bot
-            success = await manager.send_message(
-                instance_name=instance_name,
-                channel_id=channel_id,
-                content=text
-            )
-            
-            return web.json_response({
-                'success': success,
-                'instance': instance_name,
-                'channel_id': channel_id
-            })
-            
-        except json.JSONDecodeError:
-            return web.json_response(
-                {'success': False, 'error': 'Invalid JSON'},
-                status=400
-            )
-        except Exception as e:
-            logger.error(f"IPC send message error: {e}")
-            return web.json_response(
-                {'success': False, 'error': str(e)},
-                status=500
-            )
-    
-    async def _handle_ipc_health_check(self, request: web.Request) -> web.Response:
-        """Handle IPC health check request."""
-        instance_name = request.app['instance_name']
-        manager = request.app['manager']
-        
-        bot = manager.bots.get(instance_name)
-        if not bot:
-            return web.json_response(
-                {'status': 'error', 'message': 'Bot not found'},
-                status=404
-            )
-        
-        return web.json_response({
-            'status': 'ok',
-            'instance': instance_name,
-            'bot_connected': bot.is_ready(),
-            'latency_ms': round(bot.latency * 1000, 2) if bot.is_ready() else None
-        })
-    
-    async def _handle_ipc_status(self, request: web.Request) -> web.Response:
-        """Handle IPC status request."""
-        instance_name = request.app['instance_name']
-        manager = request.app['manager']
-        
-        status = manager.get_bot_status(instance_name)
-        if not status:
-            return web.json_response(
-                {'error': 'Bot not found'},
-                status=404
-            )
-        
-        return web.json_response({
-            'instance_name': status.instance_name,
-            'status': status.status,
-            'guild_count': status.guild_count,
-            'user_count': status.user_count,
-            'latency_ms': status.latency,
-            'uptime': status.uptime.isoformat() if status.uptime else None
-        })
-    
     async def _run_bot(self, bot: AutomagikBot, token: str):
-        """Run a Discord bot with auto-reconnection."""
+        """Run a Discord bot with resilient auto-reconnection, jittered backoff, and circuit breaker."""
         instance_name = bot.instance_name
         max_retries = 5
         retry_count = 0
         
+        # Initialize circuit breaker if not exists
+        if instance_name not in self.circuit_breakers:
+            self.circuit_breakers[instance_name] = CircuitBreakerState()
+        
+        circuit_breaker = self.circuit_breakers[instance_name]
+        
         while not self._shutdown_event.is_set() and retry_count < max_retries:
+            # Check circuit breaker state
+            if await self._should_skip_connection_attempt(instance_name, circuit_breaker):
+                logger.warning(
+                    f"Circuit breaker OPEN for bot '{instance_name}' - skipping connection attempt. "
+                    f"Next retry at: {circuit_breaker.next_retry_time}"
+                )
+                await asyncio.sleep(30)  # Check again in 30 seconds
+                continue
+                
             try:
+                logger.info(
+                    f"Attempting bot connection for '{instance_name}' (attempt {retry_count + 1}/{max_retries}, "
+                    f"circuit breaker failures: {circuit_breaker.consecutive_failures})"
+                )
+                
                 await bot.start(token)
-            except discord.LoginFailure:
-                logger.error(f"Invalid token for bot '{instance_name}'")
+                
+                # Connection successful - reset circuit breaker
+                await self._reset_circuit_breaker(instance_name, circuit_breaker)
+                logger.info(f"Bot '{instance_name}' connected successfully - circuit breaker reset")
                 break
-            except discord.ConnectionClosed:
-                logger.warning(f"Bot '{instance_name}' connection closed")
+                
+            except discord.LoginFailure as e:
+                logger.error(
+                    f"AUTHENTICATION FAILURE for bot '{instance_name}': Invalid Discord token provided. "
+                    f"Error details: {e}"
+                )
+                # LoginFailure is permanent - cleanup resources and exit
+                await self._handle_permanent_failure(instance_name, "Invalid Discord token", circuit_breaker)
+                break
+                
+            except discord.ConnectionClosed as e:
                 retry_count += 1
+                await self._handle_connection_failure(
+                    instance_name, f"Connection closed: {e}", retry_count, max_retries, circuit_breaker
+                )
+                
                 if retry_count < max_retries:
-                    wait_time = min(2 ** retry_count, 60)  # Exponential backoff
-                    logger.info(f"Retrying connection for bot '{instance_name}' in {wait_time}s")
+                    wait_time = await self._calculate_jittered_backoff(retry_count)
+                    logger.info(
+                        f"Retrying connection for bot '{instance_name}' in {wait_time:.2f}s "
+                        f"(attempt {retry_count + 1}/{max_retries})"
+                    )
                     await asyncio.sleep(wait_time)
-            except Exception as e:
-                logger.error(f"Unexpected error in bot '{instance_name}': {e}")
+                    
+            except discord.HTTPException as e:
                 retry_count += 1
+                await self._handle_connection_failure(
+                    instance_name, f"HTTP error: {e} (status: {getattr(e, 'status', 'unknown')})", 
+                    retry_count, max_retries, circuit_breaker
+                )
+                
                 if retry_count < max_retries:
-                    await asyncio.sleep(5)
+                    wait_time = await self._calculate_jittered_backoff(retry_count)
+                    logger.warning(
+                        f"HTTP error for bot '{instance_name}': {e} - retrying in {wait_time:.2f}s"
+                    )
+                    await asyncio.sleep(wait_time)
+                    
+            except Exception as e:
+                retry_count += 1
+                await self._handle_connection_failure(
+                    instance_name, f"Unexpected error: {e}", retry_count, max_retries, circuit_breaker
+                )
+                
+                if retry_count < max_retries:
+                    wait_time = 5  # Fixed delay for unexpected errors
+                    logger.error(
+                        f"Unexpected error in bot '{instance_name}': {e} - retrying in {wait_time}s",
+                        exc_info=True
+                    )
+                    await asyncio.sleep(wait_time)
         
         if retry_count >= max_retries:
-            logger.error(f"Max retries exceeded for bot '{instance_name}'")
+            await self._handle_max_retries_exceeded(instance_name, circuit_breaker)
+    
+    async def _should_skip_connection_attempt(self, instance_name: str, circuit_breaker: CircuitBreakerState) -> bool:
+        """Check if connection attempt should be skipped due to circuit breaker state."""
+        if not circuit_breaker.is_open:
+            return False
+            
+        current_time = datetime.now(timezone.utc)
+        
+        # Check if recovery timeout has passed
+        if (circuit_breaker.next_retry_time and 
+            current_time >= circuit_breaker.next_retry_time):
+            # Move to half-open state
+            circuit_breaker.is_open = False
+            logger.info(f"Circuit breaker for '{instance_name}' moved to HALF-OPEN state")
+            return False
+            
+        return True
+    
+    async def _calculate_jittered_backoff(self, retry_count: int) -> float:
+        """Calculate jittered exponential backoff delay."""
+        base_delay = min(2 ** retry_count, 60)  # Cap at 60 seconds
+        # Add jitter (up to 10% of base delay) to prevent thundering herd
+        jitter = random.uniform(0, 0.1 * base_delay)
+        return base_delay + jitter
+    
+    async def _handle_permanent_failure(self, instance_name: str, reason: str, 
+                                      circuit_breaker: CircuitBreakerState):
+        """Handle permanent failures like LoginFailure with proper resource cleanup."""
+        logger.error(
+            f"PERMANENT FAILURE for bot '{instance_name}': {reason} - cleaning up resources"
+        )
+        
+        # Mark circuit breaker as permanently failed
+        circuit_breaker.is_open = True
+        circuit_breaker.consecutive_failures += 1
+        circuit_breaker.last_failure_time = datetime.now(timezone.utc)
+        
+        # Cleanup resources immediately for permanent failures
+        await self._cleanup_bot(instance_name)
+        
+        logger.info(f"Resource cleanup completed for bot '{instance_name}' after permanent failure")
+    
+    async def _handle_connection_failure(self, instance_name: str, error_message: str,
+                                       retry_count: int, max_retries: int, 
+                                       circuit_breaker: CircuitBreakerState):
+        """Handle connection failures with circuit breaker logic."""
+        circuit_breaker.failure_count += 1
+        circuit_breaker.consecutive_failures += 1
+        circuit_breaker.last_failure_time = datetime.now(timezone.utc)
+        
+        # Check if circuit breaker should open
+        if (circuit_breaker.consecutive_failures >= circuit_breaker.failure_threshold and 
+            not circuit_breaker.is_open):
+            circuit_breaker.is_open = True
+            circuit_breaker.next_retry_time = (
+                datetime.now(timezone.utc) + 
+                timedelta(seconds=circuit_breaker.recovery_timeout)
+            )
+            logger.warning(
+                f"Circuit breaker OPENED for bot '{instance_name}' after {circuit_breaker.consecutive_failures} "
+                f"consecutive failures. Recovery timeout: {circuit_breaker.recovery_timeout}s"
+            )
+        
+        logger.warning(
+            f"Connection failure for bot '{instance_name}' ({retry_count}/{max_retries}): {error_message} "
+            f"(consecutive failures: {circuit_breaker.consecutive_failures})"
+        )
+    
+    async def _reset_circuit_breaker(self, instance_name: str, circuit_breaker: CircuitBreakerState):
+        """Reset circuit breaker after successful connection."""
+        if circuit_breaker.consecutive_failures > 0 or circuit_breaker.is_open:
+            logger.info(
+                f"Resetting circuit breaker for bot '{instance_name}' after successful connection "
+                f"(was: {circuit_breaker.consecutive_failures} consecutive failures)"
+            )
+            
+        circuit_breaker.consecutive_failures = 0
+        circuit_breaker.is_open = False
+        circuit_breaker.next_retry_time = None
+    
+    async def _handle_max_retries_exceeded(self, instance_name: str, 
+                                         circuit_breaker: CircuitBreakerState):
+        """Handle the case when max retries are exceeded."""
+        logger.error(
+            f"MAX RETRIES EXCEEDED for bot '{instance_name}' - permanent failure. "
+            f"Total failures: {circuit_breaker.failure_count}, "
+            f"Consecutive failures: {circuit_breaker.consecutive_failures}"
+        )
+        
+        # Open circuit breaker permanently for this session
+        circuit_breaker.is_open = True
+        circuit_breaker.next_retry_time = None  # No automatic recovery
+        
+        # Cleanup resources
+        await self._cleanup_bot(instance_name)
     
     async def _handle_bot_ready(self, bot: AutomagikBot):
         """Handle bot ready event."""
@@ -813,7 +852,6 @@ class DiscordBotManager:
             logger.error(f"Voice leave error for {instance_name}: {e}")
             await ctx.send("❌ Error leaving voice channel!")
     
-    
     async def _handle_help_command(self, instance_name: str, ctx):
         """Handle !help command - display all available commands with beautiful formatting."""
         try:
@@ -886,8 +924,7 @@ class DiscordBotManager:
                 "🤖 **Automagik Omni Discord Bot Commands**\n\n"
                 "🎤 **Voice Commands:**\n"
                 "`!join` - Join your voice channel\n"
-                "`!leave` - Leave voice channel\n"
-                "`!record [toggle/start/stop]` - Control voice recording\n\n"
+                "`!leave` - Leave voice channel\n\n"
                 "ℹ️ **Other Commands:**\n"
                 "`!help` - Show this help message\n\n"
                 "💬 **Chat:** Mention me or DM me to chat!\n"
@@ -900,6 +937,9 @@ class DiscordBotManager:
         # Remove bot from tracking
         self.bots.pop(instance_name, None)
         self.bot_tasks.pop(instance_name, None)
+        
+        # Cleanup circuit breaker state
+        self.circuit_breakers.pop(instance_name, None)
         
         # Cleanup rate limiter
         rate_limiter = self.rate_limiters.pop(instance_name, None)
@@ -914,6 +954,140 @@ class DiscordBotManager:
         health_monitor = self.health_monitors.pop(instance_name, None)
         if health_monitor:
             await health_monitor.stop_monitoring()
+    
+    async def _start_unix_socket_server(self, instance_name: str):
+        """
+        Start Unix domain socket server for IPC communication.
+        
+        This allows the API to send messages through the Discord bot
+        without needing network ports.
+        """
+        try:
+            # Import IPC configuration
+            from src.ipc_config import IPCConfig
+            
+            # Get socket path using centralized configuration
+            socket_path = IPCConfig.get_socket_path('discord', instance_name)
+            
+            # Clean up old socket if it exists
+            IPCConfig.cleanup_stale_socket(socket_path)
+            
+            # Create HTTP application for IPC
+            app = web.Application()
+            
+            # Add routes for IPC communication
+            app.router.add_post('/send', self._handle_ipc_send_message)
+            app.router.add_get('/health', self._handle_ipc_health_check)
+            app.router.add_get('/status', self._handle_ipc_status)
+            
+            # Store instance name in app for handler access
+            app['instance_name'] = instance_name
+            app['manager'] = self
+            
+            # Create and start Unix socket server
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.UnixSite(runner, socket_path)
+            await site.start()
+            
+            # Set socket permissions (owner read/write only for security)
+            os.chmod(socket_path, 0o600)
+            
+            logger.info(f"Unix socket server started for '{instance_name}' at {socket_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to start Unix socket server for '{instance_name}': {e}")
+    
+    async def _handle_ipc_send_message(self, request: web.Request) -> web.Response:
+        """Handle IPC message send request via Unix socket."""
+        try:
+            instance_name = request.app['instance_name']
+            manager = request.app['manager']
+            
+            # Parse JSON request
+            data = await request.json()
+            channel_id = data.get('channel_id')
+            text = data.get('text')
+            
+            if not channel_id or not text:
+                return web.json_response(
+                    {'success': False, 'error': 'Missing channel_id or text'},
+                    status=400
+                )
+            
+            # Convert channel_id to int if it's a string
+            try:
+                channel_id = int(channel_id)
+            except (ValueError, TypeError):
+                return web.json_response(
+                    {'success': False, 'error': 'Invalid channel_id'},
+                    status=400
+                )
+            
+            # Send message through the bot
+            success = await manager.send_message(
+                instance_name=instance_name,
+                channel_id=channel_id,
+                content=text
+            )
+            
+            return web.json_response({
+                'success': success,
+                'instance': instance_name,
+                'channel_id': channel_id
+            })
+            
+        except json.JSONDecodeError:
+            return web.json_response(
+                {'success': False, 'error': 'Invalid JSON'},
+                status=400
+            )
+        except Exception as e:
+            logger.error(f"IPC send message error: {e}")
+            return web.json_response(
+                {'success': False, 'error': str(e)},
+                status=500
+            )
+    
+    async def _handle_ipc_health_check(self, request: web.Request) -> web.Response:
+        """Handle IPC health check request."""
+        instance_name = request.app['instance_name']
+        manager = request.app['manager']
+        
+        bot = manager.bots.get(instance_name)
+        if not bot:
+            return web.json_response(
+                {'status': 'error', 'message': 'Bot not found'},
+                status=404
+            )
+        
+        return web.json_response({
+            'status': 'ok',
+            'instance': instance_name,
+            'bot_connected': bot.is_ready(),
+            'latency_ms': round(bot.latency * 1000, 2) if bot.is_ready() else None
+        })
+    
+    async def _handle_ipc_status(self, request: web.Request) -> web.Response:
+        """Handle IPC status request."""
+        instance_name = request.app['instance_name']
+        manager = request.app['manager']
+        
+        status = manager.get_bot_status(instance_name)
+        if not status:
+            return web.json_response(
+                {'status': 'error', 'message': 'Bot not found'},
+                status=404
+            )
+        
+        return web.json_response({
+            'status': status.status,
+            'instance': status.instance_name,
+            'guild_count': status.guild_count,
+            'user_count': status.user_count,
+            'latency_ms': status.latency,
+            'uptime': status.uptime.isoformat() if status.uptime else None
+        })
 
 
 # Utility functions for Discord message formatting
