@@ -2,6 +2,10 @@
 Shared test fixtures and utilities for omni-hub tests.
 """
 
+import warnings
+# Suppress discord.py audioop deprecation warning
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="discord.player")
+
 import pytest
 import os
 from typing import Dict, Any, Generator
