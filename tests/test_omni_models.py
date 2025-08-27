@@ -1,19 +1,15 @@
 """
-Comprehensive tests for unified database models.
-Tests the unified agent fields and helper methods in InstanceConfig.
+Comprehensive tests for omni database models.
+Tests the omni agent fields and helper methods in InstanceConfig.
 """
-
 import pytest
 from sqlalchemy.exc import IntegrityError
-
 from src.db.models import InstanceConfig, User
-
-
-class TestInstanceConfigUnifiedFields:
-    """Test the unified agent fields in InstanceConfig model."""
+class TestInstanceConfigOmniFields:
+    """Test the omni agent fields in InstanceConfig model."""
     
-    def test_default_unified_fields(self, test_db):
-        """Test that unified fields have correct defaults."""
+    def test_default_omni_fields(self, test_db):
+        """Test that omni fields have correct defaults."""
         instance = InstanceConfig(
             name="test",
             agent_api_url="http://test.com",
@@ -30,8 +26,8 @@ class TestInstanceConfigUnifiedFields:
         assert instance.agent_stream_mode is False
         assert instance.default_agent is None
     
-    def test_unified_fields_assignment(self, test_db):
-        """Test that unified fields can be set correctly."""
+    def test_omni_fields_assignment(self, test_db):
+        """Test that omni fields can be set correctly."""
         instance = InstanceConfig(
             name="hive-test",
             agent_instance_type="hive",
@@ -114,10 +110,8 @@ class TestInstanceConfigUnifiedFields:
         assert instance.hive_agent_id == "hive-agent"
         assert instance.hive_timeout == 45
         assert instance.hive_stream_mode is True
-
-
 class TestInstanceConfigProperties:
-    """Test the property methods for unified configuration."""
+    """Test the property methods for omni configuration."""
     
     def test_is_hive_property(self, test_db):
         """Test is_hive property."""
@@ -228,13 +222,11 @@ class TestInstanceConfigProperties:
         test_db.commit()
         
         assert automagik_stream.streaming_enabled is False  # Automagik doesn't support streaming
-
-
 class TestInstanceConfigMethods:
     """Test the helper methods in InstanceConfig."""
     
-    def test_get_agent_config_with_unified_fields(self, test_db):
-        """Test get_agent_config with unified fields."""
+    def test_get_agent_config_with_omni_fields(self, test_db):
+        """Test get_agent_config with omni fields."""
         instance = InstanceConfig(
             name="test-config",
             agent_instance_type="hive",
@@ -290,8 +282,8 @@ class TestInstanceConfigMethods:
         config = instance.get_agent_config()
         assert config["agent_id"] == "fallback-agent"
     
-    def test_has_hive_config_unified(self, test_db):
-        """Test has_hive_config with unified fields."""
+    def test_has_hive_config_omni(self, test_db):
+        """Test has_hive_config with omni fields."""
         # Complete hive config
         complete = InstanceConfig(
             name="complete-hive",
@@ -335,8 +327,8 @@ class TestInstanceConfigMethods:
         
         assert legacy.has_hive_config() is True
     
-    def test_get_hive_config_unified(self, test_db):
-        """Test get_hive_config with unified fields."""
+    def test_get_hive_config_omni(self, test_db):
+        """Test get_hive_config with omni fields."""
         instance = InstanceConfig(
             name="hive-config",
             agent_instance_type="hive",
@@ -384,13 +376,11 @@ class TestInstanceConfigMethods:
         assert config["agent_id"] == "hive-agent"
         assert config["timeout"] == 30
         assert config["stream_mode"] is True
-
-
 class TestInstanceConfigEdgeCases:
     """Test edge cases and error conditions."""
     
     def test_null_values_handling(self, test_db):
-        """Test handling of null values in unified fields."""
+        """Test handling of null values in omni fields."""
         instance = InstanceConfig(
             name="null-test",
             agent_api_url="https://api.com",
@@ -406,7 +396,7 @@ class TestInstanceConfigEdgeCases:
         assert config["agent_id"] == "default"
     
     def test_mixed_configuration(self, test_db):
-        """Test instance with both unified and legacy fields."""
+        """Test instance with both omni and legacy fields."""
         instance = InstanceConfig(
             name="mixed",
             agent_instance_type="hive",
@@ -420,7 +410,7 @@ class TestInstanceConfigEdgeCases:
         test_db.add(instance)
         test_db.commit()
         
-        # Unified fields should take precedence
+        # Omni fields should take precedence
         config = instance.get_agent_config()
         assert config["api_url"] == "https://new.com"
         assert config["api_key"] == "new-key"
@@ -461,8 +451,6 @@ class TestInstanceConfigEdgeCases:
         config = instance.get_agent_config()
         # Should fall back to "default" for empty strings
         assert config["agent_id"] == "default"
-
-
 class TestInstanceConfigConstraints:
     """Test database constraints and validation."""
     
@@ -519,8 +507,6 @@ class TestInstanceConfigConstraints:
             test_db.add(instance2)
             test_db.commit()
         test_db.rollback()
-
-
 class TestUserModel:
     """Test User model for completeness."""
     

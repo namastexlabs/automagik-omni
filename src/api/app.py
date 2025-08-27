@@ -29,6 +29,7 @@ from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
 from src.api.deps import get_database, get_instance_by_name
 from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
+from src.api.routes.omni import router as omni_router
 from src.db.database import create_tables
 
 # Configure logging
@@ -274,6 +275,9 @@ app = FastAPI(
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
 
+# Include omni communication routes
+app.include_router(omni_router, prefix="/api/v1", tags=["instances"])
+
 
 # Include trace management routes
 from src.api.routes.traces import router as traces_router
@@ -297,10 +301,10 @@ app.add_middleware(RequestLoggingMiddleware)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=config.cors.allowed_origins,
+    allow_credentials=config.cors.allow_credentials,
+    allow_methods=config.cors.allow_methods,
+    allow_headers=config.cors.allow_headers,
 )
 
 
@@ -324,7 +328,7 @@ def custom_openapi():
 
 1. Include API key in `Authorization: Bearer <token>` header
 2. Create an instance for your channel
-3. Send messages using the unified endpoints
+3. Send messages using the omni endpoints
 4. Monitor activity via traces and health endpoints
 """
 
