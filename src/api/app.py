@@ -272,11 +272,11 @@ app = FastAPI(
     ],
 )
 
+# Include omni communication routes (register first to take precedence)
+app.include_router(omni_router, prefix="/api/v1", tags=["instances"])
+
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
-
-# Include omni communication routes
-app.include_router(omni_router, prefix="/api/v1", tags=["instances"])
 
 
 # Include trace management routes
