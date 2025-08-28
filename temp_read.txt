@@ -1,0 +1,2 @@
+from src.api.routes.instances import router as instances_router
+from src.db.database import create_tables

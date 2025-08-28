@@ -1,0 +1,3 @@
+from src.api.routes.instances import router as instances_router
+from src.api.routes.unified import router as unified_router
+from src.db.database import create_tables

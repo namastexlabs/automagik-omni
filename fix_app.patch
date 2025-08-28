@@ -1,0 +1,19 @@
+--- a/src/api/app.py
++++ b/src/api/app.py
+@@ -28,6 +28,7 @@
+ from src.api.deps import get_database, get_instance_by_name
+ from fastapi.openapi.utils import get_openapi
+ from src.api.routes.instances import router as instances_router
++from src.api.routes.unified import router as unified_router
+ from src.db.database import create_tables
+ 
+ # Configure logging
+@@ -272,6 +273,8 @@
+ )
+ # Include instance management routes
+ app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
++# Include unified endpoints routes
++app.include_router(unified_router, prefix="/api/v1/instances", tags=["unified-instances"])
+ 
+ # Include trace management routes
+ from src.api.routes.traces import router as traces_router

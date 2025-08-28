@@ -1,0 +1,2 @@
+#!/bin/bash
+cp src/api/app_new.py src/api/app.py && echo "File copied successfully"

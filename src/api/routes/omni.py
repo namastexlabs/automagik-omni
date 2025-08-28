@@ -200,7 +200,7 @@ async def get_omni_chats(
             detail=f"Failed to fetch chats: {str(e)}"
         )
 
-@router.get("", response_model=OmniChannelsResponse)
+@router.get("/channels", response_model=OmniChannelsResponse)
 async def get_omni_channels(
     channel_type: Optional[ChannelType] = Query(None, description="Filter by specific channel type"),
     db: Session = Depends(get_database),
