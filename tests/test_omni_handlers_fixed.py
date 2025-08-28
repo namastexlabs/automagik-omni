@@ -44,6 +44,8 @@ class TestWhatsAppChatHandler:
     def mock_evolution_client(self):
         """Mock Evolution API client."""
         client = AsyncMock()
+        # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+        client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.return_value = {
             "data": [
                 {
@@ -89,7 +91,7 @@ class TestWhatsAppChatHandler:
         assert hasattr(handler, 'get_contacts')
         assert hasattr(handler, 'get_chats')
         assert hasattr(handler, 'get_channel_info')
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_contacts_success(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -118,7 +120,7 @@ class TestWhatsAppChatHandler:
             page=1,
             page_size=50
         )
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_contacts_with_search_query(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -145,7 +147,7 @@ class TestWhatsAppChatHandler:
         assert contact.name == "John Doe"
         assert contact.avatar_url is None
         assert contact.last_seen is None
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_chats_success(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -165,7 +167,7 @@ class TestWhatsAppChatHandler:
         assert chat.instance_name == "test-whatsapp"
         assert chat.chat_type == OmniChatType.DIRECT
         assert chat.unread_count == 2
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_chats_group_identification(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -194,7 +196,7 @@ class TestWhatsAppChatHandler:
         assert chat.participant_count == 3
         assert "group_id" in chat.channel_data
         assert chat.channel_data["group_id"] == "120363025@g.us"
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_channel_info_success(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -210,7 +212,7 @@ class TestWhatsAppChatHandler:
         # Note: connected_at and last_activity_at may be None in test environment
         # assert channel_info.connected_at is not None
         # assert channel_info.last_activity_at is not None
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
     @pytest.mark.asyncio
     async def test_evolution_api_timeout_handling(
@@ -222,12 +224,14 @@ class TestWhatsAppChatHandler:
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
         
         client = AsyncMock()
+        # PRECISION FIX: Prevent AsyncMock.keys() error by configuring connection state
+        client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.side_effect = Exception("Connection timeout")
         mock_get_client.return_value = client
         with pytest.raises(Exception, match="Connection timeout"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
             
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
     @pytest.mark.asyncio
     async def test_evolution_api_404_handling(
@@ -239,6 +243,8 @@ class TestWhatsAppChatHandler:
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
         
         client = AsyncMock()
+        # PRECISION FIX: Prevent AsyncMock.keys() error by configuring connection state
+        client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.side_effect = Exception("Instance not found")
         mock_get_client.return_value = client
         with pytest.raises(Exception, match="Instance not found"):
@@ -262,7 +268,7 @@ class TestWhatsAppChatHandler:
         
         with pytest.raises(Exception, match="must start with http"):
             handler._get_omni_evolution_client(mock_instance_config)
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_contact_by_id_success(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -280,7 +286,7 @@ class TestWhatsAppChatHandler:
         assert contact is not None
         assert contact.id == "5511999999999@c.us"
         assert contact.name == "Specific Contact"
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_contact_by_id_not_found(
         self, mock_get_client, handler, mock_instance_config
@@ -291,7 +297,7 @@ class TestWhatsAppChatHandler:
         mock_get_client.return_value = client
         contact = await handler.get_contact_by_id(mock_instance_config, "nonexistent@c.us")
         assert contact is None
-    @patch('src.channels.whatsapp.channel_handler.WhatsAppChannelHandler._get_evolution_client')
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_chat_by_id_success(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
