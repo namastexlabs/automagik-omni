@@ -559,8 +559,8 @@ class TestOmniChannelsEndpoint:
         assert "total_count" in data
         
         # Should have both instances (may have existing ones)
-        assert data["total_count"] >= 0
-        assert len(data["channels"]) >= 0
+        assert data["total_count"] >= 2
+        assert len(data["channels"]) >= 2
 class TestOmniContactByIdEndpoint:
     """Comprehensive tests for GET /api/v1/instances/{instance_name}/contacts/{contact_id}"""
     

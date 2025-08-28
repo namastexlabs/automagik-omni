@@ -579,7 +579,7 @@ class TestOmniChannelsEndpoint:
         mock_get_handler.return_value = handler
 
         start_time = time.time()
-        response = test_client.get("/api/v1/instances/", headers=mention_api_headers)
+        response = test_client.get("/api/v1/instances/channels", headers=mention_api_headers)
         response_time = (time.time() - start_time) * 1000
 
         # Performance requirement: sub-500ms
@@ -593,8 +593,8 @@ class TestOmniChannelsEndpoint:
         assert "total_count" in data
 
         # Should have both instances
-        assert data["total_count"] >= 0  # May have zero or more instances
-        assert len(data.get("channels", data.get("instances", []))) >= 0  # Accept both formats
+        assert data["total_count"] >= 2  # At least 2 instances expected
+        assert len(data.get("channels", data.get("instances", []))) >= 2  # Accept both formats
 
     @patch('src.api.routes.omni.get_omni_handler')
     def test_omni_channels_empty_database(
@@ -616,7 +616,7 @@ class TestOmniChannelsEndpoint:
         )
         mock_get_handler.return_value = handler
 
-        response = test_client.get("/api/v1/instances/", headers=mention_api_headers)
+        response = test_client.get("/api/v1/instances/channels", headers=mention_api_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -907,7 +907,7 @@ class TestOmniEndpointsErrorHandling:
         mock_get_handler.return_value = handler
 
         # Even if there are DB issues, the endpoint should return a proper HTTP response
-        response = test_client.get("/api/v1/instances/", headers=mention_api_headers)
+        response = test_client.get("/api/v1/instances/channels", headers=mention_api_headers)
 
         # Should either succeed or return a proper error status
         assert response.status_code in [200, 500, 503]

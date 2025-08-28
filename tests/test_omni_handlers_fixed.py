@@ -213,7 +213,7 @@ class TestWhatsAppChatHandler:
         assert isinstance(channel_info, OmniChannelInfo)
         assert channel_info.instance_name == "test-whatsapp"
         assert channel_info.channel_type == ChannelType.WHATSAPP
-        assert channel_info.display_name == "test-whatsapp"
+        assert channel_info.display_name == "WhatsApp - test-whatsapp"
         assert channel_info.status == "connected"
         assert channel_info.connected_at is not None
         assert channel_info.last_activity_at is not None
@@ -393,21 +393,11 @@ class TestDiscordChatHandler:
         
         guild.channels = [channel1]
         
-        # Mock guild.get_member method - CRITICAL FIX
-        def mock_get_member(user_id):
-            if user_id == 987654321098765432:
-                return member1
-            return None
-
-        guild.get_member = mock_get_member
-
-        # Mock guild.get_channel method  
         def mock_get_channel(channel_id):
             if channel_id == 111222333444555666:
                 return channel1
             return None
         
-        guild.get_channel = mock_get_channel
         client.get_channel = mock_get_channel
         
         return client

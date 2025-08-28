@@ -229,8 +229,7 @@ class TestWhatsAppChatHandler:
         with pytest.raises(Exception, match="Instance not found"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
     @patch('src.channels.whatsapp.omni_evolution_client.OmniEvolutionClient')
-    @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
-    def test_evolution_client_configuration_validation(self, mock_httpx_client, mock_client_class, handler, mock_instance_config):
+    def test_evolution_client_configuration_validation(self, mock_client_class, handler, mock_instance_config):
         """Test Evolution API client configuration validation."""
         # Test with valid configuration - should not raise exception
         mock_instance_config.evolution_url = "https://api.evolution.test"
