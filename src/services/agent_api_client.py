@@ -35,6 +35,9 @@ class AgentApiClient:
         Args:
             config_override: Optional InstanceConfig object for per-instance configuration
         """
+        # Store config for later access to instance properties
+        self.instance_config = config_override
+        
         if config_override:
             # Use per-instance configuration
             self.api_url = config_override.agent_api_url
@@ -570,9 +573,12 @@ class AgentApiClient:
             return False
         
         # Check if we're configured to use Hive API
-        # This is a temporary fix - ideally this should come from instance config
-        # For now, we'll return True since we know we're using Hive API
-        is_hive = True
+        # Use the instance configuration flag when available
+        if self.instance_config:
+            is_hive = self.instance_config.is_hive
+        else:
+            # Fallback to port 8886 detection for backward compatibility when no config
+            is_hive = ":8886" in self.api_url or "localhost:8886" in self.api_url
         
         if is_hive:
             logger.debug(f"Using Hive API mode for URL: {self.api_url}")
