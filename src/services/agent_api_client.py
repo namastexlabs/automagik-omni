@@ -162,31 +162,38 @@ class AgentApiClient:
                     # If it's a valid UUID string, keep it as is
                     logger.debug(f"Using UUID string for user_id: {user_id}")
                 except ValueError:
-                    # If not a UUID, proceed with existing integer/anonymous logic
+                    # If not a UUID, generate a deterministic UUID from the identifier
                     if user_id.isdigit():
-                        user_id = int(user_id)
+                        # Generate UUID from phone number for consistent user identification
+                        user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, user_id))
+                        logger.info(f"Generated UUID from phone number: {user_id}")
                     elif user_id.lower() == "anonymous":
-                        user_id = 1  # Default anonymous user ID
+                        # Generate UUID for anonymous user
+                        user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, "anonymous"))
+                        logger.info(f"Generated UUID for anonymous user: {user_id}")
                     else:
-                        # If it's not a digit or "anonymous", log warning and use default
-                        logger.warning(
-                            f"Invalid user_id format: {user_id}, using default user ID 1"
-                        )
-                        user_id = 1
-            elif not isinstance(user_id, int):
-                # If it's not a string or int, log warning and use default
+                        # Generate UUID from any string identifier
+                        user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, user_id))
+                        logger.info(f"Generated UUID from identifier '{user_id}': {user_id}")
+            elif isinstance(user_id, int):
+                # Convert integer user_id to UUID for compatibility with agent API
+                user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, str(user_id)))
+                logger.info(f"Generated UUID from integer user_id: {user_id}")
+            else:
+                # If it's not a string or int, generate UUID from string representation
+                user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, str(user_id)))
                 logger.warning(
-                    f"Unexpected user_id type: {type(user_id)}, using default user ID 1"
+                    f"Unexpected user_id type: {type(user_id)}, generated UUID: {user_id}"
                 )
-                user_id = 1
 
             payload["user_id"] = user_id
         else:
             # Handle case where both user and user_id are None
+            default_user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, "default"))
             logger.warning(
-                "Neither user dict nor user_id provided, using default user ID 1"
+                f"Neither user dict nor user_id provided, using default UUID: {default_user_id}"
             )
-            payload["user_id"] = 1  # Assign a default if None is not allowed by API
+            payload["user_id"] = default_user_id  # Assign a default UUID if None is not allowed by API
 
         # Add optional parameters if provided
         if message_type:
