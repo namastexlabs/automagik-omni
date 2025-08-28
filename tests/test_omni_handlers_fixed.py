@@ -50,7 +50,7 @@ class TestWhatsAppChatHandler:
             "data": [
                 {
                     "id": "5511999999999@c.us",
-                    "name": "Test Contact",
+                    "name": "Specific Contact",
                     "profilePictureUrl": "https://example.com/avatar.jpg",
                     "lastSeen": 1640995200000,  # Unix timestamp in milliseconds
                     "isGroup": False
@@ -62,7 +62,7 @@ class TestWhatsAppChatHandler:
             "data": [
                 {
                     "id": "5511999999999@c.us",
-                    "name": "Test Chat",
+                    "name": "Specific Chat",
                     "lastMessageTime": 1640995200000,
                     "unreadCount": 2,
                     "participants": []
@@ -106,7 +106,7 @@ class TestWhatsAppChatHandler:
         contact = contacts[0]
         assert isinstance(contact, OmniContact)
         assert contact.id == "5511999999999@c.us"
-        assert contact.name == "Test Contact"
+        assert contact.name == "Specific Contact"
         assert contact.channel_type == ChannelType.WHATSAPP
         assert contact.instance_name == "test-whatsapp"
         assert contact.status == OmniContactStatus.UNKNOWN  # FIXED: ACTIVE doesn't exist in enum
@@ -162,7 +162,7 @@ class TestWhatsAppChatHandler:
         chat = chats[0]
         assert isinstance(chat, OmniChat)
         assert chat.id == "5511999999999@c.us"
-        assert chat.name == "Test Chat"
+        assert chat.name == "Specific Chat"
         assert chat.channel_type == ChannelType.WHATSAPP
         assert chat.instance_name == "test-whatsapp"
         assert chat.chat_type == OmniChatType.DIRECT
@@ -275,12 +275,18 @@ class TestWhatsAppChatHandler:
     ):
         """Test successful contact retrieval by ID."""
         mock_get_client.return_value = mock_evolution_client
-        mock_evolution_client.get_contact_info.return_value = {
-            "id": "5511999999999@c.us",
-            "name": "Specific Contact",
-            "profilePictureUrl": "https://example.com/avatar.jpg",
-            "lastSeen": 1640995200000,
-            "isGroup": False
+        # Fix: Update fetch_contacts to return the expected contact data
+        mock_evolution_client.fetch_contacts.return_value = {
+            "data": [
+                {
+                    "id": "5511999999999@c.us",
+                    "name": "Specific Contact",
+                    "profilePictureUrl": "https://example.com/avatar.jpg",
+                    "lastSeen": 1640995200000,
+                    "isGroup": False
+                }
+            ],
+            "total": 1
         }
         contact = await handler.get_contact_by_id(mock_instance_config, "5511999999999@c.us")
         assert contact is not None
@@ -304,12 +310,18 @@ class TestWhatsAppChatHandler:
     ):
         """Test successful chat retrieval by ID."""
         mock_get_client.return_value = mock_evolution_client
-        mock_evolution_client.get_chat_info.return_value = {
-            "id": "5511999999999@c.us",
-            "name": "Specific Chat",
-            "lastMessageTime": 1640995200000,
-            "unreadCount": 1,
-            "participants": []
+        # Fix: Update fetch_chats to return the expected chat data
+        mock_evolution_client.fetch_chats.return_value = {
+            "data": [
+                {
+                    "id": "5511999999999@c.us",
+                    "name": "Specific Chat",
+                    "lastMessageTime": 1640995200000,
+                    "unreadCount": 1,
+                    "participants": []
+                }
+            ],
+            "total": 1
         }
         chat = await handler.get_chat_by_id(mock_instance_config, "5511999999999@c.us")
         assert chat is not None
@@ -398,6 +410,14 @@ class TestDiscordChatHandler:
             return None
         
         client.get_channel = mock_get_channel
+        
+        # Mock async fetch_channel method
+        async def mock_fetch_channel(channel_id):
+            if channel_id == 111222333444555666:
+                return channel1
+            raise Exception("Channel not found")
+        
+        client.fetch_channel = mock_fetch_channel
         
         return client
     

@@ -1,6 +1,25 @@
-# 🧞 Automagik-Omni Genie Wishes
+# 🧞 Automagik-Omni Genie Wishes Context System
 
-This directory contains comprehensive task documentation for major development initiatives in the automagik-omni project.
+## 📋 Purpose
+
+This directory contains **persistent context files** for all agent tasks and wishes. Every agent task MUST have a corresponding wish file that serves as the **shared knowledge base** for that specific objective.
+
+## 🎯 Context Engineering Rules
+
+### 1. **Wish File Creation**
+- Every agent task gets a wish file: `genie/wishes/[task-name].md`
+- Reference in agent prompts: `@genie/wishes/[task-name].md`
+- Contains: objective, context, progress, discoveries, issues
+
+### 2. **Agent Context Sharing**
+- Agents MUST read their wish file before starting work
+- Agents MUST update their wish file with discoveries/progress
+- Agents create sub-files for detailed findings: `[task-name]/[discovery].md`
+
+### 3. **Persistent Knowledge**
+- All agent discoveries persist in wish files
+- Context carries forward between agent sessions
+- No knowledge lost between task handoffs
 
 ## 📁 Current Wishes
 
