@@ -8,6 +8,29 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="discord.p
 
 import pytest
 import os
+
+# GLOBAL NUCLEAR FIX: Mock httpx.AsyncClient at module level to prevent AsyncMock.keys() errors
+from unittest.mock import patch, MagicMock, AsyncMock, Mock
+
+# Create a global mock response that behaves like a real httpx.Response
+_global_mock_response = MagicMock()
+_global_mock_response.status_code = 200
+_global_mock_response.headers = {"content-type": "application/json"}  # Real dict, not AsyncMock
+_global_mock_response.text = '{"status": "open", "instance": {"state": "open"}}'
+_global_mock_response.json.return_value = {"status": "open", "instance": {"state": "open"}}
+_global_mock_response.raise_for_status.return_value = None
+
+# Start the global httpx patch
+_httpx_patcher = patch("httpx.AsyncClient")
+_mock_httpx = _httpx_patcher.start()
+
+# Mock the async context manager and request method with proper async function
+_mock_client_instance = Mock()
+async def mock_request(*args, **kwargs):
+    return _global_mock_response
+_mock_client_instance.request = mock_request
+_mock_httpx.return_value.__aenter__.return_value = _mock_client_instance
+_mock_httpx.return_value.__aexit__.return_value = None
 from typing import Dict, Any, Generator
 from unittest.mock import patch, AsyncMock, Mock
 from sqlalchemy import create_engine
@@ -271,6 +294,8 @@ def test_client(test_db):
         async def mock_delete_instance(*args, **kwargs):
             return {"status": "success"}
         mock_evolution.delete_instance = mock_delete_instance
+
+        # The global httpx patch above handles the AsyncMock.keys() issue
 
         mock_client.return_value = mock_evolution
 
