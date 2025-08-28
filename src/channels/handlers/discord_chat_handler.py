@@ -336,7 +336,7 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                             user_data, instance.name
                         )
                         logger.info(f"Found Discord contact {contact_id} for instance {instance.name}")
-                        return unified_contact
+                        return omni_contact
             
             logger.warning(f"Discord contact {contact_id} not found for instance {instance.name}")
             return None

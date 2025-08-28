@@ -17,6 +17,34 @@ from src.api.schemas.omni import (
     OmniContact, OmniChat, OmniChannelInfo
 )
 from src.db.models import InstanceConfig
+
+# Global patches for external dependencies
+@pytest.fixture(autouse=True)
+def mock_httpx_client():
+    """Mock httpx.AsyncClient globally to prevent real HTTP requests."""
+    with patch('httpx.AsyncClient') as mock_client:
+        # Create a mock client instance
+        client_instance = AsyncMock()
+        client_instance.__aenter__ = AsyncMock(return_value=client_instance)
+        client_instance.__aexit__ = AsyncMock(return_value=None)
+        
+        # Mock the request method to prevent actual HTTP calls
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"status": "success", "data": []}'
+        mock_response.json.return_value = {"status": "success", "data": []}
+        client_instance.request.return_value = mock_response
+        
+        mock_client.return_value = client_instance
+        yield mock_client
+
+@pytest.fixture(autouse=True)  
+def mock_discord_py():
+    """Mock discord.py dependencies globally."""
+    with patch('discord.Client'), \
+         patch('discord.Intents'), \
+         patch('discord.utils.get'):
+        yield
 class TestWhatsAppChatHandler:
     """Comprehensive tests for WhatsAppChatHandler."""
     @pytest.fixture
@@ -168,36 +196,53 @@ class TestWhatsAppChatHandler:
         assert channel_info.display_name == "WhatsApp - test-whatsapp"
         assert channel_info.status == "connected"
     @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
+    @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
     @pytest.mark.asyncio
     async def test_evolution_api_timeout_handling(
-        self, mock_get_client, handler, mock_instance_config
+        self, mock_httpx_client, mock_get_client, handler, mock_instance_config
     ):
         """Test handling of Evolution API timeouts."""
+        # Mock the HTTP client to ensure no real requests
+        mock_httpx_instance = AsyncMock()
+        mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
+        
         client = AsyncMock()
         client.fetch_contacts.side_effect = Exception("Connection timeout")
         mock_get_client.return_value = client
         with pytest.raises(Exception, match="Connection timeout"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
+            
     @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
+    @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
     @pytest.mark.asyncio
     async def test_evolution_api_404_handling(
-        self, mock_get_client, handler, mock_instance_config
+        self, mock_httpx_client, mock_get_client, handler, mock_instance_config
     ):
         """Test handling of Evolution API 404 responses."""
+        # Mock the HTTP client to ensure no real requests
+        mock_httpx_instance = AsyncMock()
+        mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
+        
         client = AsyncMock()
         client.fetch_contacts.side_effect = Exception("Instance not found")
         mock_get_client.return_value = client
         with pytest.raises(Exception, match="Instance not found"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
-    def test_evolution_client_configuration_validation(self, handler, mock_instance_config):
+    @patch('src.channels.whatsapp.omni_evolution_client.OmniEvolutionClient')
+    def test_evolution_client_configuration_validation(self, mock_client_class, handler, mock_instance_config):
         """Test Evolution API client configuration validation."""
         # Test with valid configuration - should not raise exception
         mock_instance_config.evolution_url = "https://api.evolution.test"
         mock_instance_config.evolution_key = "valid-key"
         
+        # Mock client creation
+        mock_client_instance = MagicMock()
+        mock_client_class.return_value = mock_client_instance
+        
         # Should create client successfully
         client = handler._get_omni_evolution_client(mock_instance_config)
         assert client is not None
+        mock_client_class.assert_called_once_with("https://api.evolution.test", "valid-key")
     @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @pytest.mark.asyncio
     async def test_get_contact_by_id_success(
@@ -288,24 +333,39 @@ class TestDiscordChatHandler:
         guild.icon = MagicMock()
         guild.icon.url = "https://cdn.discordapp.com/icons/123456789012345678/avatar.png"
         
-        # Mock members
+        # Mock members - FIXED: Configure mock to return string values instead of MagicMocks
         member1 = MagicMock()
         member1.id = 987654321098765432
-        member1.name = "testuser"
-        member1.display_name = "Test User"
-        member1.global_name = "Test User"
-        member1.discriminator = "0001"
+        # Critical fix: configure_mock ensures attributes return actual values, not MagicMocks
+        member1.configure_mock(
+            name="testuser",
+            username="testuser", 
+            display_name="Test User",
+            global_name="Test User",
+            discriminator="0001",
+            status="online",
+            bot=False,
+            system=False,
+            activities=[],
+            verified=True,
+            joined_at=datetime.now()
+        )
+        # Mock avatar with string URL
         member1.avatar = MagicMock()
-        member1.avatar.url = "https://cdn.discordapp.com/avatars/987654321098765432/avatar.png"
-        member1.status = "online"
-        member1.bot = False
-        member1.system = False
-        member1.activities = []
-        member1.verified = True
-        member1.joined_at = datetime.now()
+        member1.avatar.configure_mock(url="https://cdn.discordapp.com/avatars/987654321098765432/avatar.png")
+        # Mock guild reference
+        member1.guild = guild
         
         guild.members = [member1]
         client.guilds = [guild]
+        
+        # Mock guild.get_member method
+        def mock_get_member(user_id):
+            if user_id == 987654321098765432:
+                return member1
+            return None
+        
+        guild.get_member = mock_get_member
         
         # Mock async methods
         async def mock_fetch_user(user_id):
@@ -470,28 +530,31 @@ class TestHandlerErrorScenarios:
         with pytest.raises(Exception):
             whatsapp_handler._get_omni_evolution_client(None)
     
+    @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
+    @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
     @pytest.mark.asyncio
-    async def test_network_timeout_scenarios(self):
+    async def test_network_timeout_scenarios(self, mock_httpx_client, mock_get_client):
         """Test various network timeout scenarios."""
         handler = WhatsAppChatHandler()
         
         config = MagicMock(spec=InstanceConfig)
         config.name = "timeout-test"
         config.channel_type = "whatsapp"
-        config.config = {
-            "evolution_api_url": "https://slow-api.test.com",
-            "evolution_api_key": "test-key"
-        }
+        config.evolution_url = "https://slow-api.test.com"
+        config.evolution_key = "test-key"
         
-        with patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client') as mock_get_client:
-            client = AsyncMock()
-            
-            # Test connection timeout
-            client.fetch_contacts.side_effect = Exception("Connection timeout after 30s")
-            mock_get_client.return_value = client
-            
-            with pytest.raises(Exception, match="Connection timeout"):
-                await handler.get_contacts(config, page=1, page_size=50)
+        # Mock the HTTP client to ensure no real requests
+        mock_httpx_instance = AsyncMock()
+        mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
+        
+        client = AsyncMock()
+        
+        # Test connection timeout
+        client.fetch_contacts.side_effect = Exception("Connection timeout after 30s")
+        mock_get_client.return_value = client
+        
+        with pytest.raises(Exception, match="Connection timeout"):
+            await handler.get_contacts(config, page=1, page_size=50)
 class TestOmniHandlerIntegration:
     """Integration tests for omni handlers."""
     
