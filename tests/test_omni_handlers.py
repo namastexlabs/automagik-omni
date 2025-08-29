@@ -61,6 +61,8 @@ class TestWhatsAppChatHandler:
     def mock_evolution_client(self):
         """Mock Evolution API client."""
         client = AsyncMock()
+        # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+        client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.return_value = {
             "data": [
                 {
@@ -207,6 +209,8 @@ class TestWhatsAppChatHandler:
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
         
         client = AsyncMock()
+        # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+        client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.side_effect = Exception("Connection timeout")
         mock_get_client.return_value = client
         with pytest.raises(Exception, match="Connection timeout"):
@@ -224,11 +228,13 @@ class TestWhatsAppChatHandler:
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
         
         client = AsyncMock()
+        # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+        client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.side_effect = Exception("Instance not found")
         mock_get_client.return_value = client
         with pytest.raises(Exception, match="Instance not found"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
-    @patch('src.channels.whatsapp.omni_evolution_client.OmniEvolutionClient')
+    @patch('src.channels.handlers.whatsapp_chat_handler.OmniEvolutionClient')
     def test_evolution_client_configuration_validation(self, mock_client_class, handler, mock_instance_config):
         """Test Evolution API client configuration validation."""
         # Test with valid configuration - should not raise exception
@@ -274,6 +280,8 @@ class TestWhatsAppChatHandler:
     ):
         """Test contact not found scenario."""
         client = AsyncMock()
+        # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+        client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.return_value = {
             "data": [],
             "total": 0
@@ -324,6 +332,8 @@ class TestDiscordChatHandler:
         """Mock Discord client with proper structure."""
         # Create async mock for client
         client = AsyncMock()
+        # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+        client.get_connection_state.return_value = {"status": "connected"}
         
         # Mock guild
         guild = MagicMock()
@@ -548,6 +558,8 @@ class TestHandlerErrorScenarios:
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
         
         client = AsyncMock()
+        # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+        client.get_connection_state.return_value = {"status": "connected"}
         
         # Test connection timeout
         client.fetch_contacts.side_effect = Exception("Connection timeout after 30s")
@@ -573,6 +585,8 @@ class TestOmniHandlerIntegration:
         
         with patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client') as mock_get_client:
             client = AsyncMock()
+            # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
+            client.get_connection_state.return_value = {"status": "connected"}
             client.fetch_contacts.return_value = {
                 "data": [
                     {
@@ -598,7 +612,7 @@ class TestOmniHandlerIntegration:
             # Should contain all required omni fields
             required_fields = [
                 "id", "name", "channel_type", "instance_name",
-                "status", "created_at", "updated_at"
+                "status", "created_at", "last_seen"
             ]
             
             for field in required_fields:

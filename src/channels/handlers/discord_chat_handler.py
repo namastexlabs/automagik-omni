@@ -313,7 +313,7 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         user_data, instance.name
                     )
                     logger.info(f"Found Discord contact {contact_id} for instance {instance.name}")
-                    return unified_contact
+                    return omni_contact
             except Exception:
                 # If fetch_user fails, try to find in guild members
                 for guild in client.guilds:
@@ -386,7 +386,7 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         channel_data, instance.name
                     )
                     logger.info(f"Found Discord chat {chat_id} for instance {instance.name}")
-                    return unified_chat
+                    return omni_chat
             except Exception as e:
                 logger.warning(f"Failed to fetch Discord channel {chat_id}: {e}")
             

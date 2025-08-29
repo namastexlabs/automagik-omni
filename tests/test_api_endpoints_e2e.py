@@ -75,17 +75,34 @@ class TestDatabaseSetup:
             assert instances[0].name == "migration-test"
     
     def test_alembic_migration_compatibility(self, temp_db_path):
-        """Test Alembic migration system."""
+        """Test Alembic migration system (requires alembic package)."""
+        # First check if alembic is installed
         try:
+            import alembic
+        except ImportError:
+            pytest.skip("Alembic package not installed - install with: pip install alembic")
+            
+        try:
+            # Ensure proper import path resolution
+            import sys
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+                
             from src.db.migrations import auto_migrate
             
             # Set up temporary database path
             with patch.dict(os.environ, {'DATABASE_URL': f'sqlite:///{temp_db_path}'}):
                 result = auto_migrate()
-                # Should not fail
-                assert result is not None
-        except ImportError:
-            pytest.skip("Alembic migrations not available")
+                # auto_migrate returns bool, so check for boolean result
+                assert isinstance(result, bool)
+                
+        except ImportError as e:
+            pytest.skip(f"Migration module import failed: {e}")
+        except Exception as e:
+            # Don't skip on other exceptions - let them bubble up to show the real issue
+            pytest.fail(f"Migration test failed with unexpected error: {e}")
 
 
 class TestAPIEndpoints:
