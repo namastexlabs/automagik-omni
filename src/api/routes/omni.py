@@ -4,22 +4,19 @@ Omni multi-channel API endpoints.
 Provides consistent access to contacts, chats, and channel information across all supported channels.
 """
 import logging
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.api.schemas.omni import (
     OmniContactsResponse, OmniChatsResponse, OmniChannelsResponse,
-    OmniContact, OmniChat, OmniChannelInfo,
-    OmniErrorResponse, OmniErrorDetail,
-    ChannelType
+    OmniContact, OmniChat, ChannelType
 )
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory
 from src.channels.handlers.whatsapp_chat_handler import WhatsAppChatHandler
 from src.channels.handlers.discord_chat_handler import DiscordChatHandler
 from src.channels.omni_base import OmniChannelHandler
-from datetime import datetime
 
 router = APIRouter(prefix="/instances", tags=["omni-instances"])
 logger = logging.getLogger(__name__)

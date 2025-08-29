@@ -8,7 +8,7 @@ import pytest
 import time
 import os
 import tempfile
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
