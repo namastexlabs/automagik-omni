@@ -3,7 +3,7 @@
 Extended Evolution API client with omni endpoints support.
 """
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 from urllib.parse import quote
 from src.channels.whatsapp.evolution_client import EvolutionClient
 

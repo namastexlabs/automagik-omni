@@ -6,7 +6,6 @@ from pyproject.toml using importlib.metadata.
 """
 
 import importlib.metadata
-from typing import Optional
 
 
 def get_version() -> str:

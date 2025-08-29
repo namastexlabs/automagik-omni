@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
-from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
 from src.channels.message_sender import OmniChannelMessageSender
 from src.channels.discord.utils import DiscordIDValidator

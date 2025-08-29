@@ -20,12 +20,10 @@ import pytest
 import time
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from src.api.app import app
 from src.api.schemas.omni import (
     ChannelType, OmniContactStatus, OmniChatType,
     OmniContact, OmniChat, OmniChannelInfo,
-    OmniContactsResponse, OmniChatsResponse, OmniChannelsResponse
+    OmniContactsResponse
 )
 from src.db.models import InstanceConfig
 

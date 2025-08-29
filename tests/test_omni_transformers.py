@@ -7,9 +7,7 @@ Tests both WhatsApp and Discord transformers with:
 - Data format-specific ID patterns
 - Boundary conditions and malformed data
 """
-import pytest
 from datetime import datetime
-from typing import Dict, Any
 from src.services.omni_transformers import WhatsAppTransformer, DiscordTransformer
 from src.api.schemas.omni import (
     ChannelType, OmniContactStatus, OmniChatType,
@@ -335,7 +333,7 @@ class TestDiscordTransformer:
         assert contact.channel_data["is_bot"] == False
         
         # Verify avatar URL construction
-        expected_avatar = f"https://cdn.discordapp.com/avatars/987654321098765432/a_1234567890abcdef1234567890abcdef.png"
+        expected_avatar = "https://cdn.discordapp.com/avatars/987654321098765432/a_1234567890abcdef1234567890abcdef.png"
         assert contact.avatar_url == expected_avatar
     def test_contact_to_omni_no_global_name(self):
         """Test Discord user transformation without global_name."""

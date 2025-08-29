@@ -4,7 +4,7 @@ WhatsApp unified channel handler implementation.
 """
 
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Tuple
 from src.channels.omni_base import OmniChannelHandler
 from src.channels.whatsapp.channel_handler import WhatsAppChannelHandler
 from src.channels.whatsapp.omni_evolution_client import OmniEvolutionClient
@@ -45,10 +45,10 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             "",
         ]:
             logger.error(
-                f"Invalid Evolution API key detected. Please provide a valid API key."
+                "Invalid Evolution API key detected. Please provide a valid API key."
             )
             raise Exception(
-                f"Invalid Evolution API key. Please provide a valid API key."
+                "Invalid Evolution API key. Please provide a valid API key."
             )
 
         if not evolution_url.startswith(("http://", "https://")):

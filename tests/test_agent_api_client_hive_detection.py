@@ -8,7 +8,7 @@ incorrect endpoint usage. The fix ensures proper port-based detection:
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from src.services.agent_api_client import AgentApiClient
 
 

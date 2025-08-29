@@ -1,6 +1,6 @@
 # src/channels/omni_base.py
-from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any, Tuple
+from abc import abstractmethod
+from typing import List, Optional, Tuple
 from src.channels.base import ChannelHandler
 from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo
 from src.db.models import InstanceConfig

@@ -1,5 +1,5 @@
 # src/api/schemas/omni.py
-from typing import Optional, List, Dict, Any, Union, Literal
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum

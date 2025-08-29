@@ -4,7 +4,7 @@ Discord unified channel handler implementation.
 """
 
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Tuple
 from src.channels.omni_base import OmniChannelHandler
 from src.channels.discord.channel_handler import DiscordChannelHandler
 from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo

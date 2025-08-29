@@ -450,7 +450,6 @@ async def _handle_evolution_webhook(instance_config, request: Request):
     from src.services.trace_service import get_trace_context
     
     start_time = time.time()
-    success = True
     payload_size = 0
 
     try:
@@ -513,8 +512,6 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             }
 
     except Exception as e:
-        success = False
-        
         # Track failed webhook processing
         try:
             track_webhook_processed(
