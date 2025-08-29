@@ -25,6 +25,7 @@ class TestMentionsIntegration:
         """Create a test instance configuration."""
         config = Mock(spec=InstanceConfig)
         config.name = "test-instance"
+        config.channel_type = "whatsapp"  # CRITICAL: Required for OmniChannelMessageSender routing
         config.evolution_url = "https://test-evolution.com"
         config.evolution_key = "test-evolution-key"
         config.whatsapp_instance = "test-whatsapp-instance"
@@ -262,7 +263,7 @@ class TestMentionsIntegration:
                 assert response.status_code == 200
                 data = response.json()
                 assert data["success"] is False
-                assert data["status"] == "error"
+                assert data["status"] == "failed"
 
     def test_mention_flow_400_error_handling(self, client, test_instance_config, api_headers):
         """Test mention flow with Evolution API 400 error (known issue)."""

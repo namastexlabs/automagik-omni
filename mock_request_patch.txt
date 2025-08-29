@@ -1,0 +1,5 @@
+        # NUCLEAR FIX: Mock _request method to prevent AsyncMock persistence issue
+        # This prevents real httpx calls that cause response.headers AsyncMock errors
+        async def mock_request(*args, **kwargs):
+            return {"status": "success", "data": "mock_response"}
+        mock_evolution._request = mock_request

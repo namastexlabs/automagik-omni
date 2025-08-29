@@ -1,7 +1,6 @@
 """
 FastAPI application for receiving Evolution API webhooks.
 """
-
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -11,30 +10,23 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
 import json
 import time
-
 # Import telemetry
 from src.core.telemetry import track_api_request, track_webhook_processed
-
 # Import configuration first to ensure environment variables are loaded
 from src.config import config
-
 # Import and set up logging
 from src.logger import setup_logging
-
 # Set up logging with defaults from config
 setup_logging()
-
 from src.services.agent_service import agent_service
 from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
 from src.api.deps import get_database, get_instance_by_name
 from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
-from src.api.routes.omni import router as omni_router
+from src.api.routes.unified import router as unified_router
 from src.db.database import create_tables
-
 # Configure logging
 logger = logging.getLogger("src.api.app")
-
 # Initialize channel handlers
 # Apply streaming patch for WhatsApp handlers BEFORE they are used elsewhere
 try:
@@ -42,11 +34,8 @@ try:
     apply_streaming_patch()
 except Exception as e:
     logger.warning(f"Failed to apply WhatsApp streaming patch: {e}")
-
-
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware to log all incoming API requests with payload."""
-
     async def dispatch(self, request: Request, call_next):
         # Skip logging for health check and docs
         if request.url.path in [
@@ -56,14 +45,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "/api/v1/openapi.json",
         ]:
             return await call_next(request)
-
         start_time = time.time()
-
         # Log request details
         logger.info(f"API Request: {request.method} {request.url.path}")
         logger.debug(f"Request headers: {dict(request.headers)}")
         logger.debug(f"Request query params: {dict(request.query_params)}")
-
         # Log request body for POST/PUT requests
         if request.method in ["POST", "PUT", "PATCH"]:
             try:
@@ -80,22 +66,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                         )
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         logger.debug(f"Request body (non-JSON): {len(body)} bytes")
-
                 # Create new request with body for downstream processing
                 async def receive():
                     return {"type": "http.request", "body": body}
-
                 request._receive = receive
             except Exception as e:
                 logger.warning(f"Failed to log request body: {e}")
-
         # Process request
         response = await call_next(request)
-
         # Log response
         process_time = time.time() - start_time
         logger.info(f"API Response: {response.status_code} - {process_time:.3f}s")
-
         # Track API request telemetry
         try:
             track_api_request(
@@ -107,14 +88,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Never let telemetry break the API
             logger.debug(f"Telemetry tracking failed: {e}")
-
         return response
-
     def _mask_sensitive_data(self, data):
         """Mask sensitive fields and large payloads in request data."""
         if not isinstance(data, dict):
             return data
-
         masked = data.copy()
         sensitive_fields = [
             "password",
@@ -125,7 +103,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "secret",
         ]
         large_data_fields = ["base64", "message", "media_contents", "data"]
-
         for key, value in masked.items():
             if any(field in key.lower() for field in sensitive_fields):
                 if isinstance(value, str) and len(value) > 8:
@@ -143,14 +120,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     masked[key] = self._mask_sensitive_data(value)
             elif isinstance(value, dict):
                 masked[key] = self._mask_sensitive_data(value)
-
         return masked
-
-
 # Note: create_tables() has been moved to lifespan function to ensure proper test isolation
 # Database tables will be created during app startup in the lifespan function
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI application."""
@@ -160,7 +132,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"API Host: {config.api.host}")
     logger.info(f"API Port: {config.api.port}")
     logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
-
     # Skip database setup in test environment (handled by test fixtures)
     if os.environ.get("ENVIRONMENT") != "test":
         # Create database tables
@@ -170,7 +141,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Failed to create database tables: {e}")
             # Let the app continue - tables might already exist
-
         # Run database migrations
         try:
             logger.info("Checking database migrations...")
@@ -187,7 +157,6 @@ async def lifespan(app: FastAPI):
             logger.warning("Application starting despite migration issues - manual intervention may be required")
     else:
         logger.info("Skipping database setup in test environment")
-
     # Auto-discover existing Evolution instances (non-intrusive)
     # Skip auto-discovery in test environment to prevent database conflicts
     if os.environ.get("ENVIRONMENT") != "test":
@@ -195,7 +164,6 @@ async def lifespan(app: FastAPI):
             logger.info("Starting Evolution instance auto-discovery...")
             from src.services.discovery_service import discovery_service
             from src.db.database import SessionLocal
-
             with SessionLocal() as db:
                 discovered_instances = await discovery_service.discover_evolution_instances(
                     db
@@ -216,7 +184,6 @@ async def lifespan(app: FastAPI):
             )
     else:
         logger.info("Skipping Evolution instance auto-discovery in test environment")
-
     # Telemetry status logging
     from src.core.telemetry import telemetry_client
     if telemetry_client.is_enabled():
@@ -225,7 +192,6 @@ async def lifespan(app: FastAPI):
         logger.info("   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true")
     else:
         logger.info("📊 Telemetry disabled")
-
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
     
@@ -233,8 +199,6 @@ async def lifespan(app: FastAPI):
     
     # Shutdown (cleanup if needed)
     logger.info("Shutting down application...")
-
-
 # Create FastAPI app with authentication configuration
 app = FastAPI(
     lifespan=lifespan,
@@ -271,74 +235,55 @@ app = FastAPI(
         }
     ],
 )
-
-# Include omni communication routes (register first to take precedence)
-app.include_router(omni_router, prefix="/api/v1", tags=["instances"])
-
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
-
-
+# Include unified endpoints routes
+app.include_router(unified_router, prefix="/api/v1", tags=["instances"])
 # Include trace management routes
 from src.api.routes.traces import router as traces_router
-
 app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
-
 # Include message sending routes
 try:
     from src.api.routes.messages import router as messages_router
-
     app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
 except Exception as e:
     logger.error(f"❌ Failed to include messages router: {e}")
     import traceback
-
     logger.error(traceback.format_exc())
-
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
-
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.cors.allowed_origins,
-    allow_credentials=config.cors.allow_credentials,
-    allow_methods=config.cors.allow_methods,
-    allow_headers=config.cors.allow_headers,
+    allow_origins=["*"],  # Adjust in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-
 # Custom OpenAPI schema with enhanced formatting and authentication
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-
     # Enhanced API description
     enhanced_description = f"""
 {config.api.description}
-
 ## Features
-
 - Multi-tenant architecture with isolated instances
 - Universal messaging across WhatsApp, Discord, and Slack
 - Message tracing and analytics
 - Bearer token authentication
-
 ## Quick Start
-
 1. Include API key in `Authorization: Bearer <token>` header
 2. Create an instance for your channel
-3. Send messages using the omni endpoints
+3. Send messages using the unified endpoints
 4. Monitor activity via traces and health endpoints
 """
-
     openapi_schema = get_openapi(
         title=config.api.title,
         version=config.api.version,
         description=enhanced_description,
         routes=app.routes,
     )
-
     # Add server information
     openapi_schema["servers"] = [
         {
@@ -346,20 +291,17 @@ def custom_openapi():
             "description": "Development Server"
         }
     ]
-
     # Add Bearer token authentication scheme
     if "components" not in openapi_schema:
         openapi_schema["components"] = {}
     if "securitySchemes" not in openapi_schema["components"]:
         openapi_schema["components"]["securitySchemes"] = {}
-
     openapi_schema["components"]["securitySchemes"]["bearerAuth"] = {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Enter your API key as a Bearer token",
     }
-
     # Apply security globally to all /api/v1 endpoints (except health)
     for path, path_item in openapi_schema.get("paths", {}).items():
         if path.startswith("/api/v1/") and path != "/health":
@@ -367,15 +309,9 @@ def custom_openapi():
                 if method.lower() in ["get", "post", "put", "delete", "patch"]:
                     if "security" not in operation:
                         operation["security"] = [{"bearerAuth": []}]
-
     app.openapi_schema = openapi_schema
     return app.openapi_schema
-
-
 app.openapi = custom_openapi
-
-
-
 @app.get("/health", tags=["health"])
 async def health_check():
     """
@@ -435,14 +371,9 @@ async def health_check():
         }
     
     return health_status
-
-
-
-
 async def _handle_evolution_webhook(instance_config, request: Request):
     """
     Core webhook handling logic shared between default and tenant endpoints.
-
     Args:
         instance_config: InstanceConfig object with per-instance configuration
         request: FastAPI request object
@@ -452,7 +383,6 @@ async def _handle_evolution_webhook(instance_config, request: Request):
     start_time = time.time()
     success = True
     payload_size = 0
-
     try:
         logger.info(f"🔄 WEBHOOK ENTRY: Starting webhook processing for instance '{instance_config.name}'")
         
@@ -467,32 +397,25 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             logger.info(f"🎵 AUDIO MESSAGE DETECTED: {json.dumps(message_obj, indent=2)[:1000]}")
         
         logger.debug(f"Webhook data: {data}")
-
         # Start message tracing
         with get_trace_context(data, instance_config.name) as trace:
-
             # Update the Evolution API sender with the webhook data
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
-
             # Override instance name with the correct one from our database config
             # to prevent URL conversion issues like "FlashinhoProTestonho" -> "flashinho-pro-testonho"
             evolution_api_sender.instance_name = instance_config.whatsapp_instance
-
             # Capture real media messages for testing purposes
             try:
                 from src.utils.test_capture import test_capture
-
                 test_capture.capture_media_message(data, instance_config)
             except Exception as e:
                 logger.error(f"Test capture failed: {e}")
-
             # Process the message through the agent service
             # The agent service will now delegate to the WhatsApp handler
             # which will handle transcription and sending responses directly
             # Pass instance_config and trace context to service for per-instance agent configuration
             agent_service.process_whatsapp_message(data, instance_config, trace)
-
             # Track webhook processing telemetry
             try:
                 track_webhook_processed(
@@ -504,14 +427,12 @@ async def _handle_evolution_webhook(instance_config, request: Request):
                 )
             except Exception as e:
                 logger.debug(f"Webhook telemetry tracking failed: {e}")
-
             # Return success response
             return {
                 "status": "success",
                 "instance": instance_config.name,
                 "trace_id": trace.trace_id if trace else None,
             }
-
     except Exception as e:
         success = False
         
@@ -533,8 +454,6 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.post("/webhook/evolution/{instance_name}", tags=["webhooks"])
 async def evolution_webhook_tenant(
     instance_name: str, request: Request, db: Session = Depends(get_database)
@@ -547,72 +466,14 @@ async def evolution_webhook_tenant(
     """
     # Get instance configuration
     instance_config = get_instance_by_name(instance_name, db)
-
     # Handle using shared logic
     return await _handle_evolution_webhook(instance_config, request)
-
-
 def start_api():
     """Start the FastAPI server using uvicorn."""
     import uvicorn
-
     host = (
         config.api.host
         if hasattr(config, "api") and hasattr(config.api, "host")
-        else "0.0.0.0"
-    )
-    port = (
-        config.api.port
-        if hasattr(config, "api") and hasattr(config.api, "port")
-        else 8000
-    )
+        else "0
 
-    logger.info(f"Starting FastAPI server on {host}:{port}")
-
-    # Create custom logging config for uvicorn that completely suppresses its formatters
-    log_config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "default": {
-                "()": "src.logger.ColoredFormatter",
-                "fmt": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                "datefmt": "%H:%M:%S",
-                "use_colors": True,
-                "use_emojis": True,
-                "shorten_paths": True,
-            },
-        },
-        "handlers": {
-            "default": {
-                "formatter": "default",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stdout",
-            },
-        },
-        "loggers": {
-            "uvicorn": {
-                "handlers": ["default"],
-                "level": "INFO",
-                "propagate": False,
-            },
-            "uvicorn.error": {
-                "handlers": ["default"],
-                "level": "WARNING",
-                "propagate": False,
-            },
-            "uvicorn.access": {
-                "handlers": ["default"],
-                "level": "WARNING",
-                "propagate": False,
-            },
-        },
-        "root": {
-            "level": "DEBUG",
-            "handlers": ["default"],
-        },
-    }
-
-    uvicorn.run(
-        "src.api.app:app", host=host, port=port, reload=False, log_config=log_config
-    )
+... [54 lines truncated] ...

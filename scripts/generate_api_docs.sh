@@ -346,18 +346,7 @@ api_call "GET" "/api/v1/traces/phone/+5511999999999" "" "Get Traces by Phone Num
 # Test trace cleanup
 api_call "DELETE" "/api/v1/traces/cleanup?days_old=30&dry_run=true" "" "Cleanup Old Traces (Dry Run)"
 
-cat >> "$OUTPUT_FILE" << 'EOF'
 
-## Test Capture & Debugging
-
-EOF
-
-# Test capture endpoints
-api_call "POST" "/api/v1/test/capture/enable" "" "Enable Test Capture Mode"
-
-api_call "GET" "/api/v1/test/capture/status" "" "Get Test Capture Status"
-
-api_call "POST" "/api/v1/test/capture/disable" "" "Disable Test Capture Mode"
 
 cat >> "$OUTPUT_FILE" << 'EOF'
 

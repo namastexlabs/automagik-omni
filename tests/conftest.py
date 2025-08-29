@@ -2,6 +2,10 @@
 Shared test fixtures and utilities for omni-hub tests.
 """
 
+import warnings
+# Suppress discord.py audioop deprecation warning
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="discord.player")
+
 import pytest
 import os
 from typing import Dict, Any, Generator
@@ -243,12 +247,35 @@ def test_client(test_db):
         mock_evolution.fetch_instances = mock_fetch_instances
 
         # Add other methods that might be called
-        mock_evolution.set_webhook = AsyncMock(return_value={"status": "success"})
-        mock_evolution.connect_instance = AsyncMock(return_value={"qr": "test-qr"})
-        mock_evolution.get_connection_state = AsyncMock(return_value={"state": "open"})
-        mock_evolution.restart_instance = AsyncMock(return_value={"status": "success"})
-        mock_evolution.logout_instance = AsyncMock(return_value={"status": "success"})
-        mock_evolution.delete_instance = AsyncMock(return_value={"status": "success"})
+        # Fix set_webhook to return a proper dict
+        async def mock_set_webhook(*args, **kwargs):
+            return {"status": "success"}
+        mock_evolution.set_webhook = mock_set_webhook
+        # Fix connect_instance to return a proper dict that supports .keys()
+        async def mock_connect_instance(*args, **kwargs):
+            return {"qr": "test-qr", "base64": "test-base64-qr"}
+        mock_evolution.connect_instance = mock_connect_instance
+        # Fix get_connection_state to return a proper dict
+        async def mock_get_connection_state(*args, **kwargs):
+            return {"state": "open", "instance": {"state": "open"}}
+        mock_evolution.get_connection_state = mock_get_connection_state
+        # Fix restart_instance to return a proper dict
+        async def mock_restart_instance(*args, **kwargs):
+            return {"status": "success"}
+        mock_evolution.restart_instance = mock_restart_instance
+        # Fix logout_instance to return a proper dict
+        async def mock_logout_instance(*args, **kwargs):
+            return {"status": "success"}
+        mock_evolution.logout_instance = mock_logout_instance
+        # Fix delete_instance to return a proper dict
+        async def mock_delete_instance(*args, **kwargs):
+            return {"status": "success"}
+        mock_evolution.delete_instance = mock_delete_instance
+
+        # PRECISION FIX: Mock _request method to prevent AsyncMock.keys() error
+        async def mock_request(method: str, endpoint: str, **kwargs):
+            return {"status": "open", "instance": {"state": "open"}}
+        mock_evolution._request = mock_request
 
         mock_client.return_value = mock_evolution
 
@@ -259,11 +286,11 @@ def test_client(test_db):
             with patch("src.db.bootstrap.ensure_default_instance") as mock_bootstrap:
                 # Create default instance in test database
                 default_instance = InstanceConfig(
-                    name="test-default",
+                    name="test-instance",
                     channel_type="whatsapp",
                     evolution_url="http://test.com",
                     evolution_key="test-key",
-                    whatsapp_instance="test-default",
+                    whatsapp_instance="test-instance",
                     agent_api_url="http://agent.com",
                     agent_api_key="agent-key",
                     default_agent="test_agent",

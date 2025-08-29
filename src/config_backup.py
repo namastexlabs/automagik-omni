@@ -147,23 +147,6 @@ class EnvironmentConfig(BaseModel):
         return self.environment.lower() == "production"
 
 
-class CorsConfig(BaseModel):
-    """CORS configuration for API server."""
-
-    allowed_origins: list[str] = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_CORS_ORIGINS", "*").split(",")
-    )
-    allow_credentials: bool = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_CORS_CREDENTIALS", "true").lower() == "true"
-    )
-    allow_methods: list[str] = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_CORS_METHODS", "GET,POST,PUT,DELETE,OPTIONS").split(",")
-    )
-    allow_headers: list[str] = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_CORS_HEADERS", "*").split(",")
-    )
-
-
 class Config(BaseModel):
     """Main application configuration."""
 
@@ -173,7 +156,6 @@ class Config(BaseModel):
     database: DatabaseConfig = DatabaseConfig()
     tracing: TracingConfig = TracingConfig()
     timezone: TimezoneConfig = TimezoneConfig()
-    cors: CorsConfig = CorsConfig()
 
     @property
     def is_valid(self) -> bool:

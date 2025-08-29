@@ -9,7 +9,6 @@ from unittest.mock import Mock, patch
 from src.api.app import app
 from src.db.models import InstanceConfig
 # Import the messages module to enable proper mocking
-from src.api.routes import messages
 
 
 class TestApiMentions:
@@ -39,11 +38,11 @@ class TestApiMentions:
             "Authorization": "Bearer namastex888"
         }
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('requests.post')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_with_auto_parse_mentions(
-        self, mock_resolve, mock_sender_class, mock_get_instance, 
+        self, mock_resolve, mock_requests_post, mock_get_instance, 
         client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint with auto-parse mentions."""
@@ -51,9 +50,11 @@ class TestApiMentions:
         mock_get_instance.return_value = mock_instance_config
         mock_resolve.return_value = "5511777777777@s.whatsapp.net"
         
-        mock_sender = Mock()
-        mock_sender.send_text_message.return_value = True
-        mock_sender_class.return_value = mock_sender
+        # Mock HTTP response for Evolution API
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status.return_value = None
+        mock_requests_post.return_value = mock_response
         
         # Test payload with @mentions in text
         payload = {
@@ -73,22 +74,38 @@ class TestApiMentions:
         assert data["success"] is True
         assert data["status"] == "sent"
         
-        # Verify Evolution API sender was called with correct parameters
-        assert mock_sender.send_text_message.called, "Mock should have been called"
-        call_args = mock_sender.send_text_message.call_args
+        # Verify Evolution API HTTP request was made
+        assert mock_requests_post.called, "HTTP request should have been made"
+        call_args = mock_requests_post.call_args
         
-        assert call_args[1]["recipient"] == "5511777777777@s.whatsapp.net"
-        assert call_args[1]["text"] == payload["text"]
-        assert call_args[1]["auto_parse_mentions"] is True
-        assert call_args[1]["mentioned"] is None  # Should be None for auto-parsing
-        assert call_args[1]["mentions_everyone"] is False
+        # Check URL was called correctly
+        request_url = call_args[0][0]
+        assert "test-evolution.com" in request_url
+        assert "/message/sendText/" in request_url
+        assert "test-instance" in request_url
+        
+        # Check headers
+        request_headers = call_args[1]["headers"]
+        assert request_headers["apikey"] == "test-key"
+        assert request_headers["Content-Type"] == "application/json"
+        
+        # Check payload
+        request_payload = call_args[1]["json"]
+        assert request_payload["number"] == "5511777777777"
+        assert request_payload["text"] == payload["text"]
+        
+        # Should have auto-parsed mentions in the payload
+        assert "mentioned" in request_payload
+        mentions = request_payload["mentioned"]
+        assert "5511999999999@s.whatsapp.net" in mentions
+        assert "5511888888888@s.whatsapp.net" in mentions
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
-    @patch('src.channels.whatsapp.mention_parser.WhatsAppMentionParser.parse_explicit_mentions')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('requests.post')
+    @patch('src.api.routes.messages._resolve_recipient')
+    @patch('src.api.routes.messages.WhatsAppMentionParser.parse_explicit_mentions')
     def test_send_text_with_explicit_mentions(
-        self, mock_parse_mentions, mock_resolve, mock_sender_class, 
+        self, mock_parse_mentions, mock_resolve, mock_requests_post, 
         mock_get_instance, client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint with explicit mentions."""
@@ -100,9 +117,11 @@ class TestApiMentions:
             "5511888888888@s.whatsapp.net"
         ]
         
-        mock_sender = Mock()
-        mock_sender.send_text_message.return_value = True
-        mock_sender_class.return_value = mock_sender
+        # Mock HTTP response for Evolution API
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status.return_value = None
+        mock_requests_post.return_value = mock_response
         
         # Test payload with explicit mentions
         payload = {
@@ -125,18 +144,20 @@ class TestApiMentions:
         # Verify mention parsing was called
         mock_parse_mentions.assert_called_once_with(["+5511999999999", "+5511888888888"])
         
-        # Verify Evolution API sender was called with converted JIDs
-        assert mock_sender.send_text_message.called, "Mock should have been called"
-        call_args = mock_sender.send_text_message.call_args
+        # Verify Evolution API HTTP request was made
+        assert mock_requests_post.called, "HTTP request should have been made"
+        call_args = mock_requests_post.call_args
         
-        assert call_args[1]["mentioned"] == ["5511999999999@s.whatsapp.net", "5511888888888@s.whatsapp.net"]
-        assert call_args[1]["auto_parse_mentions"] is False
+        # Check payload contains explicit mentions
+        request_payload = call_args[1]["json"]
+        assert "mentioned" in request_payload
+        assert request_payload["mentioned"] == ["5511999999999@s.whatsapp.net", "5511888888888@s.whatsapp.net"]
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('requests.post')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_with_mentions_everyone(
-        self, mock_resolve, mock_sender_class, mock_get_instance,
+        self, mock_resolve, mock_requests_post, mock_get_instance,
         client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint with mentions everyone."""
@@ -144,9 +165,11 @@ class TestApiMentions:
         mock_get_instance.return_value = mock_instance_config
         mock_resolve.return_value = "group-id@g.us"
         
-        mock_sender = Mock()
-        mock_sender.send_text_message.return_value = True
-        mock_sender_class.return_value = mock_sender
+        # Mock HTTP response for Evolution API
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status.return_value = None
+        mock_requests_post.return_value = mock_response
         
         # Test payload with mentions everyone
         payload = {
@@ -165,18 +188,20 @@ class TestApiMentions:
         data = response.json()
         assert data["success"] is True
         
-        # Verify Evolution API sender was called with mentions_everyone
-        assert mock_sender.send_text_message.called, "Mock should have been called"
-        call_args = mock_sender.send_text_message.call_args
+        # Verify Evolution API HTTP request was made
+        assert mock_requests_post.called, "HTTP request should have been made"
+        call_args = mock_requests_post.call_args
         
-        assert call_args[1]["mentions_everyone"] is True
-        assert call_args[1]["mentioned"] is None
+        # Check payload contains mentions everyone
+        request_payload = call_args[1]["json"]
+        assert "mentionsEveryOne" in request_payload
+        assert request_payload["mentionsEveryOne"] is True
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('requests.post')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_no_mentions(
-        self, mock_resolve, mock_sender_class, mock_get_instance,
+        self, mock_resolve, mock_requests_post, mock_get_instance,
         client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint without any mentions."""
@@ -184,9 +209,11 @@ class TestApiMentions:
         mock_get_instance.return_value = mock_instance_config
         mock_resolve.return_value = "5511777777777@s.whatsapp.net"
         
-        mock_sender = Mock()
-        mock_sender.send_text_message.return_value = True
-        mock_sender_class.return_value = mock_sender
+        # Mock HTTP response for Evolution API
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status.return_value = None
+        mock_requests_post.return_value = mock_response
         
         # Test payload without mentions
         payload = {
@@ -204,19 +231,20 @@ class TestApiMentions:
         data = response.json()
         assert data["success"] is True
         
-        # Verify Evolution API sender was called with default parameters
-        assert mock_sender.send_text_message.called, "Mock should have been called"
-        call_args = mock_sender.send_text_message.call_args
+        # Verify Evolution API HTTP request was made
+        assert mock_requests_post.called, "HTTP request should have been made"
+        call_args = mock_requests_post.call_args
         
-        assert call_args[1]["mentioned"] is None
-        assert call_args[1]["mentions_everyone"] is False
-        assert call_args[1]["auto_parse_mentions"] is True  # Default value
+        # Check payload does not contain mentions (clean message)
+        request_payload = call_args[1]["json"]
+        assert "mentioned" not in request_payload or not request_payload.get("mentioned")
+        assert "mentionsEveryOne" not in request_payload or not request_payload.get("mentionsEveryOne")
 
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('requests.post')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_sender_failure(
-        self, mock_resolve, mock_sender_class, mock_get_instance,
+        self, mock_resolve, mock_requests_post, mock_get_instance,
         client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint when sender fails."""
@@ -224,9 +252,11 @@ class TestApiMentions:
         mock_get_instance.return_value = mock_instance_config
         mock_resolve.return_value = "5511777777777@s.whatsapp.net"
         
-        mock_sender = Mock()
-        mock_sender.send_text_message.return_value = False  # Simulate failure
-        mock_sender_class.return_value = mock_sender
+        # Mock HTTP response for Evolution API failure
+        mock_response = Mock()
+        mock_response.status_code = 500  # Simulate HTTP error
+        mock_response.raise_for_status.side_effect = Exception("Server error")
+        mock_requests_post.return_value = mock_response
         
         payload = {
             "phone_number": "+5511777777777",
@@ -295,11 +325,11 @@ class TestApiMentions:
         # Both explicit
         ({"phone_number": "+5511777777777", "text": "test", "auto_parse_mentions": False, "mentions_everyone": True}, False, True),
     ])
-    @patch('src.api.deps.get_instance_by_name')
-    @patch('src.channels.whatsapp.evolution_api_sender.EvolutionApiSender')
-    @patch.object(messages, '_resolve_recipient')
+    @patch('src.api.routes.messages.get_instance_by_name')
+    @patch('requests.post')
+    @patch('src.api.routes.messages._resolve_recipient')
     def test_send_text_parameter_defaults(
-        self, mock_resolve, mock_sender_class, mock_get_instance,
+        self, mock_resolve, mock_requests_post, mock_get_instance,
         client, mock_instance_config, api_headers,
         payload, expected_auto_parse, expected_mentions_everyone
     ):
@@ -308,9 +338,11 @@ class TestApiMentions:
         mock_get_instance.return_value = mock_instance_config
         mock_resolve.return_value = "5511777777777@s.whatsapp.net"
         
-        mock_sender = Mock()
-        mock_sender.send_text_message.return_value = True
-        mock_sender_class.return_value = mock_sender
+        # Mock HTTP response for Evolution API
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status.return_value = None
+        mock_requests_post.return_value = mock_response
         
         response = client.post(
             "/api/v1/instance/test-instance/send-text",
@@ -320,12 +352,16 @@ class TestApiMentions:
         
         assert response.status_code == 200
         
-        # Verify parameters were passed correctly
-        assert mock_sender.send_text_message.called, "Mock should have been called"
-        call_args = mock_sender.send_text_message.call_args
+        # Verify HTTP request was made
+        assert mock_requests_post.called, "HTTP request should have been made"
+        call_args = mock_requests_post.call_args
         
-        assert call_args[1]["auto_parse_mentions"] == expected_auto_parse
-        assert call_args[1]["mentions_everyone"] == expected_mentions_everyone
+        # Check payload based on expected behavior
+        request_payload = call_args[1]["json"]
+        if expected_mentions_everyone:
+            assert request_payload.get("mentionsEveryOne") is True
+        else:
+            assert not request_payload.get("mentionsEveryOne", False)
 
     def test_send_text_schema_validation(self, client, api_headers):
         """Test that the API validates mention-related fields correctly."""
@@ -362,17 +398,22 @@ class TestApiMentions:
         }
         
         with patch('src.api.routes.messages.get_instance_by_name') as mock_get_instance, \
-             patch('src.api.routes.messages.EvolutionApiSender') as mock_sender_class, \
+             patch('requests.post') as mock_requests_post, \
              patch('src.api.routes.messages._resolve_recipient') as mock_resolve:
             
             mock_instance_config = Mock()
             mock_instance_config.channel_type = "whatsapp"  # CRITICAL: Set channel_type
+            mock_instance_config.evolution_url = "https://test-evolution.com"
+            mock_instance_config.evolution_key = "test-key"
+            mock_instance_config.whatsapp_instance = "test-instance"
             mock_get_instance.return_value = mock_instance_config
             mock_resolve.return_value = "5511777777777@s.whatsapp.net"
             
-            mock_sender = Mock()
-            mock_sender.send_text_message.return_value = True
-            mock_sender_class.return_value = mock_sender
+            # Mock HTTP response for Evolution API
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.raise_for_status.return_value = None
+            mock_requests_post.return_value = mock_response
             
             response = client.post(
                 "/api/v1/instance/test-instance/send-text",
@@ -382,9 +423,10 @@ class TestApiMentions:
             
             assert response.status_code == 200
             
-            # Should pass None to sender since empty list
-            call_args = mock_sender.send_text_message.call_args
-            assert call_args[1]["mentioned"] is None
+            # Should not have mentioned field or should be empty
+            call_args = mock_requests_post.call_args
+            request_payload = call_args[1]["json"]
+            assert "mentioned" not in request_payload or not request_payload.get("mentioned")
 
 
 if __name__ == "__main__":
