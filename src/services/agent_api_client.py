@@ -584,8 +584,9 @@ class AgentApiClient:
         if self.instance_config:
             is_hive = self.instance_config.is_hive
         else:
-            # Fallback to port 8886 detection for backward compatibility when no config
-            is_hive = ":8886" in self.api_url or "localhost:8886" in self.api_url
+            # Fallback to port 8000 detection for backward compatibility when no config
+            # Hive API instances run on port 8000, Automagik Core instances run on port 8881
+            is_hive = ":8000" in self.api_url or "localhost:8000" in self.api_url
         
         if is_hive:
             logger.debug(f"Using Hive API mode for URL: {self.api_url}")
