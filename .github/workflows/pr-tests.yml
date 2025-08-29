@@ -1,0 +1,331 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [dev]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    
+    services:
+      # PostgreSQL service for tests that need a database
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: automagik_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libpq-dev \
+            python3-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e .
+          pip install -e ".[discord]"  # Install optional discord dependencies
+          pip install pytest-xdist  # For parallel test execution
+
+      - name: Set up environment variables
+        run: |
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/automagik_test" >> $GITHUB_ENV
+          echo "AUTOMAGIK_OMNI_API_KEY=${{ secrets.TEST_API_KEY || 'dummy-key' }}" >> $GITHUB_ENV
+          echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
+
+      - name: Initialize database
+        run: |
+          python -c "
+          from sqlalchemy import create_engine
+          from src.db.models import Base
+          import os
+          engine = create_engine(os.environ['DATABASE_URL'])
+          Base.metadata.create_all(engine)
+          print('Database initialized successfully')
+          "
+
+      - name: Run tests with coverage
+        id: test
+        run: |
+          # Run tests with coverage and parallel execution
+          pytest tests/ \
+            -v \
+            --tb=short \
+            --color=yes \
+            --cov=src \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=test-results.xml \
+            -n auto \
+            --maxfail=5 \
+            --disable-warnings \
+            || TEST_FAILED=$?
+          
+          # Store test result
+          if [ "${TEST_FAILED}" != "" ]; then
+            echo "test_failed=true" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "test_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            test-results.xml
+            htmlcov/
+          retention-days: 7
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-${{ matrix.python-version }}
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results (Python ${{ matrix.python-version }})
+          path: test-results.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+            
+            // Get test summary
+            let testSummary = '✅ All tests passed!';
+            let statusEmoji = '✅';
+            
+            if ('${{ steps.test.outputs.test_failed }}' === 'true') {
+              testSummary = '❌ Some tests failed';
+              statusEmoji = '❌';
+            }
+            
+            // Try to get coverage percentage
+            let coverageInfo = '';
+            try {
+              const coverageOutput = execSync('grep -oP "TOTAL.*?\\K\\d+%" coverage.xml || echo "N/A"', { encoding: 'utf8' }).trim();
+              if (coverageInfo !== 'N/A') {
+                coverageInfo = `📊 **Coverage:** ${coverageOutput}`;
+              }
+            } catch (e) {
+              coverageInfo = '';
+            }
+            
+            // Count test results from pytest output if available
+            let testCount = '';
+            try {
+              if (fs.existsSync('test-results.xml')) {
+                const xmlContent = fs.readFileSync('test-results.xml', 'utf8');
+                const testsMatch = xmlContent.match(/tests="(\d+)"/);
+                const failuresMatch = xmlContent.match(/failures="(\d+)"/);
+                const errorsMatch = xmlContent.match(/errors="(\d+)"/);
+                const skippedMatch = xmlContent.match(/skipped="(\d+)"/);
+                
+                if (testsMatch) {
+                  const tests = parseInt(testsMatch[1]);
+                  const failures = failuresMatch ? parseInt(failuresMatch[1]) : 0;
+                  const errors = errorsMatch ? parseInt(errorsMatch[1]) : 0;
+                  const skipped = skippedMatch ? parseInt(skippedMatch[1]) : 0;
+                  const passed = tests - failures - errors - skipped;
+                  
+                  testCount = `
+            📈 **Test Results:**
+            - ✅ Passed: ${passed}
+            - ❌ Failed: ${failures}
+            - 🔥 Errors: ${errors}
+            - ⏭️ Skipped: ${skipped}
+            - 📝 Total: ${tests}`;
+                }
+              }
+            } catch (e) {
+              console.log('Could not parse test results:', e);
+            }
+            
+            const body = `## ${statusEmoji} Test Results for Python ${{ matrix.python-version }}
+            
+            ${testSummary}
+            ${testCount}
+            ${coverageInfo}
+            
+            🔗 [View detailed test report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            <details>
+            <summary>Environment Details</summary>
+            
+            - **Python Version:** ${{ matrix.python-version }}
+            - **Runner OS:** ${{ runner.os }}
+            - **Commit:** ${{ github.sha }}
+            - **Workflow Run:** ${{ github.run_id }}
+            
+            </details>`;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Test Results for Python')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Check test status
+        if: steps.test.outputs.test_failed == 'true'
+        run: |
+          echo "❌ Tests failed! Please fix the failing tests before merging."
+          exit 1
+
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install linting dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+
+      - name: Run Ruff linter
+        id: ruff
+        run: |
+          ruff check src/ tests/ --output-format=github || RUFF_FAILED=$?
+          if [ "${RUFF_FAILED}" != "" ]; then
+            echo "ruff_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "ruff_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Ruff formatter check
+        id: ruff-format
+        run: |
+          ruff format --check src/ tests/ || FORMAT_FAILED=$?
+          if [ "${FORMAT_FAILED}" != "" ]; then
+            echo "format_failed=true" >> $GITHUB_OUTPUT
+            echo "❌ Code formatting issues found. Run 'ruff format src/ tests/' to fix."
+          else
+            echo "format_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment lint results on PR
+        if: github.event_name == 'pull_request' && (steps.ruff.outputs.ruff_failed == 'true' || steps.ruff-format.outputs.format_failed == 'true')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let message = '## ⚠️ Code Quality Issues Found\n\n';
+            
+            if ('${{ steps.ruff.outputs.ruff_failed }}' === 'true') {
+              message += '❌ **Linting issues detected**\n';
+              message += 'Run `ruff check src/ tests/ --fix` to auto-fix some issues.\n\n';
+            }
+            
+            if ('${{ steps.ruff-format.outputs.format_failed }}' === 'true') {
+              message += '❌ **Formatting issues detected**\n';
+              message += 'Run `ruff format src/ tests/` to fix formatting.\n\n';
+            }
+            
+            message += '📚 [View workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})';
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: message
+            });
+
+  all-checks-passed:
+    name: All Checks Passed
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "❌ Some checks failed!"
+            echo "Test result: ${{ needs.test.result }}"
+            echo "Lint result: ${{ needs.lint.result }}"
+            exit 1
+          else
+            echo "✅ All checks passed successfully!"
+          fi
