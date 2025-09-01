@@ -2,11 +2,16 @@
 Shared test fixtures and utilities for omni-hub tests.
 """
 
+import warnings
+
+# Suppress discord.py audioop deprecation warning
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="discord.player")
+
 import pytest
 import os
 from typing import Dict, Any, Generator
 from unittest.mock import patch, AsyncMock, Mock
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
 
@@ -42,30 +47,30 @@ def _create_postgresql_test_database():
     """Create a temporary PostgreSQL database for testing."""
     import uuid
     from sqlalchemy import create_engine, text
-    
+
     # Database connection details from environment
     postgres_host = os.environ.get("POSTGRES_HOST", "localhost")
     postgres_port = os.environ.get("POSTGRES_PORT", "5432")
     postgres_user = os.environ.get("POSTGRES_USER", "postgres")
     postgres_password = os.environ.get("POSTGRES_PASSWORD", "")
     postgres_db = os.environ.get("POSTGRES_DB", "postgres")
-    
+
     # Create a unique test database name
     test_db_name = f"test_omni_{uuid.uuid4().hex[:8]}"
-    
+
     # Connect to PostgreSQL server to create test database
     server_url = f"postgresql://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_db}"
     server_engine = create_engine(server_url, isolation_level="AUTOCOMMIT")
-    
+
     try:
         # Create test database
         with server_engine.connect() as conn:
             conn.execute(text(f'CREATE DATABASE "{test_db_name}"'))
-        
+
         # Return connection URL for the test database
         test_db_url = f"postgresql://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{test_db_name}"
         return test_db_url, test_db_name, server_engine
-        
+
     except Exception as e:
         server_engine.dispose()
         raise Exception(f"Failed to create PostgreSQL test database: {e}")
@@ -76,12 +81,14 @@ def _cleanup_postgresql_test_database(test_db_name: str, server_engine):
     try:
         with server_engine.connect() as conn:
             # Terminate active connections to the test database
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 SELECT pg_terminate_backend(pg_stat_activity.pid)
                 FROM pg_stat_activity
                 WHERE pg_stat_activity.datname = '{test_db_name}'
                   AND pid <> pg_backend_pid()
-            """))
+            """)
+            )
             # Drop the test database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db_name}"'))
     except Exception as e:
@@ -93,7 +100,7 @@ def _cleanup_postgresql_test_database(test_db_name: str, server_engine):
 @pytest.fixture(scope="function")
 def test_db() -> Generator[Session, None, None]:
     """Create a test database session.
-    
+
     Database selection priority:
     1. TEST_DATABASE_URL environment variable (explicit override)
     2. PostgreSQL if POSTGRES_HOST is set and psycopg2 is available
@@ -101,46 +108,46 @@ def test_db() -> Generator[Session, None, None]:
     """
     engine = None
     cleanup_func = None
-    
+
     # Check for explicit test database URL override
     test_db_url = os.environ.get("TEST_DATABASE_URL")
-    
+
     if test_db_url:
         # Use the explicit test database from environment
         if test_db_url.startswith("sqlite"):
-            engine = create_engine(
-                test_db_url, connect_args={"check_same_thread": False}
-            )
+            engine = create_engine(test_db_url, connect_args={"check_same_thread": False})
         else:
             engine = create_engine(test_db_url)
         print(f"Using explicit test database: {test_db_url}")
-        
+
     elif os.environ.get("POSTGRES_HOST"):
         # Try to use PostgreSQL if configured
         try:
-            import psycopg2  # Check if PostgreSQL driver is available
+            import psycopg2  # noqa: F401 - Check if PostgreSQL driver is available
+
             test_db_url, test_db_name, server_engine = _create_postgresql_test_database()
             engine = create_engine(test_db_url)
-            
+
             # Set up cleanup function
-            cleanup_func = lambda: _cleanup_postgresql_test_database(test_db_name, server_engine)
+            def cleanup_func():
+                return _cleanup_postgresql_test_database(test_db_name, server_engine)
+
             print(f"Created PostgreSQL test database: {test_db_name}")
-            
+
         except ImportError:
             print("Warning: psycopg2 not available, falling back to SQLite")
             engine = None
         except Exception as e:
             print(f"Warning: PostgreSQL setup failed ({e}), falling back to SQLite")
             engine = None
-    
+
     # Fallback to temporary SQLite database
     if engine is None:
         import tempfile
-        temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+
+        temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         temp_db.close()
-        engine = create_engine(
-            f"sqlite:///{temp_db.name}", connect_args={"check_same_thread": False}
-        )
+        engine = create_engine(f"sqlite:///{temp_db.name}", connect_args={"check_same_thread": False})
         engine._test_temp_file = temp_db.name
         print(f"Using temporary SQLite database: {temp_db.name}")
 
@@ -158,24 +165,24 @@ def test_db() -> Generator[Session, None, None]:
         # Ensure any pending transactions are rolled back
         db.rollback()
         db.close()
-        
+
         # Drop tables for clean state
         try:
             Base.metadata.drop_all(bind=engine)
         except Exception as e:
             print(f"Warning: Failed to drop tables during cleanup: {e}")
-        
+
         # Database-specific cleanup
         if cleanup_func:
             # PostgreSQL: Drop the entire test database
             cleanup_func()
-        elif hasattr(engine, '_test_temp_file'):
+        elif hasattr(engine, "_test_temp_file"):
             # SQLite: Remove temporary file
             try:
                 os.unlink(engine._test_temp_file)
             except OSError:
                 pass  # File might already be deleted
-        
+
         # Dispose of the engine
         engine.dispose()
 
@@ -198,7 +205,7 @@ def test_client(test_db):
     """Create FastAPI test client with overridden database."""
     # Import after environment is set and before app is created
     from src.api.deps import verify_api_key, get_database
-    
+
     # Import app AFTER setting up the test environment
     from src.api.app import app
 
@@ -217,15 +224,14 @@ def test_client(test_db):
 
     app.dependency_overrides[verify_api_key] = mock_verify_api_key
     app.dependency_overrides[get_database] = override_db_dependency
-    
+
     # Import and override the base database dependency too
     from src.db.database import get_db
+
     app.dependency_overrides[get_db] = override_base_get_db
 
     # Mock Evolution API calls to prevent external dependencies
-    with patch(
-        "src.channels.whatsapp.evolution_client.get_evolution_client"
-    ) as mock_client:
+    with patch("src.channels.whatsapp.evolution_client.get_evolution_client") as mock_client:
         mock_evolution = Mock()
 
         # Fixed mock for create_instance to return correct structure
@@ -243,12 +249,47 @@ def test_client(test_db):
         mock_evolution.fetch_instances = mock_fetch_instances
 
         # Add other methods that might be called
-        mock_evolution.set_webhook = AsyncMock(return_value={"status": "success"})
-        mock_evolution.connect_instance = AsyncMock(return_value={"qr": "test-qr"})
-        mock_evolution.get_connection_state = AsyncMock(return_value={"state": "open"})
-        mock_evolution.restart_instance = AsyncMock(return_value={"status": "success"})
-        mock_evolution.logout_instance = AsyncMock(return_value={"status": "success"})
-        mock_evolution.delete_instance = AsyncMock(return_value={"status": "success"})
+        # Fix set_webhook to return a proper dict
+        async def mock_set_webhook(*args, **kwargs):
+            return {"status": "success"}
+
+        mock_evolution.set_webhook = mock_set_webhook
+
+        # Fix connect_instance to return a proper dict that supports .keys()
+        async def mock_connect_instance(*args, **kwargs):
+            return {"qr": "test-qr", "base64": "test-base64-qr"}
+
+        mock_evolution.connect_instance = mock_connect_instance
+
+        # Fix get_connection_state to return a proper dict
+        async def mock_get_connection_state(*args, **kwargs):
+            return {"state": "open", "instance": {"state": "open"}}
+
+        mock_evolution.get_connection_state = mock_get_connection_state
+
+        # Fix restart_instance to return a proper dict
+        async def mock_restart_instance(*args, **kwargs):
+            return {"status": "success"}
+
+        mock_evolution.restart_instance = mock_restart_instance
+
+        # Fix logout_instance to return a proper dict
+        async def mock_logout_instance(*args, **kwargs):
+            return {"status": "success"}
+
+        mock_evolution.logout_instance = mock_logout_instance
+
+        # Fix delete_instance to return a proper dict
+        async def mock_delete_instance(*args, **kwargs):
+            return {"status": "success"}
+
+        mock_evolution.delete_instance = mock_delete_instance
+
+        # PRECISION FIX: Mock _request method to prevent AsyncMock.keys() error
+        async def mock_request(method: str, endpoint: str, **kwargs):
+            return {"status": "open", "instance": {"state": "open"}}
+
+        mock_evolution._request = mock_request
 
         mock_client.return_value = mock_evolution
 
@@ -259,11 +300,11 @@ def test_client(test_db):
             with patch("src.db.bootstrap.ensure_default_instance") as mock_bootstrap:
                 # Create default instance in test database
                 default_instance = InstanceConfig(
-                    name="test-default",
+                    name="test-instance",
                     channel_type="whatsapp",
                     evolution_url="http://test.com",
                     evolution_key="test-key",
-                    whatsapp_instance="test-default",
+                    whatsapp_instance="test-instance",
                     agent_api_url="http://agent.com",
                     agent_api_key="agent-key",
                     default_agent="test_agent",
@@ -373,18 +414,14 @@ def mock_agent_api_client():
         mock_instance = mock_class.return_value
         mock_instance.health_check = Mock(return_value=True)
         mock_instance.process_message = AsyncMock(return_value="Mock agent response")
-        mock_instance.run_agent = AsyncMock(
-            return_value={"response": "Mock agent response"}
-        )
+        mock_instance.run_agent = AsyncMock(return_value={"response": "Mock agent response"})
         yield mock_instance
 
 
 @pytest.fixture
 def mock_evolution_api_sender():
     """Mock EvolutionApiSender for testing."""
-    with patch(
-        "src.channels.whatsapp.evolution_api_sender.EvolutionApiSender"
-    ) as mock_class:
+    with patch("src.channels.whatsapp.evolution_api_sender.EvolutionApiSender") as mock_class:
         mock_instance = mock_class.return_value
         mock_instance.send_text_message = AsyncMock(return_value=True)
         mock_instance.send_presence = AsyncMock(return_value=True)
@@ -399,21 +436,9 @@ def mock_message_router():
         mock_router.route_message.return_value = {
             "response": "Test response from mocked agent",
             "success": True,
-            "user_data": {"user_id": "test-user-123"}
+            "user_data": {"user_id": "test-user-123"},
         }
         yield mock_router
-
-
-@pytest.fixture
-def mock_agent_api_client():
-    """Mock AgentApiClient to prevent external API calls."""
-    with patch("src.services.agent_api_client.agent_api_client") as mock_client:
-        mock_client.process_message.return_value = {
-            "response": "Test agent response",
-            "success": True
-        }
-        mock_client.health_check.return_value = True
-        yield mock_client
 
 
 @pytest.fixture
@@ -456,9 +481,7 @@ class AsyncMockResponse:
         if self.status_code >= 400:
             from httpx import HTTPStatusError
 
-            raise HTTPStatusError(
-                f"HTTP {self.status_code}", request=None, response=self
-            )
+            raise HTTPStatusError(f"HTTP {self.status_code}", request=None, response=self)
 
 
 @pytest.fixture
@@ -468,6 +491,7 @@ def async_mock_response():
 
 
 # ===== MENTION TESTING FIXTURES =====
+
 
 @pytest.fixture
 def mention_parser():
@@ -510,7 +534,7 @@ def sample_mention_texts():
         "multiple": "Team: @5511111111111, @5511222222222, @5511333333333",
         "mixed": "Call @5511999999999 or email user@domain.com",
         "no_mentions": "Regular message without any mentions",
-        "split_message": "First part with @5511999999999\n\nSecond part without mentions"
+        "split_message": "First part with @5511999999999\n\nSecond part without mentions",
     }
 
 
@@ -521,31 +545,14 @@ def expected_mention_jids():
         "basic": ["5511999999999@s.whatsapp.net"],
         "international": ["5511888888888@s.whatsapp.net"],
         "with_spaces": ["5511999999999@s.whatsapp.net"],
-        "multiple": [
-            "5511111111111@s.whatsapp.net",
-            "5511222222222@s.whatsapp.net", 
-            "5511333333333@s.whatsapp.net"
-        ],
+        "multiple": ["5511111111111@s.whatsapp.net", "5511222222222@s.whatsapp.net", "5511333333333@s.whatsapp.net"],
         "mixed": ["5511999999999@s.whatsapp.net"],
         "no_mentions": [],
-        "split_message": ["5511999999999@s.whatsapp.net"]
+        "split_message": ["5511999999999@s.whatsapp.net"],
     }
-
-
-@pytest.fixture
-def mock_evolution_response():
-    """Mock successful Evolution API HTTP response."""
-    response = Mock()
-    response.status_code = 200
-    response.raise_for_status.return_value = None
-    response.json.return_value = {"status": "success", "message": "sent"}
-    return response
 
 
 @pytest.fixture
 def mention_api_headers():
     """Standard headers for mention API testing."""
-    return {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer namastex888"
-    }
+    return {"Content-Type": "application/json", "Authorization": "Bearer namastex888"}

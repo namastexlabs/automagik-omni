@@ -42,7 +42,8 @@ if not initialize_database(DATABASE_URL):
 # SQLAlchemy engine
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
-        DATABASE_URL, connect_args={"check_same_thread": False}  # Needed for SQLite
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},  # Needed for SQLite
     )
 else:
     engine = create_engine(DATABASE_URL)

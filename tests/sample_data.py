@@ -7,70 +7,64 @@ This file contains realistic webhook payloads and API responses.
 SAMPLE_WEBHOOK_PAYLOAD = {
     "event": "messages.upsert",
     "data": {
-        "messages": [{
-            "key": {
-                "remoteJid": "555197285829@s.whatsapp.net",
-                "id": "msg_12345_test",
-                "fromMe": False
-            },
-            "message": {
-                "conversation": "Hello! This is a test message."
-            },
-            "messageTimestamp": 1720372139,
-            "pushName": "Test User",
-            "status": "received"
-        }]
+        "messages": [
+            {
+                "key": {"remoteJid": "555197285829@s.whatsapp.net", "id": "msg_12345_test", "fromMe": False},
+                "message": {"conversation": "Hello! This is a test message."},
+                "messageTimestamp": 1720372139,
+                "pushName": "Test User",
+                "status": "received",
+            }
+        ]
     },
-    "instance": "test-instance"
+    "instance": "test-instance",
 }
 
 SAMPLE_IMAGE_WEBHOOK_PAYLOAD = {
-    "event": "messages.upsert", 
+    "event": "messages.upsert",
     "data": {
-        "messages": [{
-            "key": {
-                "remoteJid": "555197285829@s.whatsapp.net",
-                "id": "msg_image_test",
-                "fromMe": False
-            },
-            "message": {
-                "imageMessage": {
-                    "url": "https://example.com/image.jpg",
-                    "mimetype": "image/jpeg",
-                    "caption": "Test image caption",
-                    "fileLength": 45678
-                }
-            },
-            "messageTimestamp": 1720372200,
-            "pushName": "Test User"
-        }]
+        "messages": [
+            {
+                "key": {"remoteJid": "555197285829@s.whatsapp.net", "id": "msg_image_test", "fromMe": False},
+                "message": {
+                    "imageMessage": {
+                        "url": "https://example.com/image.jpg",
+                        "mimetype": "image/jpeg",
+                        "caption": "Test image caption",
+                        "fileLength": 45678,
+                    }
+                },
+                "messageTimestamp": 1720372200,
+                "pushName": "Test User",
+            }
+        ]
     },
-    "instance": "test-instance"
+    "instance": "test-instance",
 }
 
 # Real Evolution API responses (based on actual API behavior)
 SAMPLE_EVOLUTION_QR_RESPONSE = {
     "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABLAAAASwAQAAAABs8+tMAAA...",
     "status": "qr_code",
-    "instance": "test-instance"
+    "instance": "test-instance",
 }
 
 SAMPLE_EVOLUTION_STATUS_RESPONSE = {
     "status": "connected",
-    "connection": "open", 
+    "connection": "open",
     "user": {
         "id": "555197285829@s.whatsapp.net",
         "name": "Test User",
-        "profilePictureUrl": "https://example.com/profile.jpg"
+        "profilePictureUrl": "https://example.com/profile.jpg",
     },
-    "instance": "test-instance"
+    "instance": "test-instance",
 }
 
 SAMPLE_EVOLUTION_SEND_RESPONSE = {
     "success": True,
     "message_id": "msg_sent_12345",
     "timestamp": 1720372300,
-    "status": "sent"
+    "status": "sent",
 }
 
 # Real Agent API responses (based on actual agent service behavior)
@@ -81,20 +75,20 @@ SAMPLE_AGENT_RESPONSE = {
     "user_id": "user_67890",
     "tokens_used": 45,
     "processing_time_ms": 1250,
-    "tools_used": []
+    "tools_used": [],
 }
 
 SAMPLE_AGENT_ERROR_RESPONSE = {
     "success": False,
     "error": "Agent service temporarily unavailable",
     "error_code": "SERVICE_UNAVAILABLE",
-    "retry_after": 30
+    "retry_after": 30,
 }
 
 # Real instance configurations (based on actual database data)
 SAMPLE_INSTANCE_CONFIG = {
     "name": "test-instance",
-    "channel_type": "whatsapp", 
+    "channel_type": "whatsapp",
     "whatsapp_instance": "test-whatsapp-123",
     "evolution_url": "http://172.19.209.168:18080",
     "evolution_key": "real-evolution-key-123",
@@ -103,7 +97,7 @@ SAMPLE_INSTANCE_CONFIG = {
     "default_agent": "test-agent",
     "webhook_base64": True,
     "is_default": True,
-    "is_active": True
+    "is_active": True,
 }
 
 # Trace data samples (based on actual message_traces table)
@@ -126,33 +120,27 @@ SAMPLE_TRACE_DATA = {
     "agent_response_tokens": 30,
     "agent_response_success": True,
     "evolution_response_code": 200,
-    "evolution_success": True
+    "evolution_success": True,
 }
 
 # Phone number samples (realistic formats)
-SAMPLE_PHONE_NUMBERS = [
-    "+555197285829",
-    "+1234567890", 
-    "+447911123456",
-    "+33612345678",
-    "+5511987654321"
-]
+SAMPLE_PHONE_NUMBERS = ["+555197285829", "+1234567890", "+447911123456", "+33612345678", "+5511987654321"]
 
 # Error scenarios with realistic error messages
 SAMPLE_ERROR_RESPONSES = {
     "evolution_connection_error": {
         "error": "Failed to connect to Evolution API",
         "details": "Connection timeout after 30 seconds",
-        "code": "CONNECTION_TIMEOUT"
+        "code": "CONNECTION_TIMEOUT",
     },
     "agent_api_error": {
-        "error": "Agent API returned error", 
+        "error": "Agent API returned error",
         "details": "Rate limit exceeded",
-        "code": "RATE_LIMIT_EXCEEDED"
+        "code": "RATE_LIMIT_EXCEEDED",
     },
     "instance_not_found": {
         "error": "Instance not found",
         "details": "No instance found with name 'nonexistent'",
-        "code": "INSTANCE_NOT_FOUND"
-    }
+        "code": "INSTANCE_NOT_FOUND",
+    },
 }

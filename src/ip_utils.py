@@ -1,6 +1,7 @@
 """Utility functions for Omni-Hub."""
 
 import socket
+from typing import Optional
 from urllib.parse import urlparse
 
 
@@ -41,7 +42,7 @@ def get_local_ipv4() -> str:
         # Don't consider WSL2 bridge network as internal if it's the main interface
         if ip.startswith("172.19.") and is_wsl():
             return False  # WSL2 bridge network is accessible from containers
-        
+
         return ip.startswith(
             (
                 "127.",
@@ -107,11 +108,7 @@ def get_local_ipv4() -> str:
                     lines = result.stdout.strip().split("\n")
                     for line in lines:
                         ip = line.strip()
-                        if (
-                            ip
-                            and is_local_network_ip(ip)
-                            and not is_docker_wsl_internal_ip(ip)
-                        ):
+                        if ip and is_local_network_ip(ip) and not is_docker_wsl_internal_ip(ip):
                             return ip
             except (
                 subprocess.CalledProcessError,
@@ -151,9 +148,7 @@ def get_local_ipv4() -> str:
         try:
             if platform.system() == "Windows":
                 # Windows ipconfig
-                result = subprocess.run(
-                    ["ipconfig"], capture_output=True, text=True, timeout=5
-                )
+                result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     lines = result.stdout.split("\n")
                     for line in lines:
@@ -186,9 +181,7 @@ def get_local_ipv4() -> str:
                 except (subprocess.CalledProcessError, FileNotFoundError):
                     # Fallback to ifconfig
                     try:
-                        result = subprocess.run(
-                            ["ifconfig"], capture_output=True, text=True, timeout=5
-                        )
+                        result = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=5)
                         if result.returncode == 0:
                             lines = result.stdout.split("\n")
                             for line in lines:
@@ -249,7 +242,7 @@ def get_local_ipv4() -> str:
 
 def replace_localhost_with_ipv4(url: str) -> str:
     """Replace localhost/0.0.0.0 in a URL with the actual IPv4 address.
-    
+
     This function ONLY replaces localhost, 127.0.0.1, and 0.0.0.0 hostnames.
     Proper domains like 'agentsapi.com' or 'api.example.com' are preserved unchanged.
 
@@ -259,7 +252,7 @@ def replace_localhost_with_ipv4(url: str) -> str:
     Returns:
         str: The URL with localhost/0.0.0.0 replaced by actual IPv4 address.
              Domain names and external IPs are preserved unchanged.
-             
+
     Examples:
         >>> replace_localhost_with_ipv4('http://localhost:58881')
         'http://172.19.209.168:58881'
@@ -274,7 +267,7 @@ def replace_localhost_with_ipv4(url: str) -> str:
     # Parse the URL to check if it contains localhost or 0.0.0.0
     parsed = urlparse(url)
     hostname = parsed.hostname
-    
+
     # Only replace specific localhost-style hostnames
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
         ipv4_address = get_local_ipv4()
@@ -290,13 +283,13 @@ def replace_localhost_with_ipv4(url: str) -> str:
 
 def get_container_accessible_ip() -> str:
     """Get IP address that's accessible from both WSL2 and Docker containers.
-    
+
     Returns:
         str: IP address that works for cross-container communication
     """
     # For WSL2, the eth0 IP is accessible from Docker containers
     import subprocess
-    
+
     try:
         # Try to get WSL2 eth0 IP first
         result = subprocess.run(
@@ -315,35 +308,35 @@ def get_container_accessible_ip() -> str:
                             ip = part.split("/")[0]
                             if ip and ip != "127.0.0.1":
                                 return ip
-    except:
+    except Exception:
         pass
-    
+
     # Fallback to standard detection
     return get_local_ipv4()
 
 
 def is_localhost_url(url: str) -> bool:
     """Check if a URL uses localhost-style hostname that should be replaced.
-    
+
     Args:
         url: The URL to check
-        
+
     Returns:
         bool: True if URL uses localhost/127.0.0.1/0.0.0.0, False for domains/external IPs
     """
     if not url:
         return False
-        
+
     try:
         parsed = urlparse(url)
         return parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0")
-    except:
+    except Exception:
         return False
 
 
-def ensure_ipv4_in_config(config_dict: dict, url_fields: list = None) -> dict:
+def ensure_ipv4_in_config(config_dict: dict, url_fields: Optional[list] = None) -> dict:
     """Ensure all localhost URLs in a config dictionary use actual IPv4 addresses.
-    
+
     This function ONLY replaces localhost-style URLs. Domain names and external IPs
     are preserved unchanged to support cloud-hosted and external agent APIs.
 
@@ -354,7 +347,7 @@ def ensure_ipv4_in_config(config_dict: dict, url_fields: list = None) -> dict:
     Returns:
         dict: Updated configuration with localhost replaced by IPv4 addresses.
               Domain names like 'agentsapi.com' are preserved unchanged.
-              
+
     Examples:
         >>> ensure_ipv4_in_config({'agent_api_url': 'http://localhost:58881'})
         {'agent_api_url': 'http://172.19.209.168:58881'}
