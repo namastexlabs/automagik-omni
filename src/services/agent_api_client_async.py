@@ -60,18 +60,18 @@ class AsyncAgentApiClient:
 
         # Flag for health check
         self.is_healthy = False
-        
+
         # HTTP client instance (will be created when needed)
         self._client: Optional[httpx.AsyncClient] = None
         self._client_lock = asyncio.Lock()
-        
+
         # Connection pool settings
         self._connection_limits = httpx.Limits(
             max_keepalive_connections=10,
             max_connections=20,
             keepalive_expiry=30.0
         )
-        
+
         # Default timeout settings
         self._timeout_config = httpx.Timeout(
             connect=10.0,  # Connection timeout
@@ -83,16 +83,16 @@ class AsyncAgentApiClient:
     def _make_headers(self, accept_sse: bool = False) -> Dict[str, str]:
         """Make headers for API requests."""
         headers = {"x-api-key": self.api_key}
-        
+
         if accept_sse:
             headers["Accept"] = "text/event-stream"
             headers["Cache-Control"] = "no-cache"
         else:
             headers["Content-Type"] = "application/json"
             headers["Accept"] = "application/json"
-            
+
         return headers
-    
+
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create an async HTTP client with connection pooling."""
         if self._client is None or self._client.is_closed:
@@ -105,16 +105,16 @@ class AsyncAgentApiClient:
                         verify=True
                     )
         return self._client
-    
+
     async def close(self):
         """Close the HTTP client and clean up resources."""
         if self._client and not self._client.is_closed:
             await self._client.aclose()
-    
+
     async def __aenter__(self):
         """Async context manager entry."""
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         await self.close()
@@ -573,7 +573,7 @@ class AsyncAgentApiClient:
             response['current_user_id'] = current_user_id
 
         return response
-    
+
     async def run_agent_stream(
         self,
         agent_name: str,
@@ -594,7 +594,7 @@ class AsyncAgentApiClient:
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Run an agent with streaming response (Server-Sent Events).
-        
+
         Args:
             agent_name: Name of the agent to run
             message_content: The message content
@@ -611,18 +611,18 @@ class AsyncAgentApiClient:
             session_origin: Origin of the session
             context: Additional context for the agent
             preserve_system_prompt: Whether to preserve the system prompt
-            
+
         Yields:
             Streaming response chunks as dictionaries
         """
         endpoint = f"{self.api_url}/api/v1/agent/{agent_name}/stream"
-        
+
         # Prepare headers for SSE
         headers = self._make_headers(accept_sse=True)
-        
+
         # Prepare payload (same as run_agent)
         payload = {"message_content": message_content, "message_limit": message_limit}
-        
+
         # Handle user identification - prefer user dict over user_id
         if user:
             payload["user"] = user
@@ -656,7 +656,7 @@ class AsyncAgentApiClient:
                 "Neither user dict nor user_id provided, using default user ID 1"
             )
             payload["user_id"] = 1
-        
+
         # Add optional parameters if provided
         if message_type:
             payload["message_type"] = message_type
@@ -677,7 +677,7 @@ class AsyncAgentApiClient:
         if session_origin:
             payload["session_origin"] = session_origin
         payload["preserve_system_prompt"] = preserve_system_prompt
-        
+
         # Log the streaming request
         logger.info(f"Making streaming API request to {endpoint}")
         payload_summary = {
@@ -687,15 +687,15 @@ class AsyncAgentApiClient:
             "message_type": payload.get("message_type"),
         }
         logger.debug(f"Streaming request payload summary: {json.dumps(payload_summary)}")
-        
+
         try:
             client = await self._get_client()
-            
+
             # Start streaming request
             async with client.stream(
                 "POST", endpoint, headers=headers, json=payload
             ) as response:
-                
+
                 if response.status_code != 200:
                     logger.error(
                         f"Streaming request failed with status {response.status_code}"
@@ -705,31 +705,31 @@ class AsyncAgentApiClient:
                         "success": False
                     }
                     return
-                
+
                 logger.info("Successfully started streaming response")
-                
+
                 # Process the streaming response
                 buffer = ""
                 async for chunk in response.aiter_text():
                     buffer += chunk
-                    
+
                     # Process complete lines
                     while "\n" in buffer:
                         line, buffer = buffer.split("\n", 1)
                         line = line.strip()
-                        
+
                         if not line:
                             continue
-                        
+
                         # Parse SSE format
                         if line.startswith("data: "):
                             data = line[6:]  # Remove "data: " prefix
-                            
+
                             # Handle special SSE messages
                             if data == "[DONE]":
                                 logger.info("Streaming response completed")
                                 break
-                                
+
                             # Parse JSON data
                             try:
                                 event_data = json.loads(data)
@@ -740,7 +740,7 @@ class AsyncAgentApiClient:
                         elif line.startswith("event: ") or line.startswith("id: "):
                             # Handle other SSE fields (event type, id, etc.)
                             continue
-                
+
         except (ConnectTimeout, ReadTimeout, TimeoutException) as e:
             logger.error(f"Timeout in streaming request: {e}")
             yield {
@@ -759,7 +759,7 @@ class AsyncAgentApiClient:
                 "error": "Unexpected error during streaming. Please try again.",
                 "success": False
             }
-    
+
     @asynccontextmanager
     async def stream_agent_messages(
         self,
@@ -769,7 +769,7 @@ class AsyncAgentApiClient:
     ) -> AsyncGenerator[AsyncIterator[Dict[str, Any]], None]:
         """
         Context manager for streaming agent responses.
-        
+
         Usage:
             async with client.stream_agent_messages("my-agent", "Hello") as stream:
                 async for chunk in stream:

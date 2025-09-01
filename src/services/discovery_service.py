@@ -99,7 +99,7 @@ class DiscoveryService:
                     )
 
                     if existing_instance:
-                        
+
                         # Update existing instance with latest Evolution data
                         updated = self._update_existing_instance(
                             existing_instance, evo_instance
@@ -186,11 +186,11 @@ class DiscoveryService:
         if evo_instance.profileName and db_instance.profile_name != evo_instance.profileName:
             db_instance.profile_name = evo_instance.profileName
             updated = True
-            
+
         if evo_instance.profilePicUrl and db_instance.profile_pic_url != evo_instance.profilePicUrl:
             db_instance.profile_pic_url = evo_instance.profilePicUrl
             updated = True
-            
+
         if evo_instance.ownerJid and db_instance.owner_jid != evo_instance.ownerJid:
             db_instance.owner_jid = evo_instance.ownerJid
             updated = True

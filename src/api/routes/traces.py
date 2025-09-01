@@ -144,7 +144,7 @@ async def list_traces(
             query = query.filter(MessageTrace.agent_session_id == agent_session_id)
         if has_media is not None:
             query = query.filter(MessageTrace.has_media == has_media)
-        
+
         # Handle date filtering with all_time parameter
         if not all_time:
             # Apply date filters only if all_time is false
@@ -152,7 +152,7 @@ async def list_traces(
                 # Default to last 24 hours if no dates provided
                 start_date = utcnow() - timedelta(hours=24)
                 end_date = utcnow()
-            
+
             if start_date:
                 query = query.filter(MessageTrace.received_at >= start_date)
             if end_date:
@@ -269,7 +269,7 @@ async def get_trace_analytics(
                 start_date = utcnow() - timedelta(hours=24)
             if not end_date:
                 end_date = utcnow()
-            
+
             query = db.query(MessageTrace).filter(
                 and_(
                     MessageTrace.received_at >= start_date,

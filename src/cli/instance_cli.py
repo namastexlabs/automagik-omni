@@ -27,7 +27,7 @@ def list_instances():
     """List all instance configurations."""
     start_time = time.time()
     success = True
-    
+
     try:
         create_tables()
         db = get_db()
@@ -119,7 +119,7 @@ def add_instance(
 ):
     """Add a new instance configuration."""
     start_time = time.time()
-    
+
     try:
         create_tables()
         db = get_db()
@@ -157,7 +157,7 @@ def add_instance(
             console.print(f"[green]Instance '{name}' created successfully[/green]")
             if make_default:
                 console.print(f"[green]Instance '{name}' set as default[/green]")
-            
+
             track_command("instance_add", success=True, is_default=make_default, duration_ms=(time.time() - start_time) * 1000)
         finally:
             db.close()

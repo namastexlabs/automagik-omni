@@ -17,11 +17,11 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
     """
     if not database_url.startswith("postgresql://"):
         return True  # Not PostgreSQL, no need to create
-    
+
     # Parse the database URL
     parsed = urlparse(database_url)
     database_name = parsed.path.lstrip('/')
-    
+
     # Create connection URL to postgres database (default maintenance database)
     postgres_url_parts = (
         parsed.scheme,
@@ -32,7 +32,7 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
         parsed.fragment
     )
     postgres_url = urlunparse(postgres_url_parts)
-    
+
     try:
         # Try to connect to the target database first
         engine = create_engine(database_url)
@@ -44,7 +44,7 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
     except OperationalError:
         # Database doesn't exist, try to create it
         logger.info(f"Database '{database_name}' does not exist, attempting to create...")
-        
+
         try:
             # Connect to postgres database to create the target database
             engine = create_engine(postgres_url, isolation_level="AUTOCOMMIT")
@@ -83,11 +83,11 @@ def initialize_database(database_url: str) -> bool:
     # For SQLite, no need to create database
     if database_url.startswith("sqlite"):
         return True
-    
+
     # For PostgreSQL, attempt to create if needed
     if database_url.startswith("postgresql://"):
         return create_postgres_database_if_needed(database_url)
-    
+
     # Unknown database type
     logger.warning(f"Unknown database type in URL: {database_url}")
     return True  # Assume it's OK and let SQLAlchemy handle it

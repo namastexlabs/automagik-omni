@@ -24,7 +24,7 @@ class TestTelemetryClient:
         with tempfile.TemporaryDirectory() as temp_dir:
             opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
             opt_out_file.touch()
-            
+
             with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                 client = TelemetryClient()
                 assert not client.is_enabled()
@@ -41,7 +41,7 @@ class TestTelemetryClient:
         ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
-        
+
         with patch.dict(os.environ, env_without_ci, clear=True):
             with tempfile.TemporaryDirectory() as temp_dir:
                 with patch("pathlib.Path.home", return_value=Path(temp_dir)):
@@ -54,10 +54,10 @@ class TestTelemetryClient:
             with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                 client1 = TelemetryClient()
                 user_id_1 = client1.user_id
-                
+
                 client2 = TelemetryClient()
                 user_id_2 = client2.user_id
-                
+
                 assert user_id_1 == user_id_2
                 assert len(user_id_1) == 36  # UUID length
 
@@ -67,16 +67,16 @@ class TestTelemetryClient:
         ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
-        
+
         with patch.dict(os.environ, env_without_ci, clear=True):
             with tempfile.TemporaryDirectory() as temp_dir:
                 with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                     client = TelemetryClient()
                     assert client.is_enabled()
-                    
+
                     client.disable()
                     assert not client.is_enabled()
-                    
+
                     # Check that opt-out file was created
                     opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
                     assert opt_out_file.exists()
@@ -86,14 +86,14 @@ class TestTelemetryClient:
         with tempfile.TemporaryDirectory() as temp_dir:
             opt_out_file = Path(temp_dir) / ".automagik-omni-no-telemetry"
             opt_out_file.touch()
-            
+
             with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                 client = TelemetryClient()
                 assert not client.is_enabled()
-                
+
                 client.enable()
                 assert client.is_enabled()
-                
+
                 # Check that opt-out file was removed
                 assert not opt_out_file.exists()
 
@@ -102,10 +102,10 @@ class TestTelemetryClient:
         """Test that tracking does nothing when disabled."""
         with patch.dict(os.environ, {"AUTOMAGIK_OMNI_DISABLE_TELEMETRY": "true"}):
             client = TelemetryClient()
-            
+
             # Call track_command - it should not make HTTP request when disabled
             client.track_command("test_command", success=True)
-            
+
             # Verify that urlopen was NOT called since telemetry is disabled
             mock_urlopen.assert_not_called()
 
@@ -118,18 +118,18 @@ class TestTelemetryClient:
         mock_response.__enter__ = MagicMock(return_value=mock_response)
         mock_response.__exit__ = MagicMock(return_value=None)
         mock_urlopen.return_value = mock_response
-        
+
         # Clear CI environment variables and testing environment variables
         ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
-        
+
         with patch.dict(os.environ, env_without_ci, clear=True):
             with tempfile.TemporaryDirectory() as temp_dir:
                 with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                     client = TelemetryClient()
                     client.track_command("test_command", success=True, duration_ms=100)
-                    
+
                     # Verify that urlopen was called
                     mock_urlopen.assert_called_once()
 
@@ -139,7 +139,7 @@ class TestTelemetryClient:
             with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                 client = TelemetryClient()
                 status = client.get_status()
-                
+
                 assert isinstance(status, dict)
                 assert "enabled" in status
                 assert "user_id" in status
@@ -154,7 +154,7 @@ class TestTelemetryClient:
         """Test that system information is collected correctly."""
         client = TelemetryClient()
         system_info = client._get_system_info()
-        
+
         assert "os" in system_info
         assert "python_version" in system_info
         assert "architecture" in system_info
@@ -171,13 +171,13 @@ class TestTelemetryClient:
             "bool_value": True,
             "long_string": "x" * 600  # Should be truncated
         }
-        
+
         attributes = client._create_attributes(data)
-        
+
         # Check that all attributes are present
         event_attrs = [attr for attr in attributes if attr["key"].startswith("event.")]
         assert len(event_attrs) == len(data)
-        
+
         # Check truncation of long strings
         long_string_attr = next(attr for attr in event_attrs if attr["key"] == "event.long_string")
         assert len(long_string_attr["value"]["stringValue"]) == 500
@@ -186,23 +186,23 @@ class TestTelemetryClient:
     def test_network_error_handling(self, mock_urlopen):
         """Test that network errors are handled gracefully."""
         from urllib.error import URLError
-        
+
         # Setup mock to raise network error
         mock_urlopen.side_effect = URLError("Network error")
-        
+
         # Clear CI environment variables and testing environment variables
         ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
-        
+
         with patch.dict(os.environ, env_without_ci, clear=True):
             with tempfile.TemporaryDirectory() as temp_dir:
                 with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                     client = TelemetryClient()
-                    
+
                     # This should not raise an exception
                     client.track_command("test_command", success=True)
-                    
+
                     # Verify that urlopen was called (and failed)
                     mock_urlopen.assert_called_once()
 
@@ -228,7 +228,7 @@ class TestTelemetryFunctions:
             is_telemetry_enabled,
             get_telemetry_status
         )
-        
+
         # Just check that they're callable
         assert callable(track_command)
         assert callable(track_api_request)

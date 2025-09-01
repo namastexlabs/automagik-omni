@@ -62,7 +62,7 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_instance_by_name')
     def test_contacts_endpoint_requires_auth(self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler):
         """Test that contacts endpoint requires authentication.
-        
+
         In development mode (no API key configured), the system allows access.
         In production, this would return 401.
         """
@@ -77,10 +77,10 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_instance_by_name')
     def test_chats_endpoint_requires_auth(self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler):
         """Test that chats endpoint requires authentication.
-        
+
         In development mode (no API key configured), the system allows access.
         In production, this would return 401.
-        """ 
+        """
         mock_get_instance.return_value = mock_instance_config
         mock_get_handler.return_value = mock_handler
 
@@ -91,7 +91,7 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_omni_handler')
     def test_channels_endpoint_requires_auth(self, mock_get_handler, test_client, test_db):
         """Test that channels endpoint requires authentication.
-        
+
         In development mode (no API key configured), the system allows access.
         In production, this would return 401.
         """
@@ -108,7 +108,7 @@ class TestOmniEndpointsAuthentication:
             name="instance2",
             channel_type=ChannelType.DISCORD,
             whatsapp_instance="test",
-            agent_api_url="http://test.com", 
+            agent_api_url="http://test.com",
             agent_api_key="test-key",
             default_agent="test-agent"
         ))
@@ -128,7 +128,7 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_instance_by_name')
     def test_contact_by_id_requires_auth(self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler):
         """Test that contact by ID endpoint requires authentication.
-        
+
         In development mode (no API key configured), the system allows access.
         In production, this would return 401.
         """
@@ -143,7 +143,7 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_instance_by_name')
     def test_chat_by_id_requires_auth(self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler):
         """Test that chat by ID endpoint requires authentication.
-        
+
         In development mode (no API key configured), the system allows access.
         In production, this would return 401.
         """
@@ -158,7 +158,7 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_instance_by_name')
     def test_invalid_api_key_returns_401(self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler):
         """Test that invalid API key returns 401.
-        
+
         This test needs to actually test authentication behavior,
         so it should be skipped in development mode or needs a special test client.
         """
@@ -175,7 +175,7 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_instance_by_name')
     def test_missing_authorization_header(self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler):
         """Test missing authorization header.
-        
+
         In development mode (no API key configured), the system allows access.
         In production, this would return 401.
         """
@@ -191,7 +191,7 @@ class TestOmniEndpointsAuthentication:
     @patch('src.api.routes.omni.get_instance_by_name')
     def test_malformed_authorization_header(self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler):
         """Test malformed authorization header.
-        
+
         In development mode (no API key configured), the system allows access.
         In production, this would return 401.
         """
@@ -600,14 +600,14 @@ class TestOmniChannelsEndpoint:
         # Mock handler that returns proper OmniChannelInfo objects
         handler = AsyncMock()
         handler.get_channel_info.return_value = OmniChannelInfo(
-            instance_name="test-instance", 
-            channel_type=ChannelType.WHATSAPP, 
-            display_name="Test Instance", 
-            status="connected", 
+            instance_name="test-instance",
+            channel_type=ChannelType.WHATSAPP,
+            display_name="Test Instance",
+            status="connected",
             is_healthy=True,
-            supports_contacts=True, 
-            supports_groups=True, 
-            supports_media=True, 
+            supports_contacts=True,
+            supports_groups=True,
+            supports_media=True,
             supports_voice=False
         )
         mock_get_handler.return_value = handler
@@ -899,7 +899,7 @@ class TestOmniEndpointsErrorHandling:
         """Test handling of database connection errors."""
         # Simulate database connection error for channels endpoint
         # This is harder to test directly, but the endpoint should handle DB errors gracefully
-        
+
         handler = AsyncMock()
         mock_get_handler.return_value = handler
 

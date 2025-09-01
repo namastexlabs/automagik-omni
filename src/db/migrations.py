@@ -21,15 +21,15 @@ def get_alembic_config() -> Config:
     # Get the project root directory (where alembic.ini is located)
     project_root = Path(__file__).parent.parent.parent
     alembic_ini_path = project_root / "alembic.ini"
-    
+
     if not alembic_ini_path.exists():
         raise FileNotFoundError(f"Alembic config file not found: {alembic_ini_path}")
-    
+
     config = Config(str(alembic_ini_path))
-    
+
     # Set the script location relative to the config file
     config.set_main_option("script_location", str(project_root / "alembic"))
-    
+
     return config
 
 
@@ -71,15 +71,15 @@ def needs_migration() -> bool:
     try:
         current = get_current_revision()
         head = get_head_revision()
-        
+
         if current is None and head is not None:
             # No revision table or no current revision, but migrations exist
             return True
-        
+
         if current != head:
             # Current revision is different from head
             return True
-            
+
         return False
     except Exception as e:
         logger.error(f"Error checking migration status: {e}")
@@ -89,31 +89,31 @@ def needs_migration() -> bool:
 def run_migrations() -> bool:
     """
     Run database migrations.
-    
+
     Returns:
         bool: True if migrations ran successfully, False otherwise
     """
     try:
         config = get_alembic_config()
-        
+
         # Check if database exists
         if not check_database_exists():
             logger.info("Database is empty, running initial migration...")
         else:
             current = get_current_revision()
             head = get_head_revision()
-            
+
             if current == head:
                 logger.info("Database is up to date, no migrations needed")
                 return True
-            
+
             logger.info(f"Migrating database from {current} to {head}")
-        
+
         # Run migrations
         command.upgrade(config, "head")
         logger.info("Database migrations completed successfully")
         return True
-        
+
     except Exception as e:
         logger.error(f"Error running migrations: {e}")
         return False
@@ -122,11 +122,11 @@ def run_migrations() -> bool:
 def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
     """
     Stamp the database with a specific revision without running migrations.
-    
+
     Args:
         revision: The revision to stamp (default: "head")
         timeout_seconds: Maximum time to wait for stamping operation (default: 5)
-        
+
     Returns:
         bool: True if stamping was successful or timed out (non-critical), False on error
     """
@@ -134,35 +134,35 @@ def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
         config = get_alembic_config()
         result = [False]
         exception = [None]
-        
+
         def stamp_thread():
             try:
                 command.stamp(config, revision)
                 result[0] = True
             except Exception as e:
                 exception[0] = e
-        
+
         # Run stamping in a separate thread with timeout
         thread = threading.Thread(target=stamp_thread)
         thread.daemon = True
         thread.start()
         thread.join(timeout=timeout_seconds)
-        
+
         if thread.is_alive():
             # Thread is still running after timeout
             logger.warning(f"Stamping operation timed out after {timeout_seconds}s, but database is functional")
             # Even if stamping times out, the database is still functional
             # This is not a critical error
             return True
-        
+
         if exception[0]:
             raise exception[0]
-        
+
         if result[0]:
             logger.info(f"Database stamped with revision: {revision}")
-        
+
         return result[0]
-        
+
     except Exception as e:
         logger.error(f"Error stamping database: {e}")
         return False
@@ -171,30 +171,30 @@ def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
 def auto_migrate() -> bool:
     """
     Automatically handle database migrations on startup.
-    
+
     This function will:
     1. Check if migrations are needed
     2. For existing databases with data but no revision, stamp them as current
     3. For empty databases, run all migrations
     4. For databases behind head, run pending migrations
-    
+
     Returns:
         bool: True if migration handling was successful, False otherwise
     """
     try:
         logger.info("Starting automatic database migration check...")
-        
+
         current_revision = get_current_revision()
         head_revision = get_head_revision()
         has_tables = check_database_exists()
-        
+
         logger.info(f"Database state: current={current_revision}, head={head_revision}, has_tables={has_tables}")
-        
+
         if not has_tables:
             # Empty database - run all migrations
             logger.info("Empty database detected, running all migrations...")
             return run_migrations()
-        
+
         elif current_revision is None and has_tables:
             # Existing database without revision tracking - stamp it as current
             logger.info("Existing database without revision tracking detected, stamping as current...")
@@ -207,17 +207,17 @@ def auto_migrate() -> bool:
                 # The database is functional, just missing revision tracking
                 return True
             return success
-        
+
         elif current_revision != head_revision:
             # Database needs updating
             logger.info("Database needs updating, running migrations...")
             return run_migrations()
-        
+
         else:
             # Database is up to date
             logger.info("Database is up to date")
             return True
-            
+
     except Exception as e:
         logger.error(f"Error in auto migration: {e}")
         return False

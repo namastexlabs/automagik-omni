@@ -6,7 +6,7 @@ from .voice_manager import DiscordVoiceManager, VoiceSession, STTProvider, TTSPr
 
 __all__ = [
     'DiscordChannelHandler',
-    'DiscordBotManager', 
+    'DiscordBotManager',
     'DiscordVoiceManager',
     'VoiceSession',
     'STTProvider',

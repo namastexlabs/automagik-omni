@@ -256,7 +256,7 @@ class TraceService:
             has_media = TraceService._has_media(message_obj)
             context_info = data.get("contextInfo", {})
             has_quoted = "contextInfo" in data and context_info is not None and "quotedMessage" in context_info
-            
+
             # Enhanced logging for audio debugging
             if message_type == "audio":
                 logger.info(f"🎵 TRACE: Creating trace for audio message, type={message_type}, has_media={has_media}")
@@ -311,22 +311,22 @@ class TraceService:
     ) -> Optional["StreamingTraceContext"]:
         """
         Create a streaming trace context from message data.
-        
+
         Args:
             message_data: WhatsApp message data
             instance_name: Instance name
             db_session: Database session
-            
+
         Returns:
             StreamingTraceContext instance or None if creation fails
         """
         if not config.tracing.enabled:
             return None
-            
+
         try:
             # Import here to avoid circular import
             from src.services.streaming_trace_context import StreamingTraceContext
-            
+
             # Use the same trace creation logic as create_trace but return StreamingTraceContext
             data = message_data.get("data", {})
             key = data.get("key", {})
@@ -340,7 +340,7 @@ class TraceService:
             has_media = TraceService._has_media(message_obj)
             context_info = data.get("contextInfo", {})
             has_quoted = "contextInfo" in data and context_info is not None and "quotedMessage" in context_info
-            
+
             logger.info(f"📝 STREAMING TRACE: Creating streaming trace for message type={message_type}, instance={instance_name}")
 
             # Extract message content length
@@ -380,7 +380,7 @@ class TraceService:
             )
 
             return context
-            
+
         except Exception as e:
             logger.error(f"Failed to create streaming trace: {e}")
             return None
