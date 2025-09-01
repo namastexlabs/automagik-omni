@@ -1,6 +1,7 @@
 """Utility functions for Omni-Hub."""
 
 import socket
+from typing import Optional
 from urllib.parse import urlparse
 
 
@@ -341,7 +342,7 @@ def is_localhost_url(url: str) -> bool:
         return False
 
 
-def ensure_ipv4_in_config(config_dict: dict, url_fields: list = None) -> dict:
+def ensure_ipv4_in_config(config_dict: dict, url_fields: Optional[list] = None) -> dict:
     """Ensure all localhost URLs in a config dictionary use actual IPv4 addresses.
 
     This function ONLY replaces localhost-style URLs. Domain names and external IPs
