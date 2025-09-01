@@ -10,7 +10,14 @@ Tests both WhatsApp and Discord transformers with:
 
 from datetime import datetime
 from src.services.omni_transformers import WhatsAppTransformer, DiscordTransformer
-from src.api.schemas.omni import ChannelType, OmniContactStatus, OmniChatType, OmniContact, OmniChat, OmniChannelInfo
+from src.api.schemas.omni import (
+    ChannelType,
+    OmniContactStatus,
+    OmniChatType,
+    OmniContact,
+    OmniChat,
+    OmniChannelInfo,
+)
 
 
 class TestWhatsAppTransformer:
@@ -124,7 +131,11 @@ class TestWhatsAppTransformer:
     def test_whatsapp_name_variations(self):
         """Test handling of different WhatsApp name formats."""
         # Test pushName vs name field
-        whatsapp_contact_push = {"id": "test@c.us", "pushName": "Push Name", "name": "Regular Name"}
+        whatsapp_contact_push = {
+            "id": "test@c.us",
+            "pushName": "Push Name",
+            "name": "Regular Name",
+        }
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact_push, "test")
         # Should prefer pushName over name
         assert contact.name == "Push Name"
@@ -300,7 +311,11 @@ class TestWhatsAppTransformer:
         ]
 
         for input_url, expected_url in test_cases:
-            contact = {"id": "test@c.us", "name": "Test", "profilePictureUrl": input_url}
+            contact = {
+                "id": "test@c.us",
+                "name": "Test",
+                "profilePictureUrl": input_url,
+            }
             transformed = WhatsAppTransformer.contact_to_omni(contact, "test")
             assert transformed.avatar_url == expected_url
 
@@ -383,7 +398,11 @@ class TestDiscordTransformer:
         ]
 
         for discord_status, expected_omni_status in status_mappings:
-            discord_user = {"id": 123456789, "username": "testuser", "status": discord_status}
+            discord_user = {
+                "id": 123456789,
+                "username": "testuser",
+                "status": discord_status,
+            }
             contact = DiscordTransformer.contact_to_omni(discord_user, "test")
             assert contact.status == expected_omni_status
 
@@ -485,13 +504,21 @@ class TestDiscordTransformer:
         """Test Discord avatar URL construction."""
         test_cases = [
             # (user_id, avatar_hash, expected_url)
-            (123456789, "abc123", "https://cdn.discordapp.com/avatars/123456789/abc123.png"),
+            (
+                123456789,
+                "abc123",
+                "https://cdn.discordapp.com/avatars/123456789/abc123.png",
+            ),
             (987654321, None, None),  # No avatar
             (111222333, "", None),  # Empty avatar hash
         ]
 
         for user_id, avatar_hash, expected_url in test_cases:
-            discord_user = {"id": user_id, "username": "testuser", "avatar": avatar_hash}
+            discord_user = {
+                "id": user_id,
+                "username": "testuser",
+                "avatar": avatar_hash,
+            }
             contact = DiscordTransformer.contact_to_omni(discord_user, "test")
             assert contact.avatar_url == expected_url
 
@@ -521,7 +548,11 @@ class TestDiscordTransformer:
         assert contact.name == "Global Name"
 
         # Test without global_name
-        user_no_global = {"id": 456, "username": "username_only", "display_name": "Display Name"}
+        user_no_global = {
+            "id": 456,
+            "username": "username_only",
+            "display_name": "Display Name",
+        }
         contact = DiscordTransformer.contact_to_omni(user_no_global, "test")
         assert contact.name == "username_only"  # Implementation doesn't use display_name
 

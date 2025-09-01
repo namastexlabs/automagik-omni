@@ -82,12 +82,14 @@ def _cleanup_postgresql_test_database(test_db_name: str, server_engine):
         with server_engine.connect() as conn:
             # Terminate active connections to the test database
             conn.execute(
-                text(f"""
+                text(
+                    f"""
                 SELECT pg_terminate_backend(pg_stat_activity.pid)
                 FROM pg_stat_activity
                 WHERE pg_stat_activity.datname = '{test_db_name}'
                   AND pid <> pg_backend_pid()
-            """)
+            """
+                )
             )
             # Drop the test database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db_name}"'))
@@ -545,7 +547,11 @@ def expected_mention_jids():
         "basic": ["5511999999999@s.whatsapp.net"],
         "international": ["5511888888888@s.whatsapp.net"],
         "with_spaces": ["5511999999999@s.whatsapp.net"],
-        "multiple": ["5511111111111@s.whatsapp.net", "5511222222222@s.whatsapp.net", "5511333333333@s.whatsapp.net"],
+        "multiple": [
+            "5511111111111@s.whatsapp.net",
+            "5511222222222@s.whatsapp.net",
+            "5511333333333@s.whatsapp.net",
+        ],
         "mixed": ["5511999999999@s.whatsapp.net"],
         "no_mentions": [],
         "split_message": ["5511999999999@s.whatsapp.net"],

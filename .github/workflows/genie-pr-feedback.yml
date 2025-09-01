@@ -135,7 +135,7 @@ jobs:
       - name: 🧞 Regenerate PR Description with Feedback
         if: steps.check-author.outputs.can_proceed == 'true'
         id: regenerate
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           direct_prompt: |
             The user wants to update the PR description. Their feedback is:

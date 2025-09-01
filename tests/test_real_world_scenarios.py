@@ -65,7 +65,10 @@ class TestRealWorldScenarios:
             }
 
             # Setup agent client mock
-            mock_agent_client.process_message.return_value = {"response": "Test agent response", "success": True}
+            mock_agent_client.process_message.return_value = {
+                "response": "Test agent response",
+                "success": True,
+            }
             mock_agent_client.health_check.return_value = True
 
             # Setup requests mock for Evolution API
@@ -171,7 +174,10 @@ class TestRealWorldScenarios:
                     status="connected",
                     channel_data={
                         "connection": "open",
-                        "user": {"name": "Test User", "id": "1234567890@s.whatsapp.net"},
+                        "user": {
+                            "name": "Test User",
+                            "id": "1234567890@s.whatsapp.net",
+                        },
                     },
                 )
             )
@@ -196,7 +202,9 @@ class TestRealWorldScenarios:
             }
 
             response = client.post(
-                "/api/v1/instance/production-whatsapp/send-text", json=message_data, headers=api_headers
+                "/api/v1/instance/production-whatsapp/send-text",
+                json=message_data,
+                headers=api_headers,
             )
             assert response.status_code == 200
             result = response.json()
@@ -206,9 +214,16 @@ class TestRealWorldScenarios:
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
             mock_evo.return_value.update_instance = AsyncMock(return_value={"status": "updated"})
 
-            update_data = {"agent_api_url": "https://agent-v2.prod.company.com", "webhook_base64": False}
+            update_data = {
+                "agent_api_url": "https://agent-v2.prod.company.com",
+                "webhook_base64": False,
+            }
 
-            response = client.put("/api/v1/instances/production-whatsapp", json=update_data, headers=api_headers)
+            response = client.put(
+                "/api/v1/instances/production-whatsapp",
+                json=update_data,
+                headers=api_headers,
+            )
             assert response.status_code == 200
             updated = response.json()
             assert updated["agent_api_url"] == "https://agent-v2.prod.company.com"
@@ -301,7 +316,10 @@ class TestRealWorldScenarios:
             "data": {
                 "messages": [
                     {
-                        "key": {"remoteJid": "1111111111@s.whatsapp.net", "id": "msg_tenant_a_001"},
+                        "key": {
+                            "remoteJid": "1111111111@s.whatsapp.net",
+                            "id": "msg_tenant_a_001",
+                        },
                         "message": {"conversation": "Hello from Tenant A customer"},
                         "messageTimestamp": int(time.time()),
                     }
@@ -328,7 +346,10 @@ class TestRealWorldScenarios:
             "data": {
                 "messages": [
                     {
-                        "key": {"remoteJid": "2222222222@s.whatsapp.net", "id": "msg_tenant_b_001"},
+                        "key": {
+                            "remoteJid": "2222222222@s.whatsapp.net",
+                            "id": "msg_tenant_b_001",
+                        },
                         "message": {"conversation": "Hello from Tenant B customer"},
                         "messageTimestamp": int(time.time()),
                     }
@@ -386,7 +407,9 @@ class TestRealWorldScenarios:
         message_data = {"phone_number": "+1234567890", "text": "This should fail"}
 
         response = client.post(
-            "/api/v1/instance/nonexistent-instance/send-text", json=message_data, headers=api_headers
+            "/api/v1/instance/nonexistent-instance/send-text",
+            json=message_data,
+            headers=api_headers,
         )
         assert response.status_code == 404
 
@@ -421,7 +444,9 @@ class TestRealWorldScenarios:
 
             mock_evo.return_value.get_status = AsyncMock(
                 return_value=ConnectionStatus(
-                    instance_name="recovery-test", channel_type="whatsapp", status="connected"
+                    instance_name="recovery-test",
+                    channel_type="whatsapp",
+                    status="connected",
                 )
             )
 
@@ -487,7 +512,10 @@ class TestRealWorldScenarios:
                     "data": {
                         "messages": [
                             {
-                                "key": {"remoteJid": f"test{i}@s.whatsapp.net", "id": f"msg_{i}"},
+                                "key": {
+                                    "remoteJid": f"test{i}@s.whatsapp.net",
+                                    "id": f"msg_{i}",
+                                },
                                 "message": {"conversation": f"Test message {i}"},
                             }
                         ]
@@ -584,7 +612,11 @@ class TestRealWorldScenarios:
             mock_evo.return_value.update_instance = AsyncMock(return_value={"status": "updated"})
 
             update_data = {"webhook_base64": False}
-            response = client.put("/api/v1/instances/persistence-test-1", json=update_data, headers=api_headers)
+            response = client.put(
+                "/api/v1/instances/persistence-test-1",
+                json=update_data,
+                headers=api_headers,
+            )
             assert response.status_code == 200
 
         # Verify update persisted

@@ -138,13 +138,13 @@ class DiscordChannelHandler(ChannelHandler):
                 "email": None,  # Discord doesn't provide email unless OAuth
                 "user_data": {
                     "name": message.author.display_name or message.author.name,
-                    "discord_discriminator": message.author.discriminator
-                    if hasattr(message.author, "discriminator")
-                    else None,
+                    "discord_discriminator": (
+                        message.author.discriminator if hasattr(message.author, "discriminator") else None
+                    ),
                     "guild_id": str(message.guild.id) if message.guild else None,
                     "guild_name": message.guild.name if message.guild else None,
                     "channel_id": str(message.channel.id),
-                    "channel_name": message.channel.name if hasattr(message.channel, "name") else None,
+                    "channel_name": (message.channel.name if hasattr(message.channel, "name") else None),
                 },
             }
 
@@ -404,11 +404,18 @@ class DiscordChannelHandler(ChannelHandler):
         """Get Discord bot connection status."""
         try:
             if instance.name not in self._bot_instances:
-                return ConnectionStatus(instance_name=instance.name, channel_type="discord", status="not_found")
+                return ConnectionStatus(
+                    instance_name=instance.name,
+                    channel_type="discord",
+                    status="not_found",
+                )
             bot_instance = self._bot_instances[instance.name]
 
             # Get additional connection info
-            channel_data = {"invite_url": bot_instance.invite_url, "error_message": bot_instance.error_message}
+            channel_data = {
+                "invite_url": bot_instance.invite_url,
+                "error_message": bot_instance.error_message,
+            }
 
             # Add bot-specific data if connected
             if bot_instance.status == "connected" and bot_instance.client.user:
@@ -429,7 +436,10 @@ class DiscordChannelHandler(ChannelHandler):
         except Exception as e:
             logger.error(f"Failed to get Discord bot status: {e}")
             return ConnectionStatus(
-                instance_name=instance.name, channel_type="discord", status="error", channel_data={"error": str(e)}
+                instance_name=instance.name,
+                channel_type="discord",
+                status="error",
+                channel_data={"error": str(e)},
             )
 
     async def restart_instance(self, instance: InstanceConfig) -> Dict[str, Any]:

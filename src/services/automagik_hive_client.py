@@ -121,10 +121,19 @@ class AutomagikHiveClient:
 
     def _make_headers(self, accept_sse: bool = False) -> Dict[str, str]:
         """Make headers for API requests with Bearer token authentication."""
-        headers = {"Authorization": f"Bearer {self.api_key}", "User-Agent": "automagik-omni/1.0"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "User-Agent": "automagik-omni/1.0",
+        }
 
         if accept_sse:
-            headers.update({"Accept": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive"})
+            headers.update(
+                {
+                    "Accept": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                }
+            )
         else:
             headers.update({"Content-Type": "application/json", "Accept": "application/json"})
 
@@ -339,7 +348,14 @@ class AutomagikHiveClient:
         except (ConnectTimeout, ReadTimeout, TimeoutException) as e:
             raise AutomagikHiveConnectionError(f"Connection timeout: {str(e)}")
         except Exception as e:
-            if isinstance(e, (AutomagikHiveError, AutomagikHiveAuthError, AutomagikHiveConnectionError)):
+            if isinstance(
+                e,
+                (
+                    AutomagikHiveError,
+                    AutomagikHiveAuthError,
+                    AutomagikHiveConnectionError,
+                ),
+            ):
                 raise
             raise AutomagikHiveStreamError(f"Streaming error: {str(e)}")
 
@@ -621,7 +637,8 @@ class AutomagikHiveClient:
             logger.error(f"Full traceback: {traceback.format_exc()}")
             # Yield final error event
             error_event = ErrorEvent(
-                error_message=f"Stream processing error: {e}", error_details={"error_type": type(e).__name__}
+                error_message=f"Stream processing error: {e}",
+                error_details={"error_type": type(e).__name__},
             )
             yield error_event
             raise AutomagikHiveStreamError(f"Stream processing failed: {e}")
@@ -728,7 +745,8 @@ class AutomagikHiveClient:
             logger.error(f"Event data: {event_data}")
             # Return error event instead of None
             error_event = ErrorEvent(
-                error_message=f"Event creation failed: {e}", error_details={"raw_data": event_data}
+                error_message=f"Event creation failed: {e}",
+                error_details={"raw_data": event_data},
             )
             return error_event
 

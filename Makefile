@@ -585,6 +585,19 @@ clean-build: ## 🧹 Clean build artifacts
 # ===========================================
 # 📈 Version Management
 # ===========================================
+version: ## 📊 Show current version
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)Current version: $(FONT_BOLD)$$CURRENT_VERSION$(FONT_RESET)"
+
+version-bump: ## 🔧 Bump version with script (usage: make version-bump TYPE=patch)
+	$(call print_status,Bumping version...)
+	@if [ -z "$(TYPE)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Please specify TYPE (major, minor, patch, or auto)$(FONT_RESET)"; \
+		echo -e "$(FONT_GRAY)Usage: make version-bump TYPE=patch$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@python scripts/bump-version.py $(TYPE)
+
 bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
 	$(call print_status,Bumping patch version...)
 	@# Check if git status is clean

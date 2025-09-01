@@ -562,7 +562,15 @@ class AgentApiClient:
 
         return is_hive
 
-    def _call_hive_api(self, agent_name, message_content, session_name=None, session_id=None, user_id=None, user=None):
+    def _call_hive_api(
+        self,
+        agent_name,
+        message_content,
+        session_name=None,
+        session_id=None,
+        user_id=None,
+        user=None,
+    ):
         """
         Call the Hive API using the playground endpoint format.
 

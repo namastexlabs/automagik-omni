@@ -38,7 +38,14 @@ class TestTelemetryClient:
     def test_telemetry_enabled_by_default(self):
         """Test that telemetry is enabled by default in normal environments."""
         # Clear any CI environment variables and testing environment variables
-        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
+        ci_vars = [
+            "CI",
+            "GITHUB_ACTIONS",
+            "TRAVIS",
+            "JENKINS",
+            "GITLAB_CI",
+            "ENVIRONMENT",
+        ]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
 
@@ -64,7 +71,14 @@ class TestTelemetryClient:
     def test_disable_telemetry(self):
         """Test disabling telemetry."""
         # Clear CI environment variables and testing environment variables
-        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
+        ci_vars = [
+            "CI",
+            "GITHUB_ACTIONS",
+            "TRAVIS",
+            "JENKINS",
+            "GITLAB_CI",
+            "ENVIRONMENT",
+        ]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
 
@@ -120,7 +134,14 @@ class TestTelemetryClient:
         mock_urlopen.return_value = mock_response
 
         # Clear CI environment variables and testing environment variables
-        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
+        ci_vars = [
+            "CI",
+            "GITHUB_ACTIONS",
+            "TRAVIS",
+            "JENKINS",
+            "GITLAB_CI",
+            "ENVIRONMENT",
+        ]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
 
@@ -191,7 +212,14 @@ class TestTelemetryClient:
         mock_urlopen.side_effect = URLError("Network error")
 
         # Clear CI environment variables and testing environment variables
-        ci_vars = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI", "ENVIRONMENT"]
+        ci_vars = [
+            "CI",
+            "GITHUB_ACTIONS",
+            "TRAVIS",
+            "JENKINS",
+            "GITLAB_CI",
+            "ENVIRONMENT",
+        ]
         env_without_ci = {k: v for k, v in os.environ.items() if k not in ci_vars}
         env_without_ci.pop("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", None)
 

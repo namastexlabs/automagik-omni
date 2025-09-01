@@ -9,7 +9,11 @@ SAMPLE_WEBHOOK_PAYLOAD = {
     "data": {
         "messages": [
             {
-                "key": {"remoteJid": "555197285829@s.whatsapp.net", "id": "msg_12345_test", "fromMe": False},
+                "key": {
+                    "remoteJid": "555197285829@s.whatsapp.net",
+                    "id": "msg_12345_test",
+                    "fromMe": False,
+                },
                 "message": {"conversation": "Hello! This is a test message."},
                 "messageTimestamp": 1720372139,
                 "pushName": "Test User",
@@ -25,7 +29,11 @@ SAMPLE_IMAGE_WEBHOOK_PAYLOAD = {
     "data": {
         "messages": [
             {
-                "key": {"remoteJid": "555197285829@s.whatsapp.net", "id": "msg_image_test", "fromMe": False},
+                "key": {
+                    "remoteJid": "555197285829@s.whatsapp.net",
+                    "id": "msg_image_test",
+                    "fromMe": False,
+                },
                 "message": {
                     "imageMessage": {
                         "url": "https://example.com/image.jpg",
@@ -124,7 +132,13 @@ SAMPLE_TRACE_DATA = {
 }
 
 # Phone number samples (realistic formats)
-SAMPLE_PHONE_NUMBERS = ["+555197285829", "+1234567890", "+447911123456", "+33612345678", "+5511987654321"]
+SAMPLE_PHONE_NUMBERS = [
+    "+555197285829",
+    "+1234567890",
+    "+447911123456",
+    "+33612345678",
+    "+5511987654321",
+]
 
 # Error scenarios with realistic error messages
 SAMPLE_ERROR_RESPONSES = {

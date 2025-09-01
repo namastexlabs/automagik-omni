@@ -45,7 +45,10 @@ class OmniChannelMessageSender:
                 return await self._send_discord_text(recipient, text, **kwargs)
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
-                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported channel type: {self.channel_type}",
+                }
 
         except Exception as e:
             logger.error(f"Failed to send message via {self.channel_type}: {e}")
@@ -88,7 +91,11 @@ class OmniChannelMessageSender:
                 if default_channel:
                     channel_id = int(default_channel)
                 else:
-                    return {"success": False, "error": "Invalid Discord channel ID", "channel": "discord"}
+                    return {
+                        "success": False,
+                        "error": "Invalid Discord channel ID",
+                        "channel": "discord",
+                    }
 
             # Get socket path using centralized configuration
             socket_path = IPCConfig.get_socket_path("discord", self.instance_config.name)
@@ -98,7 +105,11 @@ class OmniChannelMessageSender:
                 logger.error(
                     f"Discord bot not running for instance '{self.instance_config.name}' (socket not found: {socket_path})"
                 )
-                return {"success": False, "error": "Discord bot not running", "channel": "discord"}
+                return {
+                    "success": False,
+                    "error": "Discord bot not running",
+                    "channel": "discord",
+                }
 
             # Connect via Unix domain socket
             connector = aiohttp.UnixConnector(path=socket_path)
@@ -127,14 +138,26 @@ class OmniChannelMessageSender:
                         else:
                             error_msg = result.get("error", "Unknown error")
                             logger.error(f"Discord IPC error: {error_msg}")
-                            return {"success": False, "error": error_msg, "channel": "discord"}
+                            return {
+                                "success": False,
+                                "error": error_msg,
+                                "channel": "discord",
+                            }
 
                 except asyncio.TimeoutError:
                     logger.error(f"Timeout connecting to Discord bot '{self.instance_config.name}' via Unix socket")
-                    return {"success": False, "error": "Bot not responding (timeout)", "channel": "discord"}
+                    return {
+                        "success": False,
+                        "error": "Bot not responding (timeout)",
+                        "channel": "discord",
+                    }
                 except aiohttp.ClientError as e:
                     logger.error(f"Connection error to Discord bot Unix socket: {e}")
-                    return {"success": False, "error": f"Connection error: {e}", "channel": "discord"}
+                    return {
+                        "success": False,
+                        "error": f"Connection error: {e}",
+                        "channel": "discord",
+                    }
 
         except Exception as e:
             logger.error(f"Discord send failed: {e}")
@@ -201,7 +224,10 @@ class OmniChannelMessageSender:
                 return await self._send_discord_media(recipient, media_url, media_base64, caption, media_type, **kwargs)
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
-                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported channel type: {self.channel_type}",
+                }
 
         except Exception as e:
             logger.error(f"Failed to send media via {self.channel_type}: {e}")
@@ -222,7 +248,10 @@ class OmniChannelMessageSender:
             media_source = media_url if media_url else media_base64
 
             success = sender.send_media_message(
-                recipient=recipient, media_url=media_source, caption=caption, media_type=media_type
+                recipient=recipient,
+                media_url=media_source,
+                caption=caption,
+                media_type=media_type,
             )
             return {"success": success, "channel": "whatsapp"}
         except Exception as e:
@@ -251,7 +280,11 @@ class OmniChannelMessageSender:
             if not await bot_manager.is_connected(self.instance_config.name):
                 success = await bot_manager.start_bot(self.instance_config)
                 if not success:
-                    return {"success": False, "error": "Failed to start Discord bot", "channel": "discord"}
+                    return {
+                        "success": False,
+                        "error": "Failed to start Discord bot",
+                        "channel": "discord",
+                    }
 
             # Parse channel ID
             try:
@@ -260,7 +293,11 @@ class OmniChannelMessageSender:
                 if self.instance_config.discord_default_channel_id:
                     channel_id = int(self.instance_config.discord_default_channel_id)
                 else:
-                    return {"success": False, "error": "Invalid Discord channel ID", "channel": "discord"}
+                    return {
+                        "success": False,
+                        "error": "Invalid Discord channel ID",
+                        "channel": "discord",
+                    }
 
             # Prepare attachment
             attachments = []
@@ -290,7 +327,11 @@ class OmniChannelMessageSender:
 
         except ImportError as e:
             logger.error(f"Discord dependencies not installed: {e}")
-            return {"success": False, "error": "Discord dependencies not installed", "channel": "discord"}
+            return {
+                "success": False,
+                "error": "Discord dependencies not installed",
+                "channel": "discord",
+            }
         except Exception as e:
             logger.error(f"Discord media send failed: {e}")
             return {"success": False, "error": str(e), "channel": "discord"}
@@ -314,7 +355,10 @@ class OmniChannelMessageSender:
                 }
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
-                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported channel type: {self.channel_type}",
+                }
         except Exception as e:
             logger.error(f"Failed to send audio message via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
@@ -338,7 +382,10 @@ class OmniChannelMessageSender:
                 }
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
-                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported channel type: {self.channel_type}",
+                }
         except Exception as e:
             logger.error(f"Failed to send sticker message via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
@@ -362,7 +409,10 @@ class OmniChannelMessageSender:
                 }
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
-                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported channel type: {self.channel_type}",
+                }
         except Exception as e:
             logger.error(f"Failed to send contact message via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
@@ -386,7 +436,10 @@ class OmniChannelMessageSender:
                 }
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
-                return {"success": False, "error": f"Unsupported channel type: {self.channel_type}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported channel type: {self.channel_type}",
+                }
         except Exception as e:
             logger.error(f"Failed to send reaction via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}

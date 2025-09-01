@@ -201,16 +201,18 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                 for method, endpoint in protected_endpoints:
                     # Test without any auth header
                     response = auth_test_client.request(method, endpoint)
-                    assert response.status_code in [401, 403], (
-                        f"{method} {endpoint} should require auth but got {response.status_code}"
-                    )
+                    assert response.status_code in [
+                        401,
+                        403,
+                    ], f"{method} {endpoint} should require auth but got {response.status_code}"
 
                     # Test with malformed auth header (not Bearer format)
                     headers = {"Authorization": "NotBearer token"}
                     response = auth_test_client.request(method, endpoint, headers=headers)
-                    assert response.status_code in [401, 403], (
-                        f"{method} {endpoint} should reject malformed auth but got {response.status_code}"
-                    )
+                    assert response.status_code in [
+                        401,
+                        403,
+                    ], f"{method} {endpoint} should reject malformed auth but got {response.status_code}"
         finally:
             # Restore the auth override
             if original_auth_override:
@@ -246,8 +248,14 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                 test_cases = [
                     ("", 422),  # Empty auth header - FastAPI validation error
                     ("invalid-token", 422),  # Invalid format - FastAPI validation error
-                    ("Bearer invalid-token", 401),  # Invalid bearer token (401 for wrong API key)
-                    ("Basic dGVzdDp0ZXN0", 422),  # Wrong auth type - FastAPI validation error
+                    (
+                        "Bearer invalid-token",
+                        401,
+                    ),  # Invalid bearer token (401 for wrong API key)
+                    (
+                        "Basic dGVzdDp0ZXN0",
+                        422,
+                    ),  # Wrong auth type - FastAPI validation error
                 ]
 
                 for auth_header, expected_status in test_cases:
@@ -255,9 +263,11 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                     response = auth_test_client.get("/api/v1/instances", headers=headers)
                     # For empty/malformed auth headers, FastAPI returns 422 (validation error)
                     # For invalid tokens, our verify_api_key returns 401
-                    assert response.status_code in [401, 403, 422], (
-                        f"Auth header '{auth_header}' should return 401/403/422 but got {response.status_code}"
-                    )
+                    assert response.status_code in [
+                        401,
+                        403,
+                        422,
+                    ], f"Auth header '{auth_header}' should return 401/403/422 but got {response.status_code}"
         finally:
             # Restore the auth override
             if original_auth_override:
@@ -419,10 +429,17 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
 
     def test_update_instance_success(self, test_client, mention_api_headers):
         """Test updating instance configuration."""
-        update_data = {"agent_api_url": "https://updated-agent.test.com", "webhook_base64": False}
+        update_data = {
+            "agent_api_url": "https://updated-agent.test.com",
+            "webhook_base64": False,
+        }
 
         # No external service call needed for updates - just database
-        response = test_client.put("/api/v1/instances/test-instance", json=update_data, headers=mention_api_headers)
+        response = test_client.put(
+            "/api/v1/instances/test-instance",
+            json=update_data,
+            headers=mention_api_headers,
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["agent_api_url"] == "https://updated-agent.test.com"
@@ -537,7 +554,13 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
             async def mock_discover_instances(*args, **kwargs):
                 # Create mock InstanceConfig-like objects
                 mock_instance = type(
-                    "MockInstance", (), {"name": "discovered-1", "is_active": True, "agent_id": "test-agent-id"}
+                    "MockInstance",
+                    (),
+                    {
+                        "name": "discovered-1",
+                        "is_active": True,
+                        "agent_id": "test-agent-id",
+                    },
                 )()
                 return [mock_instance]
 
@@ -552,15 +575,23 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
 
     def test_send_text_message(self, test_client, mention_api_headers):
         """Test sending text message."""
-        message_data = {"phone_number": "+1234567890", "text": "Hello, this is a test message!"}
+        message_data = {
+            "phone_number": "+1234567890",
+            "text": "Hello, this is a test message!",
+        }
 
         # Mock the actual HTTP requests to prevent external API calls
         with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
             mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = {"success": True, "message_id": "msg_123"}
+            mock_post.return_value.json.return_value = {
+                "success": True,
+                "message_id": "msg_123",
+            }
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/send-text", json=message_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/send-text",
+                json=message_data,
+                headers=mention_api_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -579,24 +610,37 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
         # Mock the actual HTTP requests to prevent external API calls
         with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
             mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = {"success": True, "message_id": "msg_124"}
+            mock_post.return_value.json.return_value = {
+                "success": True,
+                "message_id": "msg_124",
+            }
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/send-media", json=message_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/send-media",
+                json=message_data,
+                headers=mention_api_headers,
             )
             assert response.status_code == 200
 
     def test_send_audio_message(self, test_client, mention_api_headers):
         """Test sending audio message."""
-        message_data = {"phone_number": "+1234567890", "audio_url": "https://example.com/audio.mp3"}
+        message_data = {
+            "phone_number": "+1234567890",
+            "audio_url": "https://example.com/audio.mp3",
+        }
 
         # Mock the actual HTTP requests to prevent external API calls
         with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
             mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = {"success": True, "message_id": "msg_125"}
+            mock_post.return_value.json.return_value = {
+                "success": True,
+                "message_id": "msg_125",
+            }
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/send-audio", json=message_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/send-audio",
+                json=message_data,
+                headers=mention_api_headers,
             )
             assert response.status_code == 200
 
@@ -610,24 +654,38 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
         # Mock the actual HTTP requests to prevent external API calls
         with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
             mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = {"success": True, "message_id": "msg_126"}
+            mock_post.return_value.json.return_value = {
+                "success": True,
+                "message_id": "msg_126",
+            }
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/send-contact", json=message_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/send-contact",
+                json=message_data,
+                headers=mention_api_headers,
             )
             assert response.status_code == 200
 
     def test_send_reaction_message(self, test_client, mention_api_headers):
         """Test sending reaction to message."""
-        message_data = {"phone_number": "+1234567890", "message_id": "msg_original", "reaction": "👍"}
+        message_data = {
+            "phone_number": "+1234567890",
+            "message_id": "msg_original",
+            "reaction": "👍",
+        }
 
         # Mock the actual HTTP requests to prevent external API calls
         with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
             mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = {"success": True, "message_id": "msg_127"}
+            mock_post.return_value.json.return_value = {
+                "success": True,
+                "message_id": "msg_127",
+            }
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/send-reaction", json=message_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/send-reaction",
+                json=message_data,
+                headers=mention_api_headers,
             )
             assert response.status_code == 200
 
@@ -640,11 +698,16 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
-                "profile": {"name": "John Doe", "picture_url": "https://example.com/profile.jpg"},
+                "profile": {
+                    "name": "John Doe",
+                    "picture_url": "https://example.com/profile.jpg",
+                },
             }
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/fetch-profile", json=request_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/fetch-profile",
+                json=request_data,
+                headers=mention_api_headers,
             )
             assert response.status_code == 200
 
@@ -667,7 +730,8 @@ class TestTraceEndpoints(TestAPIEndpoints):
             mock_get_traces.return_value = []
 
             response = test_client.get(
-                "/api/v1/traces?phone=+1234567890&status=completed&limit=10", headers=mention_api_headers
+                "/api/v1/traces?phone=+1234567890&status=completed&limit=10",
+                headers=mention_api_headers,
             )
             assert response.status_code == 200
 
@@ -743,7 +807,10 @@ class TestWebhookEndpoints(TestAPIEndpoints):
             "data": {
                 "messages": [
                     {
-                        "key": {"remoteJid": "1234567890@s.whatsapp.net", "id": "msg_123"},
+                        "key": {
+                            "remoteJid": "1234567890@s.whatsapp.net",
+                            "id": "msg_123",
+                        },
                         "message": {"conversation": "Hello"},
                     }
                 ]
@@ -751,7 +818,10 @@ class TestWebhookEndpoints(TestAPIEndpoints):
         }
 
         with patch("src.api.app._handle_evolution_webhook") as mock_handler:
-            mock_handler.return_value = {"status": "success", "instance": "test-instance"}
+            mock_handler.return_value = {
+                "status": "success",
+                "instance": "test-instance",
+            }
 
             response = test_client.post("/webhook/evolution/test-instance", json=webhook_data)
             assert response.status_code == 200
@@ -813,7 +883,10 @@ class TestErrorHandling(TestAPIEndpoints):
             else:
                 response = test_client.request(method, endpoint, headers=mention_api_headers)
 
-            assert response.status_code in [404, 422], f"{method} {endpoint} should return 404 or 422"
+            assert response.status_code in [
+                404,
+                422,
+            ], f"{method} {endpoint} should return 404 or 422"
 
 
 class TestRequestValidation(TestAPIEndpoints):
@@ -828,7 +901,9 @@ class TestRequestValidation(TestAPIEndpoints):
             mock_post.return_value.json.return_value = {"success": True}
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/send-text", json=invalid_phone_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/send-text",
+                json=invalid_phone_data,
+                headers=mention_api_headers,
             )
             # Should either validate and reject or accept and let handler validate
             assert response.status_code in [200, 422]
@@ -860,7 +935,9 @@ class TestRequestValidation(TestAPIEndpoints):
             mock_post.return_value.json.return_value = {"success": True}
 
             response = test_client.post(
-                "/api/v1/instance/test-instance/send-text", json=message_data, headers=mention_api_headers
+                "/api/v1/instance/test-instance/send-text",
+                json=message_data,
+                headers=mention_api_headers,
             )
             # Should handle large payloads gracefully
             assert response.status_code in [200, 413, 422]

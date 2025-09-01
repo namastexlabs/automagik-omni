@@ -36,13 +36,7 @@ from src.db.database import create_tables
 logger = logging.getLogger("src.api.app")
 
 # Initialize channel handlers
-# Apply streaming patch for WhatsApp handlers BEFORE they are used elsewhere
-try:
-    from src.channels.whatsapp.streaming_patch import apply_streaming_patch
-
-    apply_streaming_patch()
-except Exception as e:
-    logger.warning(f"Failed to apply WhatsApp streaming patch: {e}")
+# Note: Streaming functionality is now integrated directly into the handlers
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -333,7 +327,10 @@ def custom_openapi():
 
     # Add server information
     openapi_schema["servers"] = [
-        {"url": f"http://{config.api.host}:{config.api.port}", "description": "Development Server"}
+        {
+            "url": f"http://{config.api.host}:{config.api.port}",
+            "description": "Development Server",
+        }
     ]
 
     # Add Bearer token authentication scheme
@@ -378,7 +375,12 @@ async def health_check():
     health_status = {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "services": {"api": {"status": "up", "checks": {"database": "connected", "runtime": "operational"}}},
+        "services": {
+            "api": {
+                "status": "up",
+                "checks": {"database": "connected", "runtime": "operational"},
+            }
+        },
     }
 
     # Check Discord service status if available
@@ -394,8 +396,8 @@ async def health_check():
                     bot_statuses[instance_name] = {
                         "status": bot_status.status,
                         "guild_count": bot_status.guild_count,
-                        "uptime": bot_status.uptime.isoformat() if bot_status.uptime else None,
-                        "latency": round(bot_status.latency * 1000, 2) if bot_status.latency else None,  # ms
+                        "uptime": (bot_status.uptime.isoformat() if bot_status.uptime else None),
+                        "latency": (round(bot_status.latency * 1000, 2) if bot_status.latency else None),  # ms
                     }
 
             health_status["services"]["discord"] = {

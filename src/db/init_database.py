@@ -51,7 +51,8 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
             with engine.connect() as conn:
                 # Check if database exists
                 result = conn.execute(
-                    text("SELECT 1 FROM pg_database WHERE datname = :dbname"), {"dbname": database_name}
+                    text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
+                    {"dbname": database_name},
                 )
                 if result.fetchone() is None:
                     # Create database

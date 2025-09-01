@@ -207,7 +207,10 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 status_data.update(status_response.channel_data)
 
             # Use instance config data
-            instance_config = {"display_name": f"WhatsApp - {instance.name}", "instance_name": instance.name}
+            instance_config = {
+                "display_name": f"WhatsApp - {instance.name}",
+                "instance_name": instance.name,
+            }
 
             omni_channel_info = WhatsAppTransformer.channel_to_omni(instance.name, status_data, instance_config)
 

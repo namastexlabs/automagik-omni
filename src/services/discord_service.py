@@ -165,7 +165,12 @@ class DiscordService:
 
         except Exception as e:
             logger.error(f"Error starting Discord bot '{instance_name}': {e}", exc_info=True)
-            track_command("discord_start", success=False, instance_name=instance_name, error=str(e))
+            track_command(
+                "discord_start",
+                success=False,
+                instance_name=instance_name,
+                error=str(e),
+            )
             return False
 
     async def _start_bot_internal(self, instance_config: InstanceConfig) -> bool:
@@ -239,7 +244,10 @@ class DiscordService:
                 return future.result(timeout=5.0)
 
         except Exception as e:
-            logger.error(f"Error getting status for Discord bot '{instance_name}': {e}", exc_info=True)
+            logger.error(
+                f"Error getting status for Discord bot '{instance_name}': {e}",
+                exc_info=True,
+            )
             return None
 
     async def _get_bot_status_internal(self, instance_name: str) -> Optional[Dict[str, Any]]:
