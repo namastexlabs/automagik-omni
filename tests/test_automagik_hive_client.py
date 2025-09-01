@@ -92,7 +92,10 @@ class TestAutomagikHiveClientInit:
 
     def test_init_no_config(self):
         """Test initialization without configuration (should raise error)."""
-        with pytest.raises(ValueError, match="config_override must be InstanceConfig instance or dictionary"):
+        with pytest.raises(
+            ValueError,
+            match="config_override must be InstanceConfig instance or dictionary",
+        ):
             AutomagikHiveClient()
 
     def test_init_missing_required_fields(self):
@@ -147,7 +150,11 @@ class TestAutomagikHiveClientHTTPMethods:
     @pytest.mark.asyncio
     async def test_get_client(self):
         """Test HTTP client creation."""
-        config = {"api_url": "https://hive.test.com", "api_key": "test-api-key", "timeout": 30}
+        config = {
+            "api_url": "https://hive.test.com",
+            "api_key": "test-api-key",
+            "timeout": 30,
+        }
         client = AutomagikHiveClient(config_override=config)
 
         http_client = await client._get_client()
@@ -194,7 +201,11 @@ class TestAutomagikHiveClientAgentRuns:
         # Mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"id": "run_123", "status": "completed", "response": "Test response"}
+        mock_response.json.return_value = {
+            "id": "run_123",
+            "status": "completed",
+            "response": "Test response",
+        }
         mock_response.raise_for_status.return_value = None  # No exception raised
         mock_post.return_value = mock_response
 
@@ -269,7 +280,11 @@ class TestAutomagikHiveClientAgentRuns:
     @pytest.mark.asyncio
     async def test_create_agent_run_default_agent(self):
         """Test agent run with default agent ID."""
-        config = {"api_url": "https://hive.test.com", "api_key": "test-key", "agent_id": "default-agent"}
+        config = {
+            "api_url": "https://hive.test.com",
+            "api_key": "test-key",
+            "agent_id": "default-agent",
+        }
         client = AutomagikHiveClient(config_override=config)
 
         with patch("httpx.AsyncClient.post") as mock_post:
@@ -294,7 +309,11 @@ class TestAutomagikHiveClientTeamRuns:
         """Test non-streaming team run creation."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"id": "team_run_123", "status": "completed", "response": "Team response"}
+        mock_response.json.return_value = {
+            "id": "team_run_123",
+            "status": "completed",
+            "response": "Team response",
+        }
         mock_post.return_value = mock_response
 
         config = {"api_url": "https://hive.test.com", "api_key": "test-key"}
@@ -314,7 +333,11 @@ class TestAutomagikHiveClientTeamRuns:
     @pytest.mark.asyncio
     async def test_create_team_run_default_team(self):
         """Test team run with default team ID."""
-        config = {"api_url": "https://hive.test.com", "api_key": "test-key", "team_id": "default-team"}
+        config = {
+            "api_url": "https://hive.test.com",
+            "api_key": "test-key",
+            "team_id": "default-team",
+        }
         client = AutomagikHiveClient(config_override=config)
 
         with patch("httpx.AsyncClient.post") as mock_post:
@@ -360,7 +383,10 @@ class TestAutomagikHiveClientContinueConversation:
 
         # Verify we got events
         assert len(events) >= 1
-        assert events[0].event in [HiveEventType.RUN_STARTED, HiveEventType.RUN_RESPONSE_CONTENT]
+        assert events[0].event in [
+            HiveEventType.RUN_STARTED,
+            HiveEventType.RUN_RESPONSE_CONTENT,
+        ]
 
 
 class TestAutomagikHiveClientStreaming:
@@ -398,9 +424,7 @@ class TestAutomagikHiveClientStreaming:
     @pytest.mark.asyncio
     async def test_stream_events_invalid_json(self):
         """Test handling of invalid JSON in stream."""
-        json_chunks = [
-            b'{"invalid": json}\n'  # Invalid JSON
-        ]
+        json_chunks = [b'{"invalid": json}\n']  # Invalid JSON
 
         async def async_iter_mock():
             for chunk in json_chunks:
@@ -451,11 +475,21 @@ class TestAutomagikHiveClientConversationStreaming:
         """Test streaming agent conversation."""
         # Mock events
         mock_events = [
-            RunStartedEvent(event=HiveEventType.RUN_STARTED, timestamp="2024-01-01T00:00:00Z", run_id="run_123"),
-            RunResponseContentEvent(
-                event=HiveEventType.RUN_RESPONSE_CONTENT, timestamp="2024-01-01T00:00:01Z", content="Hello"
+            RunStartedEvent(
+                event=HiveEventType.RUN_STARTED,
+                timestamp="2024-01-01T00:00:00Z",
+                run_id="run_123",
             ),
-            RunCompletedEvent(event=HiveEventType.RUN_COMPLETED, timestamp="2024-01-01T00:00:02Z", status="completed"),
+            RunResponseContentEvent(
+                event=HiveEventType.RUN_RESPONSE_CONTENT,
+                timestamp="2024-01-01T00:00:01Z",
+                content="Hello",
+            ),
+            RunCompletedEvent(
+                event=HiveEventType.RUN_COMPLETED,
+                timestamp="2024-01-01T00:00:02Z",
+                status="completed",
+            ),
         ]
 
         async def mock_stream():
@@ -484,11 +518,21 @@ class TestAutomagikHiveClientConversationStreaming:
     async def test_stream_team_conversation(self, mock_create_run):
         """Test streaming team conversation."""
         mock_events = [
-            RunStartedEvent(event=HiveEventType.RUN_STARTED, timestamp="2024-01-01T00:00:00Z", run_id="team_run_123"),
-            RunResponseContentEvent(
-                event=HiveEventType.RUN_RESPONSE_CONTENT, timestamp="2024-01-01T00:00:01Z", content="Team response"
+            RunStartedEvent(
+                event=HiveEventType.RUN_STARTED,
+                timestamp="2024-01-01T00:00:00Z",
+                run_id="team_run_123",
             ),
-            RunCompletedEvent(event=HiveEventType.RUN_COMPLETED, timestamp="2024-01-01T00:00:02Z", status="completed"),
+            RunResponseContentEvent(
+                event=HiveEventType.RUN_RESPONSE_CONTENT,
+                timestamp="2024-01-01T00:00:01Z",
+                content="Team response",
+            ),
+            RunCompletedEvent(
+                event=HiveEventType.RUN_COMPLETED,
+                timestamp="2024-01-01T00:00:02Z",
+                status="completed",
+            ),
         ]
 
         async def mock_stream():

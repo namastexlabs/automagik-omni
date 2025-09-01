@@ -224,7 +224,11 @@ class EvolutionClient:
         }
         logger.info(f"Setting webhook for {instance_name} with payload: {webhook_payload}")
 
-        return await self._request("POST", f"/webhook/set/{quote(instance_name, safe='')}", json=webhook_payload)
+        return await self._request(
+            "POST",
+            f"/webhook/set/{quote(instance_name, safe='')}",
+            json=webhook_payload,
+        )
 
     async def set_settings(self, instance_name: str, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Set settings for an instance."""

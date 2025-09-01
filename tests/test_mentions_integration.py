@@ -37,7 +37,10 @@ class TestMentionsIntegration:
     @pytest.fixture
     def api_headers(self):
         """Standard API headers for testing."""
-        return {"Content-Type": "application/json", "Authorization": "Bearer namastex888"}
+        return {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer namastex888",
+        }
 
     def test_complete_mention_flow_auto_parse(self, client, test_instance_config, api_headers):
         """Test complete flow from API request to Evolution API call with auto-parsed mentions."""
@@ -66,7 +69,11 @@ class TestMentionsIntegration:
             }
 
             # Make API request
-            response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
+            response = client.post(
+                "/api/v1/instance/test-instance/send-text",
+                json=payload,
+                headers=api_headers,
+            )
 
             # Verify API response
             assert response.status_code == 200
@@ -127,7 +134,11 @@ class TestMentionsIntegration:
                 "auto_parse_mentions": False,
             }
 
-            response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
+            response = client.post(
+                "/api/v1/instance/test-instance/send-text",
+                json=payload,
+                headers=api_headers,
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -167,7 +178,11 @@ class TestMentionsIntegration:
                 "mentions_everyone": True,
             }
 
-            response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
+            response = client.post(
+                "/api/v1/instance/test-instance/send-text",
+                json=payload,
+                headers=api_headers,
+            )
 
             assert response.status_code == 200
 
@@ -200,7 +215,11 @@ class TestMentionsIntegration:
                 "auto_parse_mentions": True,
             }
 
-            response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
+            response = client.post(
+                "/api/v1/instance/test-instance/send-text",
+                json=payload,
+                headers=api_headers,
+            )
 
             assert response.status_code == 200
 
@@ -234,9 +253,17 @@ class TestMentionsIntegration:
             with patch("requests.post") as mock_http_post:
                 mock_http_post.side_effect = Exception("Network error")
 
-                payload = {"phone_number": "+5511777777777", "text": "Test @5511999999999", "auto_parse_mentions": True}
+                payload = {
+                    "phone_number": "+5511777777777",
+                    "text": "Test @5511999999999",
+                    "auto_parse_mentions": True,
+                }
 
-                response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
+                response = client.post(
+                    "/api/v1/instance/test-instance/send-text",
+                    json=payload,
+                    headers=api_headers,
+                )
 
                 assert response.status_code == 200
                 data = response.json()
@@ -260,9 +287,17 @@ class TestMentionsIntegration:
             mock_response.json.return_value = {"message": "database schema issue"}
             mock_http_post.return_value = mock_response
 
-            payload = {"phone_number": "+5511777777777", "text": "Test @5511999999999", "auto_parse_mentions": True}
+            payload = {
+                "phone_number": "+5511777777777",
+                "text": "Test @5511999999999",
+                "auto_parse_mentions": True,
+            }
 
-            response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
+            response = client.post(
+                "/api/v1/instance/test-instance/send-text",
+                json=payload,
+                headers=api_headers,
+            )
 
             # Should still report success (known issue handling)
             assert response.status_code == 200
@@ -317,7 +352,9 @@ class TestMentionsIntegration:
                 mock_http_post.return_value = mock_response
 
                 response = client.post(
-                    "/api/v1/instance/test-instance/send-text", json=scenario["payload"], headers=api_headers
+                    "/api/v1/instance/test-instance/send-text",
+                    json=scenario["payload"],
+                    headers=api_headers,
                 )
 
                 assert response.status_code == 200, f"Failed scenario: {scenario['name']}"
@@ -360,7 +397,10 @@ class TestMentionsIntegration:
             mock_post.return_value = mock_response
 
             result = sender.send_text_message(
-                recipient="5511777777777", text=test_text, mentioned=mentions, auto_parse_mentions=False
+                recipient="5511777777777",
+                text=test_text,
+                mentioned=mentions,
+                auto_parse_mentions=False,
             )
 
             assert result is True
@@ -407,7 +447,7 @@ class TestMentionsIntegration:
             # Prepare payload
             payload = {
                 "phone_number": "+5511777777777",
-                "text": "Test @5511999999999\n\nSecond part" if expected_api_calls == 2 else "Test @5511999999999",
+                "text": ("Test @5511999999999\n\nSecond part" if expected_api_calls == 2 else "Test @5511999999999"),
                 "auto_parse_mentions": auto_parse,
                 "mentions_everyone": mentions_everyone,
             }
@@ -415,7 +455,11 @@ class TestMentionsIntegration:
             if explicit_mentions:
                 payload["mentioned"] = explicit_mentions
 
-            response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
+            response = client.post(
+                "/api/v1/instance/test-instance/send-text",
+                json=payload,
+                headers=api_headers,
+            )
 
             assert response.status_code == 200
             assert mock_http_post.call_count == expected_api_calls

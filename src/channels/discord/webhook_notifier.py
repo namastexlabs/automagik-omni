@@ -115,7 +115,10 @@ class DiscordWebhookNotifier:
     """
 
     def __init__(
-        self, webhook_url: str, default_username: Optional[str] = None, default_avatar_url: Optional[str] = None
+        self,
+        webhook_url: str,
+        default_username: Optional[str] = None,
+        default_avatar_url: Optional[str] = None,
     ):
         """
         Initialize the webhook notifier.
@@ -156,7 +159,9 @@ class DiscordWebhookNotifier:
 
             # Send the message
             response = await self.client.post(
-                self.webhook_url, json=payload, headers={"Content-Type": "application/json"}
+                self.webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code in [200, 204]:
@@ -200,7 +205,11 @@ class DiscordWebhookNotifier:
         return await self.send_message(message)
 
     async def send_error_notification(
-        self, error_title: str, error_message: str, stack_trace: Optional[str] = None, instance_id: Optional[str] = None
+        self,
+        error_title: str,
+        error_message: str,
+        stack_trace: Optional[str] = None,
+        instance_id: Optional[str] = None,
     ) -> bool:
         """
         Send an error notification with formatted embed.
@@ -214,7 +223,11 @@ class DiscordWebhookNotifier:
         Returns:
             True if successful, False otherwise
         """
-        embed = DiscordEmbed(title="🚨 Error Alert", description=error_title, color=EmbedColor.ERROR.value)
+        embed = DiscordEmbed(
+            title="🚨 Error Alert",
+            description=error_title,
+            color=EmbedColor.ERROR.value,
+        )
 
         embed.add_field("Error Message", error_message, inline=False)
 
@@ -251,7 +264,13 @@ class DiscordWebhookNotifier:
             "system": EmbedColor.SYSTEM.value,
         }
 
-        icon_map = {"info": "ℹ️", "warning": "⚠️", "error": "🚨", "success": "✅", "system": "🔧"}
+        icon_map = {
+            "info": "ℹ️",
+            "warning": "⚠️",
+            "error": "🚨",
+            "success": "✅",
+            "system": "🔧",
+        }
 
         embed = DiscordEmbed(
             title=f"{icon_map.get(status_type, '📊')} System Status",
@@ -296,7 +315,11 @@ class DiscordWebhookNotifier:
         return await self.send_embed(embed)
 
     async def send_custom_notification(
-        self, title: str, message: str, color: Optional[int] = None, fields: Optional[List[Dict[str, Any]]] = None
+        self,
+        title: str,
+        message: str,
+        color: Optional[int] = None,
+        fields: Optional[List[Dict[str, Any]]] = None,
     ) -> bool:
         """
         Send a custom notification with flexible formatting.
@@ -314,7 +337,11 @@ class DiscordWebhookNotifier:
 
         if fields:
             for field in fields:
-                embed.add_field(field.get("name", "Field"), field.get("value", "Value"), field.get("inline", False))
+                embed.add_field(
+                    field.get("name", "Field"),
+                    field.get("value", "Value"),
+                    field.get("inline", False),
+                )
 
         embed.set_timestamp()
 
@@ -335,7 +362,10 @@ class DiscordWebhookNotifier:
 
 # Utility functions for quick webhook usage
 async def send_quick_notification(
-    webhook_url: str, message: str, title: Optional[str] = None, color: Optional[int] = None
+    webhook_url: str,
+    message: str,
+    title: Optional[str] = None,
+    color: Optional[int] = None,
 ) -> bool:
     """
     Quick utility function to send a notification.
@@ -359,7 +389,10 @@ async def send_quick_notification(
 
 
 async def send_error_alert(
-    webhook_url: str, error_title: str, error_message: str, instance_id: Optional[str] = None
+    webhook_url: str,
+    error_title: str,
+    error_message: str,
+    instance_id: Optional[str] = None,
 ) -> bool:
     """
     Quick utility function to send an error alert.

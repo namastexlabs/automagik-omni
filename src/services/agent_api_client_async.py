@@ -93,7 +93,10 @@ class AsyncAgentApiClient:
             async with self._client_lock:
                 if self._client is None or self._client.is_closed:
                     self._client = httpx.AsyncClient(
-                        limits=self._connection_limits, timeout=self._timeout_config, follow_redirects=True, verify=True
+                        limits=self._connection_limits,
+                        timeout=self._timeout_config,
+                        follow_redirects=True,
+                        verify=True,
                     )
         return self._client
 
@@ -648,7 +651,10 @@ class AsyncAgentApiClient:
             async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
                 if response.status_code != 200:
                     logger.error(f"Streaming request failed with status {response.status_code}")
-                    yield {"error": f"Streaming request failed (status {response.status_code})", "success": False}
+                    yield {
+                        "error": f"Streaming request failed (status {response.status_code})",
+                        "success": False,
+                    }
                     return
 
                 logger.info("Successfully started streaming response")
@@ -688,13 +694,22 @@ class AsyncAgentApiClient:
 
         except (ConnectTimeout, ReadTimeout, TimeoutException) as e:
             logger.error(f"Timeout in streaming request: {e}")
-            yield {"error": "Streaming request timed out. Please try again.", "success": False}
+            yield {
+                "error": "Streaming request timed out. Please try again.",
+                "success": False,
+            }
         except HTTPError as e:
             logger.error(f"HTTP error in streaming request: {e}")
-            yield {"error": "Network error during streaming. Please try again.", "success": False}
+            yield {
+                "error": "Network error during streaming. Please try again.",
+                "success": False,
+            }
         except Exception as e:
             logger.error(f"Unexpected error in streaming request: {e}", exc_info=True)
-            yield {"error": "Unexpected error during streaming. Please try again.", "success": False}
+            yield {
+                "error": "Unexpected error during streaming. Please try again.",
+                "success": False,
+            }
 
     @asynccontextmanager
     async def stream_agent_messages(

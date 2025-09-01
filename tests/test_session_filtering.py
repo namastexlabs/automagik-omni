@@ -152,8 +152,8 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": trace.received_at.isoformat() if trace.received_at else None,
-                "completed_at": trace.completed_at.isoformat() if trace.completed_at else None,
+                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
+                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -166,7 +166,8 @@ class TestSessionFilteringAPI:
 
         # Make the API request
         response = client.get(
-            f"/api/v1/traces?agent_session_id={target_agent_session}", headers={"Authorization": "Bearer namastex888"}
+            f"/api/v1/traces?agent_session_id={target_agent_session}",
+            headers={"Authorization": "Bearer namastex888"},
         )
 
         # Verify the response
@@ -208,8 +209,8 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": trace.received_at.isoformat() if trace.received_at else None,
-                "completed_at": trace.completed_at.isoformat() if trace.completed_at else None,
+                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
+                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -222,7 +223,8 @@ class TestSessionFilteringAPI:
 
         # Make the API request
         response = client.get(
-            f"/api/v1/traces?session_name={target_session_name}", headers={"Authorization": "Bearer namastex888"}
+            f"/api/v1/traces?session_name={target_session_name}",
+            headers={"Authorization": "Bearer namastex888"},
         )
 
         # Verify the response
@@ -263,8 +265,8 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": trace.received_at.isoformat() if trace.received_at else None,
-                "completed_at": trace.completed_at.isoformat() if trace.completed_at else None,
+                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
+                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -276,7 +278,10 @@ class TestSessionFilteringAPI:
         mock_db_session.query.return_value.filter.return_value.count.return_value = len(mock_traces)
 
         # Make the API request
-        response = client.get("/api/v1/traces?has_media=true", headers={"Authorization": "Bearer namastex888"})
+        response = client.get(
+            "/api/v1/traces?has_media=true",
+            headers={"Authorization": "Bearer namastex888"},
+        )
 
         # Verify the response
         assert response.status_code == 200
@@ -322,8 +327,8 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": trace.received_at.isoformat() if trace.received_at else None,
-                "completed_at": trace.completed_at.isoformat() if trace.completed_at else None,
+                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
+                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -380,8 +385,8 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": trace.received_at.isoformat() if trace.received_at else None,
-                "completed_at": trace.completed_at.isoformat() if trace.completed_at else None,
+                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
+                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -394,7 +399,8 @@ class TestSessionFilteringAPI:
 
         # Make the API request filtering by instance
         response = client.get(
-            f"/api/v1/traces?instance_name={target_instance}", headers={"Authorization": "Bearer namastex888"}
+            f"/api/v1/traces?instance_name={target_instance}",
+            headers={"Authorization": "Bearer namastex888"},
         )
 
         # Verify the response
@@ -498,12 +504,14 @@ class TestSessionFilteringAPI:
         try:
             # Test with 'phone' parameter
             response1 = client.get(
-                f"/api/v1/traces?phone={target_phone}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?phone={target_phone}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             # Test with 'sender_phone' parameter
             response2 = client.get(
-                f"/api/v1/traces?sender_phone={target_phone}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?sender_phone={target_phone}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response1.status_code == 200
@@ -545,8 +553,8 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": trace.received_at.isoformat() if trace.received_at else None,
-                "completed_at": trace.completed_at.isoformat() if trace.completed_at else None,
+                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
+                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -594,8 +602,8 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": trace.received_at.isoformat() if trace.received_at else None,
-                "completed_at": trace.completed_at.isoformat() if trace.completed_at else None,
+                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
+                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -633,7 +641,8 @@ class TestSessionFilteringAPI:
 
             # Test with invalid boolean value
             response = client.get(
-                "/api/v1/traces?has_media=invalid_bool", headers={"Authorization": "Bearer namastex888"}
+                "/api/v1/traces?has_media=invalid_bool",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             # Should return 422 for validation error
@@ -667,7 +676,10 @@ class TestSessionFilteringEdgeCases:
 
         try:
             # Empty session_name parameter should be ignored
-            response = client.get("/api/v1/traces?session_name=", headers={"Authorization": "Bearer namastex888"})
+            response = client.get(
+                "/api/v1/traces?session_name=",
+                headers={"Authorization": "Bearer namastex888"},
+            )
 
             assert response.status_code == 200
         finally:
@@ -700,7 +712,8 @@ class TestSessionFilteringEdgeCases:
             # Unicode session name
             unicode_session = "用户_会话_测试"
             response = client.get(
-                f"/api/v1/traces?session_name={unicode_session}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?session_name={unicode_session}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response.status_code == 200
@@ -734,7 +747,8 @@ class TestSessionFilteringEdgeCases:
             # Very long session ID (1000 characters)
             long_session_id = "a" * 1000
             response = client.get(
-                f"/api/v1/traces?agent_session_id={long_session_id}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?agent_session_id={long_session_id}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response.status_code == 200

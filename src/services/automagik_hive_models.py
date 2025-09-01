@@ -101,7 +101,13 @@ class HeartbeatEvent(BaseHiveEvent):
 
 
 # Union type for all possible events
-HiveEvent = Union[RunStartedEvent, RunResponseContentEvent, RunCompletedEvent, ErrorEvent, HeartbeatEvent]
+HiveEvent = Union[
+    RunStartedEvent,
+    RunResponseContentEvent,
+    RunCompletedEvent,
+    ErrorEvent,
+    HeartbeatEvent,
+]
 
 
 class HiveRunRequest(BaseModel):

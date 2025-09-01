@@ -388,10 +388,14 @@ class TestAllTimeParameter:
             for invalid_value in invalid_values:
                 response = client.get(f"/api/v1/traces?all_time={invalid_value}", headers=auth_headers)
                 # FastAPI should handle boolean conversion or return validation error
-                assert response.status_code in [200, 422]  # 200 if converted, 422 if validation fails
+                assert response.status_code in [
+                    200,
+                    422,
+                ]  # 200 if converted, 422 if validation fails
 
                 response = client.get(
-                    f"/api/v1/traces/analytics/summary?all_time={invalid_value}", headers=auth_headers
+                    f"/api/v1/traces/analytics/summary?all_time={invalid_value}",
+                    headers=auth_headers,
                 )
                 assert response.status_code in [200, 422]
         finally:
@@ -467,7 +471,8 @@ class TestAllTimeParameter:
             end_date = utcnow().isoformat()
 
             response3 = client.get(
-                f"/api/v1/traces?start_date={quote(start_date)}&end_date={quote(end_date)}", headers=auth_headers
+                f"/api/v1/traces?start_date={quote(start_date)}&end_date={quote(end_date)}",
+                headers=auth_headers,
             )
             assert response3.status_code == 200
 

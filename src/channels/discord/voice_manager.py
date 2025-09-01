@@ -529,7 +529,10 @@ class DiscordVoiceManager:
             if not session:
                 return "❌ No voice session found. Use `!join` first."
 
-            if session.state not in [VoiceSessionState.CONNECTED, VoiceSessionState.STREAMING]:
+            if session.state not in [
+                VoiceSessionState.CONNECTED,
+                VoiceSessionState.STREAMING,
+            ]:
                 return "❌ Voice session not properly connected."
 
             result = session.start_recording()
@@ -635,7 +638,10 @@ class DiscordVoiceManager:
         return session
 
     async def on_voice_state_update(
-        self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState,
     ):
         """Handle voice state updates."""
         try:

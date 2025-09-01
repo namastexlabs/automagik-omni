@@ -118,7 +118,10 @@ class TestInstanceConfigProperties:
         """Test is_hive property."""
         # Hive instance
         hive_instance = InstanceConfig(
-            name="hive", agent_instance_type="hive", agent_api_url="https://hive.com", agent_api_key="key"
+            name="hive",
+            agent_instance_type="hive",
+            agent_api_url="https://hive.com",
+            agent_api_key="key",
         )
         test_db.add(hive_instance)
         test_db.commit()
@@ -252,7 +255,11 @@ class TestInstanceConfigMethods:
 
     def test_get_agent_config_with_defaults(self, test_db):
         """Test get_agent_config with default values."""
-        instance = InstanceConfig(name="defaults", agent_api_url="https://api.test.com", agent_api_key="test-key")
+        instance = InstanceConfig(
+            name="defaults",
+            agent_api_url="https://api.test.com",
+            agent_api_key="test-key",
+        )
         test_db.add(instance)
         test_db.commit()
 
@@ -295,7 +302,10 @@ class TestInstanceConfigMethods:
 
         # Incomplete hive config (missing agent_id)
         incomplete = InstanceConfig(
-            name="incomplete-hive", agent_instance_type="hive", agent_api_url="https://hive.com", agent_api_key="key"
+            name="incomplete-hive",
+            agent_instance_type="hive",
+            agent_api_url="https://hive.com",
+            agent_api_key="key",
         )
         test_db.add(incomplete)
         test_db.commit()
@@ -517,7 +527,11 @@ class TestUserModel:
         test_db.commit()
 
         # Create user with instance
-        user = User(phone_number="+9876543210", whatsapp_jid="9876543210@s.whatsapp.net", instance_name=instance.name)
+        user = User(
+            phone_number="+9876543210",
+            whatsapp_jid="9876543210@s.whatsapp.net",
+            instance_name=instance.name,
+        )
         test_db.add(user)
         test_db.commit()
 

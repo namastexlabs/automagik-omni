@@ -251,7 +251,7 @@ jobs:
           
       - name: 🧞 Generate PR Description with Claude
         id: genie
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           direct_prompt: |
             You are the Automagik Genie 🧞, architect of the multi-tenant omnichannel messaging hub. Generate a comprehensive PR description for this release.

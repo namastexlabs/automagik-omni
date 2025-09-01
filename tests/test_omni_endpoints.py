@@ -66,7 +66,12 @@ class TestOmniEndpointsAuthentication:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_contacts_endpoint_requires_auth(
-        self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mock_instance_config,
+        mock_handler,
     ):
         """Test that contacts endpoint requires authentication.
 
@@ -83,7 +88,12 @@ class TestOmniEndpointsAuthentication:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_chats_endpoint_requires_auth(
-        self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mock_instance_config,
+        mock_handler,
     ):
         """Test that chats endpoint requires authentication.
 
@@ -149,7 +159,12 @@ class TestOmniEndpointsAuthentication:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_contact_by_id_requires_auth(
-        self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mock_instance_config,
+        mock_handler,
     ):
         """Test that contact by ID endpoint requires authentication.
 
@@ -166,7 +181,12 @@ class TestOmniEndpointsAuthentication:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_chat_by_id_requires_auth(
-        self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mock_instance_config,
+        mock_handler,
     ):
         """Test that chat by ID endpoint requires authentication.
 
@@ -183,7 +203,12 @@ class TestOmniEndpointsAuthentication:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_invalid_api_key_returns_401(
-        self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mock_instance_config,
+        mock_handler,
     ):
         """Test that invalid API key returns 401.
 
@@ -202,7 +227,12 @@ class TestOmniEndpointsAuthentication:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_missing_authorization_header(
-        self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mock_instance_config,
+        mock_handler,
     ):
         """Test missing authorization header.
 
@@ -220,7 +250,12 @@ class TestOmniEndpointsAuthentication:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_malformed_authorization_header(
-        self, mock_get_instance, mock_get_handler, test_client, mock_instance_config, mock_handler
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mock_instance_config,
+        mock_handler,
     ):
         """Test malformed authorization header.
 
@@ -316,13 +351,22 @@ class TestOmniContactsEndpoint:
 
         # Verify handler was called correctly
         mock_whatsapp_handler.get_contacts.assert_called_once_with(
-            instance=mock_instance_config, page=1, page_size=50, search_query=None, status_filter=None
+            instance=mock_instance_config,
+            page=1,
+            page_size=50,
+            search_query=None,
+            status_filter=None,
         )
 
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_omni_contacts_pagination_validation(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test pagination validation for contacts endpoint."""
         mock_get_instance.return_value = mock_instance_config
@@ -334,7 +378,8 @@ class TestOmniContactsEndpoint:
 
         # Test valid pagination
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts?page=2&page_size=25", headers=mention_api_headers
+            "/api/v1/instances/test-instance/contacts?page=2&page_size=25",
+            headers=mention_api_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -343,14 +388,20 @@ class TestOmniContactsEndpoint:
 
         # Test page size limits
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts?page_size=600", headers=mention_api_headers
+            "/api/v1/instances/test-instance/contacts?page_size=600",
+            headers=mention_api_headers,
         )
         assert response.status_code == 422  # Should reject oversized page_size
 
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_omni_contacts_search_functionality(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test search functionality for contacts endpoint."""
         mock_get_instance.return_value = mock_instance_config
@@ -372,7 +423,8 @@ class TestOmniContactsEndpoint:
         mock_get_handler.return_value = handler
 
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts?search_query=Search", headers=mention_api_headers
+            "/api/v1/instances/test-instance/contacts?search_query=Search",
+            headers=mention_api_headers,
         )
 
         assert response.status_code == 200
@@ -382,13 +434,22 @@ class TestOmniContactsEndpoint:
 
         # Verify handler was called with search query
         handler.get_contacts.assert_called_once_with(
-            instance=mock_instance_config, page=1, page_size=50, search_query="Search", status_filter=None
+            instance=mock_instance_config,
+            page=1,
+            page_size=50,
+            search_query="Search",
+            status_filter=None,
         )
 
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_omni_contacts_empty_response(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test contacts endpoint with empty response."""
         mock_get_instance.return_value = mock_instance_config
@@ -421,7 +482,12 @@ class TestOmniContactsEndpoint:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_omni_contacts_handler_error(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test contacts endpoint when handler throws error."""
         mock_get_instance.return_value = mock_instance_config
@@ -515,7 +581,11 @@ class TestOmniChatsEndpoint:
 
         # Verify handler was called correctly
         mock_discord_handler.get_chats.assert_called_once_with(
-            instance=mock_instance_config, page=1, page_size=50, chat_type_filter=None, archived=None
+            instance=mock_instance_config,
+            page=1,
+            page_size=50,
+            chat_type_filter=None,
+            archived=None,
         )
 
     @patch("src.api.routes.omni.get_omni_handler")
@@ -681,7 +751,10 @@ class TestOmniContactByIdEndpoint:
         mock_get_handler.return_value = mock_handler_with_contact
 
         start_time = time.time()
-        response = test_client.get("/api/v1/instances/test-instance/contacts/contact-123", headers=mention_api_headers)
+        response = test_client.get(
+            "/api/v1/instances/test-instance/contacts/contact-123",
+            headers=mention_api_headers,
+        )
         response_time = (time.time() - start_time) * 1000
 
         # Performance requirement: sub-500ms
@@ -701,7 +774,12 @@ class TestOmniContactByIdEndpoint:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_contact_not_found(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test contact not found scenario."""
         mock_get_instance.return_value = mock_instance_config
@@ -711,7 +789,10 @@ class TestOmniContactByIdEndpoint:
         handler.get_contact_by_id.return_value = None
         mock_get_handler.return_value = handler
 
-        response = test_client.get("/api/v1/instances/test-instance/contacts/nonexistent", headers=mention_api_headers)
+        response = test_client.get(
+            "/api/v1/instances/test-instance/contacts/nonexistent",
+            headers=mention_api_headers,
+        )
 
         assert response.status_code == 404
         data = response.json()
@@ -779,7 +860,12 @@ class TestOmniChatByIdEndpoint:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_chat_not_found(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test chat not found scenario."""
         mock_get_instance.return_value = mock_instance_config
@@ -789,7 +875,10 @@ class TestOmniChatByIdEndpoint:
         handler.get_chat_by_id.return_value = None
         mock_get_handler.return_value = handler
 
-        response = test_client.get("/api/v1/instances/test-discord/chats/nonexistent", headers=mention_api_headers)
+        response = test_client.get(
+            "/api/v1/instances/test-discord/chats/nonexistent",
+            headers=mention_api_headers,
+        )
 
         assert response.status_code == 404
         data = response.json()
@@ -819,7 +908,8 @@ class TestOmniChatByIdEndpoint:
         mock_get_handler.return_value = whatsapp_handler
 
         response = test_client.get(
-            "/api/v1/instances/whatsapp-test/chats/5511999999999@c.us", headers=mention_api_headers
+            "/api/v1/instances/whatsapp-test/chats/5511999999999@c.us",
+            headers=mention_api_headers,
         )
 
         assert response.status_code == 200
@@ -874,7 +964,12 @@ class TestOmniEndpointsErrorHandling:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_omni_handler_exceptions_handled_gracefully(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test that handler exceptions are handled gracefully."""
         mock_get_instance.return_value = mock_instance_config
@@ -919,7 +1014,12 @@ class TestOmniEndpointsDataValidation:
     @patch("src.api.routes.omni.get_omni_handler")
     @patch("src.api.routes.omni.get_instance_by_name")
     def test_omni_response_schema_validation(
-        self, mock_get_instance, mock_get_handler, test_client, mention_api_headers, mock_instance_config
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
     ):
         """Test that all responses conform to the omni schema."""
         mock_get_instance.return_value = mock_instance_config

@@ -62,7 +62,12 @@ def start_bot(instance_name: str = typer.Argument(..., help="Name of the Discord
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        track_command("discord_start", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "discord_start",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise typer.Exit(1)
 
 
@@ -79,7 +84,10 @@ def stop_bot(instance_name: str = typer.Argument(..., help="Name of the Discord 
         if success:
             console.print(f"[green]✅ Discord bot '{instance_name}' stopped successfully[/green]")
             track_command(
-                "discord_stop", success=True, instance_name=instance_name, duration_ms=(time.time() - start_time) * 1000
+                "discord_stop",
+                success=True,
+                instance_name=instance_name,
+                duration_ms=(time.time() - start_time) * 1000,
             )
         else:
             console.print(f"[red]❌ Failed to stop Discord bot '{instance_name}' (may not be running)[/red]")
@@ -93,7 +101,12 @@ def stop_bot(instance_name: str = typer.Argument(..., help="Name of the Discord 
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        track_command("discord_stop", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "discord_stop",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise typer.Exit(1)
 
 
@@ -140,7 +153,12 @@ def restart_bot(instance_name: str = typer.Argument(..., help="Name of the Disco
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        track_command("discord_restart", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "discord_restart",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise typer.Exit(1)
 
 
@@ -180,11 +198,20 @@ def status_bot(
             else:
                 console.print("\n[dim]No Discord bots currently running[/dim]")
 
-        track_command("discord_status", success=True, duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "discord_status",
+            success=True,
+            duration_ms=(time.time() - start_time) * 1000,
+        )
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        track_command("discord_status", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "discord_status",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise typer.Exit(1)
 
 
@@ -199,7 +226,12 @@ def list_instances():
         instances = discord_service.list_available_instances()
         if not instances:
             console.print("[yellow]No Discord instances found in database[/yellow]")
-            track_command("discord_list", success=True, instance_count=0, duration_ms=(time.time() - start_time) * 1000)
+            track_command(
+                "discord_list",
+                success=True,
+                instance_count=0,
+                duration_ms=(time.time() - start_time) * 1000,
+            )
             return
 
         table = Table(title="Available Discord Instances")
@@ -225,12 +257,20 @@ def list_instances():
 
         console.print(table)
         track_command(
-            "discord_list", success=True, instance_count=len(instances), duration_ms=(time.time() - start_time) * 1000
+            "discord_list",
+            success=True,
+            instance_count=len(instances),
+            duration_ms=(time.time() - start_time) * 1000,
         )
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        track_command("discord_list", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "discord_list",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise typer.Exit(1)
 
 
@@ -256,9 +296,12 @@ def _display_bot_status(instance_name: str, bot_status: dict, compact: bool = Fa
     """Display bot status information."""
     if compact:
         # Compact display for list view
-        status_emoji = {"connected": "🟢", "starting": "🟡", "disconnected": "🔴", "error": "❌"}.get(
-            bot_status.get("status", "unknown"), "⚫"
-        )
+        status_emoji = {
+            "connected": "🟢",
+            "starting": "🟡",
+            "disconnected": "🔴",
+            "error": "❌",
+        }.get(bot_status.get("status", "unknown"), "⚫")
 
         console.print(
             f"{status_emoji} {instance_name} - {bot_status.get('guild_count', 0)} guilds, {bot_status.get('user_count', 0)} users"
@@ -273,9 +316,12 @@ def _display_bot_status(instance_name: str, bot_status: dict, compact: bool = Fa
 
     # Status with color coding
     status = bot_status.get("status", "unknown")
-    status_style = {"connected": "green", "starting": "yellow", "disconnected": "red", "error": "red bold"}.get(
-        status, "dim"
-    )
+    status_style = {
+        "connected": "green",
+        "starting": "yellow",
+        "disconnected": "red",
+        "error": "red bold",
+    }.get(status, "dim")
 
     status_text.append(f"Status: {status.title()}\n", style=status_style)
 
@@ -291,17 +337,29 @@ def _display_bot_status(instance_name: str, bot_status: dict, compact: bool = Fa
         if isinstance(started_at, str):
             status_text.append(f"Started: {started_at}\n", style="dim")
         else:
-            status_text.append(f"Started: {started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}\n", style="dim")
+            status_text.append(
+                f"Started: {started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}\n",
+                style="dim",
+            )
 
     if bot_status.get("last_heartbeat"):
         heartbeat = bot_status["last_heartbeat"]
         if isinstance(heartbeat, str):
             status_text.append(f"Last Heartbeat: {heartbeat}\n", style="dim")
         else:
-            status_text.append(f"Last Heartbeat: {heartbeat.strftime('%Y-%m-%d %H:%M:%S UTC')}\n", style="dim")
+            status_text.append(
+                f"Last Heartbeat: {heartbeat.strftime('%Y-%m-%d %H:%M:%S UTC')}\n",
+                style="dim",
+            )
 
     # Error message if any
     if bot_status.get("error_message"):
         status_text.append(f"Error: {bot_status['error_message']}\n", style="red")
 
-    console.print(Panel(status_text, title=f"Discord Bot Status: {instance_name}", border_style="blue"))
+    console.print(
+        Panel(
+            status_text,
+            title=f"Discord Bot Status: {instance_name}",
+            border_style="blue",
+        )
+    )
