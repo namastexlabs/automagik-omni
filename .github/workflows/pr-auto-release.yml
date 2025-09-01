@@ -121,20 +121,34 @@ jobs:
           
       - name: 📝 Update Version in pyproject.toml
         run: |
-          echo "📝 Updating version from ${{ needs.check-conditions.outputs.current_version }} to ${{ needs.check-conditions.outputs.new_version }}"
+          echo "📝 Checking version status..."
+          
+          # Get current version from file
+          CURRENT_FILE_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Current version in file: $CURRENT_FILE_VERSION"
+          echo "Target version: ${{ needs.check-conditions.outputs.new_version }}"
+          
+          # Check if version already matches target
+          if [[ "$CURRENT_FILE_VERSION" == "${{ needs.check-conditions.outputs.new_version }}" ]]; then
+            echo "✅ Version already set to ${{ needs.check-conditions.outputs.new_version }}, skipping bump"
+            exit 0
+          fi
+          
+          # Check if version is ahead of target (multiple bumps issue)
+          if [[ "$CURRENT_FILE_VERSION" > "${{ needs.check-conditions.outputs.new_version }}" ]]; then
+            echo "⚠️ Current version ($CURRENT_FILE_VERSION) is ahead of target (${{ needs.check-conditions.outputs.new_version }})"
+            echo "⚠️ This might indicate multiple workflow triggers. Skipping bump."
+            exit 0
+          fi
+          
+          echo "📝 Updating version from $CURRENT_FILE_VERSION to ${{ needs.check-conditions.outputs.new_version }}"
           
           # Update pyproject.toml
           sed -i 's/^version = .*/version = "${{ needs.check-conditions.outputs.new_version }}"/' pyproject.toml
           
-          # Check if Makefile has version update target
-          if make -n version 2>/dev/null; then
-            echo "Using Makefile version target"
-            make version VERSION=${{ needs.check-conditions.outputs.new_version }}
-          fi
-          
           # Commit changes if any
           if git diff --exit-code; then
-            echo "✅ Version already up to date"
+            echo "✅ No changes needed"
           else
             git add pyproject.toml
             git commit -m "chore: bump version to ${{ needs.check-conditions.outputs.new_version }} [skip ci]
