@@ -1,0 +1,77 @@
+#!/bin/bash
+# Pre-commit hook to run code quality checks
+
+echo "🔍 Running pre-commit checks..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if we have Python files to check
+if git diff --cached --name-only | grep -q '\.py$'; then
+    echo "📝 Checking Python files..."
+    
+    # Run ruff check (linting)
+    echo "  Running ruff check..."
+    if ! make lint 2>/dev/null; then
+        echo -e "${RED}❌ Linting issues found!${NC}"
+        echo -e "${YELLOW}Run 'make lint-fix' to auto-fix issues${NC}"
+        exit 1
+    fi
+    
+    # Check if formatting is needed
+    echo "  Checking code formatting..."
+    # Use ruff format --check if available, otherwise skip
+    if command -v uv &> /dev/null; then
+        if ! uv run ruff format --check src/ tests/ 2>/dev/null; then
+            echo -e "${RED}❌ Formatting issues found!${NC}"
+            echo -e "${YELLOW}Run 'make format' to fix formatting${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Run type checking if available
+    if command -v mypy &> /dev/null; then
+        echo "  Running type check..."
+        if ! make typecheck 2>/dev/null; then
+            echo -e "${YELLOW}⚠️  Type checking issues found (non-blocking)${NC}"
+            # Don't block commit for type issues, just warn
+        fi
+    fi
+fi
+
+# Check for sensitive data patterns
+echo "🔐 Checking for sensitive data..."
+SENSITIVE_PATTERNS=(
+    "sk-[a-zA-Z0-9]{48}"  # Anthropic API keys
+    "ANTHROPIC_API_KEY"
+    "password\s*=\s*[\"'][^\"']+[\"']"
+    "secret\s*=\s*[\"'][^\"']+[\"']"
+    "token\s*=\s*[\"'][^\"']+[\"']"
+)
+
+for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+    if git diff --cached --name-only -z | xargs -0 grep -E "$pattern" 2>/dev/null; then
+        echo -e "${RED}❌ Possible sensitive data detected!${NC}"
+        echo -e "${YELLOW}Please review your changes for API keys or secrets${NC}"
+        exit 1
+    fi
+done
+
+# Check for large files
+echo "📦 Checking file sizes..."
+MAX_SIZE=5242880  # 5MB in bytes
+for file in $(git diff --cached --name-only); do
+    if [ -f "$file" ]; then
+        size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+        if [ "$size" -gt "$MAX_SIZE" ]; then
+            echo -e "${RED}❌ File $file is larger than 5MB${NC}"
+            exit 1
+        fi
+    fi
+done
+
+echo -e "${GREEN}✅ All pre-commit checks passed!${NC}"
+exit 0

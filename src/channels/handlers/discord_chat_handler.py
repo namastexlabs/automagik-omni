@@ -167,13 +167,23 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         # Map Discord channel types to our unified types
                         discord_type_value = channel_type.value if hasattr(channel_type, "value") else int(channel_type)
 
-                        if chat_type_filter == "direct" and discord_type_value in [0, 1]:  # DM channels
+                        if chat_type_filter == "direct" and discord_type_value in [
+                            0,
+                            1,
+                        ]:  # DM channels
                             filtered_channels.append(channel)
                         elif chat_type_filter == "group" and discord_type_value == 2:  # Group DM
                             filtered_channels.append(channel)
-                        elif chat_type_filter == "channel" and discord_type_value in [4, 5]:  # Guild channels
+                        elif chat_type_filter == "channel" and discord_type_value in [
+                            4,
+                            5,
+                        ]:  # Guild channels
                             filtered_channels.append(channel)
-                        elif chat_type_filter == "thread" and discord_type_value in [10, 11, 12]:  # Thread channels
+                        elif chat_type_filter == "thread" and discord_type_value in [
+                            10,
+                            11,
+                            12,
+                        ]:  # Thread channels
                             filtered_channels.append(channel)
                 all_channels = filtered_channels
 
@@ -194,9 +204,11 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                     channel_data = {
                         "id": getattr(channel, "id", ""),
                         "name": getattr(channel, "name", "") or f"Channel-{getattr(channel, 'id', '')}",
-                        "type": getattr(channel, "type", 0).value
-                        if hasattr(getattr(channel, "type", 0), "value")
-                        else int(getattr(channel, "type", 0)),
+                        "type": (
+                            getattr(channel, "type", 0).value
+                            if hasattr(getattr(channel, "type", 0), "value")
+                            else int(getattr(channel, "type", 0))
+                        ),
                         "guild_id": getattr(channel, "guild_id", None)
                         or (
                             getattr(channel, "guild", {}).id if hasattr(getattr(channel, "guild", None), "id") else None
@@ -206,7 +218,7 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         "position": getattr(channel, "position", None),
                         "nsfw": getattr(channel, "nsfw", False),
                         "rate_limit_per_user": getattr(channel, "slowmode_delay", None),
-                        "member_count": len(getattr(channel, "members", [])) if hasattr(channel, "members") else None,
+                        "member_count": (len(getattr(channel, "members", [])) if hasattr(channel, "members") else None),
                         "permission_overwrites": [],  # We could add this if needed
                     }
 
@@ -272,7 +284,10 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                 )
 
             # Use instance config data
-            instance_config = {"display_name": f"Discord - {instance.name}", "instance_name": instance.name}
+            instance_config = {
+                "display_name": f"Discord - {instance.name}",
+                "instance_name": instance.name,
+            }
 
             omni_channel_info = DiscordTransformer.channel_to_omni(instance.name, status_data, instance_config)
 
@@ -375,9 +390,11 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                     channel_data = {
                         "id": getattr(channel, "id", ""),
                         "name": getattr(channel, "name", "") or f"Channel-{getattr(channel, 'id', '')}",
-                        "type": getattr(channel, "type", 0).value
-                        if hasattr(getattr(channel, "type", 0), "value")
-                        else int(getattr(channel, "type", 0)),
+                        "type": (
+                            getattr(channel, "type", 0).value
+                            if hasattr(getattr(channel, "type", 0), "value")
+                            else int(getattr(channel, "type", 0))
+                        ),
                         "guild_id": getattr(channel, "guild_id", None)
                         or (
                             getattr(channel, "guild", {}).id if hasattr(getattr(channel, "guild", None), "id") else None
@@ -387,7 +404,7 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         "position": getattr(channel, "position", None),
                         "nsfw": getattr(channel, "nsfw", False),
                         "rate_limit_per_user": getattr(channel, "slowmode_delay", None),
-                        "member_count": len(getattr(channel, "members", [])) if hasattr(channel, "members") else None,
+                        "member_count": (len(getattr(channel, "members", [])) if hasattr(channel, "members") else None),
                         "permission_overwrites": [],
                     }
 

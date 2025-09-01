@@ -107,7 +107,8 @@ async def list_traces(
     start_date: Optional[datetime] = Query(None, description="Start date filter (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date filter (ISO format)"),
     all_time: bool = Query(
-        False, description="If true, fetch all data without date filters (overrides start_date/end_date)"
+        False,
+        description="If true, fetch all data without date filters (overrides start_date/end_date)",
     ),
     limit: int = Query(50, ge=1, le=1000, description="Maximum number of traces to return"),
     offset: int = Query(0, ge=0, description="Number of traces to skip"),
@@ -236,7 +237,8 @@ async def get_trace_analytics(
     start_date: Optional[datetime] = Query(None, description="Start date for analytics (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date for analytics (ISO format)"),
     all_time: bool = Query(
-        False, description="If true, fetch all data without date filters (overrides start_date/end_date)"
+        False,
+        description="If true, fetch all data without date filters (overrides start_date/end_date)",
     ),
     instance_name: Optional[str] = Query(None, description="Filter by instance name"),
     db: Session = Depends(get_database),

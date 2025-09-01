@@ -59,10 +59,16 @@ class TestEvolutionApiSenderMentions:
 
         text = "Team meeting at 3pm"
         recipient = "5511777777777"
-        mentioned_jids = ["5511999999999@s.whatsapp.net", "5511888888888@s.whatsapp.net"]
+        mentioned_jids = [
+            "5511999999999@s.whatsapp.net",
+            "5511888888888@s.whatsapp.net",
+        ]
 
         result = sender.send_text_message(
-            recipient=recipient, text=text, mentioned=mentioned_jids, auto_parse_mentions=False
+            recipient=recipient,
+            text=text,
+            mentioned=mentioned_jids,
+            auto_parse_mentions=False,
         )
 
         assert result is True
@@ -155,7 +161,10 @@ class TestEvolutionApiSenderMentions:
         mentioned_jids = ["5511999999999@s.whatsapp.net"]
 
         result = sender.send_text_message(
-            recipient=recipient, text=text, mentioned=mentioned_jids, mentions_everyone=True
+            recipient=recipient,
+            text=text,
+            mentioned=mentioned_jids,
+            mentions_everyone=True,
         )
 
         assert result is True
@@ -178,7 +187,9 @@ class TestEvolutionApiSenderMentions:
         sender.server_url = None
 
         result = sender.send_text_message(
-            recipient="5511777777777", text="Test message", mentioned=["5511999999999@s.whatsapp.net"]
+            recipient="5511777777777",
+            text="Test message",
+            mentioned=["5511999999999@s.whatsapp.net"],
         )
 
         assert result is False
@@ -191,7 +202,9 @@ class TestEvolutionApiSenderMentions:
         mock_post.side_effect = requests.RequestException("Network error")
 
         result = sender.send_text_message(
-            recipient="5511777777777", text="Test @5511999999999", auto_parse_mentions=True
+            recipient="5511777777777",
+            text="Test @5511999999999",
+            auto_parse_mentions=True,
         )
 
         assert result is False
@@ -205,7 +218,9 @@ class TestEvolutionApiSenderMentions:
         mock_post.return_value = mock_resp
 
         result = sender.send_text_message(
-            recipient="5511777777777", text="Test message", mentioned=["5511999999999@s.whatsapp.net"]
+            recipient="5511777777777",
+            text="Test message",
+            mentioned=["5511999999999@s.whatsapp.net"],
         )
 
         # Should return True despite 400 error (known issue handling)
@@ -215,7 +230,10 @@ class TestEvolutionApiSenderMentions:
     def test_mention_parsing_integration(self, mock_parser, sender):
         """Test integration with mention parser."""
         # Mock the parser to return expected results
-        mock_parser.extract_mentions.return_value = ("Hello @5511999999999!", ["5511999999999@s.whatsapp.net"])
+        mock_parser.extract_mentions.return_value = (
+            "Hello @5511999999999!",
+            ["5511999999999@s.whatsapp.net"],
+        )
 
         with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
             mock_resp = Mock()
@@ -223,7 +241,9 @@ class TestEvolutionApiSenderMentions:
             mock_post.return_value = mock_resp
 
             result = sender.send_text_message(
-                recipient="5511777777777", text="Hello @5511999999999!", auto_parse_mentions=True
+                recipient="5511777777777",
+                text="Hello @5511999999999!",
+                auto_parse_mentions=True,
             )
 
             assert result is True
@@ -236,12 +256,24 @@ class TestEvolutionApiSenderMentions:
             ("Hello @5511999999999", None, False, 1),  # Auto-parsed
             ("Meeting", ["5511999999999@s.whatsapp.net"], False, 1),  # Explicit
             ("Announcement", None, True, 0),  # Everyone, no individual mentions
-            ("Complex @5511111111111 @5511222222222", None, False, 2),  # Multiple auto-parsed
+            (
+                "Complex @5511111111111 @5511222222222",
+                None,
+                False,
+                2,
+            ),  # Multiple auto-parsed
         ],
     )
     @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
     def test_mention_combinations(
-        self, mock_post, sender, mock_response, text, mentions, mentions_everyone, expected_mention_count
+        self,
+        mock_post,
+        sender,
+        mock_response,
+        text,
+        mentions,
+        mentions_everyone,
+        expected_mention_count,
     ):
         """Test various mention combinations."""
         mock_post.return_value = mock_response

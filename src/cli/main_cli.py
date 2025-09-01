@@ -60,7 +60,12 @@ def start_api(
         )
 
     except Exception as e:
-        track_command("api_start", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "api_start",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise
 
 
@@ -90,10 +95,19 @@ def health_check():
         typer.echo(f"Telemetry: {'✅ Enabled' if telemetry_client.is_enabled() else '❌ Disabled'}")
 
         success = "Error" not in db_status and "Invalid" not in config_status
-        track_command("health_check", success=success, duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "health_check",
+            success=success,
+            duration_ms=(time.time() - start_time) * 1000,
+        )
 
     except Exception as e:
-        track_command("health_check", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "health_check",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise
 
 
@@ -123,16 +137,31 @@ def init_project():
             typer.echo("   automagik-omni instance add <name> [options]")
 
             # Track first run
-            track_command("init_project", success=True, first_run=True, duration_ms=(time.time() - start_time) * 1000)
+            track_command(
+                "init_project",
+                success=True,
+                first_run=True,
+                duration_ms=(time.time() - start_time) * 1000,
+            )
             telemetry_client.track_installation("manual", first_run=True)
         else:
             typer.echo(f"📊 Found {instance_count} existing instances")
-            track_command("init_project", success=True, first_run=False, duration_ms=(time.time() - start_time) * 1000)
+            track_command(
+                "init_project",
+                success=True,
+                first_run=False,
+                duration_ms=(time.time() - start_time) * 1000,
+            )
 
         typer.echo("✅ Automagik Omni project initialized successfully!")
 
     except Exception as e:
-        track_command("init_project", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "init_project",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise
 
 
@@ -166,11 +195,19 @@ def show_status():
             typer.echo(f"  {status} {instance.name} ({instance.whatsapp_instance})")
 
         track_command(
-            "show_status", success=True, instance_count=len(instances), duration_ms=(time.time() - start_time) * 1000
+            "show_status",
+            success=True,
+            instance_count=len(instances),
+            duration_ms=(time.time() - start_time) * 1000,
         )
 
     except Exception as e:
-        track_command("show_status", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "show_status",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise
 
 

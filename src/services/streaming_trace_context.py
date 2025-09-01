@@ -185,7 +185,9 @@ class StreamingTraceContext(TraceContext):
         }
 
         super().log_agent_response(
-            agent_response=agent_response, processing_time_ms=total_streaming_time_ms, status_code=200
+            agent_response=agent_response,
+            processing_time_ms=total_streaming_time_ms,
+            status_code=200,
         )
 
         # Update final trace status with streaming metrics
@@ -210,9 +212,9 @@ class StreamingTraceContext(TraceContext):
             "error_type": type(error).__name__,
             "error_stage": error_stage,
             "timestamp": utcnow().isoformat(),
-            "partial_content": self.streaming_metrics.accumulated_content[:200]
-            if self.streaming_metrics.accumulated_content
-            else None,
+            "partial_content": (
+                self.streaming_metrics.accumulated_content[:200] if self.streaming_metrics.accumulated_content else None
+            ),
             "chunks_received": self.streaming_metrics.total_chunks,
         }
 
@@ -220,7 +222,10 @@ class StreamingTraceContext(TraceContext):
 
         # Update trace status to error
         self.update_trace_status(
-            status="error", error_message=str(error), error_stage=error_stage, agent_response_success=False
+            status="error",
+            error_message=str(error),
+            error_stage=error_stage,
+            agent_response_success=False,
         )
 
         logger.error(f"Streaming error in {error_stage}: {error}")
@@ -283,7 +288,10 @@ def create_streaming_trace_context(
             "key": {"id": whatsapp_message_id, "remoteJid": sender_jid},
             "message": {
                 "conversation": kwargs.get("message_text", ""),
-                "messageContextInfo": {"deviceListMetadata": {}, "deviceListMetadataVersion": 2},
+                "messageContextInfo": {
+                    "deviceListMetadata": {},
+                    "deviceListMetadataVersion": 2,
+                },
             },
             "messageTimestamp": int(time.time()),
             "pushName": sender_name,

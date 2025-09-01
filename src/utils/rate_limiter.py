@@ -81,7 +81,9 @@ class RateLimiter:
         # Get or create window for identifier
         if identifier not in self.windows:
             self.windows[identifier] = RateLimitWindow(
-                max_requests=self.max_requests, time_window=self.time_window, last_cleanup=current_time
+                max_requests=self.max_requests,
+                time_window=self.time_window,
+                last_cleanup=current_time,
             )
 
         window = self.windows[identifier]

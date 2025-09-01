@@ -66,7 +66,11 @@ class DiscordPermissions(IntFlag):
 
 # Predefined permission sets
 PERMISSION_PRESETS = {
-    "minimal": [DiscordPermissions.VIEW_CHANNEL, DiscordPermissions.SEND_MESSAGES, DiscordPermissions.EMBED_LINKS],
+    "minimal": [
+        DiscordPermissions.VIEW_CHANNEL,
+        DiscordPermissions.SEND_MESSAGES,
+        DiscordPermissions.EMBED_LINKS,
+    ],
     "basic_bot": [
         DiscordPermissions.VIEW_CHANNEL,
         DiscordPermissions.SEND_MESSAGES,
@@ -226,7 +230,11 @@ class InviteURLGenerator:
             perm_int = permissions
 
         # Build URL parameters
-        params = {"client_id": client_id, "permissions": str(perm_int), "scope": "%20".join(scopes)}
+        params = {
+            "client_id": client_id,
+            "permissions": str(perm_int),
+            "scope": "%20".join(scopes),
+        }
 
         if guild_id:
             params["guild_id"] = guild_id
@@ -495,7 +503,11 @@ class FormatConverter:
         Returns:
             Formatted mention string
         """
-        mention_formats = {"user": f"<@{id_value}>", "channel": f"<#{id_value}>", "role": f"<@&{id_value}>"}
+        mention_formats = {
+            "user": f"<@{id_value}>",
+            "channel": f"<#{id_value}>",
+            "role": f"<@&{id_value}>",
+        }
 
         return mention_formats.get(mention_type, f"@{id_value}")
 
@@ -551,7 +563,11 @@ def create_info_embed(title: str, description: str, fields: Optional[List[Dict[s
 
     if fields:
         for field in fields:
-            builder.add_field(field.get("name", "Field"), field.get("value", "Value"), field.get("inline", False))
+            builder.add_field(
+                field.get("name", "Field"),
+                field.get("value", "Value"),
+                field.get("inline", False),
+            )
 
     return builder.build()
 

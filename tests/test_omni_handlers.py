@@ -13,7 +13,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
 from src.channels.handlers.whatsapp_chat_handler import WhatsAppChatHandler
 from src.channels.handlers.discord_chat_handler import DiscordChatHandler
-from src.api.schemas.omni import ChannelType, OmniContactStatus, OmniChatType, OmniContact, OmniChat, OmniChannelInfo
+from src.api.schemas.omni import (
+    ChannelType,
+    OmniContactStatus,
+    OmniChatType,
+    OmniContact,
+    OmniChat,
+    OmniChannelInfo,
+)
 from src.db.models import InstanceConfig
 
 
@@ -183,7 +190,10 @@ class TestWhatsAppChatHandler:
         mock_status_response.status = "connected"
         mock_status_response.instance_name = "test-whatsapp"
         mock_status_response.channel_type = "whatsapp"
-        mock_status_response.channel_data = {"phoneNumber": "5511999999999", "profileName": "Test Profile"}
+        mock_status_response.channel_data = {
+            "phoneNumber": "5511999999999",
+            "profileName": "Test Profile",
+        }
         mock_get_status.return_value = mock_status_response
 
         channel_info = await handler.get_channel_info(mock_instance_config)
@@ -315,7 +325,10 @@ class TestDiscordChatHandler:
         config = MagicMock(spec=InstanceConfig)
         config.name = "test-discord"
         config.channel_type = "discord"
-        config.config = {"discord_token": "test-discord-token-123", "discord_guild_id": "123456789012345678"}
+        config.config = {
+            "discord_token": "test-discord-token-123",
+            "discord_guild_id": "123456789012345678",
+        }
         return config
 
     @pytest.fixture
@@ -563,7 +576,10 @@ class TestOmniHandlerIntegration:
         config = MagicMock(spec=InstanceConfig)
         config.name = "whatsapp-integration"
         config.channel_type = "whatsapp"
-        config.config = {"evolution_api_url": "https://api.test.com", "evolution_api_key": "test-key"}
+        config.config = {
+            "evolution_api_url": "https://api.test.com",
+            "evolution_api_key": "test-key",
+        }
 
         with patch(
             "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
@@ -592,7 +608,15 @@ class TestOmniHandlerIntegration:
             contact_dict = contact.model_dump()
 
             # Should contain all required omni fields
-            required_fields = ["id", "name", "channel_type", "instance_name", "status", "created_at", "last_seen"]
+            required_fields = [
+                "id",
+                "name",
+                "channel_type",
+                "instance_name",
+                "status",
+                "created_at",
+                "last_seen",
+            ]
 
             for field in required_fields:
                 assert field in contact_dict
@@ -643,7 +667,13 @@ class TestOmniHandlerIntegration:
         discord_methods = set(dir(discord_handler))
 
         # Core methods should be present in both
-        core_methods = {"get_contacts", "get_chats", "get_channel_info", "get_contact_by_id", "get_chat_by_id"}
+        core_methods = {
+            "get_contacts",
+            "get_chats",
+            "get_channel_info",
+            "get_contact_by_id",
+            "get_chat_by_id",
+        }
 
         assert core_methods.issubset(whatsapp_methods)
         assert core_methods.issubset(discord_methods)

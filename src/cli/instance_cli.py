@@ -36,7 +36,10 @@ def list_instances():
             if not instances:
                 console.print("[yellow]No instances found[/yellow]")
                 track_command(
-                    "instance_list", success=True, instance_count=0, duration_ms=(time.time() - start_time) * 1000
+                    "instance_list",
+                    success=True,
+                    instance_count=0,
+                    duration_ms=(time.time() - start_time) * 1000,
                 )
                 return
 
@@ -66,7 +69,11 @@ def list_instances():
         finally:
             db.close()
     except Exception:
-        track_command("instance_list", success=False, duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "instance_list",
+            success=False,
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise
 
 
@@ -161,14 +168,22 @@ def add_instance(
                 console.print(f"[green]Instance '{name}' set as default[/green]")
 
             track_command(
-                "instance_add", success=True, is_default=make_default, duration_ms=(time.time() - start_time) * 1000
+                "instance_add",
+                success=True,
+                is_default=make_default,
+                duration_ms=(time.time() - start_time) * 1000,
             )
         finally:
             db.close()
     except typer.Exit:
         raise
     except Exception as e:
-        track_command("instance_add", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "instance_add",
+            success=False,
+            error=str(e),
+            duration_ms=(time.time() - start_time) * 1000,
+        )
         raise
 
 

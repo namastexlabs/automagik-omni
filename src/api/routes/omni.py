@@ -31,6 +31,7 @@ ChannelHandlerFactory.register_handler("whatsapp", WhatsAppChatHandler)
 # Register Discord handler if available
 try:
     from src.channels.handlers.discord_chat_handler import DiscordChatHandler
+
     ChannelHandlerFactory.register_handler("discord", DiscordChatHandler)
     logger.info("Discord chat handler registered")
 except ImportError as e:
@@ -100,7 +101,11 @@ async def get_omni_contacts(
 
         # Fetch contacts
         contacts, total_count = await handler.get_contacts(
-            instance=instance, page=page, page_size=page_size, search_query=search_query, status_filter=status_filter
+            instance=instance,
+            page=page,
+            page_size=page_size,
+            search_query=search_query,
+            status_filter=status_filter,
         )
 
         # Calculate pagination info
@@ -127,7 +132,8 @@ async def get_omni_contacts(
     except Exception as e:
         logger.error(f"Failed to fetch omni contacts for instance '{instance_name}': {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch contacts: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch contacts: {str(e)}",
         )
 
 
@@ -179,7 +185,11 @@ async def get_omni_chats(
 
         # Fetch chats
         chats, total_count = await handler.get_chats(
-            instance=instance, page=page, page_size=page_size, chat_type_filter=chat_type_filter, archived=archived
+            instance=instance,
+            page=page,
+            page_size=page_size,
+            chat_type_filter=chat_type_filter,
+            archived=archived,
         )
 
         # Calculate pagination info
@@ -204,7 +214,8 @@ async def get_omni_chats(
     except Exception as e:
         logger.error(f"Failed to fetch omni chats for instance '{instance_name}': {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch chats: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch chats: {str(e)}",
         )
 
 
@@ -259,19 +270,26 @@ async def get_omni_channels(
         logger.info(f"Successfully fetched {len(channels)} channels ({healthy_count} healthy)")
 
         return OmniChannelsResponse(
-            channels=channels, total_count=len(channels), healthy_count=healthy_count, partial_errors=partial_errors
+            channels=channels,
+            total_count=len(channels),
+            healthy_count=healthy_count,
+            partial_errors=partial_errors,
         )
 
     except Exception as e:
         logger.error(f"Failed to fetch omni channels: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch channels: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch channels: {str(e)}",
         )
 
 
 @router.get("/{instance_name}/contacts/{contact_id}", response_model=OmniContact)
 async def get_omni_contact_by_id(
-    instance_name: str, contact_id: str, db: Session = Depends(get_database), api_key: str = Depends(verify_api_key)
+    instance_name: str,
+    contact_id: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
 ):
     """
     Get a specific contact by ID in omni format.
@@ -303,13 +321,17 @@ async def get_omni_contact_by_id(
     except Exception as e:
         logger.error(f"Failed to fetch omni contact '{contact_id}' for instance '{instance_name}': {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch contact: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch contact: {str(e)}",
         )
 
 
 @router.get("/{instance_name}/chats/{chat_id}", response_model=OmniChat)
 async def get_omni_chat_by_id(
-    instance_name: str, chat_id: str, db: Session = Depends(get_database), api_key: str = Depends(verify_api_key)
+    instance_name: str,
+    chat_id: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
 ):
     """
     Get a specific chat by ID in omni format.
@@ -340,4 +362,7 @@ async def get_omni_chat_by_id(
         raise
     except Exception as e:
         logger.error(f"Failed to fetch omni chat '{chat_id}' for instance '{instance_name}': {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch chat: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch chat: {str(e)}",
+        )

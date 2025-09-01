@@ -137,7 +137,11 @@ class WhatsAppStreamingHandler:
             return None
 
     def _handle_streaming_message(
-        self, message: Dict[str, Any], recipient: str, instance_config: InstanceConfig, trace_context=None
+        self,
+        message: Dict[str, Any],
+        recipient: str,
+        instance_config: InstanceConfig,
+        trace_context=None,
     ):
         """
         Handle a message using AutomagikHive streaming.
@@ -154,14 +158,19 @@ class WhatsAppStreamingHandler:
 
         # Schedule the async streaming in the event loop
         asyncio.run_coroutine_threadsafe(
-            self._async_stream_message(message, recipient, instance_config, trace_context), self.loop
+            self._async_stream_message(message, recipient, instance_config, trace_context),
+            self.loop,
         )
 
         # Don't block on the result - streaming happens asynchronously
         logger.debug(f"Scheduled streaming message processing for {recipient}")
 
     async def _async_stream_message(
-        self, message: Dict[str, Any], recipient: str, instance_config: InstanceConfig, trace_context=None
+        self,
+        message: Dict[str, Any],
+        recipient: str,
+        instance_config: InstanceConfig,
+        trace_context=None,
     ):
         """
         Async method to handle streaming message processing.
@@ -207,7 +216,10 @@ class WhatsAppStreamingHandler:
                 logger.warning(f"Unexpected response type from smart routing: {type(success)}")
 
         except Exception as e:
-            logger.error(f"Error in async streaming message processing for {recipient}: {e}", exc_info=True)
+            logger.error(
+                f"Error in async streaming message processing for {recipient}: {e}",
+                exc_info=True,
+            )
 
     def _extract_message_text(self, message: Dict[str, Any]) -> Optional[str]:
         """
@@ -338,7 +350,9 @@ def cleanup_streaming_integration():
 
     # Clean up streaming instances
     try:
-        from src.channels.whatsapp.streaming_integration import cleanup_streaming_instances
+        from src.channels.whatsapp.streaming_integration import (
+            cleanup_streaming_instances,
+        )
 
         cleanup_streaming_instances()
     except ImportError:
