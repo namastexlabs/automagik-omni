@@ -4,30 +4,38 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
 
+
 class ChannelType(str, Enum):
     """Supported channel types."""
+
     WHATSAPP = "whatsapp"
     DISCORD = "discord"
     # Future channels: SLACK = "slack", TELEGRAM = "telegram"
 
+
 class OmniContactStatus(str, Enum):
     """Contact availability status across channels."""
+
     ONLINE = "online"
     OFFLINE = "offline"
     AWAY = "away"
     DND = "dnd"  # Do not disturb
     UNKNOWN = "unknown"
 
+
 class OmniChatType(str, Enum):
     """Chat/conversation types."""
-    DIRECT = "direct"      # 1:1 conversation
-    GROUP = "group"        # Group chat/channel
-    CHANNEL = "channel"    # Broadcast channel
-    THREAD = "thread"      # Thread within a chat
+
+    DIRECT = "direct"  # 1:1 conversation
+    GROUP = "group"  # Group chat/channel
+    CHANNEL = "channel"  # Broadcast channel
+    THREAD = "thread"  # Thread within a chat
+
 
 # Core Omni Contact Model
 class OmniContact(BaseModel):
     """Omni contact representation across all channels."""
+
     # Universal fields
     id: str = Field(..., description="Unique contact identifier within channel")
     name: str = Field(..., description="Display name")
@@ -47,9 +55,11 @@ class OmniContact(BaseModel):
     created_at: Optional[datetime] = Field(None, description="Contact creation timestamp")
     last_seen: Optional[datetime] = Field(None, description="Last activity timestamp")
 
+
 # Core Omni Chat Model
 class OmniChat(BaseModel):
     """Omni chat/conversation representation across all channels."""
+
     # Universal fields
     id: str = Field(..., description="Unique chat identifier within channel")
     name: str = Field(..., description="Chat display name")
@@ -75,9 +85,11 @@ class OmniChat(BaseModel):
     created_at: Optional[datetime] = Field(None, description="Chat creation timestamp")
     last_message_at: Optional[datetime] = Field(None, description="Last message timestamp")
 
+
 # Core Omni Channel Model
 class OmniChannelInfo(BaseModel):
     """Omni channel/instance information across all channels."""
+
     # Universal fields
     instance_name: str = Field(..., description="Instance identifier")
     channel_type: ChannelType = Field(..., description="Channel type")
@@ -108,9 +120,11 @@ class OmniChannelInfo(BaseModel):
     connected_at: Optional[datetime] = Field(None, description="Connection established timestamp")
     last_activity_at: Optional[datetime] = Field(None, description="Last activity timestamp")
 
+
 # Response wrapper models
 class OmniContactsResponse(BaseModel):
     """Response model for omni contacts endpoint."""
+
     contacts: List[OmniContact] = Field(..., description="List of contacts")
     total_count: int = Field(..., description="Total number of contacts")
     page: int = Field(1, description="Current page number")
@@ -124,8 +138,10 @@ class OmniContactsResponse(BaseModel):
     # Error handling for multi-channel queries
     partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
 
+
 class OmniChatsResponse(BaseModel):
     """Response model for omni chats endpoint."""
+
     chats: List[OmniChat] = Field(..., description="List of chats")
     total_count: int = Field(..., description="Total number of chats")
     page: int = Field(1, description="Current page number")
@@ -139,8 +155,10 @@ class OmniChatsResponse(BaseModel):
     # Error handling for multi-channel queries
     partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
 
+
 class OmniChannelsResponse(BaseModel):
     """Response model for omni channels endpoint."""
+
     channels: List[OmniChannelInfo] = Field(..., description="List of channel instances")
     total_count: int = Field(..., description="Total number of channels")
     healthy_count: int = Field(..., description="Number of healthy channels")
@@ -148,17 +166,21 @@ class OmniChannelsResponse(BaseModel):
     # Error handling
     partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
 
+
 # Error response models
 class OmniErrorDetail(BaseModel):
     """Detailed error information for omni endpoints."""
+
     instance_name: Optional[str] = Field(None, description="Instance that caused the error")
     channel_type: Optional[ChannelType] = Field(None, description="Channel type that caused the error")
     error_code: str = Field(..., description="Error code")
     error_message: str = Field(..., description="Human-readable error message")
     details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
 
+
 class OmniErrorResponse(BaseModel):
     """Omni error response format."""
+
     success: bool = Field(False, description="Operation success status")
     error: str = Field(..., description="Primary error message")
     details: List[OmniErrorDetail] = Field(default_factory=list, description="Detailed error information")

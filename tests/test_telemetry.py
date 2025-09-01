@@ -97,7 +97,7 @@ class TestTelemetryClient:
                 # Check that opt-out file was removed
                 assert not opt_out_file.exists()
 
-    @patch('src.core.telemetry.urlopen')
+    @patch("src.core.telemetry.urlopen")
     def test_track_command_disabled(self, mock_urlopen):
         """Test that tracking does nothing when disabled."""
         with patch.dict(os.environ, {"AUTOMAGIK_OMNI_DISABLE_TELEMETRY": "true"}):
@@ -109,7 +109,7 @@ class TestTelemetryClient:
             # Verify that urlopen was NOT called since telemetry is disabled
             mock_urlopen.assert_not_called()
 
-    @patch('src.core.telemetry.urlopen')
+    @patch("src.core.telemetry.urlopen")
     def test_track_command_enabled(self, mock_urlopen):
         """Test that tracking works when enabled."""
         # Setup mock response
@@ -169,7 +169,7 @@ class TestTelemetryClient:
             "int_value": 42,
             "float_value": 3.14,
             "bool_value": True,
-            "long_string": "x" * 600  # Should be truncated
+            "long_string": "x" * 600,  # Should be truncated
         }
 
         attributes = client._create_attributes(data)
@@ -182,7 +182,7 @@ class TestTelemetryClient:
         long_string_attr = next(attr for attr in event_attrs if attr["key"] == "event.long_string")
         assert len(long_string_attr["value"]["stringValue"]) == 500
 
-    @patch('src.core.telemetry.urlopen')
+    @patch("src.core.telemetry.urlopen")
     def test_network_error_handling(self, mock_urlopen):
         """Test that network errors are handled gracefully."""
         from urllib.error import URLError
@@ -226,7 +226,7 @@ class TestTelemetryFunctions:
             enable_telemetry,
             disable_telemetry,
             is_telemetry_enabled,
-            get_telemetry_status
+            get_telemetry_status,
         )
 
         # Just check that they're callable

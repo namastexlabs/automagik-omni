@@ -2,6 +2,7 @@
 This module implements the Discord channel handler for the automagik-omni system.
 Provides multi-tenant Discord bot management with proper lifecycle control.
 """
+
 import logging
 import asyncio
 from typing import Dict, Any, Optional
@@ -10,23 +11,33 @@ from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
 from src.db.models import InstanceConfig
 from src.utils.dependency_guard import requires_feature, LazyImport, DependencyError
 from src.services.message_router import message_router
+
 # Lazy imports with dependency guards
-discord = LazyImport('discord', 'discord')
+discord = LazyImport("discord", "discord")
 logger = logging.getLogger(__name__)
 from src.channels.message_utils import extract_response_text
+
+
 @dataclass
 class DiscordBotInstance:
     """Container for Discord bot instance data."""
+
     client: Any  # discord.Client
     task: Optional[asyncio.Task] = None
     status: str = "disconnected"
     invite_url: Optional[str] = None
     error_message: Optional[str] = None
+
+
 class ValidationError(Exception):
     """Discord configuration validation error."""
+
     pass
+
+
 class DiscordChannelHandler(ChannelHandler):
     """Discord channel handler implementation."""
+
     def __init__(self):
         """Initialize Discord channel handler."""
         self._bot_instances: Dict[str, DiscordBotInstance] = {}
@@ -48,7 +59,7 @@ class DiscordChannelHandler(ChannelHandler):
             chunk = remaining[:max_length]
 
             # Find the last newline, sentence end, or word boundary
-            split_points = ['\n\n', '\n', '. ', '! ', '? ', ' ']
+            split_points = ["\n\n", "\n", ". ", "! ", "? ", " "]
             split_at = -1
 
             for split_point in split_points:
@@ -100,7 +111,9 @@ class DiscordChannelHandler(ChannelHandler):
             if not client.user.mentioned_in(message):
                 return
 
-            logger.info(f"Discord bot '{instance.name}' received mention from {message.author} in #{message.channel.name}")
+            logger.info(
+                f"Discord bot '{instance.name}' received mention from {message.author} in #{message.channel.name}"
+            )
 
             # Extract message content after removing the mention
             content = message.content
@@ -125,18 +138,26 @@ class DiscordChannelHandler(ChannelHandler):
                 "email": None,  # Discord doesn't provide email unless OAuth
                 "user_data": {
                     "name": message.author.display_name or message.author.name,
-                    "discord_discriminator": message.author.discriminator if hasattr(message.author, 'discriminator') else None,
+                    "discord_discriminator": message.author.discriminator
+                    if hasattr(message.author, "discriminator")
+                    else None,
                     "guild_id": str(message.guild.id) if message.guild else None,
                     "guild_name": message.guild.name if message.guild else None,
                     "channel_id": str(message.channel.id),
-                    "channel_name": message.channel.name if hasattr(message.channel, 'name') else None
-                }
+                    "channel_name": message.channel.name if hasattr(message.channel, "name") else None,
+                },
             }
 
             # Generate session name similar to WhatsApp format
-            session_name = f"discord_{message.guild.id}_{message.author.id}" if message.guild else f"discord_dm_{message.author.id}"
+            session_name = (
+                f"discord_{message.guild.id}_{message.author.id}"
+                if message.guild
+                else f"discord_dm_{message.author.id}"
+            )
 
-            logger.info(f"Processing Discord message: '{content}' from user: {message.author.name} in session: {session_name}")
+            logger.info(
+                f"Processing Discord message: '{content}' from user: {message.author.name} in session: {session_name}"
+            )
 
             # Send typing indicator
             async with message.channel.typing():
@@ -150,17 +171,21 @@ class DiscordChannelHandler(ChannelHandler):
                         message_type="text",
                         session_origin="discord",
                         whatsapp_raw_payload=None,  # Discord doesn't use WhatsApp payload
-                        media_contents=None  # TODO: Handle Discord attachments if needed
+                        media_contents=None,  # TODO: Handle Discord attachments if needed
                     )
 
-                    logger.info(f"Got agent response for Discord user {message.author.name}: {len(str(agent_response))} characters")
+                    logger.info(
+                        f"Got agent response for Discord user {message.author.name}: {len(str(agent_response))} characters"
+                    )
 
                     # Send response back to Discord
                     if agent_response:
                         response_text = extract_response_text(agent_response)
                         await self._send_response_to_discord(message.channel, response_text)
                     else:
-                        await message.channel.send("I'm sorry, I couldn't process your message right now. Please try again later.")
+                        await message.channel.send(
+                            "I'm sorry, I couldn't process your message right now. Please try again later."
+                        )
 
                 except TypeError as te:
                     # Fallback for older versions of MessageRouter without media parameters
@@ -172,18 +197,22 @@ class DiscordChannelHandler(ChannelHandler):
                         message_text=content,
                         message_type="text",
                         session_origin="discord",
-                        whatsapp_raw_payload=None
+                        whatsapp_raw_payload=None,
                     )
 
                     if agent_response:
                         response_text = extract_response_text(agent_response)
                         await self._send_response_to_discord(message.channel, response_text)
                     else:
-                        await message.channel.send("I'm sorry, I couldn't process your message right now. Please try again later.")
+                        await message.channel.send(
+                            "I'm sorry, I couldn't process your message right now. Please try again later."
+                        )
 
                 except Exception as e:
                     logger.error(f"Error processing Discord message: {e}", exc_info=True)
-                    await message.channel.send("I encountered an error while processing your message. Please try again later.")
+                    await message.channel.send(
+                        "I encountered an error while processing your message. Please try again later."
+                    )
 
         except Exception as e:
             logger.error(f"Error in Discord message handler: {e}", exc_info=True)
@@ -191,23 +220,27 @@ class DiscordChannelHandler(ChannelHandler):
     def _validate_bot_config(self, instance: InstanceConfig) -> Dict[str, str]:
         """Validate and extract Discord bot configuration."""
         # Extract token from instance configuration only
-        bot_token = getattr(instance, 'discord_bot_token', None) or ""
-        client_id = getattr(instance, 'discord_client_id', None) or ""
+        bot_token = getattr(instance, "discord_bot_token", None) or ""
+        client_id = getattr(instance, "discord_client_id", None) or ""
 
         # Validate configuration values
         if not bot_token or bot_token.lower() in ["string", "null", "undefined", ""]:
             logger.error(f"Invalid Discord bot token for instance '{instance.name}'. Please provide a valid bot token.")
-            raise ValidationError(f"Invalid Discord bot token for instance '{instance.name}'. Please provide a valid bot token from Discord Developer Portal.")
+            raise ValidationError(
+                f"Invalid Discord bot token for instance '{instance.name}'. Please provide a valid bot token from Discord Developer Portal."
+            )
 
         if not client_id or client_id.lower() in ["string", "null", "undefined", ""]:
             logger.error(f"Invalid Discord client ID for instance '{instance.name}'. Please provide a valid client ID.")
-            raise ValidationError(f"Invalid Discord client ID for instance '{instance.name}'. Please provide a valid client ID from Discord Developer Portal.")
-        logger.debug(f"Discord config validated for instance '{instance.name}' - Token: {'*' * len(bot_token)}, Client ID: {client_id}")
+            raise ValidationError(
+                f"Invalid Discord client ID for instance '{instance.name}'. Please provide a valid client ID from Discord Developer Portal."
+            )
+        logger.debug(
+            f"Discord config validated for instance '{instance.name}' - Token: {'*' * len(bot_token)}, Client ID: {client_id}"
+        )
 
-        return {
-            "token": bot_token,
-            "client_id": client_id
-        }
+        return {"token": bot_token, "client_id": client_id}
+
     def _generate_invite_url(self, client_id: str, permissions: int = 8) -> str:
         """Generate Discord bot invite URL."""
         # Default permissions: Administrator (8) - can be customized based on needs
@@ -218,7 +251,8 @@ class DiscordChannelHandler(ChannelHandler):
         base_url = "https://discord.com/api/oauth2/authorize"
         params = f"client_id={client_id}&permissions={permissions}&scope=bot%20applications.commands"
         return f"{base_url}?{params}"
-    @requires_feature('discord')
+
+    @requires_feature("discord")
     async def create_instance(self, instance: InstanceConfig, **kwargs) -> Dict[str, Any]:
         """Create a new Discord bot instance."""
         try:
@@ -235,7 +269,7 @@ class DiscordChannelHandler(ChannelHandler):
                         "status": "already_exists",
                         "connection_status": existing_bot.status,
                         "message": f"Discord bot instance '{instance.name}' already exists and is connected",
-                        "invite_url": existing_bot.invite_url
+                        "invite_url": existing_bot.invite_url,
                     }
                 else:
                     logger.info(f"Existing instance '{instance.name}' found but not connected, will restart")
@@ -253,14 +287,11 @@ class DiscordChannelHandler(ChannelHandler):
             # Generate invite URL
             invite_url = self._generate_invite_url(bot_config["client_id"])
             # Create bot instance container
-            bot_instance = DiscordBotInstance(
-                client=client,
-                status="connecting",
-                invite_url=invite_url
-            )
+            bot_instance = DiscordBotInstance(client=client, status="connecting", invite_url=invite_url)
 
             # Store the instance
             self._bot_instances[instance.name] = bot_instance
+
             # Set up event handlers
             @client.event
             async def on_ready():
@@ -291,6 +322,7 @@ class DiscordChannelHandler(ChannelHandler):
                     bot_instance.status = "error"
                     bot_instance.error_message = str(e)
                     raise
+
             # Create and store the bot task
             bot_task = asyncio.create_task(run_bot())
             bot_instance.task = bot_task
@@ -304,7 +336,7 @@ class DiscordChannelHandler(ChannelHandler):
                 "connection_status": bot_instance.status,
                 "message": f"Discord bot instance '{instance.name}' created successfully. Use the invite URL to add the bot to Discord servers.",
                 "invite_url": invite_url,
-                "client_id": bot_config["client_id"]
+                "client_id": bot_config["client_id"],
             }
         except ValidationError as e:
             logger.error(f"Validation error creating Discord instance: {e}")
@@ -321,6 +353,7 @@ class DiscordChannelHandler(ChannelHandler):
             if instance.name in self._bot_instances:
                 await self._cleanup_bot_instance(instance.name)
             return {"error": str(e), "status": "failed"}
+
     async def get_qr_code(self, instance: InstanceConfig) -> QRCodeResponse:
         """Get Discord bot invite URL (Discord doesn't use QR codes like WhatsApp)."""
         try:
@@ -333,7 +366,7 @@ class DiscordChannelHandler(ChannelHandler):
                     instance_name=instance.name,
                     channel_type="discord",
                     status="not_found",
-                    message=f"Discord bot instance '{instance.name}' not found. Create the instance first."
+                    message=f"Discord bot instance '{instance.name}' not found. Create the instance first.",
                 )
             bot_instance = self._bot_instances[instance.name]
 
@@ -347,7 +380,7 @@ class DiscordChannelHandler(ChannelHandler):
                         instance_name=instance.name,
                         channel_type="discord",
                         status="configuration_error",
-                        message=str(e)
+                        message=str(e),
                     )
             logger.debug(f"Discord invite URL for '{instance.name}': {bot_instance.invite_url}")
 
@@ -356,7 +389,7 @@ class DiscordChannelHandler(ChannelHandler):
                 channel_type="discord",
                 invite_url=bot_instance.invite_url,
                 status="success",
-                message="Discord bot invite URL ready. Use this URL to add the bot to Discord servers."
+                message="Discord bot invite URL ready. Use this URL to add the bot to Discord servers.",
             )
         except Exception as e:
             logger.error(f"Failed to get Discord invite URL: {e}")
@@ -364,47 +397,41 @@ class DiscordChannelHandler(ChannelHandler):
                 instance_name=instance.name,
                 channel_type="discord",
                 status="error",
-                message=f"Failed to get Discord invite URL: {str(e)}"
+                message=f"Failed to get Discord invite URL: {str(e)}",
             )
+
     async def get_status(self, instance: InstanceConfig) -> ConnectionStatus:
         """Get Discord bot connection status."""
         try:
             if instance.name not in self._bot_instances:
-                return ConnectionStatus(
-                    instance_name=instance.name,
-                    channel_type="discord",
-                    status="not_found"
-                )
+                return ConnectionStatus(instance_name=instance.name, channel_type="discord", status="not_found")
             bot_instance = self._bot_instances[instance.name]
 
             # Get additional connection info
-            channel_data = {
-                "invite_url": bot_instance.invite_url,
-                "error_message": bot_instance.error_message
-            }
+            channel_data = {"invite_url": bot_instance.invite_url, "error_message": bot_instance.error_message}
 
             # Add bot-specific data if connected
             if bot_instance.status == "connected" and bot_instance.client.user:
-                channel_data.update({
-                    "bot_username": str(bot_instance.client.user),
-                    "bot_id": bot_instance.client.user.id,
-                    "guild_count": len(bot_instance.client.guilds),
-                    "guilds": [{"id": guild.id, "name": guild.name} for guild in bot_instance.client.guilds]
-                })
+                channel_data.update(
+                    {
+                        "bot_username": str(bot_instance.client.user),
+                        "bot_id": bot_instance.client.user.id,
+                        "guild_count": len(bot_instance.client.guilds),
+                        "guilds": [{"id": guild.id, "name": guild.name} for guild in bot_instance.client.guilds],
+                    }
+                )
             return ConnectionStatus(
                 instance_name=instance.name,
                 channel_type="discord",
                 status=bot_instance.status,
-                channel_data=channel_data
+                channel_data=channel_data,
             )
         except Exception as e:
             logger.error(f"Failed to get Discord bot status: {e}")
             return ConnectionStatus(
-                instance_name=instance.name,
-                channel_type="discord",
-                status="error",
-                channel_data={"error": str(e)}
+                instance_name=instance.name, channel_type="discord", status="error", channel_data={"error": str(e)}
             )
+
     async def restart_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Restart Discord bot connection."""
         try:
@@ -426,6 +453,7 @@ class DiscordChannelHandler(ChannelHandler):
         except Exception as e:
             logger.error(f"Failed to restart Discord bot instance: {e}")
             return {"error": str(e), "status": "restart_failed"}
+
     async def logout_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Logout/disconnect Discord bot."""
         try:
@@ -435,7 +463,7 @@ class DiscordChannelHandler(ChannelHandler):
                 return {
                     "instance_name": instance.name,
                     "status": "not_found",
-                    "message": f"Discord bot instance '{instance.name}' not found"
+                    "message": f"Discord bot instance '{instance.name}' not found",
                 }
             await self._cleanup_bot_instance(instance.name)
 
@@ -443,11 +471,12 @@ class DiscordChannelHandler(ChannelHandler):
             return {
                 "instance_name": instance.name,
                 "status": "logged_out",
-                "message": f"Discord bot instance '{instance.name}' logged out successfully"
+                "message": f"Discord bot instance '{instance.name}' logged out successfully",
             }
         except Exception as e:
             logger.error(f"Failed to logout Discord bot instance: {e}")
             return {"error": str(e), "status": "logout_failed"}
+
     async def delete_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Delete Discord bot instance."""
         try:
@@ -457,7 +486,7 @@ class DiscordChannelHandler(ChannelHandler):
                 return {
                     "instance_name": instance.name,
                     "status": "not_found",
-                    "message": f"Discord bot instance '{instance.name}' not found"
+                    "message": f"Discord bot instance '{instance.name}' not found",
                 }
             await self._cleanup_bot_instance(instance.name)
 
@@ -465,11 +494,12 @@ class DiscordChannelHandler(ChannelHandler):
             return {
                 "instance_name": instance.name,
                 "status": "deleted",
-                "message": f"Discord bot instance '{instance.name}' deleted successfully"
+                "message": f"Discord bot instance '{instance.name}' deleted successfully",
             }
         except Exception as e:
             logger.error(f"Failed to delete Discord bot instance: {e}")
             return {"error": str(e), "status": "delete_failed"}
+
     async def _cleanup_bot_instance(self, instance_name: str) -> None:
         """Clean up Discord bot instance resources."""
         if instance_name not in self._bot_instances:

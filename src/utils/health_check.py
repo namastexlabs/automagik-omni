@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 async def wait_for_api_health(
-    api_url: str = "http://localhost:8882",
-    timeout: int = 60,
-    check_interval: float = 2.0
+    api_url: str = "http://localhost:8882", timeout: int = 60, check_interval: float = 2.0
 ) -> bool:
     """
     Wait for API to become healthy.

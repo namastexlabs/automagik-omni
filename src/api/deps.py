@@ -24,9 +24,7 @@ def get_database() -> Generator[Session, None, None]:
     yield from get_db()
 
 
-def get_instance_by_name(
-    instance_name: str, db: Session = Depends(get_database)
-) -> InstanceConfig:
+def get_instance_by_name(instance_name: str, db: Session = Depends(get_database)) -> InstanceConfig:
     """
     Get instance configuration by name.
 

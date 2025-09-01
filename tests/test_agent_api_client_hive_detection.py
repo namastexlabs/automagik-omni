@@ -119,7 +119,7 @@ class TestHiveApiDetection:
 class TestEndpointSelection:
     """Test cases for endpoint selection based on Hive API detection."""
 
-    @patch('src.services.agent_api_client.AgentApiClient._call_hive_api')
+    @patch("src.services.agent_api_client.AgentApiClient._call_hive_api")
     def test_hive_api_endpoint_selection(self, mock_hive_api):
         """Test that Hive API instances use the playground endpoint."""
         mock_hive_api.return_value = {"response": "hive_response", "success": True}
@@ -128,16 +128,13 @@ class TestEndpointSelection:
         client.api_url = "http://localhost:8000"
         client.instance_config = None
 
-        response = client.run_agent(
-            agent_name="test_agent",
-            message_content="test message"
-        )
+        response = client.run_agent(agent_name="test_agent", message_content="test message")
 
         # Should call _call_hive_api method
         mock_hive_api.assert_called_once()
         assert response == {"response": "hive_response", "success": True}
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_automagik_core_endpoint_selection(self, mock_post):
         """Test that Automagik Core instances use the standard API endpoint."""
         mock_response = Mock()
@@ -152,17 +149,14 @@ class TestEndpointSelection:
         # Mock the headers method
         client._make_headers = Mock(return_value={"Content-Type": "application/json"})
 
-        client.run_agent(
-            agent_name="test_agent",
-            message_content="test message"
-        )
+        client.run_agent(agent_name="test_agent", message_content="test message")
 
         # Should make POST request to /api/v1/agent/{agent_name}/run
         mock_post.assert_called_once()
         call_args = mock_post.call_args
         assert call_args[0][0] == "http://localhost:8881/api/v1/agent/test_agent/run"
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_hive_playground_endpoint_format(self, mock_post):
         """Test the correct playground endpoint format for Hive API calls."""
         mock_response = Mock()
@@ -178,10 +172,7 @@ class TestEndpointSelection:
         client._make_headers = Mock(return_value={"Content-Type": "application/json"})
 
         # Call the _call_hive_api method directly
-        client._call_hive_api(
-            agent_name="test_agent",
-            message_content="test message"
-        )
+        client._call_hive_api(agent_name="test_agent", message_content="test message")
 
         # Should make POST request to /playground/agents/{agent_name}/runs
         mock_post.assert_called_once()
@@ -202,13 +193,10 @@ class TestRegressionPrevention:
         assert client._is_hive_api_mode() is True
 
         # Should NOT use the /api/v1/agent/ endpoints that caused 404s
-        with patch('src.services.agent_api_client.AgentApiClient._call_hive_api') as mock_hive:
+        with patch("src.services.agent_api_client.AgentApiClient._call_hive_api") as mock_hive:
             mock_hive.return_value = {"response": "success", "success": True}
 
-            client.run_agent(
-                agent_name="test_agent",
-                message_content="test"
-            )
+            client.run_agent(agent_name="test_agent", message_content="test")
 
             # Verify _call_hive_api was called (not the regular API path)
             mock_hive.assert_called_once()
@@ -223,7 +211,7 @@ class TestRegressionPrevention:
         assert client._is_hive_api_mode() is False
 
         # Should use the regular /api/v1/agent/ endpoints
-        with patch('requests.post') as mock_post:
+        with patch("requests.post") as mock_post:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"response": "success", "success": True}
@@ -231,10 +219,7 @@ class TestRegressionPrevention:
 
             client._make_headers = Mock(return_value={"Content-Type": "application/json"})
 
-            client.run_agent(
-                agent_name="test_agent",
-                message_content="test"
-            )
+            client.run_agent(agent_name="test_agent", message_content="test")
 
             # Verify the correct endpoint was used
             mock_post.assert_called_once()
@@ -270,7 +255,6 @@ class TestRegressionPrevention:
             ("https://api.example.com:8000", True),
             ("http://localhost:8000/", True),
             ("http://localhost:8000/some/path", True),
-
             # Core API cases (port 8881)
             ("http://localhost:8881", False),
             ("https://localhost:8881", False),
@@ -278,7 +262,6 @@ class TestRegressionPrevention:
             ("https://api.example.com:8881", False),
             ("http://localhost:8881/", False),
             ("http://localhost:8881/api/v1", False),
-
             # Other cases
             ("http://localhost", False),
             ("http://localhost:80", False),

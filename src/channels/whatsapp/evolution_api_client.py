@@ -90,25 +90,17 @@ class EvolutionAPIClient:
             params.retry_delay = self.config.retry_delay
 
             # Create a new connection
-            logger.info(
-                f"Connecting to RabbitMQ at {self.config.uri} with heartbeat={self.config.heartbeat}s"
-            )
+            logger.info(f"Connecting to RabbitMQ at {self.config.uri} with heartbeat={self.config.heartbeat}s")
             self.connection = pika.BlockingConnection(params)
 
             # Add connection close callback
-            self.connection.add_on_connection_blocked_callback(
-                self._on_connection_blocked
-            )
-            self.connection.add_on_connection_unblocked_callback(
-                self._on_connection_unblocked
-            )
+            self.connection.add_on_connection_blocked_callback(self._on_connection_blocked)
+            self.connection.add_on_connection_unblocked_callback(self._on_connection_unblocked)
 
             self.channel = self.connection.channel()
 
             # Declare the exchange
-            self.channel.exchange_declare(
-                exchange=self.config.exchange_name, exchange_type="topic", durable=True
-            )
+            self.channel.exchange_declare(exchange=self.config.exchange_name, exchange_type="topic", durable=True)
 
             # Strategy 1: Use our application-specific queue
             app_queue_name = f"evolution-api-{self.config.instance_name}"
@@ -121,9 +113,7 @@ class EvolutionAPIClient:
 
                 try:
                     # Declare queue if it doesn't exist (passive=False) or just get it if it does
-                    self.channel.queue_declare(
-                        queue=instance_queue_name, durable=True, passive=True
-                    )
+                    self.channel.queue_declare(queue=instance_queue_name, durable=True, passive=True)
                     logger.info(f"Found existing queue: {instance_queue_name}")
 
                     # Consume from this queue directly
@@ -132,13 +122,9 @@ class EvolutionAPIClient:
                         on_message_callback=self._on_message,
                         auto_ack=True,
                     )
-                    logger.info(
-                        f"Now consuming from instance queue: {instance_queue_name}"
-                    )
+                    logger.info(f"Now consuming from instance queue: {instance_queue_name}")
                 except Exception as e:
-                    logger.warning(
-                        f"Couldn't consume from queue {instance_queue_name}: {e}"
-                    )
+                    logger.warning(f"Couldn't consume from queue {instance_queue_name}: {e}")
 
             # Still set up our app queue with catch-all bindings as a fallback
             result = self.channel.queue_declare(queue=app_queue_name, exclusive=False)
@@ -202,9 +188,7 @@ class EvolutionAPIClient:
         if self.reconnect_delay == 0:
             self.reconnect_delay = self.config.retry_delay
         else:
-            self.reconnect_delay = min(
-                self.reconnect_delay * 2, self.max_reconnect_delay
-            )
+            self.reconnect_delay = min(self.reconnect_delay * 2, self.max_reconnect_delay)
             # Add jitter to avoid thundering herd problem
             jitter = random.uniform(0, 0.1 * self.reconnect_delay)
             self.reconnect_delay += jitter
@@ -215,9 +199,7 @@ class EvolutionAPIClient:
         """Attempt to reconnect to RabbitMQ with exponential backoff."""
         # Wait before reconnecting
         if self.reconnect_delay > 0:
-            logger.info(
-                f"Waiting {self.reconnect_delay:.1f} seconds before reconnecting..."
-            )
+            logger.info(f"Waiting {self.reconnect_delay:.1f} seconds before reconnecting...")
             time.sleep(self.reconnect_delay)
 
         # Try to reconnect
@@ -243,9 +225,7 @@ class EvolutionAPIClient:
         else:
             return self.reconnect()
 
-    def subscribe(
-        self, event_type: EventType, callback: Callable[[Dict[str, Any]], None]
-    ):
+    def subscribe(self, event_type: EventType, callback: Callable[[Dict[str, Any]], None]):
         """Subscribe to an event type.
 
         Args:
@@ -306,15 +286,11 @@ class EvolutionAPIClient:
             else:
                 # If we still couldn't identify the event or it's not in our defined types,
                 # try handling it with any handlers that might be interested
-                logger.warning(
-                    f"Unknown or missing event type: {event}. Using fallback handlers."
-                )
+                logger.warning(f"Unknown or missing event type: {event}. Using fallback handlers.")
 
                 # Fallback: try messages.upsert handlers for any WhatsApp-related messages
                 for handler in self.event_handlers[EventType.MESSAGES_UPSERT]:
-                    logger.info(
-                        f"Calling fallback handler for event: {EventType.MESSAGES_UPSERT}"
-                    )
+                    logger.info(f"Calling fallback handler for event: {EventType.MESSAGES_UPSERT}")
                     handler(message)
 
         except Exception as e:
@@ -341,9 +317,7 @@ class EvolutionAPIClient:
             # Start consuming in a loop that handles connection issues
             while self.is_consuming:
                 try:
-                    self.connection.process_data_events(
-                        time_limit=1
-                    )  # Process events but allow for loop to run
+                    self.connection.process_data_events(time_limit=1)  # Process events but allow for loop to run
                     time.sleep(0.1)  # Small sleep to prevent CPU hogging
                 except pika.exceptions.AMQPError as e:
                     logger.error(f"AMQP error while consuming: {e}")
@@ -353,9 +327,7 @@ class EvolutionAPIClient:
                         logger.error("Failed to reconnect to RabbitMQ after error")
                         time.sleep(5)  # Wait a bit before retry
                 except Exception as e:
-                    logger.error(
-                        f"Unexpected error while consuming: {e}", exc_info=True
-                    )
+                    logger.error(f"Unexpected error while consuming: {e}", exc_info=True)
                     time.sleep(5)  # Wait a bit before retry
 
             return True

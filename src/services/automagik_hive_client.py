@@ -4,6 +4,7 @@ This client provides streaming capabilities for real-time agent/team conversatio
 using Server-Sent Events (SSE) and supports authentication, error recovery,
 and connection management.
 """
+
 import asyncio
 import json
 import logging
@@ -12,28 +13,41 @@ from contextlib import asynccontextmanager
 import httpx
 from httpx import ConnectTimeout, ReadTimeout, TimeoutException
 from .automagik_hive_models import (
-    HiveEvent, HiveContinueRequest, HiveRunResponse,
-    parse_hive_event, HiveEventType, ErrorEvent
+    HiveEvent,
+    HiveContinueRequest,
+    HiveRunResponse,
+    parse_hive_event,
+    HiveEventType,
+    ErrorEvent,
 )
 from ..db.models import InstanceConfig
 
 logger = logging.getLogger(__name__)
 
+
 class AutomagikHiveError(Exception):
     """Base exception for AutomagikHive client errors."""
+
     pass
+
 
 class AutomagikHiveAuthError(AutomagikHiveError):
     """Authentication error with AutomagikHive API."""
+
     pass
+
 
 class AutomagikHiveConnectionError(AutomagikHiveError):
     """Connection error with AutomagikHive API."""
+
     pass
+
 
 class AutomagikHiveStreamError(AutomagikHiveError):
     """Streaming error with AutomagikHive API."""
+
     pass
+
 
 class AutomagikHiveClient:
     """
@@ -53,39 +67,33 @@ class AutomagikHiveClient:
         # Extract configuration from InstanceConfig or dict
         if isinstance(config_override, InstanceConfig):
             # Try legacy fields first for backward compatibility, then unified fields
-            self.api_url = (
-                getattr(config_override, 'hive_api_url', None) or
-                getattr(config_override, 'agent_api_url', None)
+            self.api_url = getattr(config_override, "hive_api_url", None) or getattr(
+                config_override, "agent_api_url", None
             )
-            self.api_key = (
-                getattr(config_override, 'hive_api_key', None) or
-                getattr(config_override, 'agent_api_key', None)
+            self.api_key = getattr(config_override, "hive_api_key", None) or getattr(
+                config_override, "agent_api_key", None
             )
-            self.default_agent_id = (
-                getattr(config_override, 'hive_agent_id', None) or
-                getattr(config_override, 'agent_id', None)
+            self.default_agent_id = getattr(config_override, "hive_agent_id", None) or getattr(
+                config_override, "agent_id", None
             )
-            self.default_team_id = (
-                getattr(config_override, 'hive_team_id', None) or
-                getattr(config_override, 'team_id', None)
+            self.default_team_id = getattr(config_override, "hive_team_id", None) or getattr(
+                config_override, "team_id", None
             )
             self.timeout = (
-                getattr(config_override, 'hive_timeout', None) or
-                getattr(config_override, 'agent_timeout', None) or
-                30
+                getattr(config_override, "hive_timeout", None) or getattr(config_override, "agent_timeout", None) or 30
             )
             self.stream_mode = (
-                getattr(config_override, 'hive_stream_mode', None) or
-                getattr(config_override, 'agent_stream_mode', None) or
-                True
+                getattr(config_override, "hive_stream_mode", None)
+                or getattr(config_override, "agent_stream_mode", None)
+                or True
             )
         elif isinstance(config_override, dict):
-            self.api_url = config_override.get('api_url')
-            self.api_key = config_override.get('api_key')
-            self.default_agent_id = config_override.get('agent_id')
-            self.default_team_id = config_override.get('team_id')
-            self.timeout = config_override.get('timeout', 30)
-            self.stream_mode = config_override.get('stream_mode', True)
+            self.api_url = config_override.get("api_url")
+            self.api_key = config_override.get("api_key")
+            self.default_agent_id = config_override.get("agent_id")
+            self.default_team_id = config_override.get("team_id")
+            self.timeout = config_override.get("timeout", 30)
+            self.stream_mode = config_override.get("stream_mode", True)
         else:
             raise ValueError("config_override must be InstanceConfig instance or dictionary")
 
@@ -97,47 +105,28 @@ class AutomagikHiveClient:
         # Note: agent_id is not required for team operations, will be provided per-call
 
         # Clean up API URL
-        self.api_url = self.api_url.rstrip('/')
+        self.api_url = self.api_url.rstrip("/")
 
         # Connection management
         self._client: Optional[httpx.AsyncClient] = None
         self._client_lock = asyncio.Lock()
 
         # Connection pool settings
-        self._connection_limits = httpx.Limits(
-            max_keepalive_connections=5,
-            max_connections=10,
-            keepalive_expiry=30.0
-        )
+        self._connection_limits = httpx.Limits(max_keepalive_connections=5, max_connections=10, keepalive_expiry=30.0)
 
         # Timeout configuration
-        self._timeout_config = httpx.Timeout(
-            connect=10.0,
-            read=float(self.timeout),
-            write=10.0,
-            pool=5.0
-        )
+        self._timeout_config = httpx.Timeout(connect=10.0, read=float(self.timeout), write=10.0, pool=5.0)
 
         logger.info(f"AutomagikHive client initialized - URL: {self.api_url}")
 
     def _make_headers(self, accept_sse: bool = False) -> Dict[str, str]:
         """Make headers for API requests with Bearer token authentication."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": "automagik-omni/1.0"
-        }
+        headers = {"Authorization": f"Bearer {self.api_key}", "User-Agent": "automagik-omni/1.0"}
 
         if accept_sse:
-            headers.update({
-                "Accept": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive"
-            })
+            headers.update({"Accept": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive"})
         else:
-            headers.update({
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            })
+            headers.update({"Content-Type": "application/json", "Accept": "application/json"})
 
         return headers
 
@@ -149,7 +138,7 @@ class AutomagikHiveClient:
                     self._client = httpx.AsyncClient(
                         limits=self._connection_limits,
                         timeout=self._timeout_config,
-                        follow_redirects=True
+                        follow_redirects=True,
                         # Note: HTTP/2 disabled due to missing h2 package
                     )
         return self._client
@@ -175,7 +164,7 @@ class AutomagikHiveClient:
         stream: bool = True,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Union[HiveRunResponse, AsyncIterator[HiveEvent]]:
         """
         Create a new agent run.
@@ -223,7 +212,7 @@ class AutomagikHiveClient:
         stream: bool = True,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Union[HiveRunResponse, AsyncIterator[HiveEvent]]:
         """
         Create a new team run.
@@ -265,7 +254,7 @@ class AutomagikHiveClient:
         message: str,
         agent_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> AsyncIterator[HiveEvent]:
         """
         Continue an existing conversation.
@@ -285,11 +274,7 @@ class AutomagikHiveClient:
 
         endpoint = f"{self.api_url}/playground/agents/{agent_id}/runs/{run_id}/continue"
 
-        request_data = HiveContinueRequest(
-            message=message,
-            user_id=user_id,
-            metadata=metadata
-        )
+        request_data = HiveContinueRequest(message=message, user_id=user_id, metadata=metadata)
 
         return self._create_streaming_run(endpoint, request_data.model_dump())
 
@@ -327,14 +312,14 @@ class AutomagikHiveClient:
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "text/event-stream",
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive"
+            "Connection": "keep-alive",
         }
 
         try:
             # Convert payload to form data, filtering out None values
             form_data = {k: str(v) for k, v in payload.items() if v is not None}
 
-            async with client.stream('POST', endpoint, data=form_data, headers=headers) as response:
+            async with client.stream("POST", endpoint, data=form_data, headers=headers) as response:
                 if response.status_code == 401:
                     raise AutomagikHiveAuthError("Authentication failed")
                 elif response.status_code == 404:
@@ -390,7 +375,7 @@ class AutomagikHiveClient:
 
                 # Decode chunk to text
                 try:
-                    text = chunk.decode('utf-8')
+                    text = chunk.decode("utf-8")
                     logger.debug(f"Decoded chunk text: {text!r}")
                 except UnicodeDecodeError as e:
                     logger.warning(f"Failed to decode chunk: {e}")
@@ -398,7 +383,7 @@ class AutomagikHiveClient:
 
                 # Special handling: Check if this looks like concatenated JSON without newlines
                 # Hive sometimes sends all JSON objects concatenated on a single line
-                if text.startswith('{') and text.count('}{') > 0 and '\n' not in text:
+                if text.startswith("{") and text.count("}{") > 0 and "\n" not in text:
                     logger.debug("Detected concatenated JSON objects in single chunk without newlines")
                     # Process immediately without line splitting
                     json_objects = self._split_concatenated_json(text)
@@ -430,13 +415,13 @@ class AutomagikHiveClient:
 
                 # Check if buffer contains concatenated JSON (not SSE format)
                 # This handles the case where Hive sends raw concatenated JSON
-                if buffer.strip().startswith('{') and '}{' in buffer:
+                if buffer.strip().startswith("{") and "}{" in buffer:
                     logger.debug("Buffer contains concatenated JSON, processing without line splitting")
                     json_buffer = buffer
                     buffer = ""  # Clear the buffer
 
                     # Try to split and process concatenated JSON
-                    if json_buffer.count('}{') > 0:
+                    if json_buffer.count("}{") > 0:
                         json_objects = self._split_concatenated_json(json_buffer)
                         if json_objects:
                             logger.debug(f"Successfully split buffer into {len(json_objects)} JSON objects")
@@ -463,8 +448,8 @@ class AutomagikHiveClient:
                     continue  # Skip line-by-line processing
 
                 # Process complete lines for SSE format
-                while '\n' in buffer:
-                    line, buffer = buffer.split('\n', 1)
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
                     line = line.strip()
                     line_count += 1
 
@@ -514,11 +499,11 @@ class AutomagikHiveClient:
                     logger.debug(f"JSON buffer now contains: {len(json_buffer)} chars")
 
                     # Check if buffer has been corrupted (missing opening brace)
-                    if json_buffer.strip() and not json_buffer.strip().startswith('{'):
-                        if json_buffer.strip().startswith('"') and '}{' in json_buffer:
+                    if json_buffer.strip() and not json_buffer.strip().startswith("{"):
+                        if json_buffer.strip().startswith('"') and "}{" in json_buffer:
                             # Buffer is missing the opening brace, add it back
                             logger.debug("Detected missing opening brace in buffer, fixing...")
-                            json_buffer = '{' + json_buffer
+                            json_buffer = "{" + json_buffer
                             logger.debug(f"Fixed buffer now starts with: {json_buffer[:50]}...")
 
                     # Try to parse the accumulated JSON - handle concatenated objects
@@ -526,14 +511,16 @@ class AutomagikHiveClient:
                     remaining_buffer = json_buffer
 
                     # First check if we have concatenated objects
-                    if remaining_buffer.count('}{') > 0:
+                    if remaining_buffer.count("}{") > 0:
                         logger.debug("Detected concatenated JSON objects in buffer, attempting to split...")
                         json_objects = self._split_concatenated_json(remaining_buffer)
                         if json_objects:
                             logger.debug(f"Successfully split into {len(json_objects)} JSON objects")
                             remaining_buffer = ""  # Clear buffer since we split successfully
                         else:
-                            logger.warning(f"Failed to split concatenated JSON, buffer content: {remaining_buffer[:500]}{'...' if len(remaining_buffer) > 500 else ''}")
+                            logger.warning(
+                                f"Failed to split concatenated JSON, buffer content: {remaining_buffer[:500]}{'...' if len(remaining_buffer) > 500 else ''}"
+                            )
                     else:
                         # Try to parse as single JSON object
                         try:
@@ -589,7 +576,7 @@ class AutomagikHiveClient:
 
                 except json.JSONDecodeError as e:
                     # Try to split concatenated JSON objects
-                    if json_buffer.count('}{') > 0:
+                    if json_buffer.count("}{") > 0:
                         logger.debug("Detected concatenated JSON objects in final buffer, attempting to split...")
                         json_objects = self._split_concatenated_json(json_buffer)
 
@@ -606,7 +593,9 @@ class AutomagikHiveClient:
                                     event = self._create_event_from_data(event_data)
                                     if event:
                                         event_count += 1
-                                        logger.debug(f"Created final event #{event_count}: {type(event).__name__} - {event}")
+                                        logger.debug(
+                                            f"Created final event #{event_count}: {type(event).__name__} - {event}"
+                                        )
                                         yield event
 
                                 except json.JSONDecodeError as split_error:
@@ -621,16 +610,18 @@ class AutomagikHiveClient:
                 except Exception as e:
                     logger.error(f"Failed to process final JSON object: {e}")
 
-            logger.info(f"JSON stream parsing completed. Stats: {chunk_count} chunks, {line_count} lines, {json_object_count} JSON objects, {event_count} events created")
+            logger.info(
+                f"JSON stream parsing completed. Stats: {chunk_count} chunks, {line_count} lines, {json_object_count} JSON objects, {event_count} events created"
+            )
 
         except Exception as e:
             logger.error(f"Error processing JSON stream: {e}")
             import traceback
+
             logger.error(f"Full traceback: {traceback.format_exc()}")
             # Yield final error event
             error_event = ErrorEvent(
-                error_message=f"Stream processing error: {e}",
-                error_details={"error_type": type(e).__name__}
+                error_message=f"Stream processing error: {e}", error_details={"error_type": type(e).__name__}
             )
             yield error_event
             raise AutomagikHiveStreamError(f"Stream processing failed: {e}")
@@ -662,8 +653,8 @@ class AutomagikHiveClient:
                 break
 
             # Must start with opening brace
-            if json_text[i] != '{':
-                logger.warning(f"Expected '{{' at position {i}, found '{json_text[i]}' in: {json_text[i:i+50]}...")
+            if json_text[i] != "{":
+                logger.warning(f"Expected '{{' at position {i}, found '{json_text[i]}' in: {json_text[i : i + 50]}...")
                 break
 
             # Find the matching closing brace
@@ -680,18 +671,18 @@ class AutomagikHiveClient:
                     i += 1
                     continue
 
-                if char == '\\':
+                if char == "\\":
                     escape_next = True
                 elif char == '"' and not escape_next:
                     in_string = not in_string
                 elif not in_string:
-                    if char == '{':
+                    if char == "{":
                         brace_count += 1
-                    elif char == '}':
+                    elif char == "}":
                         brace_count -= 1
                         if brace_count == 0:
                             # Found complete JSON object
-                            json_obj = json_text[start:i+1]
+                            json_obj = json_text[start : i + 1]
                             json_objects.append(json_obj)
                             i += 1
                             break
@@ -737,18 +728,12 @@ class AutomagikHiveClient:
             logger.error(f"Event data: {event_data}")
             # Return error event instead of None
             error_event = ErrorEvent(
-                error_message=f"Event creation failed: {e}",
-                error_details={"raw_data": event_data}
+                error_message=f"Event creation failed: {e}", error_details={"raw_data": event_data}
             )
             return error_event
 
     @asynccontextmanager
-    async def stream_agent_conversation(
-        self,
-        agent_id: Optional[str] = None,
-        message: str = "",
-        **kwargs
-    ):
+    async def stream_agent_conversation(self, agent_id: Optional[str] = None, message: str = "", **kwargs):
         """
         Context manager for streaming agent conversations.
 
@@ -762,12 +747,7 @@ class AutomagikHiveClient:
             agent_id = self.default_agent_id
 
         try:
-            stream = await self.create_agent_run(
-                agent_id=agent_id,
-                message=message,
-                stream=True,
-                **kwargs
-            )
+            stream = await self.create_agent_run(agent_id=agent_id, message=message, stream=True, **kwargs)
             yield stream
         except Exception as e:
             logger.error(f"Error in agent conversation stream: {e}")
@@ -777,12 +757,7 @@ class AutomagikHiveClient:
             pass
 
     @asynccontextmanager
-    async def stream_team_conversation(
-        self,
-        team_id: Optional[str] = None,
-        message: str = "",
-        **kwargs
-    ):
+    async def stream_team_conversation(self, team_id: Optional[str] = None, message: str = "", **kwargs):
         """
         Context manager for streaming team conversations.
 
@@ -798,12 +773,7 @@ class AutomagikHiveClient:
                 raise ValueError("No team_id provided and no default team_id configured")
 
         try:
-            stream = await self.create_team_run(
-                team_id=team_id,
-                message=message,
-                stream=True,
-                **kwargs
-            )
+            stream = await self.create_team_run(team_id=team_id, message=message, stream=True, **kwargs)
             yield stream
         except Exception as e:
             logger.error(f"Error in team conversation stream: {e}")

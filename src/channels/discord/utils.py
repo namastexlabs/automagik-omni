@@ -5,6 +5,7 @@ Collection of utility functions for Discord bot operations including
 permission calculations, invite URL generation, ID validation, embed builders,
 and format converters.
 """
+
 import re
 import json
 import logging
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Discord Permission Constants (from Discord API)
 class DiscordPermissions(IntFlag):
     """Discord permission flags as defined in the Discord API."""
+
     CREATE_INSTANT_INVITE = 1 << 0
     KICK_MEMBERS = 1 << 1
     BAN_MEMBERS = 1 << 2
@@ -64,18 +66,14 @@ class DiscordPermissions(IntFlag):
 
 # Predefined permission sets
 PERMISSION_PRESETS = {
-    "minimal": [
-        DiscordPermissions.VIEW_CHANNEL,
-        DiscordPermissions.SEND_MESSAGES,
-        DiscordPermissions.EMBED_LINKS
-    ],
+    "minimal": [DiscordPermissions.VIEW_CHANNEL, DiscordPermissions.SEND_MESSAGES, DiscordPermissions.EMBED_LINKS],
     "basic_bot": [
         DiscordPermissions.VIEW_CHANNEL,
         DiscordPermissions.SEND_MESSAGES,
         DiscordPermissions.READ_MESSAGE_HISTORY,
         DiscordPermissions.EMBED_LINKS,
         DiscordPermissions.ATTACH_FILES,
-        DiscordPermissions.USE_SLASH_COMMANDS
+        DiscordPermissions.USE_SLASH_COMMANDS,
     ],
     "advanced_bot": [
         DiscordPermissions.VIEW_CHANNEL,
@@ -86,7 +84,7 @@ PERMISSION_PRESETS = {
         DiscordPermissions.USE_SLASH_COMMANDS,
         DiscordPermissions.MANAGE_MESSAGES,
         DiscordPermissions.CONNECT,
-        DiscordPermissions.SPEAK
+        DiscordPermissions.SPEAK,
     ],
     "moderation_bot": [
         DiscordPermissions.VIEW_CHANNEL,
@@ -98,11 +96,9 @@ PERMISSION_PRESETS = {
         DiscordPermissions.MANAGE_MESSAGES,
         DiscordPermissions.KICK_MEMBERS,
         DiscordPermissions.BAN_MEMBERS,
-        DiscordPermissions.MANAGE_ROLES
+        DiscordPermissions.MANAGE_ROLES,
     ],
-    "administrator": [
-        DiscordPermissions.ADMINISTRATOR
-    ]
+    "administrator": [DiscordPermissions.ADMINISTRATOR],
 }
 
 
@@ -197,8 +193,12 @@ class InviteURLGenerator:
     """Generate Discord bot invite URLs with proper permissions and scopes."""
 
     @staticmethod
-    def generate_invite_url(client_id: str, permissions: Union[int, List[str], str] = 0,
-                          scopes: List[str] = None, guild_id: Optional[str] = None) -> str:
+    def generate_invite_url(
+        client_id: str,
+        permissions: Union[int, List[str], str] = 0,
+        scopes: List[str] = None,
+        guild_id: Optional[str] = None,
+    ) -> str:
         """
         Generate a Discord bot invite URL.
 
@@ -226,11 +226,7 @@ class InviteURLGenerator:
             perm_int = permissions
 
         # Build URL parameters
-        params = {
-            "client_id": client_id,
-            "permissions": str(perm_int),
-            "scope": "%20".join(scopes)
-        }
+        params = {"client_id": client_id, "permissions": str(perm_int), "scope": "%20".join(scopes)}
 
         if guild_id:
             params["guild_id"] = guild_id
@@ -255,9 +251,7 @@ class InviteURLGenerator:
         urls = {}
 
         for preset_name in PERMISSION_PRESETS.keys():
-            urls[preset_name] = InviteURLGenerator.generate_invite_url(
-                client_id, preset_name, guild_id=guild_id
-            )
+            urls[preset_name] = InviteURLGenerator.generate_invite_url(client_id, preset_name, guild_id=guild_id)
 
         return urls
 
@@ -265,10 +259,8 @@ class InviteURLGenerator:
 class DiscordIDValidator:
     """Validate Discord IDs (snowflakes) and related identifiers."""
 
-    SNOWFLAKE_PATTERN = re.compile(r'^[0-9]{15,21}$')
-    WEBHOOK_URL_PATTERN = re.compile(
-        r'^https://discord\.com/api/webhooks/([0-9]+)/([A-Za-z0-9\-_]+)/?$'
-    )
+    SNOWFLAKE_PATTERN = re.compile(r"^[0-9]{15,21}$")
+    WEBHOOK_URL_PATTERN = re.compile(r"^https://discord\.com/api/webhooks/([0-9]+)/([A-Za-z0-9\-_]+)/?$")
 
     @staticmethod
     def is_valid_snowflake(snowflake: str) -> bool:
@@ -309,10 +301,7 @@ class DiscordIDValidator:
         """
         match = DiscordIDValidator.WEBHOOK_URL_PATTERN.match(webhook_url)
         if match:
-            return {
-                "webhook_id": match.group(1),
-                "webhook_token": match.group(2)
-            }
+            return {"webhook_id": match.group(1), "webhook_token": match.group(2)}
         return None
 
     @staticmethod
@@ -356,21 +345,19 @@ class EmbedBuilder:
 
     def __init__(self):
         """Initialize embed builder."""
-        self.embed_data = {
-            "type": "rich"
-        }
+        self.embed_data = {"type": "rich"}
 
-    def title(self, title: str) -> 'EmbedBuilder':
+    def title(self, title: str) -> "EmbedBuilder":
         """Set embed title."""
         self.embed_data["title"] = title
         return self
 
-    def description(self, description: str) -> 'EmbedBuilder':
+    def description(self, description: str) -> "EmbedBuilder":
         """Set embed description."""
         self.embed_data["description"] = description
         return self
 
-    def color(self, color: Union[int, str]) -> 'EmbedBuilder':
+    def color(self, color: Union[int, str]) -> "EmbedBuilder":
         """Set embed color."""
         if isinstance(color, str):
             # Convert hex string to int
@@ -380,26 +367,26 @@ class EmbedBuilder:
         self.embed_data["color"] = color
         return self
 
-    def url(self, url: str) -> 'EmbedBuilder':
+    def url(self, url: str) -> "EmbedBuilder":
         """Set embed URL."""
         self.embed_data["url"] = url
         return self
 
-    def timestamp(self, timestamp: Optional[datetime] = None) -> 'EmbedBuilder':
+    def timestamp(self, timestamp: Optional[datetime] = None) -> "EmbedBuilder":
         """Set embed timestamp."""
         if timestamp is None:
             timestamp = datetime.utcnow()
         self.embed_data["timestamp"] = timestamp.isoformat()
         return self
 
-    def footer(self, text: str, icon_url: Optional[str] = None) -> 'EmbedBuilder':
+    def footer(self, text: str, icon_url: Optional[str] = None) -> "EmbedBuilder":
         """Set embed footer."""
         self.embed_data["footer"] = {"text": text}
         if icon_url:
             self.embed_data["footer"]["icon_url"] = icon_url
         return self
 
-    def author(self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> 'EmbedBuilder':
+    def author(self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> "EmbedBuilder":
         """Set embed author."""
         self.embed_data["author"] = {"name": name}
         if url:
@@ -408,26 +395,22 @@ class EmbedBuilder:
             self.embed_data["author"]["icon_url"] = icon_url
         return self
 
-    def thumbnail(self, url: str) -> 'EmbedBuilder':
+    def thumbnail(self, url: str) -> "EmbedBuilder":
         """Set embed thumbnail."""
         self.embed_data["thumbnail"] = {"url": url}
         return self
 
-    def image(self, url: str) -> 'EmbedBuilder':
+    def image(self, url: str) -> "EmbedBuilder":
         """Set embed image."""
         self.embed_data["image"] = {"url": url}
         return self
 
-    def add_field(self, name: str, value: str, inline: bool = False) -> 'EmbedBuilder':
+    def add_field(self, name: str, value: str, inline: bool = False) -> "EmbedBuilder":
         """Add a field to the embed."""
         if "fields" not in self.embed_data:
             self.embed_data["fields"] = []
 
-        self.embed_data["fields"].append({
-            "name": name,
-            "value": value,
-            "inline": inline
-        })
+        self.embed_data["fields"].append({"name": name, "value": value, "inline": inline})
         return self
 
     def build(self) -> Dict[str, Any]:
@@ -455,11 +438,11 @@ class FormatConverter:
         """
         # Discord uses similar markdown, but with some differences
         conversions = [
-            (r'\*\*(.*?)\*\*', r'**\1**'),  # Bold (same)
-            (r'\*(.*?)\*', r'*\1*'),        # Italic (same)
-            (r'`(.*?)`', r'`\1`'),          # Code (same)
-            (r'~~(.*?)~~', r'~~\1~~'),      # Strikethrough (same)
-            (r'__(.*?)__', r'__\1__'),      # Underline (same)
+            (r"\*\*(.*?)\*\*", r"**\1**"),  # Bold (same)
+            (r"\*(.*?)\*", r"*\1*"),  # Italic (same)
+            (r"`(.*?)`", r"`\1`"),  # Code (same)
+            (r"~~(.*?)~~", r"~~\1~~"),  # Strikethrough (same)
+            (r"__(.*?)__", r"__\1__"),  # Underline (same)
         ]
 
         result = markdown_text
@@ -479,10 +462,10 @@ class FormatConverter:
         Returns:
             Text with escaped formatting
         """
-        escape_chars = ['*', '_', '~', '`', '|', '\\']
+        escape_chars = ["*", "_", "~", "`", "|", "\\"]
 
         for char in escape_chars:
-            text = text.replace(char, f'\\{char}')
+            text = text.replace(char, f"\\{char}")
 
         return text
 
@@ -512,11 +495,7 @@ class FormatConverter:
         Returns:
             Formatted mention string
         """
-        mention_formats = {
-            "user": f"<@{id_value}>",
-            "channel": f"<#{id_value}>",
-            "role": f"<@&{id_value}>"
-        }
+        mention_formats = {"user": f"<@{id_value}>", "channel": f"<#{id_value}>", "role": f"<@&{id_value}>"}
 
         return mention_formats.get(mention_type, f"@{id_value}")
 
@@ -572,11 +551,7 @@ def create_info_embed(title: str, description: str, fields: Optional[List[Dict[s
 
     if fields:
         for field in fields:
-            builder.add_field(
-                field.get("name", "Field"),
-                field.get("value", "Value"),
-                field.get("inline", False)
-            )
+            builder.add_field(field.get("name", "Field"), field.get("value", "Value"), field.get("inline", False))
 
     return builder.build()
 
@@ -591,12 +566,7 @@ def validate_discord_config(config: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Validation results with status and details
     """
-    results = {
-        "valid": True,
-        "errors": [],
-        "warnings": [],
-        "details": {}
-    }
+    results = {"valid": True, "errors": [], "warnings": [], "details": {}}
 
     # Validate IDs
     id_validation = DiscordIDValidator.validate_ids(config)

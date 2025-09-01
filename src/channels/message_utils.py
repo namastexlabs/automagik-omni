@@ -22,13 +22,13 @@ def extract_response_text(response: Union[str, Dict[str, Any]]) -> str:
 
     if isinstance(response, dict):
         # Check common response fields
-        for field in ['message', 'text', 'content', 'response']:
+        for field in ["message", "text", "content", "response"]:
             if field in response and response[field]:
                 return str(response[field])
 
         # Check nested content
-        if 'data' in response and isinstance(response['data'], dict):
-            return extract_response_text(response['data'])
+        if "data" in response and isinstance(response["data"], dict):
+            return extract_response_text(response["data"])
 
         # If all else fails, convert to string
         return str(response)

@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 class InteractionType(Enum):
     """Discord interaction types we handle"""
+
     SLASH_COMMAND = "slash_command"
     BUTTON_CLICK = "button_click"
     SELECT_MENU = "select_menu"
@@ -36,8 +37,13 @@ class DiscordInteractionHandler:
     Handles Discord interactions including slash commands, buttons, and UI components
     """
 
-    def __init__(self, config: InstanceConfig, message_router: MessageRouter,
-                 agent_interface: 'AgentInterface', cache_manager: CacheManager):
+    def __init__(
+        self,
+        config: InstanceConfig,
+        message_router: MessageRouter,
+        agent_interface: "AgentInterface",
+        cache_manager: CacheManager,
+    ):
         self.config = config
         self.message_router = message_router
         self.agent_interface = agent_interface
@@ -58,30 +64,38 @@ class DiscordInteractionHandler:
 
     def _initialize_command_handlers(self):
         """Initialize command handler mappings"""
-        self.command_handlers.update({
-            "help": self._handle_help_command,
-            "status": self._handle_status_command,
-            "config": self._handle_config_command,
-            "voice-join": self._handle_voice_join_command,
-            "voice-leave": self._handle_voice_leave_command,
-            "ask": self._handle_ask_command,
-        })
+        self.command_handlers.update(
+            {
+                "help": self._handle_help_command,
+                "status": self._handle_status_command,
+                "config": self._handle_config_command,
+                "voice-join": self._handle_voice_join_command,
+                "voice-leave": self._handle_voice_leave_command,
+                "ask": self._handle_ask_command,
+            }
+        )
 
-        self.button_handlers.update({
-            "help_more": self._handle_help_more_button,
-            "config_view": self._handle_config_view_button,
-            "voice_controls": self._handle_voice_controls_button,
-        })
+        self.button_handlers.update(
+            {
+                "help_more": self._handle_help_more_button,
+                "config_view": self._handle_config_view_button,
+                "voice_controls": self._handle_voice_controls_button,
+            }
+        )
 
-        self.select_handlers.update({
-            "help_category": self._handle_help_category_select,
-            "config_option": self._handle_config_option_select,
-        })
+        self.select_handlers.update(
+            {
+                "help_category": self._handle_help_category_select,
+                "config_option": self._handle_config_option_select,
+            }
+        )
 
-        self.modal_handlers.update({
-            "ask_query": self._handle_ask_query_modal,
-            "config_update": self._handle_config_update_modal,
-        })
+        self.modal_handlers.update(
+            {
+                "ask_query": self._handle_ask_query_modal,
+                "config_update": self._handle_config_update_modal,
+            }
+        )
 
     async def register_commands(self, bot: commands.Bot) -> bool:
         """
@@ -110,14 +124,11 @@ class DiscordInteractionHandler:
                                 {"name": "Voice", "value": "voice"},
                                 {"name": "AI Assistant", "value": "ai"},
                                 {"name": "Configuration", "value": "config"},
-                            ]
+                            ],
                         }
-                    ]
+                    ],
                 },
-                {
-                    "name": "status",
-                    "description": "Show bot status and connection information"
-                },
+                {"name": "status", "description": "Show bot status and connection information"},
                 {
                     "name": "config",
                     "description": "View or update bot configuration",
@@ -131,9 +142,9 @@ class DiscordInteractionHandler:
                                 {"name": "View", "value": "view"},
                                 {"name": "Update", "value": "update"},
                                 {"name": "Reset", "value": "reset"},
-                            ]
+                            ],
                         }
-                    ]
+                    ],
                 },
                 {
                     "name": "voice-join",
@@ -144,14 +155,11 @@ class DiscordInteractionHandler:
                             "description": "Voice channel to join (auto-detect if not specified)",
                             "type": discord.AppCommandOptionType.channel,
                             "required": False,
-                            "channel_types": [discord.ChannelType.voice]
+                            "channel_types": [discord.ChannelType.voice],
                         }
-                    ]
+                    ],
                 },
-                {
-                    "name": "voice-leave",
-                    "description": "Leave the current voice channel"
-                },
+                {"name": "voice-leave", "description": "Leave the current voice channel"},
                 {
                     "name": "ask",
                     "description": "Ask the AI assistant a question",
@@ -160,20 +168,21 @@ class DiscordInteractionHandler:
                             "name": "question",
                             "description": "Your question for the AI assistant",
                             "type": discord.AppCommandOptionType.string,
-                            "required": False
+                            "required": False,
                         },
                         {
                             "name": "private",
                             "description": "Send response privately (default: false)",
                             "type": discord.AppCommandOptionType.boolean,
-                            "required": False
-                        }
-                    ]
-                }
+                            "required": False,
+                        },
+                    ],
+                },
             ]
 
             # Register commands using app_commands
             for cmd_data in commands_to_register:
+
                 @app_commands.command(name=cmd_data["name"], description=cmd_data["description"])
                 async def slash_command_wrapper(interaction: discord.Interaction, **kwargs):
                     await self.handle_slash_command(interaction, **kwargs)
@@ -208,8 +217,7 @@ class DiscordInteractionHandler:
             # Check permissions
             if not await self._check_command_permissions(interaction, command_name):
                 await interaction.response.send_message(
-                    "❌ You don't have permission to use this command.",
-                    ephemeral=True
+                    "❌ You don't have permission to use this command.", ephemeral=True
                 )
                 return
 
@@ -217,8 +225,7 @@ class DiscordInteractionHandler:
             handler = self.command_handlers.get(command_name)
             if not handler:
                 await interaction.response.send_message(
-                    f"❌ Command '{command_name}' not implemented yet.",
-                    ephemeral=True
+                    f"❌ Command '{command_name}' not implemented yet.", ephemeral=True
                 )
                 return
 
@@ -230,8 +237,7 @@ class DiscordInteractionHandler:
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "❌ An error occurred while processing your command.",
-                        ephemeral=True
+                        "❌ An error occurred while processing your command.", ephemeral=True
                     )
             except:
                 pass
@@ -253,18 +259,14 @@ class DiscordInteractionHandler:
             if handler:
                 await handler(interaction)
             else:
-                await interaction.response.send_message(
-                    "❌ This button is no longer available.",
-                    ephemeral=True
-                )
+                await interaction.response.send_message("❌ This button is no longer available.", ephemeral=True)
 
         except Exception as e:
             self.logger.error(f"Error handling button click: {e}")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "❌ An error occurred while processing your request.",
-                        ephemeral=True
+                        "❌ An error occurred while processing your request.", ephemeral=True
                     )
             except:
                 pass
@@ -287,18 +289,14 @@ class DiscordInteractionHandler:
             if handler:
                 await handler(interaction, values)
             else:
-                await interaction.response.send_message(
-                    "❌ This menu is no longer available.",
-                    ephemeral=True
-                )
+                await interaction.response.send_message("❌ This menu is no longer available.", ephemeral=True)
 
         except Exception as e:
             self.logger.error(f"Error handling select menu: {e}")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "❌ An error occurred while processing your selection.",
-                        ephemeral=True
+                        "❌ An error occurred while processing your selection.", ephemeral=True
                     )
             except:
                 pass
@@ -320,18 +318,14 @@ class DiscordInteractionHandler:
             if handler:
                 await handler(interaction)
             else:
-                await interaction.response.send_message(
-                    "❌ This form is no longer available.",
-                    ephemeral=True
-                )
+                await interaction.response.send_message("❌ This form is no longer available.", ephemeral=True)
 
         except Exception as e:
             self.logger.error(f"Error handling modal submit: {e}")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "❌ An error occurred while processing your form.",
-                        ephemeral=True
+                        "❌ An error occurred while processing your form.", ephemeral=True
                     )
             except:
                 pass
@@ -374,8 +368,9 @@ class DiscordInteractionHandler:
         elif action == "reset":
             await self._handle_config_reset(interaction)
 
-    async def _handle_voice_join_command(self, interaction: discord.Interaction,
-                                       channel: Optional[discord.VoiceChannel] = None) -> None:
+    async def _handle_voice_join_command(
+        self, interaction: discord.Interaction, channel: Optional[discord.VoiceChannel] = None
+    ) -> None:
         """Handle /voice-join command"""
         await interaction.response.defer()
 
@@ -388,9 +383,7 @@ class DiscordInteractionHandler:
             if interaction.user.voice and interaction.user.voice.channel:
                 channel = interaction.user.voice.channel
             else:
-                await interaction.followup.send(
-                    "❌ You need to be in a voice channel or specify one to join."
-                )
+                await interaction.followup.send("❌ You need to be in a voice channel or specify one to join.")
                 return
 
         try:
@@ -401,7 +394,7 @@ class DiscordInteractionHandler:
                 title="🎤 Voice Connected",
                 description=f"Joined **{channel.name}**",
                 color=discord.Color.green(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
 
             view = self.ui_builder.create_voice_controls_view()
@@ -425,13 +418,14 @@ class DiscordInteractionHandler:
             title="🔇 Voice Disconnected",
             description="Left the voice channel",
             color=discord.Color.orange(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         await interaction.followup.send(embed=embed)
 
-    async def _handle_ask_command(self, interaction: discord.Interaction,
-                                question: Optional[str] = None, private: bool = False) -> None:
+    async def _handle_ask_command(
+        self, interaction: discord.Interaction, question: Optional[str] = None, private: bool = False
+    ) -> None:
         """Handle /ask command"""
         if not question:
             # Show modal for question input
@@ -502,10 +496,7 @@ class DiscordInteractionHandler:
         if question_input:
             await self._process_ask_question(interaction, question_input, private_input)
         else:
-            await interaction.response.send_message(
-                "❌ Please provide a question.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ Please provide a question.", ephemeral=True)
 
     async def _handle_config_update_modal(self, interaction: discord.Interaction) -> None:
         """Handle config update modal submission"""
@@ -514,10 +505,7 @@ class DiscordInteractionHandler:
         # Extract form data and update config
         # Implementation depends on specific config structure
 
-        await interaction.followup.send(
-            "✅ Configuration updated successfully.",
-            ephemeral=True
-        )
+        await interaction.followup.send("✅ Configuration updated successfully.", ephemeral=True)
 
     # Utility Methods
 
@@ -543,7 +531,7 @@ class DiscordInteractionHandler:
     async def _get_agent_status(self) -> str:
         """Get AI agent status"""
         try:
-            if hasattr(self.agent_interface, 'get_status'):
+            if hasattr(self.agent_interface, "get_status"):
                 status = await self.agent_interface.get_status()
                 return "Online" if status else "Offline"
             return "Unknown"
@@ -578,15 +566,16 @@ class DiscordInteractionHandler:
         embed = discord.Embed(
             title="⚠️ Reset Configuration",
             description="Are you sure you want to reset all configuration to defaults?",
-            color=discord.Color.orange()
+            color=discord.Color.orange(),
         )
 
         view = self.ui_builder.create_confirmation_view("config_reset_confirm")
 
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
-    async def _process_ask_question(self, interaction: discord.Interaction,
-                                  question: str, private: bool = False) -> None:
+    async def _process_ask_question(
+        self, interaction: discord.Interaction, question: str, private: bool = False
+    ) -> None:
         """Process ask question and get AI response"""
         await interaction.response.defer(ephemeral=private)
 
@@ -596,7 +585,7 @@ class DiscordInteractionHandler:
                 content=question,
                 user_id=str(interaction.user.id),
                 channel_id=str(interaction.channel.id) if interaction.channel else None,
-                message_type="slash_command"
+                message_type="slash_command",
             )
 
             if response and response.content:
@@ -605,7 +594,7 @@ class DiscordInteractionHandler:
                     title="🤖 AI Assistant Response",
                     description=response.content[:4096],  # Discord embed limit
                     color=discord.Color.blue(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.utcnow(),
                 )
 
                 embed.set_footer(text=f"Asked by {interaction.user.display_name}")
@@ -613,16 +602,12 @@ class DiscordInteractionHandler:
                 await interaction.followup.send(embed=embed, ephemeral=private)
             else:
                 await interaction.followup.send(
-                    "❌ Sorry, I couldn't process your question right now.",
-                    ephemeral=private
+                    "❌ Sorry, I couldn't process your question right now.", ephemeral=private
                 )
 
         except Exception as e:
             self.logger.error(f"Error processing ask question: {e}")
-            await interaction.followup.send(
-                "❌ An error occurred while processing your question.",
-                ephemeral=private
-            )
+            await interaction.followup.send("❌ An error occurred while processing your question.", ephemeral=private)
 
 
 class DiscordUIBuilder:
@@ -633,9 +618,7 @@ class DiscordUIBuilder:
     def create_help_embed(self, category: str = "general") -> discord.Embed:
         """Create help embed for specified category"""
         embed = discord.Embed(
-            title="🤖 Automagik Omni Bot Help",
-            color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
+            title="🤖 Automagik Omni Bot Help", color=discord.Color.blue(), timestamp=datetime.utcnow()
         )
 
         if category == "general":
@@ -646,25 +629,19 @@ class DiscordUIBuilder:
                     "`/status` - Show bot status\n"
                     "`/config` - Manage bot configuration"
                 ),
-                inline=False
+                inline=False,
             )
         elif category == "voice":
             embed.add_field(
                 name="🎤 Voice Commands",
-                value=(
-                    "`/voice-join` - Join voice channel\n"
-                    "`/voice-leave` - Leave voice channel"
-                ),
-                inline=False
+                value=("`/voice-join` - Join voice channel\n`/voice-leave` - Leave voice channel"),
+                inline=False,
             )
         elif category == "ai":
             embed.add_field(
                 name="🧠 AI Assistant Commands",
-                value=(
-                    "`/ask` - Ask the AI assistant a question\n"
-                    "You can also just mention the bot or send DMs"
-                ),
-                inline=False
+                value=("`/ask` - Ask the AI assistant a question\nYou can also just mention the bot or send DMs"),
+                inline=False,
             )
         elif category == "config":
             embed.add_field(
@@ -674,7 +651,7 @@ class DiscordUIBuilder:
                     "`/config update` - Update settings\n"
                     "`/config reset` - Reset to defaults"
                 ),
-                inline=False
+                inline=False,
             )
 
         embed.set_footer(text="Use the dropdown below to switch categories")
@@ -694,40 +671,37 @@ class DiscordUIBuilder:
                     value="general",
                     description="Basic bot commands",
                     emoji="🔧",
-                    default=(current_category == "general")
+                    default=(current_category == "general"),
                 ),
                 discord.SelectOption(
                     label="Voice",
                     value="voice",
                     description="Voice channel commands",
                     emoji="🎤",
-                    default=(current_category == "voice")
+                    default=(current_category == "voice"),
                 ),
                 discord.SelectOption(
                     label="AI Assistant",
                     value="ai",
                     description="AI interaction commands",
                     emoji="🧠",
-                    default=(current_category == "ai")
+                    default=(current_category == "ai"),
                 ),
                 discord.SelectOption(
                     label="Configuration",
                     value="config",
                     description="Bot configuration commands",
                     emoji="⚙️",
-                    default=(current_category == "config")
+                    default=(current_category == "config"),
                 ),
-            ]
+            ],
         )
 
         view.add_item(select)
 
         # More info button
         more_button = discord.ui.Button(
-            label="More Info",
-            style=discord.ButtonStyle.secondary,
-            custom_id="help_more",
-            emoji="📖"
+            label="More Info", style=discord.ButtonStyle.secondary, custom_id="help_more", emoji="📖"
         )
         view.add_item(more_button)
 
@@ -739,7 +713,7 @@ class DiscordUIBuilder:
             title="📖 Detailed Help & Features",
             description="Comprehensive guide to using Automagik Omni Bot",
             color=discord.Color.green(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         embed.add_field(
@@ -751,7 +725,7 @@ class DiscordUIBuilder:
                 "• Configurable settings\n"
                 "• Multi-modal interactions"
             ),
-            inline=True
+            inline=True,
         )
 
         embed.add_field(
@@ -763,7 +737,7 @@ class DiscordUIBuilder:
                 "• Voice commands in voice channels\n"
                 "• Configure settings with `/config`"
             ),
-            inline=True
+            inline=True,
         )
 
         embed.add_field(
@@ -773,18 +747,14 @@ class DiscordUIBuilder:
                 "[Support Server](https://discord.gg/example)\n"
                 "[GitHub](https://github.com/example/repo)"
             ),
-            inline=False
+            inline=False,
         )
 
         return embed
 
     def create_status_embed(self, status_data: Dict[str, Any]) -> discord.Embed:
         """Create status embed with system information"""
-        embed = discord.Embed(
-            title="🤖 Bot Status",
-            color=discord.Color.green(),
-            timestamp=datetime.utcnow()
-        )
+        embed = discord.Embed(title="🤖 Bot Status", color=discord.Color.green(), timestamp=datetime.utcnow())
 
         embed.add_field(
             name="📊 Performance",
@@ -792,43 +762,30 @@ class DiscordUIBuilder:
                 f"**Latency:** {status_data.get('bot_latency', 0)}ms\n"
                 f"**Uptime:** {status_data.get('uptime', '0d 0h 0m')}"
             ),
-            inline=True
+            inline=True,
         )
 
         embed.add_field(
             name="🌐 Network",
-            value=(
-                f"**Guilds:** {status_data.get('guild_count', 0)}\n"
-                f"**Users:** {status_data.get('user_count', 0)}"
-            ),
-            inline=True
+            value=(f"**Guilds:** {status_data.get('guild_count', 0)}\n**Users:** {status_data.get('user_count', 0)}"),
+            inline=True,
         )
 
         embed.add_field(
             name="🎤 Voice",
-            value=(
-                f"**Connected:** {'✅' if status_data.get('voice_connected') else '❌'}"
-            ),
-            inline=True
+            value=(f"**Connected:** {'✅' if status_data.get('voice_connected') else '❌'}"),
+            inline=True,
         )
 
         embed.add_field(
-            name="🧠 AI Agent",
-            value=(
-                f"**Status:** {status_data.get('ai_agent_status', 'Unknown')}"
-            ),
-            inline=True
+            name="🧠 AI Agent", value=(f"**Status:** {status_data.get('ai_agent_status', 'Unknown')}"), inline=True
         )
 
         return embed
 
     def create_config_embed(self, config: InstanceConfig) -> discord.Embed:
         """Create configuration embed"""
-        embed = discord.Embed(
-            title="⚙️ Bot Configuration",
-            color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
-        )
+        embed = discord.Embed(title="⚙️ Bot Configuration", color=discord.Color.blue(), timestamp=datetime.utcnow())
 
         # Add config fields based on actual config structure
         embed.add_field(
@@ -837,7 +794,7 @@ class DiscordUIBuilder:
                 f"**Model:** {getattr(config, 'ai_model', 'Not set')}\n"
                 f"**Max Tokens:** {getattr(config, 'max_tokens', 'Not set')}"
             ),
-            inline=True
+            inline=True,
         )
 
         embed.add_field(
@@ -846,7 +803,7 @@ class DiscordUIBuilder:
                 f"**Auto Join:** {getattr(config, 'auto_join_voice', False)}\n"
                 f"**Voice Recognition:** {getattr(config, 'voice_recognition', False)}"
             ),
-            inline=True
+            inline=True,
         )
 
         return embed
@@ -861,34 +818,22 @@ class DiscordUIBuilder:
             custom_id="config_option",
             options=[
                 discord.SelectOption(
-                    label="AI Settings",
-                    value="ai",
-                    description="AI model and behavior settings",
-                    emoji="🧠"
+                    label="AI Settings", value="ai", description="AI model and behavior settings", emoji="🧠"
                 ),
                 discord.SelectOption(
-                    label="Voice Settings",
-                    value="voice",
-                    description="Voice channel preferences",
-                    emoji="🎤"
+                    label="Voice Settings", value="voice", description="Voice channel preferences", emoji="🎤"
                 ),
                 discord.SelectOption(
-                    label="General Settings",
-                    value="general",
-                    description="General bot settings",
-                    emoji="⚙️"
+                    label="General Settings", value="general", description="General bot settings", emoji="⚙️"
                 ),
-            ]
+            ],
         )
 
         view.add_item(select)
 
         # Update button
         update_button = discord.ui.Button(
-            label="Update Settings",
-            style=discord.ButtonStyle.primary,
-            custom_id="config_update",
-            emoji="✏️"
+            label="Update Settings", style=discord.ButtonStyle.primary, custom_id="config_update", emoji="✏️"
         )
         view.add_item(update_button)
 
@@ -897,9 +842,7 @@ class DiscordUIBuilder:
     def create_config_detail_embed(self, option: str, config: InstanceConfig) -> discord.Embed:
         """Create detailed config embed for specific option"""
         embed = discord.Embed(
-            title=f"⚙️ {option.title()} Configuration",
-            color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
+            title=f"⚙️ {option.title()} Configuration", color=discord.Color.blue(), timestamp=datetime.utcnow()
         )
 
         if option == "ai":
@@ -911,7 +854,7 @@ class DiscordUIBuilder:
                     f"**Temperature:** {getattr(config, 'temperature', 0.7)}\n"
                     f"**System Prompt:** {getattr(config, 'system_prompt', 'Default')[:50]}..."
                 ),
-                inline=False
+                inline=False,
             )
         elif option == "voice":
             embed.add_field(
@@ -921,7 +864,7 @@ class DiscordUIBuilder:
                     f"**Voice Recognition:** {getattr(config, 'voice_recognition', False)}\n"
                     f"**Voice Response:** {getattr(config, 'voice_response', False)}"
                 ),
-                inline=False
+                inline=False,
             )
         elif option == "general":
             embed.add_field(
@@ -931,7 +874,7 @@ class DiscordUIBuilder:
                     f"**Language:** {getattr(config, 'language', 'en')}\n"
                     f"**Timezone:** {getattr(config, 'timezone', 'UTC')}"
                 ),
-                inline=False
+                inline=False,
             )
 
         return embed
@@ -948,18 +891,14 @@ class DiscordUIBuilder:
         ]
 
         for emoji, custom_id, label, style in buttons:
-            button = discord.ui.Button(
-                emoji=emoji,
-                label=label,
-                style=style,
-                custom_id=custom_id
-            )
+            button = discord.ui.Button(emoji=emoji, label=label, style=style, custom_id=custom_id)
             view.add_item(button)
 
         return view
 
     def create_ask_modal(self) -> discord.ui.Modal:
         """Create ask question modal"""
+
         class AskModal(discord.ui.Modal):
             def __init__(self):
                 super().__init__(title="Ask AI Assistant", custom_id="ask_query")
@@ -970,7 +909,7 @@ class DiscordUIBuilder:
                     custom_id="ask_question",
                     style=discord.TextStyle.paragraph,
                     max_length=2000,
-                    required=True
+                    required=True,
                 )
                 self.add_item(self.question)
 
@@ -980,7 +919,7 @@ class DiscordUIBuilder:
                     custom_id="ask_private",
                     style=discord.TextStyle.short,
                     max_length=5,
-                    required=False
+                    required=False,
                 )
                 self.add_item(self.private)
 
@@ -992,6 +931,7 @@ class DiscordUIBuilder:
 
     def create_config_update_modal(self) -> discord.ui.Modal:
         """Create config update modal"""
+
         class ConfigUpdateModal(discord.ui.Modal):
             def __init__(self):
                 super().__init__(title="Update Configuration", custom_id="config_update")
@@ -1002,7 +942,7 @@ class DiscordUIBuilder:
                     custom_id="config_setting",
                     style=discord.TextStyle.short,
                     max_length=100,
-                    required=True
+                    required=True,
                 )
                 self.add_item(self.setting_name)
 
@@ -1012,7 +952,7 @@ class DiscordUIBuilder:
                     custom_id="config_value",
                     style=discord.TextStyle.short,
                     max_length=500,
-                    required=True
+                    required=True,
                 )
                 self.add_item(self.setting_value)
 
@@ -1027,17 +967,11 @@ class DiscordUIBuilder:
         view = discord.ui.View(timeout=60)
 
         confirm_button = discord.ui.Button(
-            label="Confirm",
-            style=discord.ButtonStyle.danger,
-            custom_id=f"{action}_yes",
-            emoji="✅"
+            label="Confirm", style=discord.ButtonStyle.danger, custom_id=f"{action}_yes", emoji="✅"
         )
 
         cancel_button = discord.ui.Button(
-            label="Cancel",
-            style=discord.ButtonStyle.secondary,
-            custom_id=f"{action}_no",
-            emoji="❌"
+            label="Cancel", style=discord.ButtonStyle.secondary, custom_id=f"{action}_no", emoji="❌"
         )
 
         view.add_item(confirm_button)

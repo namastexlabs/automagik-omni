@@ -21,12 +21,8 @@ class InstanceConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # Instance identification
-    name = Column(
-        String, unique=True, index=True, nullable=False
-    )  # e.g., "flashinho_v2"
-    channel_type = Column(
-        String, default="whatsapp", nullable=False
-    )  # "whatsapp", "slack", "discord"
+    name = Column(String, unique=True, index=True, nullable=False)  # e.g., "flashinho_v2"
+    channel_type = Column(String, default="whatsapp", nullable=False)  # "whatsapp", "slack", "discord"
 
     # Evolution API configuration (WhatsApp-specific)
     evolution_url = Column(String, nullable=True)  # Made nullable for other channels
@@ -35,9 +31,7 @@ class InstanceConfig(Base):
     # Channel-specific configuration
     whatsapp_instance = Column(String, nullable=True)  # WhatsApp: instance name
     session_id_prefix = Column(String, nullable=True)  # WhatsApp: session prefix
-    webhook_base64 = Column(
-        Boolean, default=True, nullable=False
-    )  # WhatsApp: send base64 in webhooks
+    webhook_base64 = Column(Boolean, default=True, nullable=False)  # WhatsApp: send base64 in webhooks
 
     # Discord-specific fields
     discord_bot_token = Column(String, nullable=True)  # Bot authentication token
@@ -57,7 +51,9 @@ class InstanceConfig(Base):
     agent_instance_type = Column(String, default="automagik", nullable=False)  # "automagik" or "hive"
     agent_api_url = Column(String, nullable=False)
     agent_api_key = Column(String, nullable=False)
-    agent_id = Column(String, default="default", nullable=True)  # Agent name/ID - defaults to "default" for backward compatibility
+    agent_id = Column(
+        String, default="default", nullable=True
+    )  # Agent name/ID - defaults to "default" for backward compatibility
     agent_type = Column(String, default="agent", nullable=False)  # "agent" or "team" (team only for hive)
     agent_timeout = Column(Integer, default=60)
     agent_stream_mode = Column(Boolean, default=False, nullable=False)  # Enable streaming (mainly for hive)
@@ -87,9 +83,7 @@ class InstanceConfig(Base):
     is_default = Column(Boolean, default=False, index=True)
 
     # Instance status
-    is_active = Column(
-        Boolean, default=False, index=True
-    )  # Evolution connection status
+    is_active = Column(Boolean, default=False, index=True)  # Evolution connection status
 
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
@@ -140,7 +134,7 @@ class InstanceConfig(Base):
             "agent_id": agent_identifier,
             "agent_type": self.agent_type or "agent",
             "timeout": self.agent_timeout or 60,
-            "stream_mode": self.agent_stream_mode or False
+            "stream_mode": self.agent_stream_mode or False,
         }
         return config
 
@@ -152,10 +146,10 @@ class InstanceConfig(Base):
             return bool(self.agent_api_url) and bool(self.agent_api_key) and bool(self.agent_id)
         # Fall back to legacy fields if they exist
         return (
-            self.hive_enabled and
-            bool(self.hive_api_url) and
-            bool(self.hive_api_key) and
-            (bool(self.hive_agent_id) or bool(self.hive_team_id))
+            self.hive_enabled
+            and bool(self.hive_api_url)
+            and bool(self.hive_api_key)
+            and (bool(self.hive_agent_id) or bool(self.hive_team_id))
         )
 
     def get_hive_config(self) -> dict:
@@ -170,7 +164,7 @@ class InstanceConfig(Base):
             "agent_id": self.hive_agent_id,
             "team_id": self.hive_team_id,
             "timeout": self.hive_timeout,
-            "stream_mode": self.hive_stream_mode
+            "stream_mode": self.hive_stream_mode,
         }
 
 
@@ -192,9 +186,7 @@ class User(Base):
     whatsapp_jid = Column(String, nullable=False, index=True)  # Formatted WhatsApp ID
 
     # Instance relationship
-    instance_name = Column(
-        String, ForeignKey("instance_configs.name"), nullable=False, index=True
-    )
+    instance_name = Column(String, ForeignKey("instance_configs.name"), nullable=False, index=True)
     instance = relationship("InstanceConfig", back_populates="users")
 
     # User information
@@ -202,9 +194,7 @@ class User(Base):
 
     # Session tracking (can change over time)
     last_session_name_interaction = Column(String, nullable=True, index=True)
-    last_agent_user_id = Column(
-        String, nullable=True
-    )  # UUID from agent API, can change
+    last_agent_user_id = Column(String, nullable=True)  # UUID from agent API, can change
 
     # Activity tracking
     last_seen_at = Column(DateTime, default=datetime_utcnow, index=True)

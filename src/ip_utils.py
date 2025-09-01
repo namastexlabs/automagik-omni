@@ -108,11 +108,7 @@ def get_local_ipv4() -> str:
                     lines = result.stdout.strip().split("\n")
                     for line in lines:
                         ip = line.strip()
-                        if (
-                            ip
-                            and is_local_network_ip(ip)
-                            and not is_docker_wsl_internal_ip(ip)
-                        ):
+                        if ip and is_local_network_ip(ip) and not is_docker_wsl_internal_ip(ip):
                             return ip
             except (
                 subprocess.CalledProcessError,
@@ -152,9 +148,7 @@ def get_local_ipv4() -> str:
         try:
             if platform.system() == "Windows":
                 # Windows ipconfig
-                result = subprocess.run(
-                    ["ipconfig"], capture_output=True, text=True, timeout=5
-                )
+                result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     lines = result.stdout.split("\n")
                     for line in lines:
@@ -187,9 +181,7 @@ def get_local_ipv4() -> str:
                 except (subprocess.CalledProcessError, FileNotFoundError):
                     # Fallback to ifconfig
                     try:
-                        result = subprocess.run(
-                            ["ifconfig"], capture_output=True, text=True, timeout=5
-                        )
+                        result = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=5)
                         if result.returncode == 0:
                             lines = result.stdout.split("\n")
                             for line in lines:
@@ -316,7 +308,7 @@ def get_container_accessible_ip() -> str:
                             ip = part.split("/")[0]
                             if ip and ip != "127.0.0.1":
                                 return ip
-    except:
+    except Exception:
         pass
 
     # Fallback to standard detection
@@ -338,7 +330,7 @@ def is_localhost_url(url: str) -> bool:
     try:
         parsed = urlparse(url)
         return parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0")
-    except:
+    except Exception:
         return False
 
 

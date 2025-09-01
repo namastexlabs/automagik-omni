@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 @dataclass
 class RateLimitWindow:
     """Represents a rate limiting time window using efficient deque operations."""
+
     requests: deque = field(default_factory=deque)
     max_requests: int = 5
     time_window: int = 60
@@ -80,9 +81,7 @@ class RateLimiter:
         # Get or create window for identifier
         if identifier not in self.windows:
             self.windows[identifier] = RateLimitWindow(
-                max_requests=self.max_requests,
-                time_window=self.time_window,
-                last_cleanup=current_time
+                max_requests=self.max_requests, time_window=self.time_window, last_cleanup=current_time
             )
 
         window = self.windows[identifier]
@@ -158,5 +157,5 @@ class RateLimiter:
             "active_requests": active_requests,
             "max_requests_per_window": self.max_requests,
             "time_window": self.time_window,
-            "cleanup_interval": self.cleanup_interval
+            "cleanup_interval": self.cleanup_interval,
         }
