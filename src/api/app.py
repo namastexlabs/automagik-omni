@@ -36,13 +36,7 @@ from src.db.database import create_tables
 logger = logging.getLogger("src.api.app")
 
 # Initialize channel handlers
-# Apply streaming patch for WhatsApp handlers BEFORE they are used elsewhere
-try:
-    from src.channels.whatsapp.streaming_patch import apply_streaming_patch
-
-    apply_streaming_patch()
-except Exception as e:
-    logger.warning(f"Failed to apply WhatsApp streaming patch: {e}")
+# Note: Streaming functionality is now integrated directly into the handlers
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
