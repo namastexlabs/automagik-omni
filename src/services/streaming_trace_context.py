@@ -11,7 +11,16 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime
 
-from src.services.trace_service import TraceContext, utcnow
+from src.utils.datetime_utils import utcnow
+
+# Import TYPE_CHECKING to avoid circular import
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.services.trace_service import TraceContext
+else:
+    # Import at runtime to avoid circular dependency
+    import src.services.trace_service
+    TraceContext = src.services.trace_service.TraceContext
 
 logger = logging.getLogger(__name__)
 

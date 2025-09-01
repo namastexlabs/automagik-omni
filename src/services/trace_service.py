@@ -15,7 +15,6 @@ from src.config import config
 from src.db.database import get_db
 from src.db.trace_models import MessageTrace, TracePayload
 from src.utils.datetime_utils import utcnow
-from src.services.streaming_trace_context import StreamingTraceContext
 
 logger = logging.getLogger(__name__)
 
