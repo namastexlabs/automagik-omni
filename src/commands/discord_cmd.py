@@ -3,6 +3,7 @@
 Discord command wrapper - provides a clean interface to Discord bot management.
 This script provides a simple command interface that integrates with the CLI system.
 """
+
 import sys
 import logging
 from pathlib import Path
@@ -15,10 +16,7 @@ from src.services.discord_service import discord_service
 from core.telemetry import track_command
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -28,7 +26,7 @@ def start_discord_bot(instance_name: str) -> bool:
 
     try:
         # Ensure Discord service is running
-        if not discord_service.get_service_status()['service_running']:
+        if not discord_service.get_service_status()["service_running"]:
             logger.info("Starting Discord service...")
             if not discord_service.start():
                 logger.error("Failed to start Discord service")
@@ -74,6 +72,7 @@ def main():
                     print("Bot is running. Press Ctrl+C to stop...")
                     while True:
                         import time
+
                         time.sleep(1)
                 except KeyboardInterrupt:
                     print("\nShutting down Discord bot...")
@@ -106,7 +105,7 @@ def main():
                 print(f"  Status: {status.get('status', 'unknown')}")
                 print(f"  Guilds: {status.get('guild_count', 0)}")
                 print(f"  Users: {status.get('user_count', 0)}")
-                if status.get('latency'):
+                if status.get("latency"):
                     print(f"  Latency: {status['latency']:.2f}ms")
             else:
                 print(f"Discord bot '{instance_name}' is not running or not found")

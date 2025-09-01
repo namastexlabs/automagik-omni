@@ -16,6 +16,7 @@ from src.ip_utils import replace_localhost_with_ipv4
 
 logger = logging.getLogger(__name__)
 
+
 class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
     """WhatsApp channel handler with unified operations support."""
 
@@ -25,9 +26,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
             config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         )
-        evolution_key = instance.evolution_key or config.get_env(
-            "EVOLUTION_API_KEY", ""
-        )
+        evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
 
         # Validate configuration (same as parent class)
         if evolution_url.lower() in ["string", "null", "undefined", ""]:
@@ -44,20 +43,12 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             "undefined",
             "",
         ]:
-            logger.error(
-                "Invalid Evolution API key detected. Please provide a valid API key."
-            )
-            raise Exception(
-                "Invalid Evolution API key. Please provide a valid API key."
-            )
+            logger.error("Invalid Evolution API key detected. Please provide a valid API key.")
+            raise Exception("Invalid Evolution API key. Please provide a valid API key.")
 
         if not evolution_url.startswith(("http://", "https://")):
-            logger.error(
-                f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://"
-            )
-            raise Exception(
-                f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://"
-            )
+            logger.error(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
+            raise Exception(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
 
         return OmniEvolutionClient(evolution_url, evolution_key)
 
@@ -67,7 +58,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         page: int = 1,
         page_size: int = 50,
         search_query: Optional[str] = None,
-        status_filter: Optional[str] = None
+        status_filter: Optional[str] = None,
     ) -> Tuple[List[OmniContact], int]:
         """
         Get contacts from WhatsApp in unified format.
@@ -79,9 +70,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
 
             # Fetch contacts from Evolution API
             contacts_response = await evolution_client.fetch_contacts(
-                instance_name=instance.name,
-                page=page,
-                page_size=page_size
+                instance_name=instance.name, page=page, page_size=page_size
             )
 
             logger.debug(f"Evolution API contacts response: {contacts_response}")
@@ -108,9 +97,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                             if status_filter and contact_data.get("presence") != status_filter:
                                 continue
 
-                            omni_contact = WhatsAppTransformer.contact_to_omni(
-                                contact_data, instance.name
-                            )
+                            omni_contact = WhatsAppTransformer.contact_to_omni(contact_data, instance.name)
                             contacts.append(omni_contact)
                         except Exception as e:
                             logger.warning(f"Failed to transform contact data: {e}")
@@ -120,7 +107,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 if search_query or status_filter:
                     total_count = len(contacts)
 
-            logger.info(f"Successfully fetched {len(contacts)} WhatsApp contacts (total: {total_count}) for instance {instance.name}")
+            logger.info(
+                f"Successfully fetched {len(contacts)} WhatsApp contacts (total: {total_count}) for instance {instance.name}"
+            )
             return contacts, total_count
 
         except Exception as e:
@@ -133,7 +122,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         page: int = 1,
         page_size: int = 50,
         chat_type_filter: Optional[str] = None,
-        archived: Optional[bool] = None
+        archived: Optional[bool] = None,
     ) -> Tuple[List[OmniChat], int]:
         """
         Get chats/conversations from WhatsApp in unified format.
@@ -145,9 +134,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
 
             # Fetch chats from Evolution API
             chats_response = await evolution_client.fetch_chats(
-                instance_name=instance.name,
-                page=page,
-                page_size=page_size
+                instance_name=instance.name, page=page, page_size=page_size
             )
 
             logger.debug(f"Evolution API chats response: {chats_response}")
@@ -178,9 +165,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                             if archived is not None and chat_data.get("isArchived", False) != archived:
                                 continue
 
-                            omni_chat = WhatsAppTransformer.chat_to_omni(
-                                chat_data, instance.name
-                            )
+                            omni_chat = WhatsAppTransformer.chat_to_omni(chat_data, instance.name)
                             chats.append(omni_chat)
                         except Exception as e:
                             logger.warning(f"Failed to transform chat data: {e}")
@@ -190,7 +175,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 if chat_type_filter or archived is not None:
                     total_count = len(chats)
 
-            logger.info(f"Successfully fetched {len(chats)} WhatsApp chats (total: {total_count}) for instance {instance.name}")
+            logger.info(
+                f"Successfully fetched {len(chats)} WhatsApp chats (total: {total_count}) for instance {instance.name}"
+            )
             return chats, total_count
 
         except Exception as e:
@@ -212,7 +199,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 "status": status_response.status,
                 "instance_name": status_response.instance_name,
                 "channel_type": status_response.channel_type,
-                "channel_data": status_response.channel_data or {}
+                "channel_data": status_response.channel_data or {},
             }
 
             # Extract additional info from channel_data if available
@@ -220,14 +207,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 status_data.update(status_response.channel_data)
 
             # Use instance config data
-            instance_config = {
-                "display_name": f"WhatsApp - {instance.name}",
-                "instance_name": instance.name
-            }
+            instance_config = {"display_name": f"WhatsApp - {instance.name}", "instance_name": instance.name}
 
-            omni_channel_info = WhatsAppTransformer.channel_to_omni(
-                instance.name, status_data, instance_config
-            )
+            omni_channel_info = WhatsAppTransformer.channel_to_omni(instance.name, status_data, instance_config)
 
             logger.info(f"Successfully fetched WhatsApp channel info for instance {instance.name}")
             return omni_channel_info

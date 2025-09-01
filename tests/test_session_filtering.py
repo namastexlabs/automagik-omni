@@ -59,7 +59,7 @@ class TestSessionFilteringAPI:
                 has_quoted_message=False,
                 status="completed",
                 received_at=base_time - timedelta(minutes=30),
-                completed_at=base_time - timedelta(minutes=29)
+                completed_at=base_time - timedelta(minutes=29),
             ),
             MessageTrace(
                 trace_id="trace_002",
@@ -73,7 +73,7 @@ class TestSessionFilteringAPI:
                 has_quoted_message=False,
                 status="completed",
                 received_at=base_time - timedelta(minutes=25),
-                completed_at=base_time - timedelta(minutes=24)
+                completed_at=base_time - timedelta(minutes=24),
             ),
             # Instance B traces (same user, different instance)
             MessageTrace(
@@ -88,7 +88,7 @@ class TestSessionFilteringAPI:
                 has_quoted_message=False,
                 status="completed",
                 received_at=base_time - timedelta(minutes=20),
-                completed_at=base_time - timedelta(minutes=19)
+                completed_at=base_time - timedelta(minutes=19),
             ),
             # Different user same instance A
             MessageTrace(
@@ -103,7 +103,7 @@ class TestSessionFilteringAPI:
                 has_quoted_message=False,
                 status="completed",
                 received_at=base_time - timedelta(minutes=15),
-                completed_at=base_time - timedelta(minutes=14)
+                completed_at=base_time - timedelta(minutes=14),
             ),
             # Cross-session trace (no agent session id)
             MessageTrace(
@@ -118,8 +118,8 @@ class TestSessionFilteringAPI:
                 has_quoted_message=False,
                 status="failed",
                 received_at=base_time - timedelta(minutes=10),
-                error_message="Agent API timeout"
-            )
+                error_message="Agent API timeout",
+            ),
         ]
 
     def test_filter_by_agent_session_id(self, client, sample_traces, mock_db_session):
@@ -166,8 +166,7 @@ class TestSessionFilteringAPI:
 
         # Make the API request
         response = client.get(
-            f"/api/v1/traces?agent_session_id={target_agent_session}",
-            headers={"Authorization": "Bearer namastex888"}
+            f"/api/v1/traces?agent_session_id={target_agent_session}", headers={"Authorization": "Bearer namastex888"}
         )
 
         # Verify the response
@@ -223,8 +222,7 @@ class TestSessionFilteringAPI:
 
         # Make the API request
         response = client.get(
-            f"/api/v1/traces?session_name={target_session_name}",
-            headers={"Authorization": "Bearer namastex888"}
+            f"/api/v1/traces?session_name={target_session_name}", headers={"Authorization": "Bearer namastex888"}
         )
 
         # Verify the response
@@ -245,7 +243,7 @@ class TestSessionFilteringAPI:
         client.app.dependency_overrides[get_database] = lambda: mock_db_session
 
         # Configure mock to return only traces with media
-        expected_traces = [trace for trace in sample_traces if trace.has_media == True]
+        expected_traces = [trace for trace in sample_traces if trace.has_media]
 
         # Create mock trace objects with to_dict method
         mock_traces = []
@@ -278,10 +276,7 @@ class TestSessionFilteringAPI:
         mock_db_session.query.return_value.filter.return_value.count.return_value = len(mock_traces)
 
         # Make the API request
-        response = client.get(
-            "/api/v1/traces?has_media=true",
-            headers={"Authorization": "Bearer namastex888"}
-        )
+        response = client.get("/api/v1/traces?has_media=true", headers={"Authorization": "Bearer namastex888"})
 
         # Verify the response
         assert response.status_code == 200
@@ -290,7 +285,7 @@ class TestSessionFilteringAPI:
 
         # Verify all returned traces have media
         for trace in data:
-            assert trace["has_media"] == True
+            assert trace["has_media"]
 
     def test_combined_session_filters(self, client, sample_traces, mock_db_session):
         """Test combining session_name and instance_name filters."""
@@ -304,7 +299,8 @@ class TestSessionFilteringAPI:
         target_session_name = "user_john_session"
         target_instance_name = "instance_a"
         expected_traces = [
-            trace for trace in sample_traces
+            trace
+            for trace in sample_traces
             if trace.session_name == target_session_name and trace.instance_name == target_instance_name
         ]
 
@@ -341,7 +337,7 @@ class TestSessionFilteringAPI:
         # Make the API request with combined filters
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}&instance_name={target_instance_name}",
-            headers={"Authorization": "Bearer namastex888"}
+            headers={"Authorization": "Bearer namastex888"},
         )
 
         # Verify the response
@@ -398,8 +394,7 @@ class TestSessionFilteringAPI:
 
         # Make the API request filtering by instance
         response = client.get(
-            f"/api/v1/traces?instance_name={target_instance}",
-            headers={"Authorization": "Bearer namastex888"}
+            f"/api/v1/traces?instance_name={target_instance}", headers={"Authorization": "Bearer namastex888"}
         )
 
         # Verify the response
@@ -441,7 +436,7 @@ class TestSessionFilteringAPI:
 
             response = client.get(
                 f"/api/v1/traces?agent_session_id={non_existent_session}",
-                headers={"Authorization": "Bearer namastex888"}
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response.status_code == 200
@@ -503,14 +498,12 @@ class TestSessionFilteringAPI:
         try:
             # Test with 'phone' parameter
             response1 = client.get(
-                f"/api/v1/traces?phone={target_phone}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?phone={target_phone}", headers={"Authorization": "Bearer namastex888"}
             )
 
             # Test with 'sender_phone' parameter
             response2 = client.get(
-                f"/api/v1/traces?sender_phone={target_phone}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?sender_phone={target_phone}", headers={"Authorization": "Bearer namastex888"}
             )
 
             assert response1.status_code == 200
@@ -562,12 +555,14 @@ class TestSessionFilteringAPI:
             mock_traces.append(mock_trace)
 
         mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces
-        mock_db_session.query.return_value.filter.return_value.count.return_value = len(all_matching_traces)  # Total count
+        mock_db_session.query.return_value.filter.return_value.count.return_value = len(
+            all_matching_traces
+        )  # Total count
 
         # Make the API request with pagination
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}&limit=1&offset=0",
-            headers={"Authorization": "Bearer namastex888"}
+            headers={"Authorization": "Bearer namastex888"},
         )
 
         # Verify the response
@@ -612,7 +607,7 @@ class TestSessionFilteringAPI:
 
         response_page2 = client.get(
             f"/api/v1/traces?session_name={target_session_name}&limit=1&offset=1",
-            headers={"Authorization": "Bearer namastex888"}
+            headers={"Authorization": "Bearer namastex888"},
         )
 
         assert response_page2.status_code == 200
@@ -625,7 +620,7 @@ class TestSessionFilteringAPI:
 
     def test_invalid_boolean_parameter(self, client):
         """Test handling of invalid boolean values for has_media parameter."""
-        with patch('src.api.deps.get_database') as mock_get_db:
+        with patch("src.api.deps.get_database") as mock_get_db:
             mock_session = Mock(spec=Session)
             mock_query = Mock()
 
@@ -638,8 +633,7 @@ class TestSessionFilteringAPI:
 
             # Test with invalid boolean value
             response = client.get(
-                "/api/v1/traces?has_media=invalid_bool",
-                headers={"Authorization": "Bearer namastex888"}
+                "/api/v1/traces?has_media=invalid_bool", headers={"Authorization": "Bearer namastex888"}
             )
 
             # Should return 422 for validation error
@@ -673,10 +667,7 @@ class TestSessionFilteringEdgeCases:
 
         try:
             # Empty session_name parameter should be ignored
-            response = client.get(
-                "/api/v1/traces?session_name=",
-                headers={"Authorization": "Bearer namastex888"}
-            )
+            response = client.get("/api/v1/traces?session_name=", headers={"Authorization": "Bearer namastex888"})
 
             assert response.status_code == 200
         finally:
@@ -709,8 +700,7 @@ class TestSessionFilteringEdgeCases:
             # Unicode session name
             unicode_session = "用户_会话_测试"
             response = client.get(
-                f"/api/v1/traces?session_name={unicode_session}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?session_name={unicode_session}", headers={"Authorization": "Bearer namastex888"}
             )
 
             assert response.status_code == 200
@@ -744,8 +734,7 @@ class TestSessionFilteringEdgeCases:
             # Very long session ID (1000 characters)
             long_session_id = "a" * 1000
             response = client.get(
-                f"/api/v1/traces?agent_session_id={long_session_id}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?agent_session_id={long_session_id}", headers={"Authorization": "Bearer namastex888"}
             )
 
             assert response.status_code == 200

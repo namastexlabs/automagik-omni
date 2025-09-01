@@ -4,6 +4,7 @@ Discord Webhook Notifier
 Simple webhook-only notifications for Discord channels.
 No bot needed, just webhook URLs for sending messages.
 """
+
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -17,15 +18,17 @@ logger = logging.getLogger(__name__)
 
 class EmbedColor(Enum):
     """Standard embed colors for different notification types."""
+
     SUCCESS = 0x00FF00  # Green
-    INFO = 0x0099FF     # Blue
+    INFO = 0x0099FF  # Blue
     WARNING = 0xFFCC00  # Orange
-    ERROR = 0xFF0000    # Red
-    SYSTEM = 0x9932CC   # Purple
+    ERROR = 0xFF0000  # Red
+    SYSTEM = 0x9932CC  # Purple
 
 
 class EmbedField(BaseModel):
     """Represents an embed field."""
+
     name: str
     value: str
     inline: bool = False
@@ -33,6 +36,7 @@ class EmbedField(BaseModel):
 
 class DiscordEmbed(BaseModel):
     """Represents a Discord embed."""
+
     title: Optional[str] = None
     description: Optional[str] = None
     color: Optional[int] = None
@@ -44,19 +48,19 @@ class DiscordEmbed(BaseModel):
     image: Optional[Dict[str, str]] = None
     fields: List[EmbedField] = Field(default_factory=list)
 
-    def add_field(self, name: str, value: str, inline: bool = False) -> 'DiscordEmbed':
+    def add_field(self, name: str, value: str, inline: bool = False) -> "DiscordEmbed":
         """Add a field to the embed."""
         self.fields.append(EmbedField(name=name, value=value, inline=inline))
         return self
 
-    def set_footer(self, text: str, icon_url: Optional[str] = None) -> 'DiscordEmbed':
+    def set_footer(self, text: str, icon_url: Optional[str] = None) -> "DiscordEmbed":
         """Set the footer of the embed."""
         self.footer = {"text": text}
         if icon_url:
             self.footer["icon_url"] = icon_url
         return self
 
-    def set_author(self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> 'DiscordEmbed':
+    def set_author(self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> "DiscordEmbed":
         """Set the author of the embed."""
         self.author = {"name": name}
         if url:
@@ -65,17 +69,17 @@ class DiscordEmbed(BaseModel):
             self.author["icon_url"] = icon_url
         return self
 
-    def set_thumbnail(self, url: str) -> 'DiscordEmbed':
+    def set_thumbnail(self, url: str) -> "DiscordEmbed":
         """Set the thumbnail of the embed."""
         self.thumbnail = {"url": url}
         return self
 
-    def set_image(self, url: str) -> 'DiscordEmbed':
+    def set_image(self, url: str) -> "DiscordEmbed":
         """Set the image of the embed."""
         self.image = {"url": url}
         return self
 
-    def set_timestamp(self, timestamp: Optional[datetime] = None) -> 'DiscordEmbed':
+    def set_timestamp(self, timestamp: Optional[datetime] = None) -> "DiscordEmbed":
         """Set the timestamp of the embed."""
         if timestamp is None:
             timestamp = datetime.utcnow()
@@ -85,6 +89,7 @@ class DiscordEmbed(BaseModel):
 
 class WebhookMessage(BaseModel):
     """Represents a webhook message payload."""
+
     content: Optional[str] = None
     username: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -92,7 +97,7 @@ class WebhookMessage(BaseModel):
     embeds: List[DiscordEmbed] = Field(default_factory=list)
     allowed_mentions: Optional[Dict[str, Any]] = None
 
-    def add_embed(self, embed: DiscordEmbed) -> 'WebhookMessage':
+    def add_embed(self, embed: DiscordEmbed) -> "WebhookMessage":
         """Add an embed to the message."""
         self.embeds.append(embed)
         return self
@@ -109,8 +114,9 @@ class DiscordWebhookNotifier:
     - Custom formatting and colors
     """
 
-    def __init__(self, webhook_url: str, default_username: Optional[str] = None,
-                 default_avatar_url: Optional[str] = None):
+    def __init__(
+        self, webhook_url: str, default_username: Optional[str] = None, default_avatar_url: Optional[str] = None
+    ):
         """
         Initialize the webhook notifier.
 
@@ -146,16 +152,11 @@ class DiscordWebhookNotifier:
 
             # Convert embeds to dict format
             if payload.get("embeds"):
-                payload["embeds"] = [
-                    embed.model_dump(exclude_none=True)
-                    for embed in message.embeds
-                ]
+                payload["embeds"] = [embed.model_dump(exclude_none=True) for embed in message.embeds]
 
             # Send the message
             response = await self.client.post(
-                self.webhook_url,
-                json=payload,
-                headers={"Content-Type": "application/json"}
+                self.webhook_url, json=payload, headers={"Content-Type": "application/json"}
             )
 
             if response.status_code in [200, 204]:
@@ -198,9 +199,9 @@ class DiscordWebhookNotifier:
         message.add_embed(embed)
         return await self.send_message(message)
 
-    async def send_error_notification(self, error_title: str, error_message: str,
-                                    stack_trace: Optional[str] = None,
-                                    instance_id: Optional[str] = None) -> bool:
+    async def send_error_notification(
+        self, error_title: str, error_message: str, stack_trace: Optional[str] = None, instance_id: Optional[str] = None
+    ) -> bool:
         """
         Send an error notification with formatted embed.
 
@@ -213,11 +214,7 @@ class DiscordWebhookNotifier:
         Returns:
             True if successful, False otherwise
         """
-        embed = DiscordEmbed(
-            title="🚨 Error Alert",
-            description=error_title,
-            color=EmbedColor.ERROR.value
-        )
+        embed = DiscordEmbed(title="🚨 Error Alert", description=error_title, color=EmbedColor.ERROR.value)
 
         embed.add_field("Error Message", error_message, inline=False)
 
@@ -234,8 +231,7 @@ class DiscordWebhookNotifier:
 
         return await self.send_embed(embed)
 
-    async def send_system_status(self, status: str, details: Dict[str, Any],
-                               status_type: str = "info") -> bool:
+    async def send_system_status(self, status: str, details: Dict[str, Any], status_type: str = "info") -> bool:
         """
         Send a system status update.
 
@@ -252,38 +248,27 @@ class DiscordWebhookNotifier:
             "warning": EmbedColor.WARNING.value,
             "error": EmbedColor.ERROR.value,
             "success": EmbedColor.SUCCESS.value,
-            "system": EmbedColor.SYSTEM.value
+            "system": EmbedColor.SYSTEM.value,
         }
 
-        icon_map = {
-            "info": "ℹ️",
-            "warning": "⚠️",
-            "error": "🚨",
-            "success": "✅",
-            "system": "🔧"
-        }
+        icon_map = {"info": "ℹ️", "warning": "⚠️", "error": "🚨", "success": "✅", "system": "🔧"}
 
         embed = DiscordEmbed(
             title=f"{icon_map.get(status_type, '📊')} System Status",
             description=status,
-            color=color_map.get(status_type, EmbedColor.INFO.value)
+            color=color_map.get(status_type, EmbedColor.INFO.value),
         )
 
         # Add detail fields
         for key, value in details.items():
-            embed.add_field(
-                key.replace("_", " ").title(),
-                str(value),
-                inline=len(str(value)) < 50
-            )
+            embed.add_field(key.replace("_", " ").title(), str(value), inline=len(str(value)) < 50)
 
         embed.set_timestamp()
         embed.set_footer("Automagik Omni System Monitor")
 
         return await self.send_embed(embed)
 
-    async def send_user_activity(self, user_id: str, action: str,
-                               details: Optional[Dict[str, Any]] = None) -> bool:
+    async def send_user_activity(self, user_id: str, action: str, details: Optional[Dict[str, Any]] = None) -> bool:
         """
         Send user activity notification.
 
@@ -298,25 +283,21 @@ class DiscordWebhookNotifier:
         embed = DiscordEmbed(
             title="👤 User Activity",
             description=f"User `{user_id}` performed action: **{action}**",
-            color=EmbedColor.INFO.value
+            color=EmbedColor.INFO.value,
         )
 
         if details:
             for key, value in details.items():
-                embed.add_field(
-                    key.replace("_", " ").title(),
-                    str(value),
-                    inline=True
-                )
+                embed.add_field(key.replace("_", " ").title(), str(value), inline=True)
 
         embed.set_timestamp()
         embed.set_footer("Automagik Omni Activity Monitor")
 
         return await self.send_embed(embed)
 
-    async def send_custom_notification(self, title: str, message: str,
-                                     color: Optional[int] = None,
-                                     fields: Optional[List[Dict[str, Any]]] = None) -> bool:
+    async def send_custom_notification(
+        self, title: str, message: str, color: Optional[int] = None, fields: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
         """
         Send a custom notification with flexible formatting.
 
@@ -329,19 +310,11 @@ class DiscordWebhookNotifier:
         Returns:
             True if successful, False otherwise
         """
-        embed = DiscordEmbed(
-            title=title,
-            description=message,
-            color=color or EmbedColor.INFO.value
-        )
+        embed = DiscordEmbed(title=title, description=message, color=color or EmbedColor.INFO.value)
 
         if fields:
             for field in fields:
-                embed.add_field(
-                    field.get("name", "Field"),
-                    field.get("value", "Value"),
-                    field.get("inline", False)
-                )
+                embed.add_field(field.get("name", "Field"), field.get("value", "Value"), field.get("inline", False))
 
         embed.set_timestamp()
 
@@ -361,9 +334,9 @@ class DiscordWebhookNotifier:
 
 
 # Utility functions for quick webhook usage
-async def send_quick_notification(webhook_url: str, message: str,
-                                title: Optional[str] = None,
-                                color: Optional[int] = None) -> bool:
+async def send_quick_notification(
+    webhook_url: str, message: str, title: Optional[str] = None, color: Optional[int] = None
+) -> bool:
     """
     Quick utility function to send a notification.
 
@@ -378,19 +351,16 @@ async def send_quick_notification(webhook_url: str, message: str,
     """
     async with DiscordWebhookNotifier(webhook_url) as notifier:
         if title:
-            embed = DiscordEmbed(
-                title=title,
-                description=message,
-                color=color or EmbedColor.INFO.value
-            )
+            embed = DiscordEmbed(title=title, description=message, color=color or EmbedColor.INFO.value)
             embed.set_timestamp()
             return await notifier.send_embed(embed)
         else:
             return await notifier.send_text(message)
 
 
-async def send_error_alert(webhook_url: str, error_title: str,
-                         error_message: str, instance_id: Optional[str] = None) -> bool:
+async def send_error_alert(
+    webhook_url: str, error_title: str, error_message: str, instance_id: Optional[str] = None
+) -> bool:
     """
     Quick utility function to send an error alert.
 
@@ -404,6 +374,4 @@ async def send_error_alert(webhook_url: str, error_title: str,
         True if successful, False otherwise
     """
     async with DiscordWebhookNotifier(webhook_url) as notifier:
-        return await notifier.send_error_notification(
-            error_title, error_message, instance_id=instance_id
-        )
+        return await notifier.send_error_notification(error_title, error_message, instance_id=instance_id)

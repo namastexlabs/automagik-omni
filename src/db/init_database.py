@@ -20,16 +20,16 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
 
     # Parse the database URL
     parsed = urlparse(database_url)
-    database_name = parsed.path.lstrip('/')
+    database_name = parsed.path.lstrip("/")
 
     # Create connection URL to postgres database (default maintenance database)
     postgres_url_parts = (
         parsed.scheme,
         parsed.netloc,
-        '/postgres',  # Connect to default postgres database
+        "/postgres",  # Connect to default postgres database
         parsed.params,
         parsed.query,
-        parsed.fragment
+        parsed.fragment,
     )
     postgres_url = urlunparse(postgres_url_parts)
 
@@ -51,8 +51,7 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
             with engine.connect() as conn:
                 # Check if database exists
                 result = conn.execute(
-                    text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
-                    {"dbname": database_name}
+                    text("SELECT 1 FROM pg_database WHERE datname = :dbname"), {"dbname": database_name}
                 )
                 if result.fetchone() is None:
                     # Create database

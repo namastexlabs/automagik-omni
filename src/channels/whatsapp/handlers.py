@@ -46,9 +46,7 @@ class WhatsAppMessageHandler:
         """Start the message processing thread."""
         if self.processing_thread is None or not self.processing_thread.is_alive():
             self.is_running = True
-            self.processing_thread = threading.Thread(
-                target=self._process_messages_loop
-            )
+            self.processing_thread = threading.Thread(target=self._process_messages_loop)
             self.processing_thread.daemon = True
             self.processing_thread.start()
 
@@ -58,9 +56,7 @@ class WhatsAppMessageHandler:
         if self.processing_thread and self.processing_thread.is_alive():
             self.processing_thread.join(timeout=5.0)
 
-    def handle_message(
-        self, message: Dict[str, Any], instance_config=None, trace_context=None
-    ):
+    def handle_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
         """Queue a message for processing."""
         # Add instance config and trace context to the message for processing
         message_with_config = {
@@ -71,9 +67,7 @@ class WhatsAppMessageHandler:
         self.message_queue.put(message_with_config)
         logger.debug(f"Message queued for processing: {message.get('event')}")
         if instance_config:
-            logger.debug(
-                f"Using instance config: {instance_config.name} -> Agent: {instance_config.default_agent}"
-            )
+            logger.debug(f"Using instance config: {instance_config.name} -> Agent: {instance_config.default_agent}")
         if trace_context:
             logger.debug(f"Message trace ID: {trace_context.trace_id}")
 
@@ -152,10 +146,7 @@ class WhatsAppMessageHandler:
                 file_extension = self._get_file_extension_from_mime(mime_type)
 
                 # Create filename
-                filename = (
-                    media_meta.get("fileName")
-                    or f"{timestamp}_{message_id}_{media_type}"
-                )
+                filename = media_meta.get("fileName") or f"{timestamp}_{message_id}_{media_type}"
                 if not filename.endswith(file_extension):
                     filename += file_extension
 
@@ -165,9 +156,7 @@ class WhatsAppMessageHandler:
                     decoded_data = base64.b64decode(base64_data)
                     with open(media_path, "wb") as f:
                         f.write(decoded_data)
-                    logger.info(
-                        f"Downloaded media file: {media_path} ({len(decoded_data)} bytes)"
-                    )
+                    logger.info(f"Downloaded media file: {media_path} ({len(decoded_data)} bytes)")
                 except Exception as e:
                     logger.error(f"Failed to save media file {media_path}: {e}")
 
@@ -196,9 +185,7 @@ class WhatsAppMessageHandler:
         }
         return mime_to_ext.get(mime_type, ".bin")
 
-    def _process_message(
-        self, message: Dict[str, Any], instance_config=None, trace_context=None
-    ):
+    def _process_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
         """
         Process a WhatsApp message.
 
@@ -216,9 +203,7 @@ class WhatsAppMessageHandler:
             if "key" in data and "remoteJid" in data["key"]:
                 sender_id = data["key"]["remoteJid"]
             else:
-                logger.warning(
-                    "Message does not contain remoteJid in the expected location"
-                )
+                logger.warning("Message does not contain remoteJid in the expected location")
                 # Try to get it from the sender field directly
                 sender_id = message.get("sender")
 
@@ -264,9 +249,7 @@ class WhatsAppMessageHandler:
             ]
 
             if not (is_text_message or is_audio_message or is_media_message):
-                logger.info(
-                    f"Ignoring message of type {message_type} - only handling text, media and audio messages"
-                )
+                logger.info(f"Ignoring message of type {message_type} - only handling text, media and audio messages")
                 return
 
             # Start showing typing indicator immediately
@@ -280,17 +263,14 @@ class WhatsAppMessageHandler:
             try:
                 # Extract and normalize phone number
                 phone_number = self._extract_phone_number(sender_id)
-                formatted_phone = (
-                    f"+{phone_number}"  # Ensure + prefix for international format
-                )
+                formatted_phone = f"+{phone_number}"  # Ensure + prefix for international format
 
                 # Create user dict for the agent API (let the agent handle user management)
                 user_dict = {
                     "phone_number": formatted_phone,
                     "email": None,  # WhatsApp doesn't provide email
                     "user_data": {
-                        "name": user_name
-                        or "WhatsApp User",  # Use pushName or fallback
+                        "name": user_name or "WhatsApp User",  # Use pushName or fallback
                         "whatsapp_id": sender_id,
                         "source": "whatsapp",
                     },
@@ -332,9 +312,7 @@ class WhatsAppMessageHandler:
                     # Extract media URL for any media type
                     media_url_to_send = self._extract_media_url_from_payload(data)
                     if media_url_to_send:
-                        logger.info(
-                            f"Media URL found in message: {self._truncate_url_for_logging(media_url_to_send)}"
-                        )
+                        logger.info(f"Media URL found in message: {self._truncate_url_for_logging(media_url_to_send)}")
 
                         # Media URL processing (Minio conversion removed)
 
@@ -380,29 +358,16 @@ class WhatsAppMessageHandler:
                                     logger.debug(
                                         f"DEBUG: Checking {media_type_key}, keys: {list(media_obj.keys()) if isinstance(media_obj, dict) else 'not dict'}"
                                     )
-                                    if (
-                                        isinstance(media_obj, dict)
-                                        and "base64" in media_obj
-                                    ):
+                                    if isinstance(media_obj, dict) and "base64" in media_obj:
                                         base64_data = media_obj["base64"]
-                                        logger.debug(
-                                            f"DEBUG: Found base64 in {media_type_key}"
-                                        )
+                                        logger.debug(f"DEBUG: Found base64 in {media_type_key}")
                                         break
 
-                        logger.debug(
-                            f"DEBUG: Looking for base64 in data. Keys in data: {list(data.keys())}"
-                        )
-                        logger.debug(
-                            f"DEBUG: Message keys: {list(data.get('message', {}).keys())}"
-                        )
-                        logger.debug(
-                            f"DEBUG: Root message keys: {list(message.keys())}"
-                        )
+                        logger.debug(f"DEBUG: Looking for base64 in data. Keys in data: {list(data.keys())}")
+                        logger.debug(f"DEBUG: Message keys: {list(data.get('message', {}).keys())}")
+                        logger.debug(f"DEBUG: Root message keys: {list(message.keys())}")
                         if base64_data:
-                            logger.debug(
-                                f"DEBUG: base64_data found (length: {len(base64_data)} chars)"
-                            )
+                            logger.debug(f"DEBUG: base64_data found (length: {len(base64_data)} chars)")
                         else:
                             logger.debug("DEBUG: No base64_data found anywhere")
                         media_item = {
@@ -414,9 +379,7 @@ class WhatsAppMessageHandler:
                         if base64_data:
                             # Use base64 data in the data field
                             media_item["data"] = base64_data
-                            logger.info(
-                                f"Using base64 data for agent API (size: {len(base64_data)} chars)"
-                            )
+                            logger.info(f"Using base64 data for agent API (size: {len(base64_data)} chars)")
                         else:
                             # Use standard media URL as fallback
                             media_item["media_url"] = media_url_to_send
@@ -425,10 +388,7 @@ class WhatsAppMessageHandler:
                             )
 
                         # Add type-specific metadata
-                        if (
-                            "imageMessage" in message_obj
-                            or "videoMessage" in message_obj
-                        ):
+                        if "imageMessage" in message_obj or "videoMessage" in message_obj:
                             media_item["width"] = media_meta.get("width", 0)
                             media_item["height"] = media_meta.get("height", 0)
                         elif "documentMessage" in message_obj:
@@ -449,7 +409,10 @@ class WhatsAppMessageHandler:
                 if instance_config:
                     # Use per-instance configuration with unified fields
                     # Check if this is a Hive instance
-                    if hasattr(instance_config, 'agent_instance_type') and instance_config.agent_instance_type == 'hive':
+                    if (
+                        hasattr(instance_config, "agent_instance_type")
+                        and instance_config.agent_instance_type == "hive"
+                    ):
                         # Use unified fields for Hive configuration
                         agent_config = {
                             "name": instance_config.agent_id or instance_config.default_agent,
@@ -458,8 +421,8 @@ class WhatsAppMessageHandler:
                             "api_key": instance_config.agent_api_key,
                             "timeout": instance_config.agent_timeout,
                             "instance_type": instance_config.agent_instance_type,
-                            "agent_type": getattr(instance_config, 'agent_type', 'agent'),
-                            "stream_mode": getattr(instance_config, 'agent_stream_mode', False),
+                            "agent_type": getattr(instance_config, "agent_type", "agent"),
+                            "stream_mode": getattr(instance_config, "agent_stream_mode", False),
                             "instance_config": instance_config,  # Pass the full config for routing decisions
                         }
                         logger.info(
@@ -473,7 +436,7 @@ class WhatsAppMessageHandler:
                             "api_url": instance_config.agent_api_url,
                             "api_key": instance_config.agent_api_key,
                             "timeout": instance_config.agent_timeout,
-                            "instance_type": getattr(instance_config, 'agent_instance_type', 'automagik'),
+                            "instance_type": getattr(instance_config, "agent_instance_type", "automagik"),
                             "instance_config": instance_config,  # Pass the full config for routing decisions
                         }
                         logger.info(
@@ -482,9 +445,7 @@ class WhatsAppMessageHandler:
                 else:
                     # No instance configuration available - use defaults
                     agent_config = {"name": "", "type": "whatsapp"}
-                    logger.warning(
-                        "No instance configuration available - agent calls will likely fail"
-                    )
+                    logger.warning("No instance configuration available - agent calls will likely fail")
 
                 # Generate a session ID based on the sender's WhatsApp ID
                 # Create a deterministic hash from the sender's WhatsApp ID
@@ -504,9 +465,7 @@ class WhatsAppMessageHandler:
                     db_session = next(get_db())
                     try:
                         # Get instance name for user creation
-                        instance_name = (
-                            instance_config.name if instance_config else "default"
-                        )
+                        instance_name = instance_config.name if instance_config else "default"
 
                         # Create/update user with current session info
                         local_user = user_service.get_or_create_user_by_phone(
@@ -517,9 +476,7 @@ class WhatsAppMessageHandler:
                             db=db_session,
                         )
 
-                        logger.info(
-                            f"Local user created/updated: {local_user.id} for phone {formatted_phone}"
-                        )
+                        logger.info(f"Local user created/updated: {local_user.id} for phone {formatted_phone}")
                     finally:
                         db_session.close()
                 except Exception as e:
@@ -551,8 +508,12 @@ class WhatsAppMessageHandler:
                     # Check if this is the same instance/agent combination
                     # For now, we'll clear the user_id if switching between instances
                     # TODO: In the future, store per-instance user_ids
-                    stored_session_prefix = local_user.last_session_name_interaction.split('_')[0] if local_user.last_session_name_interaction else None
-                    current_session_prefix = session_name.split('_')[0] if session_name else None
+                    stored_session_prefix = (
+                        local_user.last_session_name_interaction.split("_")[0]
+                        if local_user.last_session_name_interaction
+                        else None
+                    )
+                    current_session_prefix = session_name.split("_")[0] if session_name else None
 
                     if stored_session_prefix == current_session_prefix:
                         agent_user_id = local_user.last_agent_user_id
@@ -605,9 +566,7 @@ class WhatsAppMessageHandler:
                         logger.info(f"Triggered user creation for phone: {formatted_phone}")
                 except TypeError as te:
                     # Fallback for older versions of MessageRouter without media parameters
-                    logger.warning(
-                        f"Route_message did not accept media_contents parameter, retrying without it: {te}"
-                    )
+                    logger.warning(f"Route_message did not accept media_contents parameter, retrying without it: {te}")
                     agent_response = message_router.route_message(
                         user_id=None,  # Let the agent API manage user creation and ID assignment
                         user=user_dict,
@@ -627,14 +586,9 @@ class WhatsAppMessageHandler:
 
                 # Extract the current user_id from agent response (source of truth)
                 current_user_id = None
-                if (
-                    isinstance(agent_response, dict)
-                    and "user_id" in agent_response
-                ):
+                if isinstance(agent_response, dict) and "user_id" in agent_response:
                     current_user_id = agent_response["user_id"]
-                    logger.info(
-                        f"Agent API returned current user_id: {current_user_id} for session {session_name}"
-                    )
+                    logger.info(f"Agent API returned current user_id: {current_user_id} for session {session_name}")
 
                     # Update our local user with the agent's user_id for future lookups
                     if local_user:
@@ -643,18 +597,12 @@ class WhatsAppMessageHandler:
 
                             db_session = next(get_db())
                             try:
-                                user_service.update_user_agent_id(
-                                    local_user.id, current_user_id, db_session
-                                )
-                                logger.info(
-                                    f"Updated local user {local_user.id} with agent user_id: {current_user_id}"
-                                )
+                                user_service.update_user_agent_id(local_user.id, current_user_id, db_session)
+                                logger.info(f"Updated local user {local_user.id} with agent user_id: {current_user_id}")
                             finally:
                                 db_session.close()
                         except Exception as e:
-                            logger.error(
-                                f"Failed to update local user with agent user_id: {e}"
-                            )
+                            logger.error(f"Failed to update local user with agent user_id: {e}")
                     else:
                         logger.warning(
                             f"Cannot update agent user_id - local user not created for session {session_name}"
@@ -678,9 +626,7 @@ class WhatsAppMessageHandler:
                         f"Agent response - Session: {session_id}, Success: {success}, Tools used: {len(tool_calls)}"
                     )
                     if current_user_id:
-                        logger.info(
-                            f"Session {session_name} is now linked to user_id: {current_user_id}"
-                        )
+                        logger.info(f"Session {session_name} is now linked to user_id: {current_user_id}")
                     if usage:
                         logger.debug(f"Agent usage stats: {usage}")
                     if tool_calls:
@@ -697,14 +643,10 @@ class WhatsAppMessageHandler:
                 else:
                     # Fallback for unexpected response format
                     response_to_send = str(agent_response)
-                    logger.warning(
-                        f"Unexpected agent response format: {type(agent_response)}"
-                    )
+                    logger.warning(f"Unexpected agent response format: {type(agent_response)}")
 
                 # Check if the response should be ignored
-                if isinstance(response_to_send, str) and response_to_send.startswith(
-                    "AUTOMAGIK:"
-                ):
+                if isinstance(response_to_send, str) and response_to_send.startswith("AUTOMAGIK:"):
                     logger.warning(
                         f"Ignoring AUTOMAGIK message for user {user_dict['phone_number']}, session {session_name}: {response_to_send}"
                     )
@@ -750,9 +692,7 @@ class WhatsAppMessageHandler:
 
                     # Log with the actual user_id from agent if available
                     if current_user_id:
-                        logger.info(
-                            f"Sent agent response to user_id={current_user_id}, session_id={session_name}"
-                        )
+                        logger.info(f"Sent agent response to user_id={current_user_id}, session_id={session_name}")
                     else:
                         logger.info(
                             f"Sent agent response to phone={user_dict['phone_number']}, session_id={session_name}"
@@ -791,9 +731,7 @@ class WhatsAppMessageHandler:
 
                 if success:
                     # Extract just the phone number without the suffix for logging
-                    clean_recipient = (
-                        recipient.split("@")[0] if "@" in recipient else recipient
-                    )
+                    clean_recipient = recipient.split("@")[0] if "@" in recipient else recipient
                     logger.info(f"➤ Sent response to {clean_recipient}")
                 else:
                     logger.error(f"❌ Failed to send response to {recipient}")
@@ -818,11 +756,7 @@ class WhatsAppMessageHandler:
         try:
             # Log data structure summary without base64 content
             data_keys = list(data.keys())
-            message_keys = (
-                list(data.get("message", {}).keys())
-                if isinstance(data.get("message"), dict)
-                else []
-            )
+            message_keys = list(data.get("message", {}).keys()) if isinstance(data.get("message"), dict) else []
             has_base64 = "base64" in str(data)
             logger.info(
                 f"🔍 DEBUG: Data structure - keys: {data_keys}, message_keys: {message_keys}, has_base64: {has_base64}"
@@ -836,29 +770,19 @@ class WhatsAppMessageHandler:
                     f"✅ Found Evolution API processed mediaUrl: {self._truncate_url_for_logging(str(evolution_media_url))}"
                 )
                 if evolution_media_url:
-                    return self._check_and_wait_for_file_availability(
-                        evolution_media_url
-                    )
+                    return self._check_and_wait_for_file_availability(evolution_media_url)
                 else:
-                    logger.warning(
-                        "⚠️ Evolution mediaUrl exists but value is empty/None"
-                    )
+                    logger.warning("⚠️ Evolution mediaUrl exists but value is empty/None")
 
             # PRIORITY 2: Check for mediaUrl at top level (legacy)
-            logger.info(
-                f"🔍 DEBUG: Checking for top-level 'mediaUrl' key: {'mediaUrl' in data}"
-            )
+            logger.info(f"🔍 DEBUG: Checking for top-level 'mediaUrl' key: {'mediaUrl' in data}")
             if "mediaUrl" in data:
                 media_url = data["mediaUrl"]
-                logger.info(
-                    f"✅ Found top-level mediaUrl with value: {self._truncate_url_for_logging(str(media_url))}"
-                )
+                logger.info(f"✅ Found top-level mediaUrl with value: {self._truncate_url_for_logging(str(media_url))}")
                 if media_url:
                     return self._check_and_wait_for_file_availability(media_url)
                 else:
-                    logger.warning(
-                        "⚠️ Top-level mediaUrl key exists but value is empty/None"
-                    )
+                    logger.warning("⚠️ Top-level mediaUrl key exists but value is empty/None")
             else:
                 logger.warning("❌ No top-level 'mediaUrl' key found in data")
 
@@ -901,7 +825,6 @@ class WhatsAppMessageHandler:
             # Check in message structure for media key
             message_data = data.get("message", {})
             if isinstance(message_data, dict):
-
                 # Check various message types for media key
                 media_types = [
                     "audioMessage",
@@ -915,9 +838,7 @@ class WhatsAppMessageHandler:
                         media_info = message_data[media_type]
                         if isinstance(media_info, dict) and "mediaKey" in media_info:
                             media_key = media_info["mediaKey"]
-                            logger.info(
-                                f"🔑 Found {media_type} mediaKey: {media_key[:20]}..."
-                            )
+                            logger.info(f"🔑 Found {media_type} mediaKey: {media_key[:20]}...")
                             return media_key
 
             logger.warning("⚠️ No media key found in message")
@@ -953,26 +874,18 @@ class WhatsAppMessageHandler:
                 try:
                     response = requests.head(url, timeout=5)
                     if response.status_code == 200:
-                        logger.info(
-                            f"✅ File confirmed available after {attempt + 1} attempts"
-                        )
+                        logger.info(f"✅ File confirmed available after {attempt + 1} attempts")
                         return url
                     elif response.status_code == 404:
-                        logger.warning(
-                            f"⏳ File not yet available (404), attempt {attempt + 1}/{max_retries}"
-                        )
+                        logger.warning(f"⏳ File not yet available (404), attempt {attempt + 1}/{max_retries}")
                     else:
                         logger.warning(
                             f"⚠️ Unexpected response {response.status_code}, attempt {attempt + 1}/{max_retries}"
                         )
                 except Exception as e:
-                    logger.warning(
-                        f"⚠️ File availability check failed: {e}, attempt {attempt + 1}/{max_retries}"
-                    )
+                    logger.warning(f"⚠️ File availability check failed: {e}, attempt {attempt + 1}/{max_retries}")
 
-            logger.warning(
-                f"⚠️ File still not available after {max_retries} attempts, proceeding anyway"
-            )
+            logger.warning(f"⚠️ File still not available after {max_retries} attempts, proceeding anyway")
 
         return url
 
@@ -1020,9 +933,7 @@ class WhatsAppMessageHandler:
             # If parsing fails, do a simple truncation
             return url[:30] + "..." + url[-30:]
 
-    def _truncate_base64_for_logging(
-        self, base64_data: str, prefix_length: int = 20, suffix_length: int = 10
-    ) -> str:
+    def _truncate_base64_for_logging(self, base64_data: str, prefix_length: int = 20, suffix_length: int = 10) -> str:
         """Truncate base64 data for logging to show start...end format.
 
         Args:
@@ -1069,9 +980,7 @@ class WhatsAppMessageHandler:
 
                 # Check for button response
                 elif "buttonsResponseMessage" in message_obj:
-                    return message_obj["buttonsResponseMessage"].get(
-                        "selectedDisplayText", ""
-                    )
+                    return message_obj["buttonsResponseMessage"].get("selectedDisplayText", "")
 
                 # Check for list response
                 elif "listResponseMessage" in message_obj:
@@ -1138,17 +1047,11 @@ class WhatsAppMessageHandler:
                 elif "extendedTextMessage" in quoted_message:
                     quoted_text = quoted_message["extendedTextMessage"].get("text", "")
                 elif "imageMessage" in quoted_message:
-                    quoted_text = quoted_message["imageMessage"].get(
-                        "caption", "[Image]"
-                    )
+                    quoted_text = quoted_message["imageMessage"].get("caption", "[Image]")
                 elif "videoMessage" in quoted_message:
-                    quoted_text = quoted_message["videoMessage"].get(
-                        "caption", "[Video]"
-                    )
+                    quoted_text = quoted_message["videoMessage"].get("caption", "[Video]")
                 elif "documentMessage" in quoted_message:
-                    quoted_text = quoted_message["documentMessage"].get(
-                        "caption", "[Document]"
-                    )
+                    quoted_text = quoted_message["documentMessage"].get("caption", "[Document]")
                 elif "audioMessage" in quoted_message:
                     quoted_text = "[Audio Message]"
 

@@ -17,9 +17,9 @@ class WhatsAppMentionParser:
 
     # Regex patterns for different phone formats
     MENTION_PATTERNS = [
-        r'@(\+?\d{1,4}\s+\d{2}\s*\d{8,9})(?!\d)',  # @55 11 999999999 or @+55 11 99999999
-        r'@(\+\d{8,15})(?!\d)',                         # @+5511999999999
-        r'@(\d{8,15})(?!\d)',                           # @5511999999999
+        r"@(\+?\d{1,4}\s+\d{2}\s*\d{8,9})(?!\d)",  # @55 11 999999999 or @+55 11 99999999
+        r"@(\+\d{8,15})(?!\d)",  # @+5511999999999
+        r"@(\d{8,15})(?!\d)",  # @5511999999999
     ]
 
     @classmethod
@@ -68,17 +68,17 @@ class WhatsAppMentionParser:
             str: Normalized phone number with + prefix
         """
         # Remove spaces and formatting
-        clean = re.sub(r'[^\d+]', '', phone)
+        clean = re.sub(r"[^\d+]", "", phone)
 
         # Ensure + prefix
-        if not clean.startswith('+'):
-            clean = f'+{clean}'
+        if not clean.startswith("+"):
+            clean = f"+{clean}"
 
         # Handle Brazilian numbers (if no country code, assume Brazil)
         # This is a common pattern - adjust for your region
-        if len(clean) <= 12 and not clean.startswith('+55'):
+        if len(clean) <= 12 and not clean.startswith("+55"):
             # If it's a short number without country code, add Brazil +55
-            clean = f'+55{clean.lstrip("+")}'
+            clean = f"+55{clean.lstrip('+')}"
 
         logger.debug(f"Normalized phone: {phone} -> {clean}")
         return clean
@@ -95,7 +95,7 @@ class WhatsAppMentionParser:
             str: WhatsApp JID format (e.g., "5511999999999@s.whatsapp.net")
         """
         # Remove + sign for JID format
-        number_only = phone.lstrip('+')
+        number_only = phone.lstrip("+")
         jid = f"{number_only}@s.whatsapp.net"
         logger.debug(f"Converted to JID: {phone} -> {jid}")
         return jid

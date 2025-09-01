@@ -44,20 +44,17 @@ class AgentApiClient:
             self.api_key = config_override.agent_api_key
             self.default_agent_name = config_override.default_agent
             self.timeout = config_override.agent_timeout
-            logger.info(
-                f"Agent API client initialized for instance '{config_override.name}' with URL: {self.api_url}"
-            )
+            logger.info(f"Agent API client initialized for instance '{config_override.name}' with URL: {self.api_url}")
         else:
             # Use default values for backward compatibility
             # Default to local Hive API
             import os
+
             self.api_url = os.getenv("AGENT_API_URL", "http://localhost:8000")
             self.api_key = os.getenv("AGENT_API_KEY", "")
             self.default_agent_name = ""
             self.timeout = 60
-            logger.debug(
-                "Agent API client initialized without instance config - using default values"
-            )
+            logger.debug("Agent API client initialized without instance config - using default values")
 
         # Configuration will be validated when actually needed
 
@@ -135,7 +132,7 @@ class AgentApiClient:
                 session_name=session_name,
                 session_id=session_id,
                 user_id=user_id,
-                user=user
+                user=user,
             )
 
         endpoint = f"{self.api_url}/api/v1/agent/{agent_name}/run"
@@ -150,9 +147,7 @@ class AgentApiClient:
         if user:
             # Use the user dict for automatic user creation
             payload["user"] = user
-            logger.info(
-                f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}"
-            )
+            logger.info(f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}")
         elif user_id is not None:
             # Fallback to existing user_id logic
             if isinstance(user_id, str):
@@ -182,17 +177,13 @@ class AgentApiClient:
             else:
                 # If it's not a string or int, generate UUID from string representation
                 user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, str(user_id)))
-                logger.warning(
-                    f"Unexpected user_id type: {type(user_id)}, generated UUID: {user_id}"
-                )
+                logger.warning(f"Unexpected user_id type: {type(user_id)}, generated UUID: {user_id}")
 
             payload["user_id"] = user_id
         else:
             # Handle case where both user and user_id are None
             default_user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, "default"))
-            logger.warning(
-                f"Neither user dict nor user_id provided, using default UUID: {default_user_id}"
-            )
+            logger.warning(f"Neither user dict nor user_id provided, using default UUID: {default_user_id}")
             payload["user_id"] = default_user_id  # Assign a default UUID if None is not allowed by API
 
         # Add optional parameters if provided
@@ -242,9 +233,7 @@ class AgentApiClient:
         try:
             # Send request to the agent API
             logger.info(f"Sending request to agent API with timeout: {self.timeout}s")
-            response = requests.post(
-                endpoint, headers=headers, json=payload, timeout=self.timeout
-            )
+            response = requests.post(endpoint, headers=headers, json=payload, timeout=self.timeout)
 
             # Log the response status
             logger.info(f"API response status: {response.status_code}")
@@ -261,11 +250,7 @@ class AgentApiClient:
                         session_id = response_data.get("session_id", "unknown")
                         success = response_data.get("success", True)
 
-                        message_length = (
-                            len(message_text)
-                            if isinstance(message_text, str)
-                            else "non-string message"
-                        )
+                        message_length = len(message_text) if isinstance(message_text, str) else "non-string message"
                         logger.info(
                             f"Received response from agent ({message_length} chars), session: {session_id}, success: {success}"
                         )
@@ -274,9 +259,7 @@ class AgentApiClient:
                         return response_data
                     else:
                         # If response is not a dict, wrap it in the expected format
-                        logger.warning(
-                            f"Agent response is not a dict, wrapping: {type(response_data)}"
-                        )
+                        logger.warning(f"Agent response is not a dict, wrapping: {type(response_data)}")
                         return {
                             "message": str(response_data),
                             "success": True,
@@ -288,9 +271,7 @@ class AgentApiClient:
                 except json.JSONDecodeError:
                     # Not a JSON response, try to use the raw text
                     text_response = response.text
-                    logger.warning(
-                        f"Response was not valid JSON, using raw text: {text_response[:100]}..."
-                    )
+                    logger.warning(f"Response was not valid JSON, using raw text: {text_response[:100]}...")
                     return {
                         "message": text_response,
                         "success": True,
@@ -301,9 +282,7 @@ class AgentApiClient:
                     }
             else:
                 # Log error
-                logger.error(
-                    f"Error from agent API: {response.status_code} (response: {len(response.text)} chars)"
-                )
+                logger.error(f"Error from agent API: {response.status_code} (response: {len(response.text)} chars)")
                 return {
                     "error": f"Desculpe, encontrei um erro (status {response.status_code}).",
                     "details": f"Response length: {len(response.text)} chars",
@@ -356,24 +335,18 @@ class AgentApiClient:
 
         try:
             # Make the request using the configured timeout
-            response = requests.get(
-                endpoint, headers=self._make_headers(), timeout=self.timeout
-            )
+            response = requests.get(endpoint, headers=self._make_headers(), timeout=self.timeout)
 
             # Check for successful response
             if response.status_code == 200:
                 session_data = response.json()
-                logger.debug(
-                    f"Retrieved session info for {session_name}: user_id={session_data.get('user_id')}"
-                )
+                logger.debug(f"Retrieved session info for {session_name}: user_id={session_data.get('user_id')}")
                 return session_data
             elif response.status_code == 404:
                 logger.warning(f"Session {session_name} not found")
                 return None
             else:
-                logger.warning(
-                    f"Unexpected response getting session {session_name}: {response.status_code}"
-                )
+                logger.warning(f"Unexpected response getting session {session_name}: {response.status_code}")
                 return None
 
         except Exception as e:
@@ -391,9 +364,7 @@ class AgentApiClient:
 
         try:
             # Make the request
-            response = requests.get(
-                endpoint, headers=self._make_headers(), timeout=self.timeout
-            )
+            response = requests.get(endpoint, headers=self._make_headers(), timeout=self.timeout)
 
             # Check for successful response
             response.raise_for_status()
@@ -506,9 +477,7 @@ class AgentApiClient:
                 session_info = self.get_session_info(session_name)
                 if session_info and "user_id" in session_info:
                     current_user_id = session_info["user_id"]
-                    logger.info(
-                        f"Session {session_name} current user_id: {current_user_id}"
-                    )
+                    logger.info(f"Session {session_name} current user_id: {current_user_id}")
             except Exception as e:
                 logger.warning(f"Failed to fetch session info for {session_name}: {e}")
                 # Don't let session info failure affect the main response
@@ -619,17 +588,13 @@ class AgentApiClient:
         try:
             # Prepare multipart form data
             files = {
-                'message': (None, message_content),
-                'session_id': (None, session),
-                'stream': (None, 'false')  # Disable streaming for now
+                "message": (None, message_content),
+                "session_id": (None, session),
+                "stream": (None, "false"),  # Disable streaming for now
             }
 
             # Make the request
-            response = requests.post(
-                endpoint,
-                files=files,
-                timeout=self.timeout
-            )
+            response = requests.post(endpoint, files=files, timeout=self.timeout)
 
             logger.info(f"Hive API response status: {response.status_code}")
 
@@ -639,7 +604,7 @@ class AgentApiClient:
                     logger.debug(f"Raw Hive API response: {response_data}")
 
                     # Extract the content from Hive response
-                    content = response_data.get('content', 'No response content')
+                    content = response_data.get("content", "No response content")
                     logger.info(f"Extracted content from Hive API: '{content}' (length: {len(content)})")
 
                     # Return in expected format
@@ -649,8 +614,8 @@ class AgentApiClient:
                         "session_id": session,
                         "tool_calls": [],
                         "tool_outputs": [],
-                        "usage": response_data.get('metrics', {}),
-                        "error": ""
+                        "usage": response_data.get("metrics", {}),
+                        "error": "",
                     }
 
                 except json.JSONDecodeError:
@@ -664,7 +629,7 @@ class AgentApiClient:
                         "tool_calls": [],
                         "tool_outputs": [],
                         "usage": {},
-                        "error": ""
+                        "error": "",
                     }
             else:
                 logger.error(f"Error from Hive API: {response.status_code} (response: {len(response.text)} chars)")
@@ -675,7 +640,7 @@ class AgentApiClient:
                     "tool_calls": [],
                     "tool_outputs": [],
                     "usage": {},
-                    "error": f"HTTP {response.status_code}"
+                    "error": f"HTTP {response.status_code}",
                 }
 
         except Timeout:
@@ -687,7 +652,7 @@ class AgentApiClient:
                 "tool_calls": [],
                 "tool_outputs": [],
                 "usage": {},
-                "error": "timeout"
+                "error": "timeout",
             }
         except RequestException as e:
             logger.error(f"Error calling Hive API: {e}")
@@ -698,7 +663,7 @@ class AgentApiClient:
                 "tool_calls": [],
                 "tool_outputs": [],
                 "usage": {},
-                "error": str(e)
+                "error": str(e),
             }
 
 

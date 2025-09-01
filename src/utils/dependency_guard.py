@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 class DependencyError(ImportError):
     """Raised when a required dependency is not available."""
+
     pass
 
 
@@ -36,9 +37,12 @@ def requires_feature(feature_name: str):
     Decorator that marks a function as requiring a specific feature.
     For now, just passes through - could be extended for feature flags.
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator

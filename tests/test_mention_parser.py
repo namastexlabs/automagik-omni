@@ -145,17 +145,20 @@ class TestWhatsAppMentionParser:
         jids = WhatsAppMentionParser.parse_explicit_mentions(phone_list)
         assert len(jids) == 0
 
-    @pytest.mark.parametrize("input_text,expected_count,expected_jids", [
-        ("@5511999999999", 1, ["5511999999999@s.whatsapp.net"]),
-        ("@+5511999999999", 1, ["5511999999999@s.whatsapp.net"]),
-        ("@55 11 999999999", 1, ["5511999999999@s.whatsapp.net"]),
-        ("@+55 11 999999999", 1, ["5511999999999@s.whatsapp.net"]),
-        ("@5511111111111 @5511222222222", 2, ["5511111111111@s.whatsapp.net", "5511222222222@s.whatsapp.net"]),
-        ("No mentions here", 0, []),
-        ("user@domain.com", 0, []),
-        ("@123", 0, []),  # Too short
-        ("@12345678901234567", 0, []),  # Too long for basic pattern
-    ])
+    @pytest.mark.parametrize(
+        "input_text,expected_count,expected_jids",
+        [
+            ("@5511999999999", 1, ["5511999999999@s.whatsapp.net"]),
+            ("@+5511999999999", 1, ["5511999999999@s.whatsapp.net"]),
+            ("@55 11 999999999", 1, ["5511999999999@s.whatsapp.net"]),
+            ("@+55 11 999999999", 1, ["5511999999999@s.whatsapp.net"]),
+            ("@5511111111111 @5511222222222", 2, ["5511111111111@s.whatsapp.net", "5511222222222@s.whatsapp.net"]),
+            ("No mentions here", 0, []),
+            ("user@domain.com", 0, []),
+            ("@123", 0, []),  # Too short
+            ("@12345678901234567", 0, []),  # Too long for basic pattern
+        ],
+    )
     def test_extract_mentions_parametrized(self, input_text: str, expected_count: int, expected_jids: List[str]):
         """Parametrized test for various mention formats."""
         original, mentions = WhatsAppMentionParser.extract_mentions(input_text)
@@ -171,20 +174,11 @@ class TestWhatsAppMentionParser:
         scenarios = [
             {
                 "text": "Team meeting with @5511999999999, @5511888888888, and @5511777777777 at 3pm",
-                "expected_count": 3
+                "expected_count": 3,
             },
-            {
-                "text": "Contact @+55 11 999999999 or @+55 11 888888888 for support",
-                "expected_count": 2
-            },
-            {
-                "text": "Hello @5511999999999! Please check the document that @5511888888888 sent.",
-                "expected_count": 2
-            },
-            {
-                "text": "Email support@company.com or call @5511999999999",
-                "expected_count": 1
-            }
+            {"text": "Contact @+55 11 999999999 or @+55 11 888888888 for support", "expected_count": 2},
+            {"text": "Hello @5511999999999! Please check the document that @5511888888888 sent.", "expected_count": 2},
+            {"text": "Email support@company.com or call @5511999999999", "expected_count": 1},
         ]
 
         for scenario in scenarios:

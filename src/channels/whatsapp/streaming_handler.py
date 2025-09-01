@@ -5,6 +5,7 @@ This module provides streaming support for WhatsApp message handlers.
 It integrates with the existing handler architecture to add AutomagikHive
 streaming capabilities while maintaining backward compatibility.
 """
+
 import asyncio
 import logging
 import threading
@@ -42,7 +43,6 @@ class WhatsAppStreamingHandler:
         while self.loop is None:
             threading.Event().wait(0.01)
 
-
     def _run_event_loop(self):
         """Run the async event loop."""
         self.loop = asyncio.new_event_loop()
@@ -62,7 +62,7 @@ class WhatsAppStreamingHandler:
         message: Dict[str, Any],
         instance_config: Optional[InstanceConfig] = None,
         trace_context=None,
-        original_handler=None
+        original_handler=None,
     ):
         """
         Handle a WhatsApp message with streaming support.
@@ -116,18 +116,18 @@ class WhatsAppStreamingHandler:
         """
         try:
             # Try different possible structures for recipient/sender
-            if 'data' in message and 'key' in message['data']:
-                key_data = message['data']['key']
-                if 'remoteJid' in key_data:
-                    return key_data['remoteJid']
+            if "data" in message and "key" in message["data"]:
+                key_data = message["data"]["key"]
+                if "remoteJid" in key_data:
+                    return key_data["remoteJid"]
 
             # Alternative structure
-            if 'key' in message and 'remoteJid' in message['key']:
-                return message['key']['remoteJid']
+            if "key" in message and "remoteJid" in message["key"]:
+                return message["key"]["remoteJid"]
 
             # Another common structure
-            if 'from' in message:
-                return message['from']
+            if "from" in message:
+                return message["from"]
 
             logger.warning(f"Could not extract recipient from message structure: {list(message.keys())}")
             return None
@@ -137,11 +137,7 @@ class WhatsAppStreamingHandler:
             return None
 
     def _handle_streaming_message(
-        self,
-        message: Dict[str, Any],
-        recipient: str,
-        instance_config: InstanceConfig,
-        trace_context=None
+        self, message: Dict[str, Any], recipient: str, instance_config: InstanceConfig, trace_context=None
     ):
         """
         Handle a message using AutomagikHive streaming.
@@ -158,19 +154,14 @@ class WhatsAppStreamingHandler:
 
         # Schedule the async streaming in the event loop
         asyncio.run_coroutine_threadsafe(
-            self._async_stream_message(message, recipient, instance_config, trace_context),
-            self.loop
+            self._async_stream_message(message, recipient, instance_config, trace_context), self.loop
         )
 
         # Don't block on the result - streaming happens asynchronously
         logger.debug(f"Scheduled streaming message processing for {recipient}")
 
     async def _async_stream_message(
-        self,
-        message: Dict[str, Any],
-        recipient: str,
-        instance_config: InstanceConfig,
-        trace_context=None
+        self, message: Dict[str, Any], recipient: str, instance_config: InstanceConfig, trace_context=None
     ):
         """
         Async method to handle streaming message processing.
@@ -204,7 +195,7 @@ class WhatsAppStreamingHandler:
                 message_type="text",
                 whatsapp_raw_payload=message,
                 session_origin="whatsapp",
-                trace_context=trace_context
+                trace_context=trace_context,
             )
 
             if success is True:
@@ -230,24 +221,24 @@ class WhatsAppStreamingHandler:
         """
         try:
             # Try different message structures
-            if 'data' in message and 'message' in message['data']:
-                msg_data = message['data']['message']
+            if "data" in message and "message" in message["data"]:
+                msg_data = message["data"]["message"]
 
                 # Text message
-                if 'conversation' in msg_data:
-                    return msg_data['conversation']
+                if "conversation" in msg_data:
+                    return msg_data["conversation"]
 
                 # Extended text message
-                if 'extendedTextMessage' in msg_data and 'text' in msg_data['extendedTextMessage']:
-                    return msg_data['extendedTextMessage']['text']
+                if "extendedTextMessage" in msg_data and "text" in msg_data["extendedTextMessage"]:
+                    return msg_data["extendedTextMessage"]["text"]
 
             # Alternative structure
-            if 'message' in message:
-                msg_data = message['message']
-                if 'conversation' in msg_data:
-                    return msg_data['conversation']
-                if 'extendedTextMessage' in msg_data and 'text' in msg_data['extendedTextMessage']:
-                    return msg_data['extendedTextMessage']['text']
+            if "message" in message:
+                msg_data = message["message"]
+                if "conversation" in msg_data:
+                    return msg_data["conversation"]
+                if "extendedTextMessage" in msg_data and "text" in msg_data["extendedTextMessage"]:
+                    return msg_data["extendedTextMessage"]["text"]
 
             logger.debug("No text content found in message structure")
             return None
@@ -301,12 +292,15 @@ def integrate_streaming_with_handler(original_process_message_func):
     Returns:
         Enhanced function with streaming support
     """
+
     def enhanced_process_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
         """Enhanced process message with streaming support."""
 
         # Check if we should use streaming
         logger.debug(f"[DECORATOR] Checking streaming, instance_config type: {type(instance_config)}")
-        logger.debug(f"[DECORATOR] Instance name: {getattr(instance_config, 'name', 'N/A') if instance_config else 'None'}")
+        logger.debug(
+            f"[DECORATOR] Instance name: {getattr(instance_config, 'name', 'N/A') if instance_config else 'None'}"
+        )
 
         if instance_config and message_router.should_use_streaming(instance_config):
             logger.debug("[DECORATOR] Streaming check PASSED, calling streaming handler")
@@ -315,7 +309,7 @@ def integrate_streaming_with_handler(original_process_message_func):
                 message=message,
                 instance_config=instance_config,
                 trace_context=trace_context,
-                original_handler=lambda m, ic, tc: original_process_message_func(self, m, ic, tc)
+                original_handler=lambda m, ic, tc: original_process_message_func(self, m, ic, tc),
             )
         else:
             logger.debug("[DECORATOR] Streaming check FAILED, using original handler")
@@ -345,6 +339,7 @@ def cleanup_streaming_integration():
     # Clean up streaming instances
     try:
         from src.channels.whatsapp.streaming_integration import cleanup_streaming_instances
+
         cleanup_streaming_instances()
     except ImportError:
         pass

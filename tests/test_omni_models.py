@@ -2,19 +2,18 @@
 Comprehensive tests for omni database models.
 Tests the omni agent fields and helper methods in InstanceConfig.
 """
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 from src.db.models import InstanceConfig, User
+
+
 class TestInstanceConfigOmniFields:
     """Test the omni agent fields in InstanceConfig model."""
 
     def test_default_omni_fields(self, test_db):
         """Test that omni fields have correct defaults."""
-        instance = InstanceConfig(
-            name="test",
-            agent_api_url="http://test.com",
-            agent_api_key="test-key"
-        )
+        instance = InstanceConfig(name="test", agent_api_url="http://test.com", agent_api_key="test-key")
         test_db.add(instance)
         test_db.commit()
 
@@ -36,7 +35,7 @@ class TestInstanceConfigOmniFields:
             agent_id="test-agent-123",
             agent_type="team",
             agent_timeout=120,
-            agent_stream_mode=True
+            agent_stream_mode=True,
         )
         test_db.add(instance)
         test_db.commit()
@@ -56,7 +55,7 @@ class TestInstanceConfigOmniFields:
             agent_api_url="http://automagik.com",
             agent_api_key="key",
             default_agent="my-agent",
-            agent_timeout=90
+            agent_timeout=90,
         )
         test_db.add(instance)
         test_db.commit()
@@ -76,7 +75,7 @@ class TestInstanceConfigOmniFields:
             agent_api_key="hive-key",
             agent_id="dev-team",
             agent_type="team",
-            agent_stream_mode=True
+            agent_stream_mode=True,
         )
         test_db.add(instance)
         test_db.commit()
@@ -98,7 +97,7 @@ class TestInstanceConfigOmniFields:
             hive_agent_id="hive-agent",
             hive_team_id=None,
             hive_timeout=45,
-            hive_stream_mode=True
+            hive_stream_mode=True,
         )
         test_db.add(instance)
         test_db.commit()
@@ -110,6 +109,8 @@ class TestInstanceConfigOmniFields:
         assert instance.hive_agent_id == "hive-agent"
         assert instance.hive_timeout == 45
         assert instance.hive_stream_mode is True
+
+
 class TestInstanceConfigProperties:
     """Test the property methods for omni configuration."""
 
@@ -117,10 +118,7 @@ class TestInstanceConfigProperties:
         """Test is_hive property."""
         # Hive instance
         hive_instance = InstanceConfig(
-            name="hive",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
-            agent_api_key="key"
+            name="hive", agent_instance_type="hive", agent_api_url="https://hive.com", agent_api_key="key"
         )
         test_db.add(hive_instance)
         test_db.commit()
@@ -133,7 +131,7 @@ class TestInstanceConfigProperties:
             name="automagik",
             agent_instance_type="automagik",
             agent_api_url="https://automagik.com",
-            agent_api_key="key"
+            agent_api_key="key",
         )
         test_db.add(automagik_instance)
         test_db.commit()
@@ -149,7 +147,7 @@ class TestInstanceConfigProperties:
             agent_instance_type="hive",
             agent_api_url="https://hive.com",
             agent_api_key="key",
-            agent_type="team"
+            agent_type="team",
         )
         test_db.add(hive_team)
         test_db.commit()
@@ -162,7 +160,7 @@ class TestInstanceConfigProperties:
             agent_instance_type="hive",
             agent_api_url="https://hive.com",
             agent_api_key="key",
-            agent_type="agent"
+            agent_type="agent",
         )
         test_db.add(hive_agent)
         test_db.commit()
@@ -175,7 +173,7 @@ class TestInstanceConfigProperties:
             agent_instance_type="automagik",
             agent_api_url="https://automagik.com",
             agent_api_key="key",
-            agent_type="team"  # Even if set to team
+            agent_type="team",  # Even if set to team
         )
         test_db.add(automagik)
         test_db.commit()
@@ -190,7 +188,7 @@ class TestInstanceConfigProperties:
             agent_instance_type="hive",
             agent_api_url="https://hive.com",
             agent_api_key="key",
-            agent_stream_mode=True
+            agent_stream_mode=True,
         )
         test_db.add(hive_streaming)
         test_db.commit()
@@ -203,7 +201,7 @@ class TestInstanceConfigProperties:
             agent_instance_type="hive",
             agent_api_url="https://hive.com",
             agent_api_key="key",
-            agent_stream_mode=False
+            agent_stream_mode=False,
         )
         test_db.add(hive_no_stream)
         test_db.commit()
@@ -216,12 +214,14 @@ class TestInstanceConfigProperties:
             agent_instance_type="automagik",
             agent_api_url="https://automagik.com",
             agent_api_key="key",
-            agent_stream_mode=True
+            agent_stream_mode=True,
         )
         test_db.add(automagik_stream)
         test_db.commit()
 
         assert automagik_stream.streaming_enabled is False  # Automagik doesn't support streaming
+
+
 class TestInstanceConfigMethods:
     """Test the helper methods in InstanceConfig."""
 
@@ -235,7 +235,7 @@ class TestInstanceConfigMethods:
             agent_id="agent-123",
             agent_type="agent",
             agent_timeout=30,
-            agent_stream_mode=True
+            agent_stream_mode=True,
         )
         test_db.add(instance)
         test_db.commit()
@@ -252,11 +252,7 @@ class TestInstanceConfigMethods:
 
     def test_get_agent_config_with_defaults(self, test_db):
         """Test get_agent_config with default values."""
-        instance = InstanceConfig(
-            name="defaults",
-            agent_api_url="https://api.test.com",
-            agent_api_key="test-key"
-        )
+        instance = InstanceConfig(name="defaults", agent_api_url="https://api.test.com", agent_api_key="test-key")
         test_db.add(instance)
         test_db.commit()
 
@@ -274,7 +270,7 @@ class TestInstanceConfigMethods:
             name="fallback",
             agent_api_url="https://api.test.com",
             agent_api_key="test-key",
-            default_agent="fallback-agent"
+            default_agent="fallback-agent",
         )
         test_db.add(instance)
         test_db.commit()
@@ -290,7 +286,7 @@ class TestInstanceConfigMethods:
             agent_instance_type="hive",
             agent_api_url="https://hive.com",
             agent_api_key="key",
-            agent_id="agent-123"
+            agent_id="agent-123",
         )
         test_db.add(complete)
         test_db.commit()
@@ -299,10 +295,7 @@ class TestInstanceConfigMethods:
 
         # Incomplete hive config (missing agent_id)
         incomplete = InstanceConfig(
-            name="incomplete-hive",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
-            agent_api_key="key"
+            name="incomplete-hive", agent_instance_type="hive", agent_api_url="https://hive.com", agent_api_key="key"
         )
         test_db.add(incomplete)
         test_db.commit()
@@ -320,7 +313,7 @@ class TestInstanceConfigMethods:
             hive_enabled=True,
             hive_api_url="https://hive.com",
             hive_api_key="hive-key",
-            hive_agent_id="hive-agent"
+            hive_agent_id="hive-agent",
         )
         test_db.add(legacy)
         test_db.commit()
@@ -337,7 +330,7 @@ class TestInstanceConfigMethods:
             agent_id="agent-123",
             agent_type="team",
             agent_timeout=45,
-            agent_stream_mode=True
+            agent_stream_mode=True,
         )
         test_db.add(instance)
         test_db.commit()
@@ -363,7 +356,7 @@ class TestInstanceConfigMethods:
             hive_api_key="hive-key",
             hive_agent_id="hive-agent",
             hive_timeout=30,
-            hive_stream_mode=True
+            hive_stream_mode=True,
         )
         test_db.add(instance)
         test_db.commit()
@@ -376,6 +369,8 @@ class TestInstanceConfigMethods:
         assert config["agent_id"] == "hive-agent"
         assert config["timeout"] == 30
         assert config["stream_mode"] is True
+
+
 class TestInstanceConfigEdgeCases:
     """Test edge cases and error conditions."""
 
@@ -386,7 +381,7 @@ class TestInstanceConfigEdgeCases:
             agent_api_url="https://api.com",
             agent_api_key="key",
             agent_id=None,  # Explicitly null
-            default_agent=None  # Also null
+            default_agent=None,  # Also null
         )
         test_db.add(instance)
         test_db.commit()
@@ -405,7 +400,7 @@ class TestInstanceConfigEdgeCases:
             agent_id="new-agent",
             hive_api_url="https://old.com",
             hive_api_key="old-key",
-            hive_agent_id="old-agent"
+            hive_agent_id="old-agent",
         )
         test_db.add(instance)
         test_db.commit()
@@ -418,11 +413,7 @@ class TestInstanceConfigEdgeCases:
 
     def test_invalid_instance_type(self, test_db):
         """Test handling of invalid instance type."""
-        instance = InstanceConfig(
-            name="invalid-type",
-            agent_api_url="https://api.com",
-            agent_api_key="key"
-        )
+        instance = InstanceConfig(name="invalid-type", agent_api_url="https://api.com", agent_api_key="key")
         test_db.add(instance)
         test_db.commit()
 
@@ -443,7 +434,7 @@ class TestInstanceConfigEdgeCases:
             agent_api_url="https://api.com",
             agent_api_key="key",
             agent_id="",  # Empty string
-            default_agent=""  # Also empty
+            default_agent="",  # Also empty
         )
         test_db.add(instance)
         test_db.commit()
@@ -451,6 +442,8 @@ class TestInstanceConfigEdgeCases:
         config = instance.get_agent_config()
         # Should fall back to "default" for empty strings
         assert config["agent_id"] == "default"
+
+
 class TestInstanceConfigConstraints:
     """Test database constraints and validation."""
 
@@ -458,30 +451,21 @@ class TestInstanceConfigConstraints:
         """Test that required fields are enforced."""
         # Missing name
         with pytest.raises(IntegrityError):
-            instance = InstanceConfig(
-                agent_api_url="https://api.com",
-                agent_api_key="key"
-            )
+            instance = InstanceConfig(agent_api_url="https://api.com", agent_api_key="key")
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
 
         # Missing agent_api_url
         with pytest.raises(IntegrityError):
-            instance = InstanceConfig(
-                name="no-url",
-                agent_api_key="key"
-            )
+            instance = InstanceConfig(name="no-url", agent_api_key="key")
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
 
         # Missing agent_api_key
         with pytest.raises(IntegrityError):
-            instance = InstanceConfig(
-                name="no-key",
-                agent_api_url="https://api.com"
-            )
+            instance = InstanceConfig(name="no-key", agent_api_url="https://api.com")
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
@@ -489,11 +473,7 @@ class TestInstanceConfigConstraints:
     def test_unique_name_constraint(self, test_db):
         """Test that instance names must be unique."""
         # Create first instance
-        instance1 = InstanceConfig(
-            name="unique-test",
-            agent_api_url="https://api.com",
-            agent_api_key="key1"
-        )
+        instance1 = InstanceConfig(name="unique-test", agent_api_url="https://api.com", agent_api_key="key1")
         test_db.add(instance1)
         test_db.commit()
 
@@ -502,11 +482,13 @@ class TestInstanceConfigConstraints:
             instance2 = InstanceConfig(
                 name="unique-test",  # Same name
                 agent_api_url="https://api2.com",
-                agent_api_key="key2"
+                agent_api_key="key2",
             )
             test_db.add(instance2)
             test_db.commit()
         test_db.rollback()
+
+
 class TestUserModel:
     """Test User model for completeness."""
 
@@ -516,7 +498,7 @@ class TestUserModel:
             phone_number="+1234567890",
             whatsapp_jid="1234567890@s.whatsapp.net",
             instance_name="test-instance",
-            display_name="Test User"
+            display_name="Test User",
         )
         test_db.add(user)
         test_db.commit()
@@ -530,20 +512,12 @@ class TestUserModel:
     def test_user_with_instance(self, test_db):
         """Test user associated with an instance."""
         # Create instance
-        instance = InstanceConfig(
-            name="user-instance",
-            agent_api_url="https://api.com",
-            agent_api_key="key"
-        )
+        instance = InstanceConfig(name="user-instance", agent_api_url="https://api.com", agent_api_key="key")
         test_db.add(instance)
         test_db.commit()
 
         # Create user with instance
-        user = User(
-            phone_number="+9876543210",
-            whatsapp_jid="9876543210@s.whatsapp.net",
-            instance_name=instance.name
-        )
+        user = User(phone_number="+9876543210", whatsapp_jid="9876543210@s.whatsapp.net", instance_name=instance.name)
         test_db.add(user)
         test_db.commit()
 

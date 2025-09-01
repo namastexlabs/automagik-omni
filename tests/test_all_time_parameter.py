@@ -2,6 +2,7 @@
 Comprehensive tests for the new all_time parameter functionality in traces endpoints.
 Tests both GET /traces and GET /traces/analytics/summary endpoints.
 """
+
 import pytest
 from datetime import timedelta
 from unittest.mock import Mock
@@ -49,7 +50,7 @@ class TestAllTimeParameter:
                 agent_processing_time_ms=1000,
                 total_processing_time_ms=1500,
                 agent_response_success=True,
-                evolution_success=True
+                evolution_success=True,
             ),
             MessageTrace(
                 trace_id="trace_002",
@@ -67,7 +68,7 @@ class TestAllTimeParameter:
                 agent_processing_time_ms=1000,
                 total_processing_time_ms=1500,
                 agent_response_success=True,
-                evolution_success=True
+                evolution_success=True,
             ),
         ]
 
@@ -185,12 +186,13 @@ class TestAllTimeParameter:
         try:
             # Test with explicit dates but all_time=true (all_time should override)
             from urllib.parse import quote
+
             start_date = (utcnow() - timedelta(days=1)).isoformat()
             end_date = utcnow().isoformat()
 
             response = client.get(
                 f"/api/v1/traces?all_time=true&start_date={quote(start_date)}&end_date={quote(end_date)}",
-                headers=auth_headers
+                headers=auth_headers,
             )
 
             assert response.status_code == 200
@@ -221,12 +223,13 @@ class TestAllTimeParameter:
         try:
             # Test with explicit dates and all_time=false
             from urllib.parse import quote
+
             start_date = (utcnow() - timedelta(days=1)).isoformat()
             end_date = utcnow().isoformat()
 
             response = client.get(
                 f"/api/v1/traces?all_time=false&start_date={quote(start_date)}&end_date={quote(end_date)}",
-                headers=auth_headers
+                headers=auth_headers,
             )
 
             assert response.status_code == 200
@@ -340,12 +343,13 @@ class TestAllTimeParameter:
         try:
             # Test with dates but all_time=true should override
             from urllib.parse import quote
+
             start_date = (utcnow() - timedelta(days=1)).isoformat()
             end_date = utcnow().isoformat()
 
             response = client.get(
                 f"/api/v1/traces/analytics/summary?all_time=true&start_date={quote(start_date)}&end_date={quote(end_date)}",
-                headers=auth_headers
+                headers=auth_headers,
             )
 
             assert response.status_code == 200
@@ -386,7 +390,9 @@ class TestAllTimeParameter:
                 # FastAPI should handle boolean conversion or return validation error
                 assert response.status_code in [200, 422]  # 200 if converted, 422 if validation fails
 
-                response = client.get(f"/api/v1/traces/analytics/summary?all_time={invalid_value}", headers=auth_headers)
+                response = client.get(
+                    f"/api/v1/traces/analytics/summary?all_time={invalid_value}", headers=auth_headers
+                )
                 assert response.status_code in [200, 422]
         finally:
             app.dependency_overrides.clear()
@@ -415,7 +421,7 @@ class TestAllTimeParameter:
             # Test all_time with other filters (phone, has_media, session)
             response = client.get(
                 "/api/v1/traces?all_time=true&sender_phone=+1234567890&has_media=false&agent_session_id=agent_session_abc123",
-                headers=auth_headers
+                headers=auth_headers,
             )
 
             assert response.status_code == 200
@@ -456,18 +462,18 @@ class TestAllTimeParameter:
 
             # Test with existing date parameters (should still work)
             from urllib.parse import quote
+
             start_date = (utcnow() - timedelta(days=1)).isoformat()
             end_date = utcnow().isoformat()
 
             response3 = client.get(
-                f"/api/v1/traces?start_date={quote(start_date)}&end_date={quote(end_date)}",
-                headers=auth_headers
+                f"/api/v1/traces?start_date={quote(start_date)}&end_date={quote(end_date)}", headers=auth_headers
             )
             assert response3.status_code == 200
 
             response4 = client.get(
                 f"/api/v1/traces/analytics/summary?start_date={quote(start_date)}&end_date={quote(end_date)}",
-                headers=auth_headers
+                headers=auth_headers,
             )
             assert response4.status_code == 200
 

@@ -33,17 +33,13 @@ class TestApiMentions:
     @pytest.fixture
     def api_headers(self):
         """Standard API headers."""
-        return {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer namastex888"
-        }
+        return {"Content-Type": "application/json", "Authorization": "Bearer namastex888"}
 
-    @patch('src.api.routes.messages.get_instance_by_name')
-    @patch('requests.post')
-    @patch('src.api.routes.messages._resolve_recipient')
+    @patch("src.api.routes.messages.get_instance_by_name")
+    @patch("requests.post")
+    @patch("src.api.routes.messages._resolve_recipient")
     def test_send_text_with_auto_parse_mentions(
-        self, mock_resolve, mock_requests_post, mock_get_instance,
-        client, mock_instance_config, api_headers
+        self, mock_resolve, mock_requests_post, mock_get_instance, client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint with auto-parse mentions."""
         # Setup mocks
@@ -60,14 +56,10 @@ class TestApiMentions:
         payload = {
             "phone_number": "+5511777777777",
             "text": "Hello @5511999999999 and @5511888888888!",
-            "auto_parse_mentions": True
+            "auto_parse_mentions": True,
         }
 
-        response = client.post(
-            "/api/v1/instance/test-instance/send-text",
-            json=payload,
-            headers=api_headers
-        )
+        response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -100,22 +92,25 @@ class TestApiMentions:
         assert "5511999999999@s.whatsapp.net" in mentions
         assert "5511888888888@s.whatsapp.net" in mentions
 
-    @patch('src.api.routes.messages.get_instance_by_name')
-    @patch('requests.post')
-    @patch('src.api.routes.messages._resolve_recipient')
-    @patch('src.api.routes.messages.WhatsAppMentionParser.parse_explicit_mentions')
+    @patch("src.api.routes.messages.get_instance_by_name")
+    @patch("requests.post")
+    @patch("src.api.routes.messages._resolve_recipient")
+    @patch("src.api.routes.messages.WhatsAppMentionParser.parse_explicit_mentions")
     def test_send_text_with_explicit_mentions(
-        self, mock_parse_mentions, mock_resolve, mock_requests_post,
-        mock_get_instance, client, mock_instance_config, api_headers
+        self,
+        mock_parse_mentions,
+        mock_resolve,
+        mock_requests_post,
+        mock_get_instance,
+        client,
+        mock_instance_config,
+        api_headers,
     ):
         """Test send-text endpoint with explicit mentions."""
         # Setup mocks
         mock_get_instance.return_value = mock_instance_config
         mock_resolve.return_value = "5511777777777@s.whatsapp.net"
-        mock_parse_mentions.return_value = [
-            "5511999999999@s.whatsapp.net",
-            "5511888888888@s.whatsapp.net"
-        ]
+        mock_parse_mentions.return_value = ["5511999999999@s.whatsapp.net", "5511888888888@s.whatsapp.net"]
 
         # Mock HTTP response for Evolution API
         mock_response = Mock()
@@ -128,14 +123,10 @@ class TestApiMentions:
             "phone_number": "+5511777777777",
             "text": "Team meeting at 3pm",
             "mentioned": ["+5511999999999", "+5511888888888"],
-            "auto_parse_mentions": False
+            "auto_parse_mentions": False,
         }
 
-        response = client.post(
-            "/api/v1/instance/test-instance/send-text",
-            json=payload,
-            headers=api_headers
-        )
+        response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -153,12 +144,11 @@ class TestApiMentions:
         assert "mentioned" in request_payload
         assert request_payload["mentioned"] == ["5511999999999@s.whatsapp.net", "5511888888888@s.whatsapp.net"]
 
-    @patch('src.api.routes.messages.get_instance_by_name')
-    @patch('requests.post')
-    @patch('src.api.routes.messages._resolve_recipient')
+    @patch("src.api.routes.messages.get_instance_by_name")
+    @patch("requests.post")
+    @patch("src.api.routes.messages._resolve_recipient")
     def test_send_text_with_mentions_everyone(
-        self, mock_resolve, mock_requests_post, mock_get_instance,
-        client, mock_instance_config, api_headers
+        self, mock_resolve, mock_requests_post, mock_get_instance, client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint with mentions everyone."""
         # Setup mocks
@@ -172,17 +162,9 @@ class TestApiMentions:
         mock_requests_post.return_value = mock_response
 
         # Test payload with mentions everyone
-        payload = {
-            "phone_number": "group-id@g.us",
-            "text": "Important group announcement!",
-            "mentions_everyone": True
-        }
+        payload = {"phone_number": "group-id@g.us", "text": "Important group announcement!", "mentions_everyone": True}
 
-        response = client.post(
-            "/api/v1/instance/test-instance/send-text",
-            json=payload,
-            headers=api_headers
-        )
+        response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -197,12 +179,11 @@ class TestApiMentions:
         assert "mentionsEveryOne" in request_payload
         assert request_payload["mentionsEveryOne"] is True
 
-    @patch('src.api.routes.messages.get_instance_by_name')
-    @patch('requests.post')
-    @patch('src.api.routes.messages._resolve_recipient')
+    @patch("src.api.routes.messages.get_instance_by_name")
+    @patch("requests.post")
+    @patch("src.api.routes.messages._resolve_recipient")
     def test_send_text_no_mentions(
-        self, mock_resolve, mock_requests_post, mock_get_instance,
-        client, mock_instance_config, api_headers
+        self, mock_resolve, mock_requests_post, mock_get_instance, client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint without any mentions."""
         # Setup mocks
@@ -216,16 +197,9 @@ class TestApiMentions:
         mock_requests_post.return_value = mock_response
 
         # Test payload without mentions
-        payload = {
-            "phone_number": "+5511777777777",
-            "text": "Regular message without mentions"
-        }
+        payload = {"phone_number": "+5511777777777", "text": "Regular message without mentions"}
 
-        response = client.post(
-            "/api/v1/instance/test-instance/send-text",
-            json=payload,
-            headers=api_headers
-        )
+        response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -240,12 +214,11 @@ class TestApiMentions:
         assert "mentioned" not in request_payload or not request_payload.get("mentioned")
         assert "mentionsEveryOne" not in request_payload or not request_payload.get("mentionsEveryOne")
 
-    @patch('src.api.routes.messages.get_instance_by_name')
-    @patch('requests.post')
-    @patch('src.api.routes.messages._resolve_recipient')
+    @patch("src.api.routes.messages.get_instance_by_name")
+    @patch("requests.post")
+    @patch("src.api.routes.messages._resolve_recipient")
     def test_send_text_sender_failure(
-        self, mock_resolve, mock_requests_post, mock_get_instance,
-        client, mock_instance_config, api_headers
+        self, mock_resolve, mock_requests_post, mock_get_instance, client, mock_instance_config, api_headers
     ):
         """Test send-text endpoint when sender fails."""
         # Setup mocks
@@ -258,17 +231,9 @@ class TestApiMentions:
         mock_response.raise_for_status.side_effect = Exception("Server error")
         mock_requests_post.return_value = mock_response
 
-        payload = {
-            "phone_number": "+5511777777777",
-            "text": "Test @5511999999999",
-            "auto_parse_mentions": True
-        }
+        payload = {"phone_number": "+5511777777777", "text": "Test @5511999999999", "auto_parse_mentions": True}
 
-        response = client.post(
-            "/api/v1/instance/test-instance/send-text",
-            json=payload,
-            headers=api_headers
-        )
+        response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -277,61 +242,65 @@ class TestApiMentions:
 
     def test_send_text_missing_api_key(self, client):
         """Test send-text endpoint without API key."""
-        payload = {
-            "phone_number": "+5511777777777",
-            "text": "Test message"
-        }
+        payload = {"phone_number": "+5511777777777", "text": "Test message"}
 
         response = client.post(
-            "/api/v1/instance/test-instance/send-text",
-            json=payload,
-            headers={"Content-Type": "application/json"}
+            "/api/v1/instance/test-instance/send-text", json=payload, headers={"Content-Type": "application/json"}
         )
 
         assert response.status_code == 403
 
     def test_send_text_invalid_instance(self, client, api_headers):
         """Test send-text endpoint with invalid instance."""
-        payload = {
-            "phone_number": "+5511777777777",
-            "text": "Test message"
-        }
+        payload = {"phone_number": "+5511777777777", "text": "Test message"}
 
-        with patch('src.api.routes.messages.get_instance_by_name') as mock_get_instance:
+        with patch("src.api.routes.messages.get_instance_by_name") as mock_get_instance:
             from fastapi import HTTPException, status
+
             mock_get_instance.side_effect = HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Instance 'invalid-instance' not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instance 'invalid-instance' not found"
             )
 
-            response = client.post(
-                "/api/v1/instance/invalid-instance/send-text",
-                json=payload,
-                headers=api_headers
-            )
+            response = client.post("/api/v1/instance/invalid-instance/send-text", json=payload, headers=api_headers)
 
             assert response.status_code == 404
 
-    @pytest.mark.parametrize("payload,expected_auto_parse,expected_mentions_everyone", [
-        # Default values
-        ({"phone_number": "+5511777777777", "text": "test"}, True, False),
-
-        # Explicit auto_parse_mentions
-        ({"phone_number": "+5511777777777", "text": "test", "auto_parse_mentions": False}, False, False),
-
-        # Explicit mentions_everyone
-        ({"phone_number": "+5511777777777", "text": "test", "mentions_everyone": True}, True, True),
-
-        # Both explicit
-        ({"phone_number": "+5511777777777", "text": "test", "auto_parse_mentions": False, "mentions_everyone": True}, False, True),
-    ])
-    @patch('src.api.routes.messages.get_instance_by_name')
-    @patch('requests.post')
-    @patch('src.api.routes.messages._resolve_recipient')
+    @pytest.mark.parametrize(
+        "payload,expected_auto_parse,expected_mentions_everyone",
+        [
+            # Default values
+            ({"phone_number": "+5511777777777", "text": "test"}, True, False),
+            # Explicit auto_parse_mentions
+            ({"phone_number": "+5511777777777", "text": "test", "auto_parse_mentions": False}, False, False),
+            # Explicit mentions_everyone
+            ({"phone_number": "+5511777777777", "text": "test", "mentions_everyone": True}, True, True),
+            # Both explicit
+            (
+                {
+                    "phone_number": "+5511777777777",
+                    "text": "test",
+                    "auto_parse_mentions": False,
+                    "mentions_everyone": True,
+                },
+                False,
+                True,
+            ),
+        ],
+    )
+    @patch("src.api.routes.messages.get_instance_by_name")
+    @patch("requests.post")
+    @patch("src.api.routes.messages._resolve_recipient")
     def test_send_text_parameter_defaults(
-        self, mock_resolve, mock_requests_post, mock_get_instance,
-        client, mock_instance_config, api_headers,
-        payload, expected_auto_parse, expected_mentions_everyone
+        self,
+        mock_resolve,
+        mock_requests_post,
+        mock_get_instance,
+        client,
+        mock_instance_config,
+        api_headers,
+        payload,
+        expected_auto_parse,
+        expected_mentions_everyone,
     ):
         """Test that mention parameters have correct default values."""
         # Setup mocks
@@ -344,11 +313,7 @@ class TestApiMentions:
         mock_response.raise_for_status.return_value = None
         mock_requests_post.return_value = mock_response
 
-        response = client.post(
-            "/api/v1/instance/test-instance/send-text",
-            json=payload,
-            headers=api_headers
-        )
+        response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
 
         assert response.status_code == 200
 
@@ -371,36 +336,32 @@ class TestApiMentions:
             "text": "Test message",
             "auto_parse_mentions": True,
             "mentioned": ["+5511999999999"],
-            "mentions_everyone": False
+            "mentions_everyone": False,
         }
 
-        with patch('src.api.routes.messages.get_instance_by_name'), \
-             patch('src.api.routes.messages.OmniChannelMessageSender'), \
-             patch('src.api.routes.messages._resolve_recipient'):
-
-            response = client.post(
-                "/api/v1/instance/test-instance/send-text",
-                json=valid_payload,
-                headers=api_headers
-            )
+        with (
+            patch("src.api.routes.messages.get_instance_by_name"),
+            patch("src.api.routes.messages.OmniChannelMessageSender"),
+            patch("src.api.routes.messages._resolve_recipient"),
+        ):
+            response = client.post("/api/v1/instance/test-instance/send-text", json=valid_payload, headers=api_headers)
 
             # Should not fail validation
             assert response.status_code != 422
 
-    def test_send_text_with_empty_mentioned_list(
-        self, client, api_headers
-    ):
+    def test_send_text_with_empty_mentioned_list(self, client, api_headers):
         """Test send-text with empty mentioned list."""
         payload = {
             "phone_number": "+5511777777777",
             "text": "Test message",
-            "mentioned": []  # Empty list
+            "mentioned": [],  # Empty list
         }
 
-        with patch('src.api.routes.messages.get_instance_by_name') as mock_get_instance, \
-             patch('requests.post') as mock_requests_post, \
-             patch('src.api.routes.messages._resolve_recipient') as mock_resolve:
-
+        with (
+            patch("src.api.routes.messages.get_instance_by_name") as mock_get_instance,
+            patch("requests.post") as mock_requests_post,
+            patch("src.api.routes.messages._resolve_recipient") as mock_resolve,
+        ):
             mock_instance_config = Mock()
             mock_instance_config.channel_type = "whatsapp"  # CRITICAL: Set channel_type
             mock_instance_config.evolution_url = "https://test-evolution.com"
@@ -415,11 +376,7 @@ class TestApiMentions:
             mock_response.raise_for_status.return_value = None
             mock_requests_post.return_value = mock_response
 
-            response = client.post(
-                "/api/v1/instance/test-instance/send-text",
-                json=payload,
-                headers=api_headers
-            )
+            response = client.post("/api/v1/instance/test-instance/send-text", json=payload, headers=api_headers)
 
             assert response.status_code == 200
 

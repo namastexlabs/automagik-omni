@@ -98,40 +98,22 @@ class TelemetryClient:
         system_info = self._get_system_info()
         for key, value in system_info.items():
             if isinstance(value, bool):
-                attributes.append({
-                    "key": f"system.{key}",
-                    "value": {"boolValue": value}
-                })
+                attributes.append({"key": f"system.{key}", "value": {"boolValue": value}})
             elif isinstance(value, (int, float)):
-                attributes.append({
-                    "key": f"system.{key}",
-                    "value": {"doubleValue": float(value)}
-                })
+                attributes.append({"key": f"system.{key}", "value": {"doubleValue": float(value)}})
             else:
-                attributes.append({
-                    "key": f"system.{key}",
-                    "value": {"stringValue": str(value)}
-                })
+                attributes.append({"key": f"system.{key}", "value": {"stringValue": str(value)}})
 
         # Add event data
         for key, value in data.items():
             if isinstance(value, bool):
-                attributes.append({
-                    "key": f"event.{key}",
-                    "value": {"boolValue": value}
-                })
+                attributes.append({"key": f"event.{key}", "value": {"boolValue": value}})
             elif isinstance(value, (int, float)):
-                attributes.append({
-                    "key": f"event.{key}",
-                    "value": {"doubleValue": float(value)}
-                })
+                attributes.append({"key": f"event.{key}", "value": {"doubleValue": float(value)}})
             else:
                 # Truncate long strings and sanitize sensitive data
                 sanitized_value = str(value)[:500]
-                attributes.append({
-                    "key": f"event.{key}",
-                    "value": {"stringValue": sanitized_value}
-                })
+                attributes.append({"key": f"event.{key}", "value": {"stringValue": sanitized_value}})
 
         return attributes
 
@@ -147,42 +129,43 @@ class TelemetryClient:
 
             # Create OTLP-compatible payload
             payload = {
-                "resourceSpans": [{
-                    "resource": {
-                        "attributes": [
-                            {"key": "service.name", "value": {"stringValue": self.project_name}},
-                            {"key": "service.version", "value": {"stringValue": self.project_version}},
-                            {"key": "service.organization", "value": {"stringValue": self.organization}},
-                            {"key": "user.id", "value": {"stringValue": self.user_id}},
-                            {"key": "session.id", "value": {"stringValue": self.session_id}},
-                            {"key": "telemetry.sdk.name", "value": {"stringValue": self.project_name}},
-                            {"key": "telemetry.sdk.version", "value": {"stringValue": self.project_version}}
-                        ]
-                    },
-                    "scopeSpans": [{
-                        "scope": {
-                            "name": f"{self.project_name}.telemetry",
-                            "version": self.project_version
+                "resourceSpans": [
+                    {
+                        "resource": {
+                            "attributes": [
+                                {"key": "service.name", "value": {"stringValue": self.project_name}},
+                                {"key": "service.version", "value": {"stringValue": self.project_version}},
+                                {"key": "service.organization", "value": {"stringValue": self.organization}},
+                                {"key": "user.id", "value": {"stringValue": self.user_id}},
+                                {"key": "session.id", "value": {"stringValue": self.session_id}},
+                                {"key": "telemetry.sdk.name", "value": {"stringValue": self.project_name}},
+                                {"key": "telemetry.sdk.version", "value": {"stringValue": self.project_version}},
+                            ]
                         },
-                        "spans": [{
-                            "traceId": trace_id,
-                            "spanId": span_id,
-                            "name": event_type,
-                            "kind": "SPAN_KIND_INTERNAL",
-                            "startTimeUnixNano": int(time.time() * 1_000_000_000),
-                            "endTimeUnixNano": int(time.time() * 1_000_000_000),
-                            "attributes": self._create_attributes(data),
-                            "status": {"code": "STATUS_CODE_OK"}
-                        }]
-                    }]
-                }]
+                        "scopeSpans": [
+                            {
+                                "scope": {"name": f"{self.project_name}.telemetry", "version": self.project_version},
+                                "spans": [
+                                    {
+                                        "traceId": trace_id,
+                                        "spanId": span_id,
+                                        "name": event_type,
+                                        "kind": "SPAN_KIND_INTERNAL",
+                                        "startTimeUnixNano": int(time.time() * 1_000_000_000),
+                                        "endTimeUnixNano": int(time.time() * 1_000_000_000),
+                                        "attributes": self._create_attributes(data),
+                                        "status": {"code": "STATUS_CODE_OK"},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
             }
 
             # Send HTTP request
             request = Request(
-                self.endpoint,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"}
+                self.endpoint, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"}
             )
 
             with urlopen(request, timeout=self.timeout) as response:
@@ -199,61 +182,42 @@ class TelemetryClient:
     # Public API methods
     def track_command(self, command: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs) -> None:
         """Track CLI command execution."""
-        data = {
-            "command": command,
-            "success": success,
-            **kwargs
-        }
+        data = {"command": command, "success": success, **kwargs}
         if duration_ms is not None:
             data["duration_ms"] = duration_ms
         self._send_event("command", data)
 
-    def track_api_request(self, endpoint: str, method: str, status_code: int, duration_ms: Optional[float] = None, **kwargs) -> None:
+    def track_api_request(
+        self, endpoint: str, method: str, status_code: int, duration_ms: Optional[float] = None, **kwargs
+    ) -> None:
         """Track API request."""
-        data = {
-            "endpoint": endpoint,
-            "method": method,
-            "status_code": status_code,
-            **kwargs
-        }
+        data = {"endpoint": endpoint, "method": method, "status_code": status_code, **kwargs}
         if duration_ms is not None:
             data["duration_ms"] = duration_ms
         self._send_event("api_request", data)
 
-    def track_webhook_processed(self, channel: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs) -> None:
+    def track_webhook_processed(
+        self, channel: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs
+    ) -> None:
         """Track webhook processing."""
-        data = {
-            "channel": channel,
-            "success": success,
-            **kwargs
-        }
+        data = {"channel": channel, "success": success, **kwargs}
         if duration_ms is not None:
             data["duration_ms"] = duration_ms
         self._send_event("webhook_processed", data)
 
     def track_instance_operation(self, operation: str, success: bool = True, **kwargs) -> None:
         """Track instance management operations."""
-        data = {
-            "operation": operation,
-            "success": success,
-            **kwargs
-        }
+        data = {"operation": operation, "success": success, **kwargs}
         self._send_event("instance_operation", data)
 
     def track_feature_usage(self, feature: str, **kwargs) -> None:
         """Track feature usage."""
-        data = {
-            "feature": feature,
-            **kwargs
-        }
+        data = {"feature": feature, **kwargs}
         self._send_event("feature_usage", data)
 
     def track_installation(self, install_type: str = "unknown", first_run: bool = False) -> None:
         """Track installation events."""
-        data = {
-            "install_type": install_type,
-            "first_run": first_run
-        }
+        data = {"install_type": install_type, "first_run": first_run}
         self._send_event("installation", data)
 
     # Control methods
@@ -292,7 +256,7 @@ class TelemetryClient:
             "project_version": self.project_version,
             "endpoint": self.endpoint,
             "opt_out_file_exists": (Path.home() / ".automagik-omni-no-telemetry").exists(),
-            "env_var_disabled": os.getenv("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", "false").lower() == "true"
+            "env_var_disabled": os.getenv("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", "false").lower() == "true",
         }
 
 
@@ -306,7 +270,9 @@ def track_command(command: str, success: bool = True, duration_ms: Optional[floa
     telemetry_client.track_command(command, success, duration_ms, **kwargs)
 
 
-def track_api_request(endpoint: str, method: str, status_code: int, duration_ms: Optional[float] = None, **kwargs) -> None:
+def track_api_request(
+    endpoint: str, method: str, status_code: int, duration_ms: Optional[float] = None, **kwargs
+) -> None:
     """Track API request."""
     telemetry_client.track_api_request(endpoint, method, status_code, duration_ms, **kwargs)
 

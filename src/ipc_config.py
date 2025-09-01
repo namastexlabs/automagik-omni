@@ -32,7 +32,7 @@ class IPCConfig:
         3. Fallback to ~/automagik-omni/sockets
         """
         # Check environment variable first
-        env_dir = os.environ.get('AUTOMAGIK_SOCKET_DIR')
+        env_dir = os.environ.get("AUTOMAGIK_SOCKET_DIR")
         if env_dir:
             socket_dir = os.path.expanduser(env_dir)
             cls._ensure_directory(socket_dir)
@@ -76,7 +76,7 @@ class IPCConfig:
                 os.makedirs(path, exist_ok=True, mode=0o755)
 
             # Check if we can write
-            test_file = os.path.join(path, '.test_write')
+            test_file = os.path.join(path, ".test_write")
             try:
                 Path(test_file).touch()
                 os.unlink(test_file)
@@ -116,17 +116,19 @@ class IPCConfig:
 
         sockets = []
         for entry in os.listdir(socket_dir):
-            if entry.endswith('.sock'):
+            if entry.endswith(".sock"):
                 full_path = os.path.join(socket_dir, entry)
                 if os.path.exists(full_path):
                     # Parse channel and instance from filename
-                    parts = entry[:-5].split('-', 1)  # Remove .sock and split
+                    parts = entry[:-5].split("-", 1)  # Remove .sock and split
                     if len(parts) == 2:
-                        sockets.append({
-                            'channel': parts[0],
-                            'instance': parts[1],
-                            'path': full_path,
-                            'created': os.path.getctime(full_path)
-                        })
+                        sockets.append(
+                            {
+                                "channel": parts[0],
+                                "instance": parts[1],
+                                "path": full_path,
+                                "created": os.path.getctime(full_path),
+                            }
+                        )
 
         return sockets

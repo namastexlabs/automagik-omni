@@ -41,9 +41,7 @@ class LoggingConfig(BaseModel):
         default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_LOG_VERBOSITY", "short").lower() != "full"
     )
     log_folder: str = Field(default_factory=lambda: os.getenv("LOG_FOLDER", "./logs"))
-    enable_file_logging: bool = Field(
-        default_factory=lambda: bool(os.getenv("LOG_FOLDER", "./logs"))
-    )
+    enable_file_logging: bool = Field(default_factory=lambda: bool(os.getenv("LOG_FOLDER", "./logs")))
 
 
 class DatabaseConfig(BaseModel):
@@ -66,33 +64,22 @@ class DatabaseConfig(BaseModel):
 class TracingConfig(BaseModel):
     """Message tracing configuration."""
 
-    enabled: bool = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_ENABLE_TRACING", "true").lower() == "true"
-    )
-    retention_days: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_TRACE_RETENTION_DAYS", "30"))
-    )
+    enabled: bool = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_ENABLE_TRACING", "true").lower() == "true")
+    retention_days: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_TRACE_RETENTION_DAYS", "30")))
     max_payload_size: int = Field(
         default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_TRACE_MAX_PAYLOAD_SIZE", "1048576"))
     )  # 1MB
     include_sensitive_data: bool = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_TRACE_INCLUDE_SENSITIVE", "false").lower()
-        == "true"
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_TRACE_INCLUDE_SENSITIVE", "false").lower() == "true"
     )
 
 
 class ApiConfig(BaseModel):
     """API Server configuration."""
 
-    host: str = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_HOST", "0.0.0.0")
-    )
-    port: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882"))
-    )
-    api_key: str = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_KEY", "")
-    )
+    host: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_HOST", "0.0.0.0"))
+    port: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882")))
+    api_key: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_KEY", ""))
     title: str = "Automagik Omni API"
     description: str = "Multi-tenant omnichannel messaging API"
     version: str = "0.2.0"
@@ -132,9 +119,7 @@ class TimezoneConfig(BaseModel):
 class EnvironmentConfig(BaseModel):
     """Environment configuration for unified Python architecture."""
 
-    environment: str = Field(
-        default_factory=lambda: os.getenv("ENVIRONMENT", "development")
-    )
+    environment: str = Field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
 
     @property
     def is_development(self) -> bool:

@@ -35,7 +35,9 @@ def list_instances():
 
             if not instances:
                 console.print("[yellow]No instances found[/yellow]")
-                track_command("instance_list", success=True, instance_count=0, duration_ms=(time.time() - start_time) * 1000)
+                track_command(
+                    "instance_list", success=True, instance_count=0, duration_ms=(time.time() - start_time) * 1000
+                )
                 return
 
             table = Table(title="Instance Configurations")
@@ -55,7 +57,12 @@ def list_instances():
                 )
 
             console.print(table)
-            track_command("instance_list", success=True, instance_count=len(instances), duration_ms=(time.time() - start_time) * 1000)
+            track_command(
+                "instance_list",
+                success=True,
+                instance_count=len(instances),
+                duration_ms=(time.time() - start_time) * 1000,
+            )
         finally:
             db.close()
     except Exception:
@@ -77,16 +84,12 @@ def show_instance(name: str):
 
         console.print(f"\n[bold]Instance Configuration: {instance.name}[/bold]")
         console.print(f"ID: {instance.id}")
-        console.print(
-            f"Evolution URL: {instance.evolution_url or '[dim]Not set[/dim]'}"
-        )
+        console.print(f"Evolution URL: {instance.evolution_url or '[dim]Not set[/dim]'}")
         console.print(
             f"Evolution Key: {'*' * len(instance.evolution_key) if instance.evolution_key else '[dim]Not set[/dim]'}"
         )
         console.print(f"WhatsApp Instance: {instance.whatsapp_instance}")
-        console.print(
-            f"Session ID Prefix: {instance.session_id_prefix or '[dim]None[/dim]'}"
-        )
+        console.print(f"Session ID Prefix: {instance.session_id_prefix or '[dim]None[/dim]'}")
         console.print(f"Agent API URL: {instance.agent_api_url}")
         console.print(
             f"Agent API Key: {'*' * len(instance.agent_api_key) if instance.agent_api_key else '[dim]Not set[/dim]'}"
@@ -111,9 +114,7 @@ def add_instance(
     agent_api_key: str = typer.Option(..., help="Agent API key"),
     default_agent: str = typer.Option(..., help="Default agent name"),
     agent_timeout: int = typer.Option(60, help="Agent API timeout in seconds"),
-    make_default: bool = typer.Option(
-        False, "--default", help="Make this the default instance"
-    ),
+    make_default: bool = typer.Option(False, "--default", help="Make this the default instance"),
 ):
     """Add a new instance configuration."""
     start_time = time.time()
@@ -126,14 +127,17 @@ def add_instance(
             existing = db.query(InstanceConfig).filter_by(name=name).first()
             if existing:
                 console.print(f"[red]Instance '{name}' already exists[/red]")
-                track_command("instance_add", success=False, error="instance_exists", duration_ms=(time.time() - start_time) * 1000)
+                track_command(
+                    "instance_add",
+                    success=False,
+                    error="instance_exists",
+                    duration_ms=(time.time() - start_time) * 1000,
+                )
                 raise typer.Exit(1)
 
             # If making this default, unset other defaults
             if make_default:
-                db.query(InstanceConfig).filter_by(is_default=True).update(
-                    {"is_default": False}
-                )
+                db.query(InstanceConfig).filter_by(is_default=True).update({"is_default": False})
 
             # Create new instance
             instance = InstanceConfig(
@@ -156,7 +160,9 @@ def add_instance(
             if make_default:
                 console.print(f"[green]Instance '{name}' set as default[/green]")
 
-            track_command("instance_add", success=True, is_default=make_default, duration_ms=(time.time() - start_time) * 1000)
+            track_command(
+                "instance_add", success=True, is_default=make_default, duration_ms=(time.time() - start_time) * 1000
+            )
         finally:
             db.close()
     except typer.Exit:
@@ -171,19 +177,13 @@ def update_instance(
     name: str = typer.Argument(..., help="Instance name"),
     evolution_url: Optional[str] = typer.Option(None, help="Evolution API URL"),
     evolution_key: Optional[str] = typer.Option(None, help="Evolution API key"),
-    whatsapp_instance: Optional[str] = typer.Option(
-        None, help="WhatsApp instance name"
-    ),
+    whatsapp_instance: Optional[str] = typer.Option(None, help="WhatsApp instance name"),
     session_id_prefix: Optional[str] = typer.Option(None, help="Session ID prefix"),
     agent_api_url: Optional[str] = typer.Option(None, help="Agent API URL"),
     agent_api_key: Optional[str] = typer.Option(None, help="Agent API key"),
     default_agent: Optional[str] = typer.Option(None, help="Default agent name"),
-    agent_timeout: Optional[int] = typer.Option(
-        None, help="Agent API timeout in seconds"
-    ),
-    make_default: bool = typer.Option(
-        False, "--default", help="Make this the default instance"
-    ),
+    agent_timeout: Optional[int] = typer.Option(None, help="Agent API timeout in seconds"),
+    make_default: bool = typer.Option(False, "--default", help="Make this the default instance"),
 ):
     """Update an existing instance configuration."""
     create_tables()
@@ -215,9 +215,7 @@ def update_instance(
 
         # Handle default flag
         if make_default:
-            db.query(InstanceConfig).filter_by(is_default=True).update(
-                {"is_default": False}
-            )
+            db.query(InstanceConfig).filter_by(is_default=True).update({"is_default": False})
             instance.is_default = True
 
         db.commit()
@@ -232,9 +230,7 @@ def update_instance(
 @app.command("delete")
 def delete_instance(
     name: str = typer.Argument(..., help="Instance name"),
-    force: bool = typer.Option(
-        False, "--force", help="Force deletion without confirmation"
-    ),
+    force: bool = typer.Option(False, "--force", help="Force deletion without confirmation"),
 ):
     """Delete an instance configuration."""
     create_tables()
@@ -281,9 +277,7 @@ def set_default_instance(name: str = typer.Argument(..., help="Instance name")):
             raise typer.Exit(1)
 
         # Unset other defaults
-        db.query(InstanceConfig).filter_by(is_default=True).update(
-            {"is_default": False}
-        )
+        db.query(InstanceConfig).filter_by(is_default=True).update({"is_default": False})
 
         # Set this as default
         instance.is_default = True

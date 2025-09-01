@@ -1,26 +1,26 @@
 """
 Main CLI application for Omni-Hub with telemetry support and Discord integration.
 """
+
 import typer
 import time
 from src.core.telemetry import track_command, telemetry_client
 from src.cli.instance_cli import app as instance_app
 from src.cli.telemetry_cli import app as telemetry_app
 from src.cli.discord_cli import app as discord_app
+
 # Create main app
 app = typer.Typer(help="Automagik Omni: Multi-tenant omnichannel messaging hub")
 # Add sub-commands
 app.add_typer(instance_app, name="instance", help="Instance management commands")
 app.add_typer(telemetry_app, name="telemetry", help="Telemetry management commands")
 app.add_typer(discord_app, name="discord", help="Discord bot management commands")
+
+
 @app.callback()
 def main(
-    no_telemetry: bool = typer.Option(
-        False, "--no-telemetry", help="Disable telemetry for this session"
-    ),
-    version: bool = typer.Option(
-        False, "--version", help="Show version information"
-    ),
+    no_telemetry: bool = typer.Option(False, "--no-telemetry", help="Disable telemetry for this session"),
+    version: bool = typer.Option(False, "--version", help="Show version information"),
 ):
     """
     Automagik Omni: Multi-tenant omnichannel messaging hub
@@ -34,6 +34,8 @@ def main(
     if version:
         typer.echo(f"Automagik Omni version {telemetry_client.project_version}")
         raise typer.Exit()
+
+
 @app.command("start")
 def start_api(
     host: str = typer.Option("0.0.0.0", "--host", help="Host to bind to"),
@@ -49,6 +51,7 @@ def start_api(
 
         # Start the API server
         import uvicorn
+
         uvicorn.run(
             "src.api.app:app",
             host=host,
@@ -59,6 +62,8 @@ def start_api(
     except Exception as e:
         track_command("api_start", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
         raise
+
+
 @app.command("health")
 def health_check():
     """Check the health of the Automagik Omni system."""
@@ -90,6 +95,8 @@ def health_check():
     except Exception as e:
         track_command("health_check", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
         raise
+
+
 @app.command("init")
 def init_project():
     """Initialize a new Automagik Omni project."""
@@ -127,6 +134,8 @@ def init_project():
     except Exception as e:
         track_command("init_project", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
         raise
+
+
 @app.command("status")
 def show_status():
     """Show overall system status."""
@@ -156,10 +165,14 @@ def show_status():
             status = "🌟 DEFAULT" if instance.is_default else "📱"
             typer.echo(f"  {status} {instance.name} ({instance.whatsapp_instance})")
 
-        track_command("show_status", success=True, instance_count=len(instances), duration_ms=(time.time() - start_time) * 1000)
+        track_command(
+            "show_status", success=True, instance_count=len(instances), duration_ms=(time.time() - start_time) * 1000
+        )
 
     except Exception as e:
         track_command("show_status", success=False, error=str(e), duration_ms=(time.time() - start_time) * 1000)
         raise
+
+
 if __name__ == "__main__":
     app()

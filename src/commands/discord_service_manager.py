@@ -10,6 +10,7 @@ Supports Discord feature toggles via environment variables:
 - DISCORD_VOICE_ENABLED=true/false (default: true)
 - DISCORD_MAX_INSTANCES=10 (default: 10)
 """
+
 import os
 import sys
 import logging
@@ -27,10 +28,7 @@ from src.db.models import InstanceConfig
 from src.services.discord_service import discord_service
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -67,11 +65,16 @@ class DiscordServiceManager:
 
         db = SessionLocal()
         try:
-            instances = db.query(InstanceConfig).filter(
-                InstanceConfig.channel_type == "discord",
-                InstanceConfig.is_active == True,
-                InstanceConfig.discord_bot_token.isnot(None)
-            ).limit(self.feature_config.max_instances).all()
+            instances = (
+                db.query(InstanceConfig)
+                .filter(
+                    InstanceConfig.channel_type == "discord",
+                    InstanceConfig.is_active,
+                    InstanceConfig.discord_bot_token.isnot(None),
+                )
+                .limit(self.feature_config.max_instances)
+                .all()
+            )
 
             result = [(inst.name, inst.discord_bot_token, inst.discord_voice_enabled) for inst in instances]
 
@@ -97,8 +100,10 @@ class DiscordServiceManager:
             discord_instances = self.get_discord_instances()
 
             if len(discord_instances) > self.feature_config.max_instances:
-                logger.warning(f"Found {len(discord_instances)} Discord instances, but max allowed is {self.feature_config.max_instances}")
-                discord_instances = discord_instances[:self.feature_config.max_instances]
+                logger.warning(
+                    f"Found {len(discord_instances)} Discord instances, but max allowed is {self.feature_config.max_instances}"
+                )
+                discord_instances = discord_instances[: self.feature_config.max_instances]
 
             for instance_name, token, voice_enabled in discord_instances:
                 if instance_name not in self.active_bots:
@@ -153,6 +158,7 @@ class DiscordServiceManager:
         logger.info("Waiting for API to be ready...")
         # Simple API health check
         import requests
+
         api_healthy = False
         api_url = "http://localhost:8882/health"
 
@@ -163,7 +169,7 @@ class DiscordServiceManager:
                     api_healthy = True
                     logger.info("API is healthy")
                     break
-            except:
+            except Exception:
                 pass
             time.sleep(1)
 

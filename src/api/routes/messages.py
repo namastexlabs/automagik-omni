@@ -22,47 +22,32 @@ router = APIRouter()
 # Schema update trigger
 
 
-
-
 # Pydantic models for message sending
 class SendTextRequest(BaseModel):
     """Schema for sending text messages."""
 
-    user_id: Union[str, None] = Field(
-        None, description="User ID (UUID string, if known)"
-    )
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
     phone_number: Optional[str] = Field(
         None, description="Phone number with country code (e.g., +5511999999999) or Discord channel ID"
     )
     text: str = Field(description="Message text to send")
-    quoted_message_id: Optional[str] = Field(
-        None, description="ID of message to quote/reply to"
-    )
+    quoted_message_id: Optional[str] = Field(None, description="ID of message to quote/reply to")
 
     # NEW: Mention support
     auto_parse_mentions: bool = Field(
-        default=True,
-        description="Automatically detect and convert @phone mentions in text"
+        default=True, description="Automatically detect and convert @phone mentions in text"
     )
     mentioned: Optional[List[str]] = Field(
-        default=None,
-        description="Explicit list of phone numbers to mention (overrides auto-parsing)"
+        default=None, description="Explicit list of phone numbers to mention (overrides auto-parsing)"
     )
-    mentions_everyone: bool = Field(
-        default=False,
-        description="Mention everyone in group chat"
-    )
+    mentions_everyone: bool = Field(default=False, description="Mention everyone in group chat")
 
 
 class SendMediaRequest(BaseModel):
     """Schema for sending media messages."""
 
-    user_id: Union[str, None] = Field(
-        None, description="User ID (UUID string, if known)"
-    )
-    phone_number: Optional[str] = Field(
-        None, description="Phone number with country code or Discord channel ID"
-    )
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
+    phone_number: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
     media_type: str = Field(description="Media type: image, video, document")
     media_url: Optional[str] = Field(None, description="URL to media file")
     media_base64: Optional[str] = Field(None, description="Base64 encoded media data")
@@ -74,12 +59,8 @@ class SendMediaRequest(BaseModel):
 class SendAudioRequest(BaseModel):
     """Schema for sending WhatsApp audio messages."""
 
-    user_id: Union[str, None] = Field(
-        None, description="User ID (UUID string, if known)"
-    )
-    phone_number: Optional[str] = Field(
-        None, description="Phone number with country code or Discord channel ID"
-    )
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
+    phone_number: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
     audio_url: Optional[str] = Field(None, description="URL to audio file")
     audio_base64: Optional[str] = Field(None, description="Base64 encoded audio data")
 
@@ -87,16 +68,10 @@ class SendAudioRequest(BaseModel):
 class SendStickerRequest(BaseModel):
     """Schema for sending stickers."""
 
-    user_id: Union[str, None] = Field(
-        None, description="User ID (UUID string, if known)"
-    )
-    phone_number: Optional[str] = Field(
-        None, description="Phone number with country code or Discord channel ID"
-    )
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
+    phone_number: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
     sticker_url: Optional[str] = Field(None, description="URL to sticker file")
-    sticker_base64: Optional[str] = Field(
-        None, description="Base64 encoded sticker data"
-    )
+    sticker_base64: Optional[str] = Field(None, description="Base64 encoded sticker data")
 
 
 class ContactInfo(BaseModel):
@@ -112,24 +87,16 @@ class ContactInfo(BaseModel):
 class SendContactRequest(BaseModel):
     """Schema for sending contact cards."""
 
-    user_id: Union[str, None] = Field(
-        None, description="User ID (UUID string, if known)"
-    )
-    phone_number: Optional[str] = Field(
-        None, description="Phone number with country code or Discord channel ID"
-    )
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
+    phone_number: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
     contacts: List[ContactInfo] = Field(description="List of contacts to send")
 
 
 class SendReactionRequest(BaseModel):
     """Schema for sending reactions."""
 
-    user_id: Union[str, None] = Field(
-        None, description="User ID (UUID string, if known)"
-    )
-    phone_number: Optional[str] = Field(
-        None, description="Phone number with country code or Discord channel ID"
-    )
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
+    phone_number: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
     message_id: str = Field(description="ID of message to react to")
     reaction: str = Field(description="Reaction emoji (e.g., 🚀, ❤️)")
 
@@ -137,12 +104,8 @@ class SendReactionRequest(BaseModel):
 class FetchProfileRequest(BaseModel):
     """Schema for fetching user profiles."""
 
-    user_id: Union[str, None] = Field(
-        None, description="User ID (UUID string, if known)"
-    )
-    phone_number: Optional[str] = Field(
-        None, description="Phone number with country code or Discord channel ID"
-    )
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
+    phone_number: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
 
 
 class UpdateProfilePictureRequest(BaseModel):
@@ -198,17 +161,13 @@ def _resolve_recipient(
         # Look up user by our stable internal UUID first
         user = user_service.get_user_by_id(user_id, db)
         if user:
-            logger.info(
-                f"Resolved user_id {user_id} to phone {user.phone_number} via local database (internal UUID)"
-            )
+            logger.info(f"Resolved user_id {user_id} to phone {user.phone_number} via local database (internal UUID)")
             return user_service.resolve_user_to_jid(user)
 
         # Also try to find by agent user_id (for backward compatibility)
         user = user_service.get_user_by_agent_id(user_id, db)
         if user:
-            logger.info(
-                f"Resolved user_id {user_id} to phone {user.phone_number} via local database (agent UUID)"
-            )
+            logger.info(f"Resolved user_id {user_id} to phone {user.phone_number} via local database (agent UUID)")
             return user_service.resolve_user_to_jid(user)
 
         # Fallback: try agent API lookup for backward compatibility
@@ -217,17 +176,13 @@ def _resolve_recipient(
             # Try to get WhatsApp ID from user_data
             whatsapp_id = user_data.get("user_data", {}).get("whatsapp_id")
             if whatsapp_id:
-                logger.info(
-                    f"Found WhatsApp ID for user_id {user_id} via agent API: {whatsapp_id}"
-                )
+                logger.info(f"Found WhatsApp ID for user_id {user_id} via agent API: {whatsapp_id}")
                 return whatsapp_id
 
             # Fallback to phone number from agent API
             user_phone = user_data.get("phone_number")
             if user_phone:
-                logger.info(
-                    f"Using phone number for user_id {user_id} via agent API: {user_phone}"
-                )
+                logger.info(f"Using phone number for user_id {user_id} via agent API: {user_phone}")
                 return _format_phone_to_jid(user_phone)
 
         # User not found anywhere
@@ -277,10 +232,12 @@ def _format_phone_to_jid(phone_number: str) -> str:
     return clean_phone
 
 
-@router.post("/{instance_name}/send-text",
-             response_model=MessageResponse,
-             summary="Send Text Message",
-             description="Send a text message through any configured channel")
+@router.post(
+    "/{instance_name}/send-text",
+    response_model=MessageResponse,
+    summary="Send Text Message",
+    description="Send a text message through any configured channel",
+)
 async def send_text_message(
     instance_name: str,
     request: SendTextRequest,
@@ -316,7 +273,7 @@ async def send_text_message(
             quoted_message=None,  # TODO: Implement quoted message lookup
             mentioned=mentioned_jids,
             mentions_everyone=request.mentions_everyone,
-            auto_parse_mentions=request.auto_parse_mentions
+            auto_parse_mentions=request.auto_parse_mentions,
         )
 
         return MessageResponse(
@@ -332,10 +289,12 @@ async def send_text_message(
         return MessageResponse(success=False, status="error", error=str(e))
 
 
-@router.post("/{instance_name}/send-media",
-             response_model=MessageResponse,
-             summary="Send Media Message",
-             description="Send images, videos, documents, or other media files")
+@router.post(
+    "/{instance_name}/send-media",
+    response_model=MessageResponse,
+    summary="Send Media Message",
+    description="Send images, videos, documents, or other media files",
+)
 async def send_media_message(
     instance_name: str,
     request: SendMediaRequest,
@@ -453,14 +412,10 @@ async def send_sticker_message(
         sender = OmniChannelMessageSender(instance_config)
 
         # Use sticker_url or base64
-        sticker_source = (
-            request.sticker_url if request.sticker_url else request.sticker_base64
-        )
+        sticker_source = request.sticker_url if request.sticker_url else request.sticker_base64
 
         # Send the sticker
-        result = await sender.send_sticker_message(
-            recipient=recipient, sticker=sticker_source
-        )
+        result = await sender.send_sticker_message(recipient=recipient, sticker=sticker_source)
         success = result.get("success", False)
 
         return MessageResponse(success=success, status="sent" if success else "failed")
@@ -505,9 +460,7 @@ async def send_contact_message(
             contacts_data.append(contact_data)
 
         # Send the contact
-        result = await sender.send_contact_message(
-            recipient=recipient, contacts=contacts_data
-        )
+        result = await sender.send_contact_message(recipient=recipient, contacts=contacts_data)
         success = result.get("success", False)
 
         return MessageResponse(success=success, status="sent" if success else "failed")
@@ -602,14 +555,10 @@ async def update_profile_picture(
         # Update profile picture
         success = sender.update_profile_picture(request.picture_url)
 
-        return MessageResponse(
-            success=success, status="updated" if success else "failed"
-        )
+        return MessageResponse(success=success, status="updated" if success else "failed")
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to update profile picture: {e}")
         return MessageResponse(success=False, status="error", error=str(e))
-
-

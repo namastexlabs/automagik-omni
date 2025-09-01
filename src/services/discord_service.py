@@ -2,6 +2,7 @@
 Discord service for managing Discord bot lifecycle.
 This handles the coordination between Discord bots and the message routing system.
 """
+
 import asyncio
 import logging
 import threading
@@ -38,14 +39,12 @@ class DiscordService:
             with self.lock:
                 if self._loop_thread is None:
                     # Start event loop in separate thread
-                    self._loop_thread = threading.Thread(
-                        target=self._run_event_loop,
-                        daemon=True
-                    )
+                    self._loop_thread = threading.Thread(target=self._run_event_loop, daemon=True)
                     self._loop_thread.start()
 
                     # Wait a moment for loop to initialize
                     import time
+
                     time.sleep(0.1)
 
             logger.info("Discord service started successfully")
@@ -63,8 +62,7 @@ class DiscordService:
                     # Stop all running bots
                     for instance_name in list(self._running_instances.keys()):
                         asyncio.run_coroutine_threadsafe(
-                            self._stop_bot_internal(instance_name),
-                            self._event_loop
+                            self._stop_bot_internal(instance_name), self._event_loop
                         ).result(timeout=5.0)
 
                     # Stop event loop
@@ -123,10 +121,7 @@ class DiscordService:
             # Get instance configuration from database
             db = SessionLocal()
             try:
-                instance = db.query(InstanceConfig).filter_by(
-                    name=instance_name,
-                    channel_type="discord"
-                ).first()
+                instance = db.query(InstanceConfig).filter_by(name=instance_name, channel_type="discord").first()
 
                 if not instance:
                     logger.error(f"Discord instance '{instance_name}' not found in database")
@@ -147,18 +142,15 @@ class DiscordService:
                         logger.error("Discord service not started - no event loop available")
                         return False
 
-                    future = asyncio.run_coroutine_threadsafe(
-                        self._start_bot_internal(instance),
-                        self._event_loop
-                    )
+                    future = asyncio.run_coroutine_threadsafe(self._start_bot_internal(instance), self._event_loop)
 
                     success = future.result(timeout=10.0)
 
                     if success:
                         self._running_instances[instance_name] = {
-                            'instance_config': instance,
-                            'started_at': utcnow(),  # ✅ FIXED: Using timezone-aware utility
-                            'status': 'running'
+                            "instance_config": instance,
+                            "started_at": utcnow(),  # ✅ FIXED: Using timezone-aware utility
+                            "status": "running",
                         }
                         track_command("discord_start", success=True, instance_name=instance_name)
                         logger.info(f"✅ Discord bot '{instance_name}' started successfully")
@@ -194,10 +186,7 @@ class DiscordService:
                     logger.error("Discord service not started - no event loop available")
                     return False
 
-                future = asyncio.run_coroutine_threadsafe(
-                    self._stop_bot_internal(instance_name),
-                    self._event_loop
-                )
+                future = asyncio.run_coroutine_threadsafe(self._stop_bot_internal(instance_name), self._event_loop)
 
                 success = future.result(timeout=10.0)
 
@@ -244,8 +233,7 @@ class DiscordService:
                     return None
 
                 future = asyncio.run_coroutine_threadsafe(
-                    self._get_bot_status_internal(instance_name),
-                    self._event_loop
+                    self._get_bot_status_internal(instance_name), self._event_loop
                 )
 
                 return future.result(timeout=5.0)
@@ -264,16 +252,16 @@ class DiscordService:
             instance_info = self._running_instances.get(instance_name, {})
 
             return {
-                'instance_name': bot_status.instance_name,
-                'status': bot_status.status,
-                'guild_count': bot_status.guild_count,
-                'user_count': bot_status.user_count,
-                'latency': bot_status.latency,
-                'last_heartbeat': bot_status.last_heartbeat,
-                'uptime': bot_status.uptime,
-                'error_message': bot_status.error_message,
-                'started_at': instance_info.get('started_at'),  # ✅ Uses timezone-aware timestamp
-                'service_status': instance_info.get('status', 'unknown')
+                "instance_name": bot_status.instance_name,
+                "status": bot_status.status,
+                "guild_count": bot_status.guild_count,
+                "user_count": bot_status.user_count,
+                "latency": bot_status.latency,
+                "last_heartbeat": bot_status.last_heartbeat,
+                "uptime": bot_status.uptime,
+                "error_message": bot_status.error_message,
+                "started_at": instance_info.get("started_at"),  # ✅ Uses timezone-aware timestamp
+                "service_status": instance_info.get("status", "unknown"),
             }
         except Exception as e:
             logger.error(f"Error getting bot status: {e}", exc_info=True)
@@ -289,20 +277,20 @@ class DiscordService:
         try:
             db = SessionLocal()
             try:
-                instances = db.query(InstanceConfig).filter_by(
-                    channel_type="discord"
-                ).all()
+                instances = db.query(InstanceConfig).filter_by(channel_type="discord").all()
 
                 result = []
                 for instance in instances:
-                    result.append({
-                        'name': instance.name,
-                        'discord_client_id': instance.discord_client_id,
-                        'has_token': bool(instance.discord_bot_token),
-                        'is_running': instance.name in self._running_instances,
-                        'agent_api_url': instance.agent_api_url,
-                        'default_agent': instance.default_agent
-                    })
+                    result.append(
+                        {
+                            "name": instance.name,
+                            "discord_client_id": instance.discord_client_id,
+                            "has_token": bool(instance.discord_bot_token),
+                            "is_running": instance.name in self._running_instances,
+                            "agent_api_url": instance.agent_api_url,
+                            "default_agent": instance.default_agent,
+                        }
+                    )
 
                 return result
 
@@ -317,10 +305,10 @@ class DiscordService:
         """Get overall Discord service status."""
         with self.lock:
             return {
-                'service_running': self._event_loop is not None,
-                'loop_thread_alive': self._loop_thread is not None and self._loop_thread.is_alive(),
-                'running_bots': len(self._running_instances),
-                'bot_instances': list(self._running_instances.keys())
+                "service_running": self._event_loop is not None,
+                "loop_thread_alive": self._loop_thread is not None and self._loop_thread.is_alive(),
+                "running_bots": len(self._running_instances),
+                "bot_instances": list(self._running_instances.keys()),
             }
 
 

@@ -7,7 +7,7 @@ import time
 import logging
 import uuid
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from contextlib import contextmanager
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,9 @@ from src.config import config
 from src.db.database import get_db
 from src.db.trace_models import MessageTrace, TracePayload
 from src.utils.datetime_utils import utcnow
+
+if TYPE_CHECKING:
+    from src.services.streaming_trace_context import StreamingTraceContext
 
 logger = logging.getLogger(__name__)
 
@@ -96,11 +99,7 @@ class TraceContext:
             return
 
         try:
-            trace = (
-                self.db_session.query(MessageTrace)
-                .filter(MessageTrace.trace_id == self.trace_id)
-                .first()
-            )
+            trace = self.db_session.query(MessageTrace).filter(MessageTrace.trace_id == self.trace_id).first()
 
             if trace:
                 trace.status = status
@@ -122,19 +121,13 @@ class TraceContext:
                         from src.utils.datetime_utils import to_utc
 
                         completed_utc = (
-                            to_utc(trace.completed_at)
-                            if trace.completed_at.tzinfo is None
-                            else trace.completed_at
+                            to_utc(trace.completed_at) if trace.completed_at.tzinfo is None else trace.completed_at
                         )
                         received_utc = (
-                            to_utc(trace.received_at)
-                            if trace.received_at.tzinfo is None
-                            else trace.received_at
+                            to_utc(trace.received_at) if trace.received_at.tzinfo is None else trace.received_at
                         )
                         delta = completed_utc - received_utc
-                        trace.total_processing_time_ms = int(
-                            delta.total_seconds() * 1000
-                        )
+                        trace.total_processing_time_ms = int(delta.total_seconds() * 1000)
 
                 self.db_session.commit()
                 logger.debug(f"Updated trace {self.trace_id} status to {status}")
@@ -176,9 +169,7 @@ class TraceContext:
             agent_response_tokens=usage.get("response_tokens"),
         )
 
-    def log_evolution_send(
-        self, send_payload: Dict[str, Any], response_code: int, success: bool
-    ) -> None:
+    def log_evolution_send(self, send_payload: Dict[str, Any], response_code: int, success: bool) -> None:
         """Log Evolution API send attempt."""
         self.log_stage("evolution_send", send_payload, "request", response_code)
 
@@ -197,11 +188,7 @@ class TraceContext:
     def update_session_info(self, session_name: str, agent_session_id: str = None) -> None:
         """Update trace with session information after agent processing."""
         try:
-            trace = (
-                self.db_session.query(MessageTrace)
-                .filter(MessageTrace.trace_id == self.trace_id)
-                .first()
-            )
+            trace = self.db_session.query(MessageTrace).filter(MessageTrace.trace_id == self.trace_id).first()
 
             if trace:
                 trace.session_name = session_name
@@ -209,9 +196,13 @@ class TraceContext:
                     trace.agent_session_id = agent_session_id
 
                 self.db_session.commit()
-                logger.info(f"✅ Updated trace {self.trace_id} with session: {session_name}, agent_session: {agent_session_id}")
+                logger.info(
+                    f"✅ Updated trace {self.trace_id} with session: {session_name}, agent_session: {agent_session_id}"
+                )
             else:
-                logger.error(f"❌ Trace {self.trace_id} not found for session update - this indicates trace creation failed")
+                logger.error(
+                    f"❌ Trace {self.trace_id} not found for session update - this indicates trace creation failed"
+                )
 
         except Exception as e:
             logger.error(f"❌ Failed to update trace session info: {e}", exc_info=True)
@@ -225,9 +216,7 @@ class TraceService:
     """
 
     @staticmethod
-    def create_trace(
-        message_data: Dict[str, Any], instance_name: str, db_session: Session
-    ) -> Optional[TraceContext]:
+    def create_trace(message_data: Dict[str, Any], instance_name: str, db_session: Session) -> Optional[TraceContext]:
         """
         Create a new message trace and return a context object.
 
@@ -294,9 +283,7 @@ class TraceService:
             # Log the initial webhook payload
             context.log_stage("webhook_received", message_data, "webhook")
 
-            logger.info(
-                f"Created message trace {trace_id} for message {key.get('id')} from {trace.sender_phone}"
-            )
+            logger.info(f"Created message trace {trace_id} for message {key.get('id')} from {trace.sender_phone}")
 
             return context
 
@@ -341,7 +328,9 @@ class TraceService:
             context_info = data.get("contextInfo", {})
             has_quoted = "contextInfo" in data and context_info is not None and "quotedMessage" in context_info
 
-            logger.info(f"📝 STREAMING TRACE: Creating streaming trace for message type={message_type}, instance={instance_name}")
+            logger.info(
+                f"📝 STREAMING TRACE: Creating streaming trace for message type={message_type}, instance={instance_name}"
+            )
 
             # Extract message content length
             message_length = 0
@@ -375,9 +364,7 @@ class TraceService:
             # Log the initial webhook payload
             context.log_stage("webhook_received", message_data, "webhook")
 
-            logger.info(
-                f"Created streaming trace {trace_id} for message {key.get('id')} from {trace.sender_phone}"
-            )
+            logger.info(f"Created streaming trace {trace_id} for message {key.get('id')} from {trace.sender_phone}")
 
             return context
 
@@ -389,19 +376,13 @@ class TraceService:
     def get_trace(trace_id: str, db_session: Session) -> Optional[MessageTrace]:
         """Get a trace by ID."""
         try:
-            return (
-                db_session.query(MessageTrace)
-                .filter(MessageTrace.trace_id == trace_id)
-                .first()
-            )
+            return db_session.query(MessageTrace).filter(MessageTrace.trace_id == trace_id).first()
         except Exception as e:
             logger.error(f"Failed to get trace {trace_id}: {e}")
             return None
 
     @staticmethod
-    def get_traces_by_phone(
-        phone: str, limit: int = 50, db_session: Session = None
-    ) -> List[MessageTrace]:
+    def get_traces_by_phone(phone: str, limit: int = 50, db_session: Session = None) -> List[MessageTrace]:
         """Get recent traces for a phone number."""
         if not db_session:
             db_session = next(get_db())
@@ -453,11 +434,7 @@ class TraceService:
             cutoff_date = utcnow() - timedelta(days=days_old)
 
             # Delete old traces (payloads will be deleted via cascade)
-            deleted_count = (
-                db_session.query(MessageTrace)
-                .filter(MessageTrace.received_at < cutoff_date)
-                .delete()
-            )
+            deleted_count = db_session.query(MessageTrace).filter(MessageTrace.received_at < cutoff_date).delete()
 
             db_session.commit()
             logger.info(f"Cleaned up {deleted_count} traces older than {days_old} days")
@@ -505,9 +482,7 @@ class TraceService:
 
 
 @contextmanager
-def get_trace_context(
-    message_data: Dict[str, Any], instance_name: str
-) -> Optional[TraceContext]:
+def get_trace_context(message_data: Dict[str, Any], instance_name: str) -> Optional[TraceContext]:
     """
     Context manager for message tracing.
 
@@ -524,17 +499,13 @@ def get_trace_context(
     try:
         trace_context = TraceService.create_trace(message_data, instance_name, db)
         if trace_context:
-            trace_context.update_trace_status(
-                "processing", processing_started_at=utcnow()
-            )
+            trace_context.update_trace_status("processing", processing_started_at=utcnow())
         else:
             logger.warning(f"No trace context created for instance {instance_name}")
         yield trace_context
     except Exception as e:
         if trace_context:
-            trace_context.update_trace_status(
-                "failed", error_message=str(e), error_stage="processing"
-            )
+            trace_context.update_trace_status("failed", error_message=str(e), error_stage="processing")
         logger.error(f"Error in trace context: {e}")
         yield trace_context
     finally:

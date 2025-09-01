@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class HealthStatus:
     """Health status information."""
+
     instance_name: str
     status: str  # 'healthy', 'degraded', 'unhealthy'
     last_check: datetime
@@ -76,12 +77,12 @@ class HealthMonitor:
             last_check=datetime.now(timezone.utc),
             uptime=uptime,
             error_count=self.error_count,
-            last_error=self.last_error
+            last_error=self.last_error,
         )
 
     def register_callback(self, event: str, callback: Callable) -> None:
         """Register a callback for health events."""
-        if event in ['on_healthy', 'on_degraded', 'on_unhealthy']:
+        if event in ["on_healthy", "on_degraded", "on_unhealthy"]:
             self.callbacks[event] = callback
 
     async def start_monitoring(self) -> None:
@@ -126,10 +127,16 @@ class HealthMonitor:
                             logger.error(f"Health callback error: {e}")
 
                     # Only log status changes that indicate problems or recovery
-                    if health_status.status in ['degraded', 'unhealthy'] or (previous_status in ['degraded', 'unhealthy'] and health_status.status == 'healthy'):
-                        logger.info(f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}")
+                    if health_status.status in ["degraded", "unhealthy"] or (
+                        previous_status in ["degraded", "unhealthy"] and health_status.status == "healthy"
+                    ):
+                        logger.info(
+                            f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}"
+                        )
                     else:
-                        logger.debug(f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}")
+                        logger.debug(
+                            f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}"
+                        )
                     previous_status = health_status.status
 
                 await asyncio.sleep(self.check_interval)

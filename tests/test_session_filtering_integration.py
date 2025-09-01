@@ -24,15 +24,18 @@ class TestSessionFilteringIntegration:
         # Clean after test
         self.cleanup_test_data(test_db)
 
-
     def setup_test_data(self, db: Session):
         """Set up test traces with different session configurations."""
         base_time = utcnow()
 
         # Clean up any existing test data first - more comprehensive cleanup
         db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).delete()
-        db.query(MessageTrace).filter(MessageTrace.instance_name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
-        db.query(InstanceConfig).filter(InstanceConfig.name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
+        db.query(MessageTrace).filter(
+            MessageTrace.instance_name.in_(["session_filter_test_a", "session_filter_test_b"])
+        ).delete()
+        db.query(InstanceConfig).filter(
+            InstanceConfig.name.in_(["session_filter_test_a", "session_filter_test_b"])
+        ).delete()
         db.commit()  # Ensure cleanup is committed before creating new data
 
         # Create required test instances first
@@ -46,7 +49,7 @@ class TestSessionFilteringIntegration:
                 agent_api_url="http://test-agent.com",
                 agent_api_key="test-agent-key",
                 default_agent="test_agent",
-                is_active=True
+                is_active=True,
             ),
             InstanceConfig(
                 name="session_filter_test_b",
@@ -57,8 +60,8 @@ class TestSessionFilteringIntegration:
                 agent_api_url="http://test-agent.com",
                 agent_api_key="test-agent-key",
                 default_agent="test_agent",
-                is_active=True
-            )
+                is_active=True,
+            ),
         ]
 
         for instance in test_instances:
@@ -77,7 +80,7 @@ class TestSessionFilteringIntegration:
                 has_media=False,
                 status="completed",
                 received_at=base_time - timedelta(minutes=30),
-                completed_at=base_time - timedelta(minutes=29)
+                completed_at=base_time - timedelta(minutes=29),
             ),
             MessageTrace(
                 trace_id="test_trace_002",
@@ -90,7 +93,7 @@ class TestSessionFilteringIntegration:
                 has_media=False,
                 status="completed",
                 received_at=base_time - timedelta(minutes=25),
-                completed_at=base_time - timedelta(minutes=24)
+                completed_at=base_time - timedelta(minutes=24),
             ),
             MessageTrace(
                 trace_id="test_trace_003",
@@ -103,7 +106,7 @@ class TestSessionFilteringIntegration:
                 has_media=False,
                 status="completed",
                 received_at=base_time - timedelta(minutes=20),
-                completed_at=base_time - timedelta(minutes=19)
+                completed_at=base_time - timedelta(minutes=19),
             ),
             MessageTrace(
                 trace_id="test_trace_004",
@@ -116,7 +119,7 @@ class TestSessionFilteringIntegration:
                 has_media=True,
                 status="completed",
                 received_at=base_time - timedelta(minutes=15),
-                completed_at=base_time - timedelta(minutes=14)
+                completed_at=base_time - timedelta(minutes=14),
             ),
             MessageTrace(
                 trace_id="test_trace_005",
@@ -129,8 +132,8 @@ class TestSessionFilteringIntegration:
                 has_media=False,
                 status="failed",
                 received_at=base_time - timedelta(minutes=10),
-                error_message="Agent API timeout"
-            )
+                error_message="Agent API timeout",
+            ),
         ]
 
         for trace in test_traces:
@@ -144,9 +147,13 @@ class TestSessionFilteringIntegration:
         try:
             # Clean up test traces
             db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).delete()
-            db.query(MessageTrace).filter(MessageTrace.instance_name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
+            db.query(MessageTrace).filter(
+                MessageTrace.instance_name.in_(["session_filter_test_a", "session_filter_test_b"])
+            ).delete()
             # Clean up test instances
-            db.query(InstanceConfig).filter(InstanceConfig.name.in_(["session_filter_test_a", "session_filter_test_b"])).delete()
+            db.query(InstanceConfig).filter(
+                InstanceConfig.name.in_(["session_filter_test_a", "session_filter_test_b"])
+            ).delete()
             # Also clean up any traces from instance 'aaaa' which is polluting our tests
             db.query(MessageTrace).filter(MessageTrace.instance_name == "aaaa").delete()
             db.query(InstanceConfig).filter(InstanceConfig.name == "aaaa").delete()
@@ -172,10 +179,7 @@ class TestSessionFilteringIntegration:
 
         try:
             # First, test without any filters to see what's in the database
-            response_all = test_client.get(
-                "/api/v1/traces",
-                headers={"Authorization": "Bearer namastex888"}
-            )
+            response_all = test_client.get("/api/v1/traces", headers={"Authorization": "Bearer namastex888"})
             print(f"\nDEBUG: All traces response: {response_all.status_code}")
             all_traces = response_all.json()
             print(f"DEBUG: Total traces in API: {len(all_traces)}")
@@ -185,8 +189,7 @@ class TestSessionFilteringIntegration:
             # Filter for specific agent session
             target_session = "agent_session_abc123"
             response = test_client.get(
-                f"/api/v1/traces?agent_session_id={target_session}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?agent_session_id={target_session}", headers={"Authorization": "Bearer namastex888"}
             )
 
             assert response.status_code == 200
@@ -222,8 +225,7 @@ class TestSessionFilteringIntegration:
             # Filter for specific session name
             target_session = "user_john_session"
             response = test_client.get(
-                f"/api/v1/traces?session_name={target_session}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?session_name={target_session}", headers={"Authorization": "Bearer namastex888"}
             )
 
             if response.status_code != 200:
@@ -249,22 +251,19 @@ class TestSessionFilteringIntegration:
 
         try:
             # Filter for traces with media
-            response = test_client.get(
-                "/api/v1/traces?has_media=true",
-                headers={"Authorization": "Bearer namastex888"}
-            )
+            response = test_client.get("/api/v1/traces?has_media=true", headers={"Authorization": "Bearer namastex888"})
 
             assert response.status_code == 200
             traces = response.json()
 
             # Should return only traces with media (filter only test traces)
             test_traces_only = [t for t in traces if t.get("trace_id", "").startswith("test_")]
-            media_traces = [t for t in test_traces_only if t.get("has_media") == True]
+            media_traces = [t for t in test_traces_only if t.get("has_media")]
 
             # At least our test trace with media should be present
             test_media_trace = next((t for t in media_traces if t.get("trace_id") == "test_trace_004"), None)
             assert test_media_trace is not None
-            assert test_media_trace["has_media"] == True
+            assert test_media_trace["has_media"]
             assert test_media_trace["message_type"] == "image"
 
         finally:
@@ -281,7 +280,7 @@ class TestSessionFilteringIntegration:
 
             response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&instance_name={target_instance}",
-                headers={"Authorization": "Bearer namastex888"}
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response.status_code == 200
@@ -290,7 +289,8 @@ class TestSessionFilteringIntegration:
             # Should return only traces matching both criteria (filter only test traces)
             test_traces_only = [t for t in traces if t.get("trace_id", "").startswith("test_")]
             filtered_traces = [
-                t for t in test_traces_only
+                t
+                for t in test_traces_only
                 if t.get("session_name") == target_session and t.get("instance_name") == target_instance
             ]
             assert len(filtered_traces) == 2
@@ -309,14 +309,12 @@ class TestSessionFilteringIntegration:
         try:
             # Filter by instance A only
             response_a = test_client.get(
-                "/api/v1/traces?instance_name=session_filter_test_a",
-                headers={"Authorization": "Bearer namastex888"}
+                "/api/v1/traces?instance_name=session_filter_test_a", headers={"Authorization": "Bearer namastex888"}
             )
 
             # Filter by instance B only
             response_b = test_client.get(
-                "/api/v1/traces?instance_name=session_filter_test_b",
-                headers={"Authorization": "Bearer namastex888"}
+                "/api/v1/traces?instance_name=session_filter_test_b", headers={"Authorization": "Bearer namastex888"}
             )
 
             assert response_a.status_code == 200
@@ -351,7 +349,7 @@ class TestSessionFilteringIntegration:
             # Filter for non-existent session ID - should return empty
             response = test_client.get(
                 "/api/v1/traces?agent_session_id=nonexistent_session_123",
-                headers={"Authorization": "Bearer namastex888"}
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response.status_code == 200
@@ -388,10 +386,7 @@ class TestSessionFilteringIntegration:
                     print(f"  - {trace.trace_id}: instance={trace.instance_name}, phone={trace.sender_phone}")
 
             # Debug: Get all traces from API
-            all_response = test_client.get(
-                "/api/v1/traces",
-                headers={"Authorization": "Bearer namastex888"}
-            )
+            all_response = test_client.get("/api/v1/traces", headers={"Authorization": "Bearer namastex888"})
             all_traces = all_response.json()
             print(f"\nDEBUG: API returned {len(all_traces)} total traces")
             if all_traces:
@@ -399,17 +394,16 @@ class TestSessionFilteringIntegration:
 
             # Test with 'phone' parameter
             from urllib.parse import quote
+
             encoded_phone = quote(target_phone)
             print(f"\nDEBUG: Filtering by phone={target_phone} (encoded: {encoded_phone})")
             response1 = test_client.get(
-                f"/api/v1/traces?phone={encoded_phone}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?phone={encoded_phone}", headers={"Authorization": "Bearer namastex888"}
             )
 
             # Test with 'sender_phone' parameter
             response2 = test_client.get(
-                f"/api/v1/traces?sender_phone={encoded_phone}",
-                headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?sender_phone={encoded_phone}", headers={"Authorization": "Bearer namastex888"}
             )
 
             assert response1.status_code == 200
@@ -451,7 +445,7 @@ class TestSessionFilteringIntegration:
             target_session = "user_john_session"
             response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&limit=1&offset=0",
-                headers={"Authorization": "Bearer namastex888"}
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response.status_code == 200
@@ -465,7 +459,7 @@ class TestSessionFilteringIntegration:
             # Test offset
             response_offset = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&limit=1&offset=1",
-                headers={"Authorization": "Bearer namastex888"}
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response_offset.status_code == 200

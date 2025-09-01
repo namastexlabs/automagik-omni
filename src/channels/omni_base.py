@@ -5,6 +5,7 @@ from src.channels.base import ChannelHandler
 from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo
 from src.db.models import InstanceConfig
 
+
 class OmniChannelHandler(ChannelHandler):
     """Extended channel handler with omni operations support."""
 
@@ -15,7 +16,7 @@ class OmniChannelHandler(ChannelHandler):
         page: int = 1,
         page_size: int = 50,
         search_query: Optional[str] = None,
-        status_filter: Optional[str] = None
+        status_filter: Optional[str] = None,
     ) -> Tuple[List[OmniContact], int]:
         """
         Get contacts from this channel in omni format.
@@ -39,7 +40,7 @@ class OmniChannelHandler(ChannelHandler):
         page: int = 1,
         page_size: int = 50,
         chat_type_filter: Optional[str] = None,
-        archived: Optional[bool] = None
+        archived: Optional[bool] = None,
     ) -> Tuple[List[OmniChat], int]:
         """
         Get chats/conversations from this channel in omni format.
@@ -97,6 +98,7 @@ class OmniChannelHandler(ChannelHandler):
         """
         # Default implementation returns None - handlers can override
         return None
+
 
 # Type alias for backward compatibility and clarity
 OmniHandler = OmniChannelHandler
