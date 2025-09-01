@@ -1,0 +1,384 @@
+---
+name: 🚀 PR Auto-Release
+run-name: "🚀 Auto-Release PR #${{ github.event.pull_request.number }}"
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+    branches:
+      - main
+    
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-conditions:
+    name: 🔍 Check Release Conditions
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.ref == 'dev' || github.event.pull_request.head.ref == 'develop'
+    outputs:
+      should_proceed: ${{ steps.check.outputs.should_proceed }}
+      version_type: ${{ steps.check.outputs.version_type }}
+      current_version: ${{ steps.check.outputs.current_version }}
+      new_version: ${{ steps.check.outputs.new_version }}
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          
+      - name: 🏷️ Check Labels and Determine Version Type
+        id: check
+        run: |
+          echo "🔍 Checking PR labels..."
+          
+          # Get PR labels
+          LABELS="${{ toJson(github.event.pull_request.labels.*.name) }}"
+          echo "Labels: $LABELS"
+          
+          # Determine version type from labels
+          VERSION_TYPE=""
+          if echo "$LABELS" | grep -q "release:major"; then
+            VERSION_TYPE="major"
+          elif echo "$LABELS" | grep -q "release:minor"; then
+            VERSION_TYPE="minor"
+          elif echo "$LABELS" | grep -q "release:patch"; then
+            VERSION_TYPE="patch"
+          elif echo "$LABELS" | grep -q "release:auto"; then
+            # Auto-detect based on commit messages
+            echo "🤖 Auto-detecting version type from commits..."
+            
+            # Check for breaking changes
+            if git log origin/main..HEAD --pretty=format:"%s %b" | grep -qiE "(breaking|break|BREAKING CHANGE)"; then
+              VERSION_TYPE="major"
+            # Check for features
+            elif git log origin/main..HEAD --pretty=format:"%s" | grep -qiE "^feat(\(.*\))?:"; then
+              VERSION_TYPE="minor"
+            # Default to patch
+            else
+              VERSION_TYPE="patch"
+            fi
+          fi
+          
+          if [ -z "$VERSION_TYPE" ]; then
+            echo "❌ No release label found (release:major, release:minor, release:patch, release:auto)"
+            echo "should_proceed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "✅ Version type: $VERSION_TYPE"
+          
+          # Get current version from pyproject.toml
+          CURRENT_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "📌 Current version: $CURRENT_VERSION"
+          
+          # Calculate new version
+          IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+          
+          case "$VERSION_TYPE" in
+            major)
+              NEW_VERSION="$((major + 1)).0.0"
+              ;;
+            minor)
+              NEW_VERSION="${major}.$((minor + 1)).0"
+              ;;
+            patch)
+              NEW_VERSION="${major}.${minor}.$((patch + 1))"
+              ;;
+          esac
+          
+          echo "🆕 New version: $NEW_VERSION"
+          
+          # Output results
+          echo "should_proceed=true" >> $GITHUB_OUTPUT
+          echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+  
+  bump-version:
+    name: 📈 Bump Version
+    runs-on: ubuntu-latest
+    needs: check-conditions
+    if: needs.check-conditions.outputs.should_proceed == 'true'
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: 🔧 Configure Git
+        run: |
+          git config user.name "Automagik Genie 🧞"
+          git config user.email "genie@namastex.ai"
+          
+      - name: 📝 Update Version in pyproject.toml
+        run: |
+          echo "📝 Updating version from ${{ needs.check-conditions.outputs.current_version }} to ${{ needs.check-conditions.outputs.new_version }}"
+          
+          # Update pyproject.toml
+          sed -i 's/^version = .*/version = "${{ needs.check-conditions.outputs.new_version }}"/' pyproject.toml
+          
+          # Check if Makefile has version update target
+          if make -n version 2>/dev/null; then
+            echo "Using Makefile version target"
+            make version VERSION=${{ needs.check-conditions.outputs.new_version }}
+          fi
+          
+          # Commit changes if any
+          if git diff --exit-code; then
+            echo "✅ Version already up to date"
+          else
+            git add pyproject.toml
+            git commit -m "chore: bump version to ${{ needs.check-conditions.outputs.new_version }} [skip ci]
+            
+            Co-authored-by: Automagik Genie 🧞 <genie@namastex.ai>"
+            
+            git push origin ${{ github.event.pull_request.head.ref }}
+            echo "✅ Version bumped and pushed"
+          fi
+  
+  generate-pr-description:
+    name: 🧞 Generate PR Description
+    runs-on: ubuntu-latest
+    needs: [check-conditions, bump-version]
+    if: needs.check-conditions.outputs.should_proceed == 'true'
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          
+      - name: 📊 Analyze Changes
+        id: analyze
+        run: |
+          echo "🔍 Analyzing changes for PR description..."
+          
+          # Get comprehensive change statistics
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          
+          # Commits
+          COMMITS=$(git log --oneline ${BASE_SHA}..HEAD | wc -l)
+          
+          # File changes
+          FILES_CHANGED=$(git diff --name-only ${BASE_SHA}..HEAD | wc -l)
+          FILES_ADDED=$(git diff --name-status ${BASE_SHA}..HEAD | grep "^A" | wc -l)
+          FILES_MODIFIED=$(git diff --name-status ${BASE_SHA}..HEAD | grep "^M" | wc -l)
+          FILES_DELETED=$(git diff --name-status ${BASE_SHA}..HEAD | grep "^D" | wc -l)
+          
+          # Line changes
+          STATS=$(git diff --shortstat ${BASE_SHA}..HEAD)
+          LINES_ADDED=$(echo "$STATS" | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
+          LINES_DELETED=$(echo "$STATS" | grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo 0)
+          
+          # Detect change types
+          CHANGED_FILES=$(git diff --name-only ${BASE_SHA}..HEAD)
+          
+          HAS_FEATURES="false"
+          HAS_FIXES="false"
+          HAS_DOCS="false"
+          HAS_TESTS="false"
+          HAS_CI="false"
+          
+          # Check commit messages for conventional commits
+          if git log ${BASE_SHA}..HEAD --pretty=format:"%s" | grep -q "^feat"; then
+            HAS_FEATURES="true"
+          fi
+          
+          if git log ${BASE_SHA}..HEAD --pretty=format:"%s" | grep -q "^fix"; then
+            HAS_FIXES="true"
+          fi
+          
+          # Check file types
+          if echo "$CHANGED_FILES" | grep -qE "\.(md|rst|txt)$"; then
+            HAS_DOCS="true"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q "test"; then
+            HAS_TESTS="true"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q ".github/workflows"; then
+            HAS_CI="true"
+          fi
+          
+          # Get commit messages for context
+          echo "=== COMMIT MESSAGES ===" > commits.txt
+          git log --pretty=format:"- %s (%an)" ${BASE_SHA}..HEAD >> commits.txt
+          echo "" >> commits.txt
+          
+          # Get notable files changed
+          echo "=== FILES CHANGED ===" >> commits.txt
+          git diff --name-only ${BASE_SHA}..HEAD | head -30 >> commits.txt
+          
+          # Output statistics
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
+          echo "files_added=$FILES_ADDED" >> $GITHUB_OUTPUT
+          echo "files_modified=$FILES_MODIFIED" >> $GITHUB_OUTPUT
+          echo "files_deleted=$FILES_DELETED" >> $GITHUB_OUTPUT
+          echo "lines_added=$LINES_ADDED" >> $GITHUB_OUTPUT
+          echo "lines_deleted=$LINES_DELETED" >> $GITHUB_OUTPUT
+          echo "has_features=$HAS_FEATURES" >> $GITHUB_OUTPUT
+          echo "has_fixes=$HAS_FIXES" >> $GITHUB_OUTPUT
+          echo "has_docs=$HAS_DOCS" >> $GITHUB_OUTPUT
+          echo "has_tests=$HAS_TESTS" >> $GITHUB_OUTPUT
+          echo "has_ci=$HAS_CI" >> $GITHUB_OUTPUT
+          
+      - name: 🧞 Generate PR Description with Claude
+        id: genie
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            You are the Automagik Genie 🧞, architect of the multi-tenant omnichannel messaging hub. Generate a comprehensive PR description for this release.
+            
+            **PR Context:**
+            - PR Number: #${{ github.event.pull_request.number }}
+            - Version Bump: ${{ needs.check-conditions.outputs.current_version }} → ${{ needs.check-conditions.outputs.new_version }} (${{ needs.check-conditions.outputs.version_type }})
+            - Source Branch: ${{ github.event.pull_request.head.ref }}
+            - Target Branch: ${{ github.event.pull_request.base.ref }}
+            
+            **Change Statistics:**
+            - Commits: ${{ steps.analyze.outputs.commits }}
+            - Files Changed: ${{ steps.analyze.outputs.files_changed }} (+${{ steps.analyze.outputs.files_added }} new, ~${{ steps.analyze.outputs.files_modified }} modified, -${{ steps.analyze.outputs.files_deleted }} deleted)
+            - Lines: +${{ steps.analyze.outputs.lines_added }} / -${{ steps.analyze.outputs.lines_deleted }}
+            - Has Features: ${{ steps.analyze.outputs.has_features }}
+            - Has Fixes: ${{ steps.analyze.outputs.has_fixes }}
+            - Has Docs: ${{ steps.analyze.outputs.has_docs }}
+            - Has Tests: ${{ steps.analyze.outputs.has_tests }}
+            - Has CI: ${{ steps.analyze.outputs.has_ci }}
+            
+            **Instructions:**
+            1. Read commits.txt to understand the actual changes
+            2. Generate a comprehensive PR description that follows this EXACT format
+            3. Focus on the multi-tenant messaging hub improvements
+            4. Be specific about technical changes and their impact
+            5. Use professional language for developers
+            
+            **Required Format (start immediately with this):**
+            
+            # 🚀 Release v${{ needs.check-conditions.outputs.new_version }}
+            
+            ## 📋 Summary
+            [2-3 sentence overview of what this release accomplishes]
+            
+            ## ✨ What's New
+            [Bullet points of new features and capabilities]
+            
+            ## 🐛 Bug Fixes
+            [Bullet points of issues resolved]
+            
+            ## 🔧 Improvements
+            [Bullet points of enhancements to existing functionality]
+            
+            ## 🏗️ Technical Changes
+            [Bullet points of infrastructure, CI/CD, or internal changes]
+            
+            ## 📊 Impact Analysis
+            - **Breaking Changes**: [Yes/No - with details if Yes]
+            - **Database Migrations**: [Required/Not Required]
+            - **Configuration Changes**: [Required/Not Required]
+            - **Dependencies Updated**: [Yes/No - list if Yes]
+            
+            ## ✅ Testing
+            - [ ] All tests passing
+            - [ ] Manual testing completed
+            - [ ] Performance impact assessed
+            - [ ] Security review completed
+            
+            ## 📦 Deployment Notes
+            [Any special deployment considerations or steps]
+            
+            ## 🔗 Related Issues
+            Closes: [List any issues this PR closes]
+            Related: [List any related issues or PRs]
+            
+            ---
+            *🧞 This PR description was generated by Automagik Genie. To refine it, comment with `@genie` followed by your feedback.*
+          allowed_tools: "Read,View"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: "20"
+          timeout_minutes: "5"
+          
+      - name: 📝 Update PR Description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              // Extract the generated description
+              const executionFile = '${{ steps.genie.outputs.execution_file }}';
+              const executionLog = JSON.parse(fs.readFileSync(executionFile, 'utf8'));
+              
+              let description = '';
+              
+              // Try different extraction methods
+              if (executionLog.result && typeof executionLog.result === 'string') {
+                description = executionLog.result;
+              } else if (executionLog.messages && Array.isArray(executionLog.messages)) {
+                for (let i = executionLog.messages.length - 1; i >= 0; i--) {
+                  const message = executionLog.messages[i];
+                  if (message.role === 'assistant' && message.content) {
+                    description = message.content;
+                    break;
+                  }
+                }
+              }
+              
+              if (!description) {
+                // Fallback description
+                description = `# 🚀 Release v${{ needs.check-conditions.outputs.new_version }}\n\n` +
+                  `## 📋 Summary\n` +
+                  `This release includes ${{ steps.analyze.outputs.commits }} commits with various improvements.\n\n` +
+                  `## 📊 Changes\n` +
+                  `- Files Changed: ${{ steps.analyze.outputs.files_changed }}\n` +
+                  `- Lines Added: +${{ steps.analyze.outputs.lines_added }}\n` +
+                  `- Lines Deleted: -${{ steps.analyze.outputs.lines_deleted }}\n\n` +
+                  `---\n` +
+                  `*🧞 To refine this description, comment with \`@genie\` followed by your feedback.*`;
+              }
+              
+              // Update the PR
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                body: description
+              });
+              
+              console.log('✅ PR description updated successfully');
+              
+            } catch (error) {
+              console.error('❌ Failed to update PR description:', error);
+              throw error;
+            }
+            
+      - name: 💬 Add Success Comment
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🧞 Automagik Genie Release Assistant\n\n` +
+                `✅ **Version bumped to v${{ needs.check-conditions.outputs.new_version }}**\n` +
+                `✅ **PR description generated successfully**\n\n` +
+                `### 📝 How to refine the description:\n` +
+                `Simply comment with \`@genie\` followed by your feedback, for example:\n` +
+                `- \`@genie add more details about the API changes\`\n` +
+                `- \`@genie emphasize the performance improvements\`\n` +
+                `- \`@genie include migration steps for the database changes\`\n\n` +
+                `The description will be automatically regenerated with your feedback incorporated.`
+            });

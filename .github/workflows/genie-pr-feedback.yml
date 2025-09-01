@@ -1,0 +1,260 @@
+---
+name: 🧞 Genie PR Feedback
+run-name: "🧞 Processing feedback for PR #${{ github.event.issue.number }}"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  process-feedback:
+    name: 🧞 Process Genie Feedback
+    runs-on: ubuntu-latest
+    # Only run on PR comments that mention @genie
+    if: |
+      github.event.issue.pull_request && 
+      contains(github.event.comment.body, '@genie')
+    
+    steps:
+      - name: 👀 Check Comment Author
+        id: check-author
+        run: |
+          echo "🔍 Checking comment author..."
+          AUTHOR="${{ github.event.comment.user.login }}"
+          echo "Author: $AUTHOR"
+          
+          # Check if author has write permissions (collaborator or owner)
+          PERMISSION_LEVEL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/collaborators/$AUTHOR/permission" \
+            | jq -r '.permission')
+          
+          if [[ "$PERMISSION_LEVEL" == "admin" ]] || [[ "$PERMISSION_LEVEL" == "write" ]]; then
+            echo "✅ Author has write permissions"
+            echo "can_proceed=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Author does not have write permissions"
+            echo "can_proceed=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: 🎯 Add Reaction
+        if: steps.check-author.outputs.can_proceed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+            
+      - name: 📥 Checkout Repository
+        if: steps.check-author.outputs.can_proceed == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: 📊 Get PR Context
+        if: steps.check-author.outputs.can_proceed == 'true'
+        id: pr-context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get PR details
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            // Get PR files
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100
+            });
+            
+            // Get commits
+            const commits = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100
+            });
+            
+            // Save context
+            const context = {
+              pr_number: pr.data.number,
+              pr_title: pr.data.title,
+              pr_body: pr.data.body || '',
+              pr_state: pr.data.state,
+              pr_author: pr.data.user.login,
+              source_branch: pr.data.head.ref,
+              target_branch: pr.data.base.ref,
+              files_changed: files.data.length,
+              commits_count: commits.data.length,
+              additions: pr.data.additions,
+              deletions: pr.data.deletions,
+              changed_files: pr.data.changed_files
+            };
+            
+            // Write to file for Claude
+            const fs = require('fs');
+            fs.writeFileSync('pr_context.json', JSON.stringify(context, null, 2));
+            
+            // Output for next steps
+            core.setOutput('pr_title', pr.data.title);
+            core.setOutput('pr_body', pr.data.body || '');
+            core.setOutput('files_changed', files.data.length);
+            core.setOutput('commits_count', commits.data.length);
+            
+      - name: 🔍 Extract Feedback
+        if: steps.check-author.outputs.can_proceed == 'true'
+        id: extract-feedback
+        run: |
+          echo "🔍 Extracting feedback from comment..."
+          
+          # Extract feedback after @genie mention
+          COMMENT="${{ github.event.comment.body }}"
+          
+          # Remove @genie and clean up
+          FEEDBACK=$(echo "$COMMENT" | sed 's/@genie//g' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+          
+          # Save feedback
+          echo "$FEEDBACK" > feedback.txt
+          
+          echo "📝 Feedback extracted: ${FEEDBACK:0:100}..."
+          
+      - name: 🧞 Regenerate PR Description with Feedback
+        if: steps.check-author.outputs.can_proceed == 'true'
+        id: regenerate
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            You are the Automagik Genie 🧞, architect of the multi-tenant omnichannel messaging hub. 
+            
+            You need to regenerate a PR description based on user feedback.
+            
+            **Current PR Context:**
+            - Title: ${{ steps.pr-context.outputs.pr_title }}
+            - Files Changed: ${{ steps.pr-context.outputs.files_changed }}
+            - Commits: ${{ steps.pr-context.outputs.commits_count }}
+            
+            **Current PR Description:**
+            ${{ steps.pr-context.outputs.pr_body }}
+            
+            **User Feedback (from @${{ github.event.comment.user.login }}):**
+            Read the feedback.txt file to see what changes the user wants.
+            
+            **Additional Context:**
+            Read pr_context.json for full PR details.
+            
+            **Instructions:**
+            1. Read and understand the user's feedback carefully
+            2. Incorporate the feedback while maintaining the professional format
+            3. Keep all existing information unless explicitly asked to change it
+            4. Add or modify sections based on the feedback
+            5. Maintain the same structure and formatting standards
+            
+            **Generate the updated PR description following the same format as before:**
+            - Start with # 🚀 Release heading
+            - Include all standard sections
+            - Incorporate the user's feedback appropriately
+            - End with the @genie instruction footer
+            
+            Return ONLY the updated PR description markdown, no explanations or preambles.
+          allowed_tools: "Read,View"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: "15"
+          timeout_minutes: "5"
+          
+      - name: 📝 Update PR Description
+        if: steps.check-author.outputs.can_proceed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              // Extract the regenerated description
+              const executionFile = '${{ steps.regenerate.outputs.execution_file }}';
+              const executionLog = JSON.parse(fs.readFileSync(executionFile, 'utf8'));
+              
+              let newDescription = '';
+              
+              // Try different extraction methods
+              if (executionLog.result && typeof executionLog.result === 'string') {
+                newDescription = executionLog.result;
+              } else if (executionLog.messages && Array.isArray(executionLog.messages)) {
+                for (let i = executionLog.messages.length - 1; i >= 0; i--) {
+                  const message = executionLog.messages[i];
+                  if (message.role === 'assistant' && message.content) {
+                    newDescription = message.content;
+                    break;
+                  }
+                }
+              }
+              
+              if (!newDescription) {
+                throw new Error('Failed to extract regenerated description');
+              }
+              
+              // Update the PR
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                body: newDescription
+              });
+              
+              // Add success comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## 🧞 Description Updated!\n\n` +
+                  `✅ I've regenerated the PR description based on your feedback.\n\n` +
+                  `The description has been updated to incorporate:\n` +
+                  `> ${context.payload.comment.body.replace('@genie', '').trim().substring(0, 200)}${context.payload.comment.body.length > 200 ? '...' : ''}\n\n` +
+                  `Feel free to provide more feedback by commenting with \`@genie\` again!`
+              });
+              
+              console.log('✅ PR description updated with feedback');
+              
+            } catch (error) {
+              console.error('❌ Failed to update PR description:', error);
+              
+              // Add error comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## 🧞 Oops! Something went wrong\n\n` +
+                  `❌ I couldn't regenerate the description based on your feedback.\n\n` +
+                  `Error: ${error.message}\n\n` +
+                  `Please try again with more specific feedback, or check the workflow logs for details.`
+              });
+              
+              throw error;
+            }
+            
+      - name: 🚫 Notify Unauthorized User
+        if: steps.check-author.outputs.can_proceed == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🧞 Permission Required\n\n` +
+                `Hi @${context.payload.comment.user.login}! I see you're trying to use the Genie feedback feature.\n\n` +
+                `This feature is only available to repository collaborators with write permissions.\n\n` +
+                `If you'd like to suggest changes to the PR description, please ask a maintainer to use the \`@genie\` command with your feedback.`
+            });
