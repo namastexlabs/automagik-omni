@@ -1,6 +1,6 @@
 [project]
 name = "automagik-omni"
-version = "0.3.3"
+version = "0.3.4"
 description = "Automagik Omni: Multi-tenant omnichannel messaging hub"
 readme = "README.md"
 authors = [
