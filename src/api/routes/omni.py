@@ -20,7 +20,6 @@ from src.api.schemas.omni import (
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory
 from src.channels.handlers.whatsapp_chat_handler import WhatsAppChatHandler
-from src.channels.handlers.discord_chat_handler import DiscordChatHandler
 from src.channels.omni_base import OmniChannelHandler
 
 router = APIRouter(prefix="/instances", tags=["omni-instances"])
@@ -28,7 +27,14 @@ logger = logging.getLogger(__name__)
 
 # Register omni handlers
 ChannelHandlerFactory.register_handler("whatsapp", WhatsAppChatHandler)
-ChannelHandlerFactory.register_handler("discord", DiscordChatHandler)
+
+# Register Discord handler if available
+try:
+    from src.channels.handlers.discord_chat_handler import DiscordChatHandler
+    ChannelHandlerFactory.register_handler("discord", DiscordChatHandler)
+    logger.info("Discord chat handler registered")
+except ImportError as e:
+    logger.info(f"Discord dependencies not installed. Discord support disabled. ({str(e)})")
 
 
 def get_omni_handler(channel_type: str) -> OmniChannelHandler:

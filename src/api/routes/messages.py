@@ -12,8 +12,17 @@ from pydantic import BaseModel, Field
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
 from src.channels.message_sender import OmniChannelMessageSender
-from src.channels.discord.utils import DiscordIDValidator
 from src.services.user_service import user_service
+
+# Import Discord utilities if available
+try:
+    from src.channels.discord.utils import DiscordIDValidator
+except ImportError:
+    # Create a dummy validator if Discord is not available
+    class DiscordIDValidator:
+        @staticmethod
+        def is_discord_id(value: str) -> bool:
+            return False
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
