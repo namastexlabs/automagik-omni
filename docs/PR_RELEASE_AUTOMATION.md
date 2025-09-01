@@ -8,7 +8,7 @@ The Automagik Omni PR Release system provides automated version bumping, AI-gene
 
 1. **Automatic Version Bumping** - Semantic versioning based on PR labels
 2. **AI-Generated Descriptions** - Claude-powered PR descriptions with project context
-3. **Interactive Refinement** - `@genie` feedback system for description improvements
+3. **Interactive Refinement** - `@automagik-genie` feedback system for description improvements
 4. **Commit Analysis** - Intelligent change detection and categorization
 
 ## 🏷️ Release Labels
@@ -58,15 +58,15 @@ When the PR is created or labeled, the system will:
 If you want to adjust the generated description, simply comment on the PR:
 
 ```markdown
-@genie please add more details about the database migration steps
+@automagik-genie please add more details about the database migration steps
 ```
 
 ```markdown
-@genie emphasize the performance improvements and include benchmarks
+@automagik-genie emphasize the performance improvements and include benchmarks
 ```
 
 ```markdown
-@genie make the breaking changes section more prominent
+@automagik-genie make the breaking changes section more prominent
 ```
 
 The system will:
@@ -163,11 +163,11 @@ python scripts/bump-version.py patch --dry-run
 
 ## 🔐 Permissions
 
-The `@genie` feedback feature requires:
+The `@automagik-genie` feedback feature requires:
 - Repository collaborator status
 - Write permissions to the repository
 
-External contributors can request changes through regular PR comments, and maintainers can use `@genie` to incorporate their feedback.
+External contributors can request changes through regular PR comments, and maintainers can use `@automagik-genie` to incorporate their feedback.
 
 ## 🎯 Best Practices
 
@@ -203,7 +203,7 @@ BREAKING CHANGE: API tokens now require scope parameter"
 
 ### Feedback Guidelines
 
-When using `@genie` for refinement:
+When using `@automagik-genie` for refinement:
 
 1. **Be specific** about what to add or change
 2. **Reference sections** that need updates
@@ -211,9 +211,9 @@ When using `@genie` for refinement:
 4. **Request examples** when needed
 
 Good examples:
-- `@genie add migration steps for the new database schema`
-- `@genie include performance metrics comparing before/after`
-- `@genie emphasize the security improvements in the auth system`
+- `@automagik-genie add migration steps for the new database schema`
+- `@automagik-genie include performance metrics comparing before/after`
+- `@automagik-genie emphasize the security improvements in the auth system`
 
 ## 🚦 Workflow Status Checks
 
@@ -293,10 +293,10 @@ gh pr create --base main --head dev \
 - Review workflow logs for errors
 - Ensure PR has sufficient changes to analyze
 
-### @genie Not Responding
+### @automagik-genie Not Responding
 
 - Verify you have write permissions
-- Check the exact format: `@genie` (case-sensitive)
+- Check the exact format: `@automagik-genie` (case-sensitive)
 - Ensure comment is on a PR, not an issue
 
 ## 🔗 Related Documentation
