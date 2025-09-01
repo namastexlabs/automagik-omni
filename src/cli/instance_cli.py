@@ -26,7 +26,6 @@ def get_db() -> Session:
 def list_instances():
     """List all instance configurations."""
     start_time = time.time()
-    success = True
 
     try:
         create_tables()
@@ -60,7 +59,6 @@ def list_instances():
         finally:
             db.close()
     except Exception:
-        success = False
         track_command("instance_list", success=False, duration_ms=(time.time() - start_time) * 1000)
         raise
 

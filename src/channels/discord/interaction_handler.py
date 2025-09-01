@@ -395,7 +395,7 @@ class DiscordInteractionHandler:
 
         try:
             # Join voice channel
-            voice_client = await channel.connect()
+            await channel.connect()
 
             embed = discord.Embed(
                 title="🎤 Voice Connected",

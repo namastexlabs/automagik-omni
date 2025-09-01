@@ -546,7 +546,6 @@ class WhatsAppMessageHandler:
                 # Use stored agent user_id if available from previous interactions
                 # IMPORTANT: Check if the stored agent_user_id is from the same instance/agent
                 agent_user_id = None
-                current_agent_name = agent_config.get("name") if agent_config else "default"
 
                 if local_user and local_user.last_agent_user_id:
                     # Check if this is the same instance/agent combination

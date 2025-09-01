@@ -2,7 +2,7 @@
 WhatsApp Streaming Handler Integration
 
 This module provides streaming support for WhatsApp message handlers.
-It integrates with the existing handler architecture to add AutomagikHive 
+It integrates with the existing handler architecture to add AutomagikHive
 streaming capabilities while maintaining backward compatibility.
 """
 import asyncio
@@ -19,7 +19,7 @@ class WhatsAppStreamingHandler:
     """
     Enhanced WhatsApp handler with streaming integration.
 
-    This handler extends the existing message processing to support 
+    This handler extends the existing message processing to support
     AutomagikHive streaming for real-time message delivery.
     """
 
@@ -157,7 +157,7 @@ class WhatsAppStreamingHandler:
             self.start_event_loop()
 
         # Schedule the async streaming in the event loop
-        future = asyncio.run_coroutine_threadsafe(
+        asyncio.run_coroutine_threadsafe(
             self._async_stream_message(message, recipient, instance_config, trace_context),
             self.loop
         )

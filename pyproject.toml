@@ -87,6 +87,9 @@ ignore = ["E501"]  # Line too long
 "src/channels/__init__.py" = ["F401"]  # Imported but unused (used for availability check)
 "src/channels/discord/channel_handler.py" = ["E402", "E722"]  # Module imports and bare except
 "src/channels/discord/interaction_handler.py" = ["E722"]  # Bare except for Discord error handling
+"src/cli/main.py" = ["E402"]  # Module imports not at top (required for setup)
+"src/cli/main_cli.py" = ["E402"]  # Module imports not at top (required for setup)
+"src/channels/whatsapp/handlers.py" = ["E402"]  # Module imports not at top
 
 [tool.ruff.format]
 quote-style = "double"
