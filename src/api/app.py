@@ -29,6 +29,7 @@ from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
 from src.api.deps import get_database, get_instance_by_name
 from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
+from src.api.routes.omni import router as omni_router
 from src.db.database import create_tables
 
 # Configure logging
@@ -38,6 +39,7 @@ logger = logging.getLogger("src.api.app")
 # Apply streaming patch for WhatsApp handlers BEFORE they are used elsewhere
 try:
     from src.channels.whatsapp.streaming_patch import apply_streaming_patch
+
     apply_streaming_patch()
 except Exception as e:
     logger.warning(f"Failed to apply WhatsApp streaming patch: {e}")
@@ -74,9 +76,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                         json_body = json.loads(body.decode())
                         # Mask sensitive fields
                         masked_body = self._mask_sensitive_data(json_body)
-                        logger.debug(
-                            f"Request body: {json.dumps(masked_body, indent=2)}"
-                        )
+                        logger.debug(f"Request body: {json.dumps(masked_body, indent=2)}")
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         logger.debug(f"Request body (non-JSON): {len(body)} bytes")
 
@@ -101,7 +101,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 endpoint=request.url.path,
                 method=request.method,
                 status_code=response.status_code,
-                duration_ms=process_time * 1000
+                duration_ms=process_time * 1000,
             )
         except Exception as e:
             # Never let telemetry break the API
@@ -133,9 +133,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     masked[key] = "***"
             elif any(field in key.lower() for field in large_data_fields):
                 if isinstance(value, str) and len(value) > 100:
-                    masked[key] = (
-                        f"<large_string:{len(value)}_chars:{value[:20]}...{value[-20:]}>"
-                    )
+                    masked[key] = f"<large_string:{len(value)}_chars:{value[:20]}...{value[-20:]}>"
                 elif isinstance(value, list) and len(value) > 0:
                     masked[key] = f"<array:{len(value)}_items>"
                 elif isinstance(value, dict):
@@ -174,7 +172,7 @@ async def lifespan(app: FastAPI):
         try:
             logger.info("Checking database migrations...")
             from src.db.migrations import auto_migrate
-            
+
             if auto_migrate():
                 logger.info("✅ Database migrations completed successfully")
             else:
@@ -196,13 +194,9 @@ async def lifespan(app: FastAPI):
             from src.db.database import SessionLocal
 
             with SessionLocal() as db:
-                discovered_instances = await discovery_service.discover_evolution_instances(
-                    db
-                )
+                discovered_instances = await discovery_service.discover_evolution_instances(db)
                 if discovered_instances:
-                    logger.info(
-                        f"Auto-discovered {len(discovered_instances)} Evolution instances:"
-                    )
+                    logger.info(f"Auto-discovered {len(discovered_instances)} Evolution instances:")
                     for instance in discovered_instances:
                         logger.info(f"  - {instance.name} (active: {instance.is_active})")
                 else:
@@ -210,14 +204,13 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Evolution instance auto-discovery failed: {e}")
             logger.debug(f"Auto-discovery error details: {str(e)}")
-            logger.info(
-                "Continuing without auto-discovery - instances can be created manually"
-            )
+            logger.info("Continuing without auto-discovery - instances can be created manually")
     else:
         logger.info("Skipping Evolution instance auto-discovery in test environment")
 
     # Telemetry status logging
     from src.core.telemetry import telemetry_client
+
     if telemetry_client.is_enabled():
         logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni")
         logger.info("   • Collected: CLI usage, API performance, system info (no personal data)")
@@ -227,9 +220,9 @@ async def lifespan(app: FastAPI):
 
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
-    
+
     yield
-    
+
     # Shutdown (cleanup if needed)
     logger.info("Shutting down application...")
 
@@ -246,17 +239,33 @@ app = FastAPI(
     openapi_tags=[
         {
             "name": "instances",
-            "description": "Omnichannel instance management (WhatsApp, Slack, Discord)",
+            "description": "Instance Management",
         },
         {
             "name": "messages",
-            "description": "Message sending endpoints for all channel types",
+            "description": "Message Operations",
         },
-        {"name": "traces", "description": "Message tracing and analytics"},
-        {"name": "webhooks", "description": "Webhook endpoints for receiving messages"},
-        {"name": "health", "description": "Health check and status endpoints"},
+        {
+            "name": "traces",
+            "description": "Message Tracing & Analytics",
+        },
+        {
+            "name": "webhooks",
+            "description": "Webhook Receivers",
+        },
+        {
+            "name": "profiles",
+            "description": "User Profile Management",
+        },
+        {
+            "name": "health",
+            "description": "System Health & Status",
+        },
     ],
 )
+
+# Include omni communication routes (register first to take precedence)
+app.include_router(omni_router, prefix="/api/v1", tags=["instances"])
 
 # Include instance management routes
 app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
@@ -284,24 +293,48 @@ app.add_middleware(RequestLoggingMiddleware)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=config.cors.allowed_origins,
+    allow_credentials=config.cors.allow_credentials,
+    allow_methods=config.cors.allow_methods,
+    allow_headers=config.cors.allow_headers,
 )
 
 
-# Custom OpenAPI schema with Bearer token authentication
+# Custom OpenAPI schema with enhanced formatting and authentication
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
 
+    # Enhanced API description
+    enhanced_description = f"""
+{config.api.description}
+
+## Features
+
+- Multi-tenant architecture with isolated instances
+- Universal messaging across WhatsApp, Discord, and Slack
+- Message tracing and analytics
+- Bearer token authentication
+
+## Quick Start
+
+1. Include API key in `Authorization: Bearer <token>` header
+2. Create an instance for your channel
+3. Send messages using the omni endpoints
+4. Monitor activity via traces and health endpoints
+"""
+
     openapi_schema = get_openapi(
         title=config.api.title,
         version=config.api.version,
-        description=config.api.description,
+        description=enhanced_description,
         routes=app.routes,
     )
+
+    # Add server information
+    openapi_schema["servers"] = [
+        {"url": f"http://{config.api.host}:{config.api.port}", "description": "Development Server"}
+    ]
 
     # Add Bearer token authentication scheme
     if "components" not in openapi_schema:
@@ -331,32 +364,28 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
-
-@app.get("/health")
+@app.get("/health", tags=["health"])
 async def health_check():
-    """Health check endpoint."""
-    
+    """
+    System health check endpoint.
+
+    Returns status for API, database, Discord services, and runtime information.
+    """
+
     from datetime import datetime, timezone
-    
+
     # Basic API health
     health_status = {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "services": {
-            "api": {
-                "status": "up",
-                "checks": {
-                    "database": "connected",
-                    "runtime": "operational"
-                }
-            }
-        }
+        "services": {"api": {"status": "up", "checks": {"database": "connected", "runtime": "operational"}}},
     }
-    
+
     # Check Discord service status if available
     try:
         # Get Discord bot manager instance (if running)
         from src.services.discord_service import discord_bot_manager
+
         if discord_bot_manager:
             bot_statuses = {}
             for instance_name in discord_bot_manager.bots.keys():
@@ -366,59 +395,24 @@ async def health_check():
                         "status": bot_status.status,
                         "guild_count": bot_status.guild_count,
                         "uptime": bot_status.uptime.isoformat() if bot_status.uptime else None,
-                        "latency": round(bot_status.latency * 1000, 2) if bot_status.latency else None  # ms
+                        "latency": round(bot_status.latency * 1000, 2) if bot_status.latency else None,  # ms
                     }
-            
+
             health_status["services"]["discord"] = {
                 "status": "up" if bot_statuses else "down",
                 "instances": bot_statuses,
-                "voice_sessions": len(discord_bot_manager.voice_manager.get_voice_sessions())
+                "voice_sessions": len(discord_bot_manager.voice_manager.get_voice_sessions()),
             }
         else:
             health_status["services"]["discord"] = {
                 "status": "not_running",
-                "message": "Discord service not initialized"
+                "message": "Discord service not initialized",
             }
-            
+
     except Exception as e:
-        health_status["services"]["discord"] = {
-            "status": "error",
-            "error": str(e)
-        }
-    
+        health_status["services"]["discord"] = {"status": "error", "error": str(e)}
+
     return health_status
-
-
-@app.post("/api/v1/test/capture/enable")
-async def enable_test_capture():
-    """Enable test capture for the next media message."""
-    from src.utils.test_capture import test_capture
-
-    test_capture.enable_capture()
-    return {
-        "status": "enabled",
-        "message": "Send a WhatsApp image/video to capture real test data",
-    }
-
-
-@app.post("/api/v1/test/capture/disable")
-async def disable_test_capture():
-    """Disable test capture."""
-    from src.utils.test_capture import test_capture
-
-    test_capture.disable_capture()
-    return {"status": "disabled", "message": "Test capture disabled"}
-
-
-@app.get("/api/v1/test/capture/status")
-async def test_capture_status():
-    """Get test capture status."""
-    from src.utils.test_capture import test_capture
-
-    return {
-        "enabled": test_capture.capture_enabled,
-        "directory": test_capture.save_directory,
-    }
 
 
 async def _handle_evolution_webhook(instance_config, request: Request):
@@ -430,29 +424,27 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         request: FastAPI request object
     """
     from src.services.trace_service import get_trace_context
-    
+
     start_time = time.time()
-    success = True
     payload_size = 0
 
     try:
         logger.info(f"🔄 WEBHOOK ENTRY: Starting webhook processing for instance '{instance_config.name}'")
-        
+
         # Get the JSON data from the request
         data = await request.json()
-        payload_size = len(json.dumps(data).encode('utf-8'))
+        payload_size = len(json.dumps(data).encode("utf-8"))
         logger.info(f"✅ WEBHOOK JSON PARSED: Received webhook for instance '{instance_config.name}'")
-        
+
         # Enhanced logging for audio message debugging
         message_obj = data.get("data", {}).get("message", {})
         if "audioMessage" in message_obj:
             logger.info(f"🎵 AUDIO MESSAGE DETECTED: {json.dumps(message_obj, indent=2)[:1000]}")
-        
+
         logger.debug(f"Webhook data: {data}")
 
         # Start message tracing
         with get_trace_context(data, instance_config.name) as trace:
-
             # Update the Evolution API sender with the webhook data
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
@@ -482,7 +474,7 @@ async def _handle_evolution_webhook(instance_config, request: Request):
                     success=True,
                     duration_ms=(time.time() - start_time) * 1000,
                     payload_size_kb=payload_size / 1024,
-                    instance_type="multi_tenant"
+                    instance_type="multi_tenant",
                 )
             except Exception as e:
                 logger.debug(f"Webhook telemetry tracking failed: {e}")
@@ -495,8 +487,6 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             }
 
     except Exception as e:
-        success = False
-        
         # Track failed webhook processing
         try:
             track_webhook_processed(
@@ -505,11 +495,11 @@ async def _handle_evolution_webhook(instance_config, request: Request):
                 duration_ms=(time.time() - start_time) * 1000,
                 payload_size_kb=payload_size / 1024,
                 instance_type="multi_tenant",
-                error=str(e)[:100]  # Truncate error message
+                error=str(e)[:100],  # Truncate error message
             )
         except Exception as te:
             logger.debug(f"Webhook telemetry tracking failed: {te}")
-        
+
         logger.error(
             f"Error processing webhook for instance '{instance_config.name}': {e}",
             exc_info=True,
@@ -517,13 +507,13 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/webhook/evolution/{instance_name}")
-async def evolution_webhook_tenant(
-    instance_name: str, request: Request, db: Session = Depends(get_database)
-):
+@app.post("/webhook/evolution/{instance_name}", tags=["webhooks"])
+async def evolution_webhook_tenant(instance_name: str, request: Request, db: Session = Depends(get_database)):
     """
     Multi-tenant webhook endpoint for Evolution API.
-    Uses per-instance configuration.
+
+    Receives incoming messages from Evolution API instances and routes them to the appropriate tenant configuration.
+    Supports text, media, audio, and other message types with automatic transcription and processing.
     """
     # Get instance configuration
     instance_config = get_instance_by_name(instance_name, db)
@@ -536,16 +526,8 @@ def start_api():
     """Start the FastAPI server using uvicorn."""
     import uvicorn
 
-    host = (
-        config.api.host
-        if hasattr(config, "api") and hasattr(config.api, "host")
-        else "0.0.0.0"
-    )
-    port = (
-        config.api.port
-        if hasattr(config, "api") and hasattr(config.api, "port")
-        else 8000
-    )
+    host = config.api.host if hasattr(config, "api") and hasattr(config.api, "host") else "0.0.0.0"
+    port = config.api.port if hasattr(config, "api") and hasattr(config.api, "port") else 8000
 
     logger.info(f"Starting FastAPI server on {host}:{port}")
 
@@ -593,6 +575,4 @@ def start_api():
         },
     }
 
-    uvicorn.run(
-        "src.api.app:app", host=host, port=port, reload=False, log_config=log_config
-    )
+    uvicorn.run("src.api.app:app", host=host, port=port, reload=False, log_config=log_config)

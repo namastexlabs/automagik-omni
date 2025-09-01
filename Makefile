@@ -546,10 +546,13 @@ publish-test: build check-dist ## 🧪 Upload to TestPyPI
 	@uv run twine upload --repository testpypi dist/* -u __token__ -p "$(TESTPYPI_TOKEN)"
 	$(call print_success,Published to TestPyPI!)
 
-publish: check-release ## 🚀 Create GitHub release (triggers automated PyPI publishing)
-	$(call print_status,Creating GitHub release to trigger automated PyPI publishing...)
-	@# Get version from pyproject.toml
-	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+publish: ## 🚀 Push committed changes and create GitHub release (triggers automated PyPI publishing)
+	$(call print_status,Publishing committed version changes...)
+	@# Push commits first
+	@echo -e "$(FONT_CYAN)Pushing commits to origin...$(FONT_RESET)"; \
+	git push origin; \
+	# Get version from pyproject.toml
+	VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_CYAN)Publishing version: v$$VERSION$(FONT_RESET)"; \
 	if ! git tag | grep -q "^v$$VERSION$$"; then \
 		echo -e "$(FONT_CYAN)Creating git tag v$$VERSION$(FONT_RESET)"; \
@@ -584,24 +587,51 @@ clean-build: ## 🧹 Clean build artifacts
 # ===========================================
 bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
 	$(call print_status,Bumping patch version...)
+	@# Check if git status is clean
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Please commit or stash your changes before version bump.$(FONT_RESET)"; \
+		exit 1; \
+	fi
 	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$NF = $$NF + 1;} 1' | sed 's/ /./g'); \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
-	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"; \
+	git add pyproject.toml; \
+	git commit -m "chore: bump patch version to $$NEW_VERSION"; \
+	echo -e "$(FONT_GREEN)✅ Changes committed with semantic commit message$(FONT_RESET)"
 
 bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
 	$(call print_status,Bumping minor version...)
+	@# Check if git status is clean
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Please commit or stash your changes before version bump.$(FONT_RESET)"; \
+		exit 1; \
+	fi
 	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$2 = $$2 + 1; $$3 = 0;} 1' | sed 's/ /./g'); \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
-	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"; \
+	git add pyproject.toml; \
+	git commit -m "feat: bump minor version to $$NEW_VERSION"; \
+	echo -e "$(FONT_GREEN)✅ Changes committed with semantic commit message$(FONT_RESET)"
 
 bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
 	$(call print_status,Bumping major version...)
+	@# Check if git status is clean
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Please commit or stash your changes before version bump.$(FONT_RESET)"; \
+		exit 1; \
+	fi
 	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$1 = $$1 + 1; $$2 = 0; $$3 = 0;} 1' | sed 's/ /./g'); \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
-	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"; \
+	git add pyproject.toml; \
+	git commit -m "feat!: bump major version to $$NEW_VERSION"; \
+	echo -e "$(FONT_GREEN)✅ Changes committed with semantic commit message$(FONT_RESET)"
 
 bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2)
 	$(call print_status,Creating dev pre-release version...)

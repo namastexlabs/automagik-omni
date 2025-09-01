@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Register WhatsApp handler (always available as it's in core deps)
 try:
     from src.channels.whatsapp.channel_handler import WhatsAppChannelHandler
+
     ChannelHandlerFactory.register_handler("whatsapp", WhatsAppChannelHandler)
     logger.info("WhatsApp channel handler registered")
 except ImportError as e:
@@ -20,6 +21,7 @@ except ImportError as e:
 try:
     import discord
     from src.channels.discord.channel_handler import DiscordChannelHandler
+
     ChannelHandlerFactory.register_handler("discord", DiscordChannelHandler)
     logger.info("Discord channel handler registered")
 except ImportError:

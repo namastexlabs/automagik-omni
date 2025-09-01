@@ -32,9 +32,7 @@ class EvolutionApiSender:
             self.server_url = config_override.evolution_url or None
             self.api_key = config_override.evolution_key or None
             self.instance_name = config_override.whatsapp_instance
-            logger.info(
-                f"Evolution API sender initialized for instance '{config_override.name}'"
-            )
+            logger.info(f"Evolution API sender initialized for instance '{config_override.name}'")
         else:
             # Initialize with empty values (will be set from webhook)
             self.server_url = None
@@ -53,9 +51,7 @@ class EvolutionApiSender:
         self.instance_name = webhook_data.get("instance")
 
         if all([self.server_url, self.api_key, self.instance_name]):
-            logger.info(
-                f"Updated Evolution API sender: server={self.server_url}, instance={self.instance_name}"
-            )
+            logger.info(f"Updated Evolution API sender: server={self.server_url}, instance={self.instance_name}")
         else:
             logger.warning(
                 f"Missing required webhook data: server_url={self.server_url}, api_key={'*' if self.api_key else None}, instance={self.instance_name}"
@@ -83,13 +79,13 @@ class EvolutionApiSender:
         return formatted_recipient
 
     def send_text_message(
-        self, 
-        recipient: str, 
-        text: str, 
+        self,
+        recipient: str,
+        text: str,
         quoted_message: Optional[Dict[str, Any]] = None,
         mentioned: Optional[List[str]] = None,
         mentions_everyone: bool = False,
-        auto_parse_mentions: bool = True
+        auto_parse_mentions: bool = True,
     ) -> bool:
         """
         Send a text message via Evolution API with optional message quoting, mentions, and auto-splitting.
@@ -106,9 +102,7 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot send message: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot send message: missing server URL, API key, or instance name")
             return False
 
         # Parse mentions from text if auto-parsing enabled
@@ -123,17 +117,11 @@ class EvolutionApiSender:
         should_split = self._should_split_message(text, quoted_message)
 
         if should_split:
-            return self._send_split_messages(
-                recipient, text, quoted_message, final_mentioned, mentions_everyone
-            )
+            return self._send_split_messages(recipient, text, quoted_message, final_mentioned, mentions_everyone)
         else:
-            return self._send_single_message(
-                recipient, text, quoted_message, final_mentioned, mentions_everyone
-            )
+            return self._send_single_message(recipient, text, quoted_message, final_mentioned, mentions_everyone)
 
-    def _should_split_message(
-        self, text: str, quoted_message: Optional[Dict[str, Any]]
-    ) -> bool:
+    def _should_split_message(self, text: str, quoted_message: Optional[Dict[str, Any]]) -> bool:
         """
         Determine if a message should be split.
 
@@ -173,12 +161,12 @@ class EvolutionApiSender:
         return any(media_type in message_obj for media_type in media_types)
 
     def _send_split_messages(
-        self, 
-        recipient: str, 
-        text: str, 
+        self,
+        recipient: str,
+        text: str,
         quoted_message: Optional[Dict[str, Any]],
         mentioned: Optional[List[str]] = None,
-        mentions_everyone: bool = False
+        mentions_everyone: bool = False,
     ) -> bool:
         """
         Send text as multiple messages split by \\n\\n with random delays.
@@ -198,9 +186,7 @@ class EvolutionApiSender:
 
         if len(parts) <= 1:
             # No actual split needed
-            return self._send_single_message(
-                recipient, text, quoted_message, mentioned, mentions_everyone
-            )
+            return self._send_single_message(recipient, text, quoted_message, mentioned, mentions_everyone)
 
         logger.info(f"Splitting message into {len(parts)} parts")
 
@@ -225,18 +211,16 @@ class EvolutionApiSender:
                 time.sleep(delay)
 
         success = success_count == len(parts)
-        logger.info(
-            f"Split message result: {success_count}/{len(parts)} parts sent successfully"
-        )
+        logger.info(f"Split message result: {success_count}/{len(parts)} parts sent successfully")
         return success
 
     def _send_single_message(
-        self, 
-        recipient: str, 
-        text: str, 
+        self,
+        recipient: str,
+        text: str,
         quoted_message: Optional[Dict[str, Any]] = None,
         mentioned: Optional[List[str]] = None,
-        mentions_everyone: bool = False
+        mentions_everyone: bool = False,
     ) -> bool:
         """
         Send a single text message via Evolution API with mention support.
@@ -262,7 +246,7 @@ class EvolutionApiSender:
         if mentioned:
             payload["mentioned"] = mentioned
             logger.info(f"Including {len(mentioned)} mentions: {mentioned}")
-            
+
         if mentions_everyone:
             payload["mentionsEveryOne"] = True
             logger.info("Mentioning everyone in group")
@@ -291,42 +275,25 @@ class EvolutionApiSender:
                     error_message = str(error_response.get("message", ""))
                     logger.error(f"Evolution API 400 error response: {error_response}")
 
-                    if quoted_message and (
-                        "typebotSessionId" in error_message
-                        or "database" in error_message.lower()
-                    ):
-                        logger.warning(
-                            f"Evolution API 400 error (known database schema issue): {error_message}"
-                        )
-                        logger.info(
-                            "Message likely sent despite 400 error - continuing"
-                        )
+                    if quoted_message and ("typebotSessionId" in error_message or "database" in error_message.lower()):
+                        logger.warning(f"Evolution API 400 error (known database schema issue): {error_message}")
+                        logger.info("Message likely sent despite 400 error - continuing")
                         return True
                 except Exception as e:
                     logger.error(f"Could not parse 400 error response: {e}")
                     logger.error(f"Raw response text: {response.text}")
 
                 if quoted_message:
-                    logger.warning(
-                        "400 error with quoted message - this may be Evolution API database schema issue"
-                    )
-                    logger.info(
-                        "Attempting to continue - message may have been sent despite error"
-                    )
+                    logger.warning("400 error with quoted message - this may be Evolution API database schema issue")
+                    logger.info("Attempting to continue - message may have been sent despite error")
                     return True
                 elif mentioned:
                     # Known Evolution API issue: 400 errors with mentions are often false positives
-                    logger.warning(
-                        "400 error with mentions - this may be Evolution API known issue"
-                    )
-                    logger.info(
-                        "Attempting to continue - message with mentions may have been sent despite error"
-                    )
+                    logger.warning("400 error with mentions - this may be Evolution API known issue")
+                    logger.info("Attempting to continue - message with mentions may have been sent despite error")
                     return True
                 else:
-                    logger.error(
-                        "400 error without quoted message or mentions - this is a real error"
-                    )
+                    logger.error("400 error without quoted message or mentions - this is a real error")
                     return False
 
             # Raise for other HTTP errors
@@ -360,9 +327,7 @@ class EvolutionApiSender:
         if "conversation" in message_data:
             quoted_payload["message"]["conversation"] = message_data["conversation"]
         elif "extendedTextMessage" in message_data:
-            quoted_payload["message"]["conversation"] = message_data[
-                "extendedTextMessage"
-            ].get("text", "")
+            quoted_payload["message"]["conversation"] = message_data["extendedTextMessage"].get("text", "")
         elif "imageMessage" in message_data:
             # For media messages, use caption or indicate it's an image
             caption = message_data["imageMessage"].get("caption", "[Image]")
@@ -405,14 +370,10 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot send media message: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot send media message: missing server URL, API key, or instance name")
             return False
 
-        url = (
-            f"{self.server_url}/message/sendMedia/{quote(self.instance_name, safe='')}"
-        )
+        url = f"{self.server_url}/message/sendMedia/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
@@ -453,9 +414,7 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot send audio message: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot send audio message: missing server URL, API key, or instance name")
             return False
 
         url = f"{self.server_url}/message/sendWhatsAppAudio/{quote(self.instance_name, safe='')}"
@@ -489,9 +448,7 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot send sticker: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot send sticker: missing server URL, API key, or instance name")
             return False
 
         url = f"{self.server_url}/message/sendSticker/{quote(self.instance_name, safe='')}"
@@ -513,9 +470,7 @@ class EvolutionApiSender:
             logger.error(f"Failed to send sticker: {str(e)}")
             return False
 
-    def send_contact_message(
-        self, recipient: str, contacts: List[Dict[str, Any]]
-    ) -> bool:
+    def send_contact_message(self, recipient: str, contacts: List[Dict[str, Any]]) -> bool:
         """
         Send contact card(s) via Evolution API.
 
@@ -527,9 +482,7 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot send contact: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot send contact: missing server URL, API key, or instance name")
             return False
 
         url = f"{self.server_url}/message/sendContact/{quote(self.instance_name, safe='')}"
@@ -551,9 +504,7 @@ class EvolutionApiSender:
             logger.error(f"Failed to send contact: {str(e)}")
             return False
 
-    def send_reaction_message(
-        self, recipient: str, message_id: str, reaction: str
-    ) -> bool:
+    def send_reaction_message(self, recipient: str, message_id: str, reaction: str) -> bool:
         """
         Send a reaction to a message via Evolution API.
 
@@ -566,9 +517,7 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot send reaction: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot send reaction: missing server URL, API key, or instance name")
             return False
 
         url = f"{self.server_url}/message/sendReaction/{quote(self.instance_name, safe='')}"
@@ -603,14 +552,10 @@ class EvolutionApiSender:
             Optional[Dict]: Profile data if successful, None otherwise
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot fetch profile: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot fetch profile: missing server URL, API key, or instance name")
             return None
 
-        url = (
-            f"{self.server_url}/chat/fetchProfile/{quote(self.instance_name, safe='')}"
-        )
+        url = f"{self.server_url}/chat/fetchProfile/{quote(self.instance_name, safe='')}"
         formatted_number = self._prepare_recipient(phone_number)
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
@@ -641,9 +586,7 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot update profile picture: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot update profile picture: missing server URL, API key, or instance name")
             return False
 
         url = f"{self.server_url}/chat/updateProfilePicture/{quote(self.instance_name, safe='')}"
@@ -682,14 +625,10 @@ class EvolutionApiSender:
             bool: Success status
         """
         if not all([self.server_url, self.api_key, self.instance_name]):
-            logger.error(
-                "Cannot send presence: missing server URL, API key, or instance name"
-            )
+            logger.error("Cannot send presence: missing server URL, API key, or instance name")
             return False
 
-        url = (
-            f"{self.server_url}/chat/sendPresence/{quote(self.instance_name, safe='')}"
-        )
+        url = f"{self.server_url}/chat/sendPresence/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
@@ -722,9 +661,7 @@ class EvolutionApiSender:
             logger.error(f"Error sending presence update: {e}")
             return False
 
-    def get_presence_updater(
-        self, recipient: str, presence_type: str = "composing"
-    ) -> "PresenceUpdater":
+    def get_presence_updater(self, recipient: str, presence_type: str = "composing") -> "PresenceUpdater":
         """
         Get a PresenceUpdater instance for the given recipient.
 
@@ -809,12 +746,8 @@ class PresenceUpdater:
                     message_sent_time = time.time()
 
                 # Check if we've reached the post-send cooldown time
-                if message_sent_time and (
-                    time.time() - message_sent_time > post_send_cooldown
-                ):
-                    logger.info(
-                        "Typing indicator cooldown completed after message sent"
-                    )
+                if message_sent_time and (time.time() - message_sent_time > post_send_cooldown):
+                    logger.info("Typing indicator cooldown completed after message sent")
                     self.should_update = False
                     break
 

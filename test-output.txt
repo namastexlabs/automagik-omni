@@ -1,0 +1,96 @@
+[1m============================= test session starts ==============================[0m
+[1mcollecting ... [0mcollected 309 items / 5 errors / 2 deselected / 307 selected
+
+==================================== ERRORS ====================================
+[31m[1m______________ ERROR collecting tests/test_all_time_parameter.py _______________[0m
+[31mImportError while importing test module '/home/runner/work/automagik-omni/automagik-omni/tests/test_all_time_parameter.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_all_time_parameter.py:10: in <module>
+    from src.api.app import app
+src/api/app.py:283: in <module>
+    from src.api.routes.traces import router as traces_router
+src/api/routes/traces.py:17: in <module>
+    from src.services.trace_service import TraceService
+src/services/trace_service.py:18: in <module>
+    from src.services.streaming_trace_context import StreamingTraceContext
+src/services/streaming_trace_context.py:14: in <module>
+    from src.services.trace_service import TraceContext, utcnow
+E   ImportError: cannot import name 'TraceContext' from partially initialized module 'src.services.trace_service' (most likely due to a circular import) (/home/runner/work/automagik-omni/automagik-omni/src/services/trace_service.py)[0m
+[31m[1m_________________ ERROR collecting tests/test_api_mentions.py __________________[0m
+[31mImportError while importing test module '/home/runner/work/automagik-omni/automagik-omni/tests/test_api_mentions.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_api_mentions.py:9: in <module>
+    from src.api.app import app
+src/api/app.py:283: in <module>
+    from src.api.routes.traces import router as traces_router
+src/api/routes/traces.py:17: in <module>
+    from src.services.trace_service import TraceService
+src/services/trace_service.py:18: in <module>
+    from src.services.streaming_trace_context import StreamingTraceContext
+src/services/streaming_trace_context.py:14: in <module>
+    from src.services.trace_service import TraceContext, utcnow
+E   ImportError: cannot import name 'TraceContext' from partially initialized module 'src.services.trace_service' (most likely due to a circular import) (/home/runner/work/automagik-omni/automagik-omni/src/services/trace_service.py)[0m
+[31m[1m_____________ ERROR collecting tests/test_mentions_integration.py ______________[0m
+[31mImportError while importing test module '/home/runner/work/automagik-omni/automagik-omni/tests/test_mentions_integration.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_mentions_integration.py:9: in <module>
+    from src.api.app import app
+src/api/app.py:283: in <module>
+    from src.api.routes.traces import router as traces_router
+src/api/routes/traces.py:17: in <module>
+    from src.services.trace_service import TraceService
+src/services/trace_service.py:18: in <module>
+    from src.services.streaming_trace_context import StreamingTraceContext
+src/services/streaming_trace_context.py:14: in <module>
+    from src.services.trace_service import TraceContext, utcnow
+E   ImportError: cannot import name 'TraceContext' from partially initialized module 'src.services.trace_service' (most likely due to a circular import) (/home/runner/work/automagik-omni/automagik-omni/src/services/trace_service.py)[0m
+[31m[1m_____________ ERROR collecting tests/test_real_world_scenarios.py ______________[0m
+[31mImportError while importing test module '/home/runner/work/automagik-omni/automagik-omni/tests/test_real_world_scenarios.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_real_world_scenarios.py:15: in <module>
+    from src.api.app import app
+src/api/app.py:283: in <module>
+    from src.api.routes.traces import router as traces_router
+src/api/routes/traces.py:17: in <module>
+    from src.services.trace_service import TraceService
+src/services/trace_service.py:18: in <module>
+    from src.services.streaming_trace_context import StreamingTraceContext
+src/services/streaming_trace_context.py:14: in <module>
+    from src.services.trace_service import TraceContext, utcnow
+E   ImportError: cannot import name 'TraceContext' from partially initialized module 'src.services.trace_service' (most likely due to a circular import) (/home/runner/work/automagik-omni/automagik-omni/src/services/trace_service.py)[0m
+[31m[1m_______________ ERROR collecting tests/test_session_filtering.py _______________[0m
+[31mImportError while importing test module '/home/runner/work/automagik-omni/automagik-omni/tests/test_session_filtering.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_session_filtering.py:12: in <module>
+    from src.api.app import app
+src/api/app.py:283: in <module>
+    from src.api.routes.traces import router as traces_router
+src/api/routes/traces.py:17: in <module>
+    from src.services.trace_service import TraceService
+src/services/trace_service.py:18: in <module>
+    from src.services.streaming_trace_context import StreamingTraceContext
+src/services/streaming_trace_context.py:14: in <module>
+    from src.services.trace_service import TraceContext, utcnow
+E   ImportError: cannot import name 'TraceContext' from partially initialized module 'src.services.trace_service' (most likely due to a circular import) (/home/runner/work/automagik-omni/automagik-omni/src/services/trace_service.py)[0m
+!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!!
+[31m======================= [33m2 deselected[0m, [31m[1m5 errors[0m[31m in 1.20s[0m[31m ========================[0m
