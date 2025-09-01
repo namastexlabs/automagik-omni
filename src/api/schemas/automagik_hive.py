@@ -2,7 +2,7 @@
 Pydantic schemas for AutomagikHive integration validation.
 """
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, validator
 import re
 
 
@@ -70,7 +70,7 @@ class AutomagikHiveConfigCreate(BaseModel):
                 missing_fields.append('hive_api_key')
             if not self.hive_agent_id:
                 missing_fields.append('hive_agent_id')
-            
+
             if missing_fields:
                 raise ValueError(f"When hive_enabled is True, these fields are required: {', '.join(missing_fields)}")
 

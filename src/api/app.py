@@ -175,7 +175,7 @@ async def lifespan(app: FastAPI):
         try:
             logger.info("Checking database migrations...")
             from src.db.migrations import auto_migrate
-            
+
             if auto_migrate():
                 logger.info("✅ Database migrations completed successfully")
             else:
@@ -228,9 +228,9 @@ async def lifespan(app: FastAPI):
 
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
-    
+
     yield
-    
+
     # Shutdown (cleanup if needed)
     logger.info("Shutting down application...")
 
@@ -250,12 +250,12 @@ app = FastAPI(
             "description": "Instance Management",
         },
         {
-            "name": "messages", 
+            "name": "messages",
             "description": "Message Operations",
         },
         {
             "name": "traces",
-            "description": "Message Tracing & Analytics", 
+            "description": "Message Tracing & Analytics",
         },
         {
             "name": "webhooks",
@@ -380,12 +380,12 @@ app.openapi = custom_openapi
 async def health_check():
     """
     System health check endpoint.
-    
+
     Returns status for API, database, Discord services, and runtime information.
     """
-    
+
     from datetime import datetime, timezone
-    
+
     # Basic API health
     health_status = {
         "status": "healthy",
@@ -400,7 +400,7 @@ async def health_check():
             }
         }
     }
-    
+
     # Check Discord service status if available
     try:
         # Get Discord bot manager instance (if running)
@@ -416,7 +416,7 @@ async def health_check():
                         "uptime": bot_status.uptime.isoformat() if bot_status.uptime else None,
                         "latency": round(bot_status.latency * 1000, 2) if bot_status.latency else None  # ms
                     }
-            
+
             health_status["services"]["discord"] = {
                 "status": "up" if bot_statuses else "down",
                 "instances": bot_statuses,
@@ -427,13 +427,13 @@ async def health_check():
                 "status": "not_running",
                 "message": "Discord service not initialized"
             }
-            
+
     except Exception as e:
         health_status["services"]["discord"] = {
             "status": "error",
             "error": str(e)
         }
-    
+
     return health_status
 
 
@@ -448,23 +448,23 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         request: FastAPI request object
     """
     from src.services.trace_service import get_trace_context
-    
+
     start_time = time.time()
     payload_size = 0
 
     try:
         logger.info(f"🔄 WEBHOOK ENTRY: Starting webhook processing for instance '{instance_config.name}'")
-        
+
         # Get the JSON data from the request
         data = await request.json()
         payload_size = len(json.dumps(data).encode('utf-8'))
         logger.info(f"✅ WEBHOOK JSON PARSED: Received webhook for instance '{instance_config.name}'")
-        
+
         # Enhanced logging for audio message debugging
         message_obj = data.get("data", {}).get("message", {})
         if "audioMessage" in message_obj:
             logger.info(f"🎵 AUDIO MESSAGE DETECTED: {json.dumps(message_obj, indent=2)[:1000]}")
-        
+
         logger.debug(f"Webhook data: {data}")
 
         # Start message tracing
@@ -524,7 +524,7 @@ async def _handle_evolution_webhook(instance_config, request: Request):
             )
         except Exception as te:
             logger.debug(f"Webhook telemetry tracking failed: {te}")
-        
+
         logger.error(
             f"Error processing webhook for instance '{instance_config.name}': {e}",
             exc_info=True,
@@ -538,7 +538,7 @@ async def evolution_webhook_tenant(
 ):
     """
     Multi-tenant webhook endpoint for Evolution API.
-    
+
     Receives incoming messages from Evolution API instances and routes them to the appropriate tenant configuration.
     Supports text, media, audio, and other message types with automatic transcription and processing.
     """

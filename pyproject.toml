@@ -72,3 +72,22 @@ dev = [
     "mypy>=1.16.1",
     "ruff>=0.12.0",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]  # Line too long
+
+[tool.ruff.lint.per-file-ignores]
+"src/api/app.py" = ["E402"]  # Module imports not at top (required for setup_logging)
+"src/api/app_backup.py" = ["E402"]
+"src/channels/__init__.py" = ["F401"]  # Imported but unused (used for availability check)
+"src/channels/discord/channel_handler.py" = ["E402", "E722"]  # Module imports and bare except
+"src/channels/discord/interaction_handler.py" = ["E722"]  # Bare except for Discord error handling
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

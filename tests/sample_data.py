@@ -25,7 +25,7 @@ SAMPLE_WEBHOOK_PAYLOAD = {
 }
 
 SAMPLE_IMAGE_WEBHOOK_PAYLOAD = {
-    "event": "messages.upsert", 
+    "event": "messages.upsert",
     "data": {
         "messages": [{
             "key": {
@@ -57,7 +57,7 @@ SAMPLE_EVOLUTION_QR_RESPONSE = {
 
 SAMPLE_EVOLUTION_STATUS_RESPONSE = {
     "status": "connected",
-    "connection": "open", 
+    "connection": "open",
     "user": {
         "id": "555197285829@s.whatsapp.net",
         "name": "Test User",
@@ -94,7 +94,7 @@ SAMPLE_AGENT_ERROR_RESPONSE = {
 # Real instance configurations (based on actual database data)
 SAMPLE_INSTANCE_CONFIG = {
     "name": "test-instance",
-    "channel_type": "whatsapp", 
+    "channel_type": "whatsapp",
     "whatsapp_instance": "test-whatsapp-123",
     "evolution_url": "http://172.19.209.168:18080",
     "evolution_key": "real-evolution-key-123",
@@ -132,7 +132,7 @@ SAMPLE_TRACE_DATA = {
 # Phone number samples (realistic formats)
 SAMPLE_PHONE_NUMBERS = [
     "+555197285829",
-    "+1234567890", 
+    "+1234567890",
     "+447911123456",
     "+33612345678",
     "+5511987654321"
@@ -146,7 +146,7 @@ SAMPLE_ERROR_RESPONSES = {
         "code": "CONNECTION_TIMEOUT"
     },
     "agent_api_error": {
-        "error": "Agent API returned error", 
+        "error": "Agent API returned error",
         "details": "Rate limit exceeded",
         "code": "RATE_LIMIT_EXCEEDED"
     },

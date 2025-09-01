@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from src.db.models import InstanceConfig, User
 class TestInstanceConfigOmniFields:
     """Test the omni agent fields in InstanceConfig model."""
-    
+
     def test_default_omni_fields(self, test_db):
         """Test that omni fields have correct defaults."""
         instance = InstanceConfig(
@@ -17,7 +17,7 @@ class TestInstanceConfigOmniFields:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         # Test defaults
         assert instance.agent_instance_type == "automagik"
         assert instance.agent_id == "default"
@@ -25,7 +25,7 @@ class TestInstanceConfigOmniFields:
         assert instance.agent_timeout == 60
         assert instance.agent_stream_mode is False
         assert instance.default_agent is None
-    
+
     def test_omni_fields_assignment(self, test_db):
         """Test that omni fields can be set correctly."""
         instance = InstanceConfig(
@@ -40,7 +40,7 @@ class TestInstanceConfigOmniFields:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         assert instance.agent_instance_type == "hive"
         assert instance.agent_api_url == "https://hive.example.com/api"
         assert instance.agent_api_key == "hive-api-key"
@@ -48,7 +48,7 @@ class TestInstanceConfigOmniFields:
         assert instance.agent_type == "team"
         assert instance.agent_timeout == 120
         assert instance.agent_stream_mode is True
-    
+
     def test_backward_compatibility(self, test_db):
         """Test backward compatibility with legacy fields."""
         instance = InstanceConfig(
@@ -60,13 +60,13 @@ class TestInstanceConfigOmniFields:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         # Should use default_agent when agent_id is not set
         config = instance.get_agent_config()
         assert config["agent_id"] in ["my-agent", "default"]
         assert config["instance_type"] == "automagik"
         assert config["agent_type"] == "agent"
-    
+
     def test_hive_team_configuration(self, test_db):
         """Test Hive team configuration."""
         instance = InstanceConfig(
@@ -80,12 +80,12 @@ class TestInstanceConfigOmniFields:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         assert instance.agent_instance_type == "hive"
         assert instance.agent_id == "dev-team"
         assert instance.agent_type == "team"
         assert instance.agent_stream_mode is True
-    
+
     def test_legacy_hive_fields(self, test_db):
         """Test that legacy hive fields still work."""
         instance = InstanceConfig(
@@ -102,7 +102,7 @@ class TestInstanceConfigOmniFields:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         # Legacy fields should be accessible
         assert instance.hive_enabled is True
         assert instance.hive_api_url == "https://hive.com"
@@ -112,7 +112,7 @@ class TestInstanceConfigOmniFields:
         assert instance.hive_stream_mode is True
 class TestInstanceConfigProperties:
     """Test the property methods for omni configuration."""
-    
+
     def test_is_hive_property(self, test_db):
         """Test is_hive property."""
         # Hive instance
@@ -124,10 +124,10 @@ class TestInstanceConfigProperties:
         )
         test_db.add(hive_instance)
         test_db.commit()
-        
+
         assert hive_instance.is_hive is True
         assert hive_instance.is_automagik is False
-        
+
         # Automagik instance
         automagik_instance = InstanceConfig(
             name="automagik",
@@ -137,10 +137,10 @@ class TestInstanceConfigProperties:
         )
         test_db.add(automagik_instance)
         test_db.commit()
-        
+
         assert automagik_instance.is_hive is False
         assert automagik_instance.is_automagik is True
-    
+
     def test_is_team_property(self, test_db):
         """Test is_team property."""
         # Hive team
@@ -153,9 +153,9 @@ class TestInstanceConfigProperties:
         )
         test_db.add(hive_team)
         test_db.commit()
-        
+
         assert hive_team.is_team is True
-        
+
         # Hive agent
         hive_agent = InstanceConfig(
             name="hive-agent",
@@ -166,9 +166,9 @@ class TestInstanceConfigProperties:
         )
         test_db.add(hive_agent)
         test_db.commit()
-        
+
         assert hive_agent.is_team is False
-        
+
         # Automagik (never team)
         automagik = InstanceConfig(
             name="automagik-agent",
@@ -179,9 +179,9 @@ class TestInstanceConfigProperties:
         )
         test_db.add(automagik)
         test_db.commit()
-        
+
         assert automagik.is_team is False  # Automagik can't be team
-    
+
     def test_streaming_enabled_property(self, test_db):
         """Test streaming_enabled property."""
         # Hive with streaming
@@ -194,9 +194,9 @@ class TestInstanceConfigProperties:
         )
         test_db.add(hive_streaming)
         test_db.commit()
-        
+
         assert hive_streaming.streaming_enabled is True
-        
+
         # Hive without streaming
         hive_no_stream = InstanceConfig(
             name="hive-no-stream",
@@ -207,9 +207,9 @@ class TestInstanceConfigProperties:
         )
         test_db.add(hive_no_stream)
         test_db.commit()
-        
+
         assert hive_no_stream.streaming_enabled is False
-        
+
         # Automagik with streaming (still false because automagik doesn't support it)
         automagik_stream = InstanceConfig(
             name="automagik-stream",
@@ -220,11 +220,11 @@ class TestInstanceConfigProperties:
         )
         test_db.add(automagik_stream)
         test_db.commit()
-        
+
         assert automagik_stream.streaming_enabled is False  # Automagik doesn't support streaming
 class TestInstanceConfigMethods:
     """Test the helper methods in InstanceConfig."""
-    
+
     def test_get_agent_config_with_omni_fields(self, test_db):
         """Test get_agent_config with omni fields."""
         instance = InstanceConfig(
@@ -239,9 +239,9 @@ class TestInstanceConfigMethods:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         config = instance.get_agent_config()
-        
+
         assert config["instance_type"] == "hive"
         assert config["api_url"] == "https://api.test.com"
         assert config["api_key"] == "test-key"
@@ -249,7 +249,7 @@ class TestInstanceConfigMethods:
         assert config["agent_type"] == "agent"
         assert config["timeout"] == 30
         assert config["stream_mode"] is True
-    
+
     def test_get_agent_config_with_defaults(self, test_db):
         """Test get_agent_config with default values."""
         instance = InstanceConfig(
@@ -259,15 +259,15 @@ class TestInstanceConfigMethods:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         config = instance.get_agent_config()
-        
+
         assert config["instance_type"] == "automagik"
         assert config["agent_id"] == "default"
         assert config["agent_type"] == "agent"
         assert config["timeout"] == 60
         assert config["stream_mode"] is False
-    
+
     def test_get_agent_config_fallback_to_default_agent(self, test_db):
         """Test get_agent_config falls back to default_agent."""
         instance = InstanceConfig(
@@ -278,10 +278,10 @@ class TestInstanceConfigMethods:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         config = instance.get_agent_config()
         assert config["agent_id"] == "fallback-agent"
-    
+
     def test_has_hive_config_omni(self, test_db):
         """Test has_hive_config with omni fields."""
         # Complete hive config
@@ -294,9 +294,9 @@ class TestInstanceConfigMethods:
         )
         test_db.add(complete)
         test_db.commit()
-        
+
         assert complete.has_hive_config() is True
-        
+
         # Incomplete hive config (missing agent_id)
         incomplete = InstanceConfig(
             name="incomplete-hive",
@@ -306,10 +306,10 @@ class TestInstanceConfigMethods:
         )
         test_db.add(incomplete)
         test_db.commit()
-        
+
         # With default agent_id, should still be valid
         assert incomplete.has_hive_config() is True  # agent_id defaults to "default"
-    
+
     def test_has_hive_config_legacy(self, test_db):
         """Test has_hive_config with legacy fields."""
         # Complete legacy config
@@ -324,9 +324,9 @@ class TestInstanceConfigMethods:
         )
         test_db.add(legacy)
         test_db.commit()
-        
+
         assert legacy.has_hive_config() is True
-    
+
     def test_get_hive_config_omni(self, test_db):
         """Test get_hive_config with omni fields."""
         instance = InstanceConfig(
@@ -341,9 +341,9 @@ class TestInstanceConfigMethods:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         config = instance.get_hive_config()
-        
+
         assert config["instance_type"] == "hive"
         assert config["api_url"] == "https://hive.com"
         assert config["api_key"] == "hive-key"
@@ -351,7 +351,7 @@ class TestInstanceConfigMethods:
         assert config["agent_type"] == "team"
         assert config["timeout"] == 45
         assert config["stream_mode"] is True
-    
+
     def test_get_hive_config_legacy(self, test_db):
         """Test get_hive_config with legacy fields."""
         instance = InstanceConfig(
@@ -367,9 +367,9 @@ class TestInstanceConfigMethods:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         config = instance.get_hive_config()
-        
+
         # Should return legacy format
         assert config["api_url"] == "https://hive.com"
         assert config["api_key"] == "hive-key"
@@ -378,7 +378,7 @@ class TestInstanceConfigMethods:
         assert config["stream_mode"] is True
 class TestInstanceConfigEdgeCases:
     """Test edge cases and error conditions."""
-    
+
     def test_null_values_handling(self, test_db):
         """Test handling of null values in omni fields."""
         instance = InstanceConfig(
@@ -390,11 +390,11 @@ class TestInstanceConfigEdgeCases:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         config = instance.get_agent_config()
         # Should fall back to "default"
         assert config["agent_id"] == "default"
-    
+
     def test_mixed_configuration(self, test_db):
         """Test instance with both omni and legacy fields."""
         instance = InstanceConfig(
@@ -409,13 +409,13 @@ class TestInstanceConfigEdgeCases:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         # Omni fields should take precedence
         config = instance.get_agent_config()
         assert config["api_url"] == "https://new.com"
         assert config["api_key"] == "new-key"
         assert config["agent_id"] == "new-agent"
-    
+
     def test_invalid_instance_type(self, test_db):
         """Test handling of invalid instance type."""
         instance = InstanceConfig(
@@ -425,17 +425,17 @@ class TestInstanceConfigEdgeCases:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         # Manually set invalid type (simulating data corruption)
         instance.agent_instance_type = "invalid"
         test_db.commit()
-        
+
         # Properties should handle gracefully
         assert instance.is_hive is False
         assert instance.is_automagik is False
         assert instance.is_team is False
         assert instance.streaming_enabled is False
-    
+
     def test_empty_strings(self, test_db):
         """Test handling of empty strings in fields."""
         instance = InstanceConfig(
@@ -447,13 +447,13 @@ class TestInstanceConfigEdgeCases:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         config = instance.get_agent_config()
         # Should fall back to "default" for empty strings
         assert config["agent_id"] == "default"
 class TestInstanceConfigConstraints:
     """Test database constraints and validation."""
-    
+
     def test_required_fields_constraints(self, test_db):
         """Test that required fields are enforced."""
         # Missing name
@@ -465,7 +465,7 @@ class TestInstanceConfigConstraints:
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
-        
+
         # Missing agent_api_url
         with pytest.raises(IntegrityError):
             instance = InstanceConfig(
@@ -475,7 +475,7 @@ class TestInstanceConfigConstraints:
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
-        
+
         # Missing agent_api_key
         with pytest.raises(IntegrityError):
             instance = InstanceConfig(
@@ -485,7 +485,7 @@ class TestInstanceConfigConstraints:
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
-    
+
     def test_unique_name_constraint(self, test_db):
         """Test that instance names must be unique."""
         # Create first instance
@@ -496,7 +496,7 @@ class TestInstanceConfigConstraints:
         )
         test_db.add(instance1)
         test_db.commit()
-        
+
         # Try to create second with same name
         with pytest.raises(IntegrityError):
             instance2 = InstanceConfig(
@@ -509,7 +509,7 @@ class TestInstanceConfigConstraints:
         test_db.rollback()
 class TestUserModel:
     """Test User model for completeness."""
-    
+
     def test_user_creation(self, test_db):
         """Test basic user creation."""
         user = User(
@@ -520,13 +520,13 @@ class TestUserModel:
         )
         test_db.add(user)
         test_db.commit()
-        
+
         assert user.id is not None
         assert user.phone_number == "+1234567890"
         assert user.whatsapp_jid == "1234567890@s.whatsapp.net"
         assert user.display_name == "Test User"
         assert user.instance_name == "test-instance"
-    
+
     def test_user_with_instance(self, test_db):
         """Test user associated with an instance."""
         # Create instance
@@ -537,7 +537,7 @@ class TestUserModel:
         )
         test_db.add(instance)
         test_db.commit()
-        
+
         # Create user with instance
         user = User(
             phone_number="+9876543210",
@@ -546,7 +546,7 @@ class TestUserModel:
         )
         test_db.add(user)
         test_db.commit()
-        
+
         assert user.instance_name == instance.name
         assert user.instance == instance
         assert instance.users == [user]

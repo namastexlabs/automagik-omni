@@ -83,9 +83,9 @@ class EvolutionApiSender:
         return formatted_recipient
 
     def send_text_message(
-        self, 
-        recipient: str, 
-        text: str, 
+        self,
+        recipient: str,
+        text: str,
         quoted_message: Optional[Dict[str, Any]] = None,
         mentioned: Optional[List[str]] = None,
         mentions_everyone: bool = False,
@@ -173,9 +173,9 @@ class EvolutionApiSender:
         return any(media_type in message_obj for media_type in media_types)
 
     def _send_split_messages(
-        self, 
-        recipient: str, 
-        text: str, 
+        self,
+        recipient: str,
+        text: str,
         quoted_message: Optional[Dict[str, Any]],
         mentioned: Optional[List[str]] = None,
         mentions_everyone: bool = False
@@ -231,9 +231,9 @@ class EvolutionApiSender:
         return success
 
     def _send_single_message(
-        self, 
-        recipient: str, 
-        text: str, 
+        self,
+        recipient: str,
+        text: str,
         quoted_message: Optional[Dict[str, Any]] = None,
         mentioned: Optional[List[str]] = None,
         mentions_everyone: bool = False
@@ -262,7 +262,7 @@ class EvolutionApiSender:
         if mentioned:
             payload["mentioned"] = mentioned
             logger.info(f"Including {len(mentioned)} mentions: {mentioned}")
-            
+
         if mentions_everyone:
             payload["mentionsEveryOne"] = True
             logger.info("Mentioning everyone in group")

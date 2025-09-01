@@ -26,7 +26,7 @@ class BaseHiveEvent(BaseModel):
     event: HiveEventType = Field(..., description="Type of the event")
     timestamp: Optional[datetime] = Field(None, description="Event timestamp")
     run_id: Optional[str] = Field(None, description="Run ID associated with this event")
-    
+
     @field_validator('timestamp', mode='before')
     @classmethod
     def parse_timestamp(cls, v):
@@ -60,7 +60,7 @@ class RunResponseContentEvent(BaseHiveEvent):
     event: HiveEventType = Field(default=HiveEventType.RUN_RESPONSE_CONTENT)
     content: str = Field(..., description="Streaming content chunk")
     delta: Optional[str] = Field(None, description="Content delta (alias for content)")
-    
+
     @field_validator('content', mode='before')
     @classmethod
     def ensure_content(cls, v, info: ValidationInfo):
@@ -95,7 +95,7 @@ class HeartbeatEvent(BaseHiveEvent):
 # Union type for all possible events
 HiveEvent = Union[
     RunStartedEvent,
-    RunResponseContentEvent, 
+    RunResponseContentEvent,
     RunCompletedEvent,
     ErrorEvent,
     HeartbeatEvent
@@ -107,7 +107,7 @@ class HiveRunRequest(BaseModel):
     message: str = Field(..., description="Message to send to the agent/team")
     stream: bool = Field(default=True, description="Enable streaming response")
     user_id: Optional[str] = Field(None, description="User identifier")
-    session_id: Optional[str] = Field(None, description="Session identifier") 
+    session_id: Optional[str] = Field(None, description="Session identifier")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
@@ -130,39 +130,39 @@ class HiveRunResponse(BaseModel):
 def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
     """
     Parse raw event data into appropriate HiveEvent model.
-    
+
     Args:
         event_data: Raw event data from SSE stream
-        
+
     Returns:
         Parsed HiveEvent instance
-        
+
     Raises:
         ValueError: If event data is invalid or unknown event type
     """
     if not isinstance(event_data, dict):
         raise ValueError(f"Event data must be a dictionary, got {type(event_data)}")
-    
+
     event_type = event_data.get('event')
     if not event_type:
         raise ValueError("Event data missing 'event' field")
-    
+
     try:
         event_enum = HiveEventType(event_type)
     except ValueError:
         # Try to map common variations (snake_case to PascalCase)
         event_type_mapping = {
             "run_started": "RunStarted",
-            "run_response_content": "RunResponseContent", 
+            "run_response_content": "RunResponseContent",
             "run_completed": "RunCompleted",
             "error": "Error",
             "heartbeat": "Heartbeat",
             # Team event mappings
             "teamrunresponseconteent": "RunResponseContent",
-            "teamrunstarted": "RunStarted", 
+            "teamrunstarted": "RunStarted",
             "teamruncompleted": "RunCompleted"
         }
-        
+
         mapped_type = event_type_mapping.get(event_type.lower())
         if mapped_type:
             logger.info(f"Mapping event type '{event_type}' to '{mapped_type}'")
@@ -170,13 +170,13 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
                 event_enum = HiveEventType(mapped_type)
             except ValueError:
                 logger.warning(f"Failed to map event type: {event_type} -> {mapped_type}")
-                # Return as generic event  
+                # Return as generic event
                 return BaseHiveEvent(**event_data)
         else:
             logger.warning(f"Unknown event type: {event_type}")
             # Return as generic event
             return BaseHiveEvent(**event_data)
-    
+
     # Map to specific event classes
     event_class_map = {
         HiveEventType.RUN_STARTED: RunStartedEvent,
@@ -185,9 +185,9 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
         HiveEventType.ERROR: ErrorEvent,
         HiveEventType.HEARTBEAT: HeartbeatEvent
     }
-    
+
     event_class = event_class_map.get(event_enum, BaseHiveEvent)
-    
+
     try:
         return event_class(**event_data)
     except Exception as e:

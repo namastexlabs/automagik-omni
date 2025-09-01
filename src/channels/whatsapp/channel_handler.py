@@ -169,7 +169,7 @@ class WhatsAppChannelHandler(ChannelHandler):
                 "byEvents": False,  # Use "byEvents" not "webhookByEvents"
             }
             logger.info(f"Creating instance '{instance.name}' with webhook_base64={instance.webhook_base64}")
-            
+
             evolution_request = EvolutionCreateRequest(
                 instanceName=instance.name,
                 integration=integration,
@@ -194,7 +194,7 @@ class WhatsAppChannelHandler(ChannelHandler):
                 )
 
             # Post-creation webhook update to ensure correct base64 setting
-            # This is needed because Evolution API v2.3.0 doesn't properly respect 
+            # This is needed because Evolution API v2.3.0 doesn't properly respect
             # webhookBase64 setting during instance creation
             try:
                 await evolution_client.set_webhook(
