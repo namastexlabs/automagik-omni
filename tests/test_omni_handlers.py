@@ -534,7 +534,7 @@ class TestHandlerErrorScenarios:
     def test_invalid_instance_config(self):
         """Test handling of invalid instance configurations."""
         whatsapp_handler = WhatsAppChatHandler()
-        discord_handler = DiscordChatHandler()
+        DiscordChatHandler()
 
         # Test with None config
         with pytest.raises(Exception):

@@ -90,6 +90,9 @@ ignore = ["E501"]  # Line too long
 "src/cli/main.py" = ["E402"]  # Module imports not at top (required for setup)
 "src/cli/main_cli.py" = ["E402"]  # Module imports not at top (required for setup)
 "src/channels/whatsapp/handlers.py" = ["E402"]  # Module imports not at top
+"src/commands/discord_cmd.py" = ["E402"]  # Module imports not at top
+"src/commands/discord_service_manager.py" = ["E402"]  # Module imports not at top
+"tests/conftest.py" = ["E402"]  # Module imports not at top (required for setup)
 
 [tool.ruff.format]
 quote-style = "double"

@@ -10,7 +10,7 @@ import pytest
 import os
 from typing import Dict, Any, Generator
 from unittest.mock import patch, AsyncMock, Mock
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
 

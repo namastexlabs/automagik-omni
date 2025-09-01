@@ -159,7 +159,7 @@ class TestSessionFilteringIntegration:
 
     def test_filter_by_agent_session_id_functional(self, test_client, test_db):
         """Functional test for filtering by agent session ID."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         # Debug: verify data was created
         created_traces = test_db.query(MessageTrace).filter(MessageTrace.trace_id.like("test_%")).all()
@@ -216,7 +216,7 @@ class TestSessionFilteringIntegration:
 
     def test_filter_by_session_name_functional(self, test_client, test_db):
         """Functional test for filtering by session name."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         try:
             # Filter for specific session name
@@ -245,7 +245,7 @@ class TestSessionFilteringIntegration:
 
     def test_filter_by_has_media_functional(self, test_client, test_db):
         """Functional test for filtering by media presence."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         try:
             # Filter for traces with media
@@ -272,7 +272,7 @@ class TestSessionFilteringIntegration:
 
     def test_combined_session_filters_functional(self, test_client, test_db):
         """Functional test for combining session and instance filters."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         try:
             # Filter by session name and instance
@@ -304,7 +304,7 @@ class TestSessionFilteringIntegration:
 
     def test_session_isolation_functional(self, test_client, test_db):
         """Functional test for session isolation between instances."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         try:
             # Filter by instance A only
@@ -345,7 +345,7 @@ class TestSessionFilteringIntegration:
 
     def test_null_agent_session_id_functional(self, test_client, test_db):
         """Functional test for handling null agent session IDs."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         try:
             # Filter for non-existent session ID - should return empty
@@ -366,7 +366,7 @@ class TestSessionFilteringIntegration:
 
     def test_phone_alias_parameter_functional(self, test_client, test_db):
         """Functional test for phone parameter aliases."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         try:
             target_phone = "+5511999999999"
@@ -444,7 +444,7 @@ class TestSessionFilteringIntegration:
 
     def test_pagination_with_session_filtering_functional(self, test_client, test_db):
         """Functional test for pagination with session filtering."""
-        test_traces = self.setup_test_data(test_db)
+        self.setup_test_data(test_db)
 
         try:
             # Filter by session that has 2 traces, limit to 1

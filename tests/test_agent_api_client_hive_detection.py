@@ -152,7 +152,7 @@ class TestEndpointSelection:
         # Mock the headers method
         client._make_headers = Mock(return_value={"Content-Type": "application/json"})
 
-        response = client.run_agent(
+        client.run_agent(
             agent_name="test_agent",
             message_content="test message"
         )
@@ -178,7 +178,7 @@ class TestEndpointSelection:
         client._make_headers = Mock(return_value={"Content-Type": "application/json"})
 
         # Call the _call_hive_api method directly
-        response = client._call_hive_api(
+        client._call_hive_api(
             agent_name="test_agent",
             message_content="test message"
         )

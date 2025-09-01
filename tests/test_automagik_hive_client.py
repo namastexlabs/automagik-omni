@@ -176,7 +176,7 @@ class TestAutomagikHiveClientHTTPMethods:
         client = AutomagikHiveClient(config_override=config)
 
         # Get a client first
-        http_client = await client._get_client()
+        await client._get_client()
         assert client._client is not None
 
         # Close should clean up
