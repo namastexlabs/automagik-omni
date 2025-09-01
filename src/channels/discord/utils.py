@@ -166,11 +166,12 @@ class PermissionCalculator:
         Returns:
             List of permission names
         """
-        permissions = []
+        permissions: List[str] = []
 
         for perm in DiscordPermissions:
             if permission_int & perm:
-                permissions.append(perm.name)
+                if perm.name is not None:
+                    permissions.append(perm.name)
 
         return permissions
 
