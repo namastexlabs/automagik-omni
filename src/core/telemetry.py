@@ -133,18 +133,42 @@ class TelemetryClient:
                     {
                         "resource": {
                             "attributes": [
-                                {"key": "service.name", "value": {"stringValue": self.project_name}},
-                                {"key": "service.version", "value": {"stringValue": self.project_version}},
-                                {"key": "service.organization", "value": {"stringValue": self.organization}},
-                                {"key": "user.id", "value": {"stringValue": self.user_id}},
-                                {"key": "session.id", "value": {"stringValue": self.session_id}},
-                                {"key": "telemetry.sdk.name", "value": {"stringValue": self.project_name}},
-                                {"key": "telemetry.sdk.version", "value": {"stringValue": self.project_version}},
+                                {
+                                    "key": "service.name",
+                                    "value": {"stringValue": self.project_name},
+                                },
+                                {
+                                    "key": "service.version",
+                                    "value": {"stringValue": self.project_version},
+                                },
+                                {
+                                    "key": "service.organization",
+                                    "value": {"stringValue": self.organization},
+                                },
+                                {
+                                    "key": "user.id",
+                                    "value": {"stringValue": self.user_id},
+                                },
+                                {
+                                    "key": "session.id",
+                                    "value": {"stringValue": self.session_id},
+                                },
+                                {
+                                    "key": "telemetry.sdk.name",
+                                    "value": {"stringValue": self.project_name},
+                                },
+                                {
+                                    "key": "telemetry.sdk.version",
+                                    "value": {"stringValue": self.project_version},
+                                },
                             ]
                         },
                         "scopeSpans": [
                             {
-                                "scope": {"name": f"{self.project_name}.telemetry", "version": self.project_version},
+                                "scope": {
+                                    "name": f"{self.project_name}.telemetry",
+                                    "version": self.project_version,
+                                },
                                 "spans": [
                                     {
                                         "traceId": trace_id,
@@ -165,7 +189,9 @@ class TelemetryClient:
 
             # Send HTTP request
             request = Request(
-                self.endpoint, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"}
+                self.endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
             )
 
             with urlopen(request, timeout=self.timeout) as response:
@@ -180,7 +206,13 @@ class TelemetryClient:
             logger.debug(f"Telemetry event error: {e}")
 
     # Public API methods
-    def track_command(self, command: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs) -> None:
+    def track_command(
+        self,
+        command: str,
+        success: bool = True,
+        duration_ms: Optional[float] = None,
+        **kwargs,
+    ) -> None:
         """Track CLI command execution."""
         data = {"command": command, "success": success, **kwargs}
         if duration_ms is not None:
@@ -188,16 +220,30 @@ class TelemetryClient:
         self._send_event("command", data)
 
     def track_api_request(
-        self, endpoint: str, method: str, status_code: int, duration_ms: Optional[float] = None, **kwargs
+        self,
+        endpoint: str,
+        method: str,
+        status_code: int,
+        duration_ms: Optional[float] = None,
+        **kwargs,
     ) -> None:
         """Track API request."""
-        data = {"endpoint": endpoint, "method": method, "status_code": status_code, **kwargs}
+        data = {
+            "endpoint": endpoint,
+            "method": method,
+            "status_code": status_code,
+            **kwargs,
+        }
         if duration_ms is not None:
             data["duration_ms"] = duration_ms
         self._send_event("api_request", data)
 
     def track_webhook_processed(
-        self, channel: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs
+        self,
+        channel: str,
+        success: bool = True,
+        duration_ms: Optional[float] = None,
+        **kwargs,
     ) -> None:
         """Track webhook processing."""
         data = {"channel": channel, "success": success, **kwargs}
@@ -271,7 +317,11 @@ def track_command(command: str, success: bool = True, duration_ms: Optional[floa
 
 
 def track_api_request(
-    endpoint: str, method: str, status_code: int, duration_ms: Optional[float] = None, **kwargs
+    endpoint: str,
+    method: str,
+    status_code: int,
+    duration_ms: Optional[float] = None,
+    **kwargs,
 ) -> None:
     """Track API request."""
     telemetry_client.track_api_request(endpoint, method, status_code, duration_ms, **kwargs)

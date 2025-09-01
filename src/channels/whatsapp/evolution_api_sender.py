@@ -200,7 +200,11 @@ class EvolutionApiSender:
 
             # Send the message part
             if self._send_single_message(
-                recipient, part, quote_for_this_part, mentions_for_this_part, mention_everyone_for_this_part
+                recipient,
+                part,
+                quote_for_this_part,
+                mentions_for_this_part,
+                mention_everyone_for_this_part,
             ):
                 success_count += 1
 

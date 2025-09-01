@@ -1,7 +1,14 @@
 # src/services/omni_transformers.py
 from typing import Dict, Any, Optional
 from datetime import datetime
-from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, ChannelType, OmniContactStatus, OmniChatType
+from src.api.schemas.omni import (
+    OmniContact,
+    OmniChat,
+    OmniChannelInfo,
+    ChannelType,
+    OmniContactStatus,
+    OmniChatType,
+)
 
 
 class WhatsAppTransformer:
@@ -12,7 +19,10 @@ class WhatsAppTransformer:
         """Transform WhatsApp contact to omni format."""
         if not whatsapp_contact:
             return OmniContact(
-                id="unknown", name="Unknown", channel_type=ChannelType.WHATSAPP, instance_name=instance_name
+                id="unknown",
+                name="Unknown",
+                channel_type=ChannelType.WHATSAPP,
+                instance_name=instance_name,
             )
         return OmniContact(
             id=whatsapp_contact.get("id") or "",
@@ -57,13 +67,13 @@ class WhatsAppTransformer:
             chat_type=chat_type,
             channel_type=ChannelType.WHATSAPP,
             instance_name=instance_name,
-            participant_count=len(whatsapp_chat.get("participants", [])) if chat_type == OmniChatType.GROUP else None,
+            participant_count=(len(whatsapp_chat.get("participants", [])) if chat_type == OmniChatType.GROUP else None),
             is_muted=whatsapp_chat.get("isMuted", False),
             is_archived=whatsapp_chat.get("isArchived", False),
             is_pinned=whatsapp_chat.get("isPinned", False),
             unread_count=whatsapp_chat.get("unreadCount", 0),
             channel_data={
-                "group_id": whatsapp_chat.get("id") if chat_type == OmniChatType.GROUP else None,
+                "group_id": (whatsapp_chat.get("id") if chat_type == OmniChatType.GROUP else None),
                 "participants": whatsapp_chat.get("participants", []),
                 "group_metadata": whatsapp_chat.get("groupMetadata"),
                 "raw_data": whatsapp_chat,

@@ -189,7 +189,8 @@ class TestSessionFilteringIntegration:
             # Filter for specific agent session
             target_session = "agent_session_abc123"
             response = test_client.get(
-                f"/api/v1/traces?agent_session_id={target_session}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?agent_session_id={target_session}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response.status_code == 200
@@ -225,7 +226,8 @@ class TestSessionFilteringIntegration:
             # Filter for specific session name
             target_session = "user_john_session"
             response = test_client.get(
-                f"/api/v1/traces?session_name={target_session}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?session_name={target_session}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             if response.status_code != 200:
@@ -251,7 +253,10 @@ class TestSessionFilteringIntegration:
 
         try:
             # Filter for traces with media
-            response = test_client.get("/api/v1/traces?has_media=true", headers={"Authorization": "Bearer namastex888"})
+            response = test_client.get(
+                "/api/v1/traces?has_media=true",
+                headers={"Authorization": "Bearer namastex888"},
+            )
 
             assert response.status_code == 200
             traces = response.json()
@@ -309,12 +314,14 @@ class TestSessionFilteringIntegration:
         try:
             # Filter by instance A only
             response_a = test_client.get(
-                "/api/v1/traces?instance_name=session_filter_test_a", headers={"Authorization": "Bearer namastex888"}
+                "/api/v1/traces?instance_name=session_filter_test_a",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             # Filter by instance B only
             response_b = test_client.get(
-                "/api/v1/traces?instance_name=session_filter_test_b", headers={"Authorization": "Bearer namastex888"}
+                "/api/v1/traces?instance_name=session_filter_test_b",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response_a.status_code == 200
@@ -398,12 +405,14 @@ class TestSessionFilteringIntegration:
             encoded_phone = quote(target_phone)
             print(f"\nDEBUG: Filtering by phone={target_phone} (encoded: {encoded_phone})")
             response1 = test_client.get(
-                f"/api/v1/traces?phone={encoded_phone}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?phone={encoded_phone}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             # Test with 'sender_phone' parameter
             response2 = test_client.get(
-                f"/api/v1/traces?sender_phone={encoded_phone}", headers={"Authorization": "Bearer namastex888"}
+                f"/api/v1/traces?sender_phone={encoded_phone}",
+                headers={"Authorization": "Bearer namastex888"},
             )
 
             assert response1.status_code == 200

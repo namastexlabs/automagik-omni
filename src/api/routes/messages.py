@@ -24,6 +24,7 @@ except ImportError:
         def is_discord_id(value: str) -> bool:
             return False
 
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -37,17 +38,20 @@ class SendTextRequest(BaseModel):
 
     user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
     phone_number: Optional[str] = Field(
-        None, description="Phone number with country code (e.g., +5511999999999) or Discord channel ID"
+        None,
+        description="Phone number with country code (e.g., +5511999999999) or Discord channel ID",
     )
     text: str = Field(description="Message text to send")
     quoted_message_id: Optional[str] = Field(None, description="ID of message to quote/reply to")
 
     # NEW: Mention support
     auto_parse_mentions: bool = Field(
-        default=True, description="Automatically detect and convert @phone mentions in text"
+        default=True,
+        description="Automatically detect and convert @phone mentions in text",
     )
     mentioned: Optional[List[str]] = Field(
-        default=None, description="Explicit list of phone numbers to mention (overrides auto-parsing)"
+        default=None,
+        description="Explicit list of phone numbers to mention (overrides auto-parsing)",
     )
     mentions_everyone: bool = Field(default=False, description="Mention everyone in group chat")
 
@@ -134,7 +138,10 @@ class MessageResponse(BaseModel):
 
 
 def _resolve_recipient(
-    user_id: Optional[str], phone_number: Optional[str], db: Session, channel_type: str = "whatsapp"
+    user_id: Optional[str],
+    phone_number: Optional[str],
+    db: Session,
+    channel_type: str = "whatsapp",
 ) -> str:
     """
     Resolve user_id or phone_number to the appropriate recipient identifier for the channel.

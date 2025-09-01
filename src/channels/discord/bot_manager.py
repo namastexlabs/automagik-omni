@@ -130,7 +130,10 @@ class AutomagikBot(commands.Bot):
 
     async def on_error(self, event, *args, **kwargs):
         """Handle errors."""
-        logger.error(f"Discord error in bot '{self.instance_name}' for event '{event}'", exc_info=True)
+        logger.error(
+            f"Discord error in bot '{self.instance_name}' for event '{event}'",
+            exc_info=True,
+        )
         await self.manager._handle_bot_error(self.instance_name, event, args, kwargs)
 
     async def _periodic_heartbeat(self):
@@ -488,7 +491,11 @@ class DiscordBotManager:
             except discord.ConnectionClosed as e:
                 retry_count += 1
                 await self._handle_connection_failure(
-                    instance_name, f"Connection closed: {e}", retry_count, max_retries, circuit_breaker
+                    instance_name,
+                    f"Connection closed: {e}",
+                    retry_count,
+                    max_retries,
+                    circuit_breaker,
                 )
 
                 if retry_count < max_retries:
@@ -517,13 +524,18 @@ class DiscordBotManager:
             except Exception as e:
                 retry_count += 1
                 await self._handle_connection_failure(
-                    instance_name, f"Unexpected error: {e}", retry_count, max_retries, circuit_breaker
+                    instance_name,
+                    f"Unexpected error: {e}",
+                    retry_count,
+                    max_retries,
+                    circuit_breaker,
                 )
 
                 if retry_count < max_retries:
                     wait_time = 5  # Fixed delay for unexpected errors
                     logger.error(
-                        f"Unexpected error in bot '{instance_name}': {e} - retrying in {wait_time}s", exc_info=True
+                        f"Unexpected error in bot '{instance_name}': {e} - retrying in {wait_time}s",
+                        exc_info=True,
                     )
                     await asyncio.sleep(wait_time)
 
@@ -785,11 +797,11 @@ class DiscordBotManager:
                 "instance_name": instance_name,
                 "type": "interaction",
                 "interaction_id": str(interaction.id),
-                "command_name": interaction.data.get("name") if interaction.data else None,
-                "options": interaction.data.get("options", []) if interaction.data else [],
+                "command_name": (interaction.data.get("name") if interaction.data else None),
+                "options": (interaction.data.get("options", []) if interaction.data else []),
                 "user_id": str(interaction.user.id),
                 "username": interaction.user.display_name,
-                "channel_id": str(interaction.channel_id) if interaction.channel_id else None,
+                "channel_id": (str(interaction.channel_id) if interaction.channel_id else None),
                 "guild_id": str(interaction.guild_id) if interaction.guild_id else None,
                 "timestamp": interaction.created_at.isoformat(),
             }
@@ -802,7 +814,8 @@ class DiscordBotManager:
             # Send error response to user
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    "Sorry, an error occurred while processing your command.", ephemeral=True
+                    "Sorry, an error occurred while processing your command.",
+                    ephemeral=True,
                 )
 
     async def _handle_bot_error(self, instance_name: str, event: str, args: tuple, kwargs: dict):
@@ -876,7 +889,11 @@ class DiscordBotManager:
                 inline=False,
             )
 
-            embed.add_field(name="ℹ️ Information Commands", value="`!help` - Show this help message", inline=False)
+            embed.add_field(
+                name="ℹ️ Information Commands",
+                value="`!help` - Show this help message",
+                inline=False,
+            )
 
             embed.add_field(
                 name="💬 Chat Features",
@@ -1005,7 +1022,10 @@ class DiscordBotManager:
             text = data.get("text")
 
             if not channel_id or not text:
-                return web.json_response({"success": False, "error": "Missing channel_id or text"}, status=400)
+                return web.json_response(
+                    {"success": False, "error": "Missing channel_id or text"},
+                    status=400,
+                )
 
             # Convert channel_id to int if it's a string
             try:
@@ -1016,7 +1036,13 @@ class DiscordBotManager:
             # Send message through the bot
             success = await manager.send_message(instance_name=instance_name, channel_id=channel_id, content=text)
 
-            return web.json_response({"success": success, "instance": instance_name, "channel_id": channel_id})
+            return web.json_response(
+                {
+                    "success": success,
+                    "instance": instance_name,
+                    "channel_id": channel_id,
+                }
+            )
 
         except json.JSONDecodeError:
             return web.json_response({"success": False, "error": "Invalid JSON"}, status=400)
@@ -1065,14 +1091,21 @@ class DiscordBotManager:
 
 # Utility functions for Discord message formatting
 def create_embed(
-    title: str, description: str = None, color: int = 0x00FF00, fields: List[Dict[str, Any]] = None
+    title: str,
+    description: str = None,
+    color: int = 0x00FF00,
+    fields: List[Dict[str, Any]] = None,
 ) -> discord.Embed:
     """Create a Discord embed with common formatting."""
     embed = discord.Embed(title=title, description=description, color=color)
 
     if fields:
         for field in fields:
-            embed.add_field(name=field["name"], value=field["value"], inline=field.get("inline", False))
+            embed.add_field(
+                name=field["name"],
+                value=field["value"],
+                inline=field.get("inline", False),
+            )
 
     embed.timestamp = datetime.now(timezone.utc)
     return embed
@@ -1080,7 +1113,11 @@ def create_embed(
 
 def format_automagik_response(response: Dict[str, Any]) -> Dict[str, Any]:
     """Format automagik response for Discord."""
-    formatted = {"content": response.get("content", ""), "embed": None, "attachments": []}
+    formatted = {
+        "content": response.get("content", ""),
+        "embed": None,
+        "attachments": [],
+    }
 
     # Handle different response types
     if response.get("type") == "embed":

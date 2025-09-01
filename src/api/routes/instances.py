@@ -731,7 +731,10 @@ async def restart_instance(
         instance.is_active = True
         db.commit()
 
-        return {"message": f"Instance '{instance_name}' restarted successfully", "result": result}
+        return {
+            "message": f"Instance '{instance_name}' restarted successfully",
+            "result": result,
+        }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -764,7 +767,10 @@ async def logout_instance(
         instance.is_active = False
         db.commit()
 
-        return {"message": f"Instance '{instance_name}' logged out successfully", "result": result}
+        return {
+            "message": f"Instance '{instance_name}' logged out successfully",
+            "result": result,
+        }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:

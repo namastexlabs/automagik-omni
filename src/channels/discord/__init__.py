@@ -7,8 +7,13 @@ logger = logging.getLogger(__name__)
 try:
     from .channel_handler import DiscordChannelHandler
     from .bot_manager import DiscordBotManager
-    from .voice_manager import DiscordVoiceManager, VoiceSession, STTProvider, TTSProvider
-    
+    from .voice_manager import (
+        DiscordVoiceManager,
+        VoiceSession,
+        STTProvider,
+        TTSProvider,
+    )
+
     __all__ = [
         "DiscordChannelHandler",
         "DiscordBotManager",

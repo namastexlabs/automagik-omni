@@ -181,7 +181,11 @@ class MessageRouter:
                             logger.info(f"Final response length: {len(full_response)}")
 
                             # Return with streaming chunks for progressive sending
-                            return {"response": full_response, "success": True, "streaming_chunks": responses}
+                            return {
+                                "response": full_response,
+                                "success": True,
+                                "streaming_chunks": responses,
+                            }
                         else:
                             # Non-streaming response
                             logger.info(f"Hive response received: {response}")
@@ -313,7 +317,9 @@ class MessageRouter:
             True if streaming was successful, False otherwise
         """
         # Import here to avoid circular imports
-        from src.channels.whatsapp.streaming_integration_enhanced import get_enhanced_streaming_instance
+        from src.channels.whatsapp.streaming_integration_enhanced import (
+            get_enhanced_streaming_instance,
+        )
         from src.services.streaming_trace_context import StreamingTraceContext
 
         # Use session_name if provided
