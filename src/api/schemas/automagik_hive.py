@@ -70,7 +70,7 @@ class AutomagikHiveConfigCreate(BaseModel):
                 missing_fields.append('hive_api_key')
             if not self.hive_agent_id:
                 missing_fields.append('hive_agent_id')
-            
+
             if missing_fields:
                 raise ValueError(f"When hive_enabled is True, these fields are required: {', '.join(missing_fields)}")
 
@@ -85,11 +85,34 @@ class AutomagikHiveConfigUpdate(BaseModel):
     hive_timeout: Optional[int] = Field(None, ge=5, le=300)
     hive_stream_mode: Optional[bool] = None
 
-    # Use same validators as create schema
-    _validate_url = validator('hive_api_url', allow_reuse=True)(AutomagikHiveConfigCreate.validate_hive_api_url)
-    _validate_key = validator('hive_api_key', allow_reuse=True)(AutomagikHiveConfigCreate.validate_hive_api_key)
-    _validate_agent = validator('hive_agent_id', allow_reuse=True)(AutomagikHiveConfigCreate.validate_hive_agent_id)
-    _validate_team = validator('hive_team_id', allow_reuse=True)(AutomagikHiveConfigCreate.validate_hive_team_id)
+    # Validators for update schema
+    @field_validator('hive_api_url')
+    @classmethod
+    def validate_hive_api_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return AutomagikHiveConfigCreate.validate_hive_api_url(v)
+
+    @field_validator('hive_api_key')
+    @classmethod
+    def validate_hive_api_key(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return AutomagikHiveConfigCreate.validate_hive_api_key(v)
+
+    @field_validator('hive_agent_id')
+    @classmethod
+    def validate_hive_agent_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return AutomagikHiveConfigCreate.validate_hive_agent_id(v)
+
+    @field_validator('hive_team_id')
+    @classmethod
+    def validate_hive_team_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return AutomagikHiveConfigCreate.validate_hive_team_id(v)
 
 
 class AutomagikHiveConfigResponse(BaseModel):

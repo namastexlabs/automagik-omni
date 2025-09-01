@@ -30,78 +30,78 @@ class DiscordChannelHandler(ChannelHandler):
     def __init__(self):
         """Initialize Discord channel handler."""
         self._bot_instances: Dict[str, DiscordBotInstance] = {}
-    
+
     def _chunk_message(self, message: str, max_length: int = 2000) -> list[str]:
         """Split message into chunks that respect Discord's character limit."""
         if len(message) <= max_length:
             return [message]
-        
+
         chunks = []
         remaining = message
-        
+
         while remaining:
             if len(remaining) <= max_length:
                 chunks.append(remaining)
                 break
-            
+
             # Try to split at a reasonable point
             chunk = remaining[:max_length]
-            
+
             # Find the last newline, sentence end, or word boundary
             split_points = ['\n\n', '\n', '. ', '! ', '? ', ' ']
             split_at = -1
-            
+
             for split_point in split_points:
                 last_occurrence = chunk.rfind(split_point)
                 if last_occurrence > max_length * 0.5:  # Don't split too early
                     split_at = last_occurrence + len(split_point)
                     break
-            
+
             if split_at == -1:
                 # No good split point found, just cut at max length
                 split_at = max_length
-            
+
             chunks.append(remaining[:split_at])
             remaining = remaining[split_at:]
-        
+
         return chunks
-    
+
     async def _send_response_to_discord(self, channel, response: str) -> None:
         """Send response to Discord channel, handling message chunking."""
         try:
             if not response:
                 return
-            
+
             # Split response into chunks if needed
             chunks = self._chunk_message(response)
-            
+
             # Send each chunk
             for chunk in chunks:
                 await channel.send(chunk)
                 # Small delay between chunks to avoid rate limits
                 if len(chunks) > 1:
                     await asyncio.sleep(0.5)
-                    
+
         except Exception as e:
             logger.error(f"Failed to send Discord response: {e}")
             try:
                 await channel.send("Sorry, I encountered an error while processing your message.")
             except:
                 pass  # If we can't even send an error message, just log and continue
-    
+
     async def _handle_message(self, message, instance: InstanceConfig, client) -> None:
         """Handle incoming Discord message with @mention detection."""
         try:
             # Ignore messages from the bot itself
             if message.author == client.user:
                 return
-            
+
             # Check if the bot is mentioned
             if not client.user.mentioned_in(message):
                 return
-            
+
             logger.info(f"Discord bot '{instance.name}' received mention from {message.author} in #{message.channel.name}")
-            
+
             # Extract message content after removing the mention
             content = message.content
             for mention in message.mentions:
@@ -110,14 +110,14 @@ class DiscordChannelHandler(ChannelHandler):
                     mention_pattern = f"<@{mention.id}>"
                     alt_mention_pattern = f"<@!{mention.id}>"
                     content = content.replace(mention_pattern, "").replace(alt_mention_pattern, "")
-            
+
             # Clean up the message (strip whitespace)
             content = content.strip()
-            
+
             if not content:
                 await message.channel.send("Hi! How can I help you? Please include your message after mentioning me.")
                 return
-            
+
             # Create user dictionary similar to WhatsApp handler
             user_dict = {
                 "discord_user_id": str(message.author.id),
@@ -132,12 +132,12 @@ class DiscordChannelHandler(ChannelHandler):
                     "channel_name": message.channel.name if hasattr(message.channel, 'name') else None
                 }
             }
-            
+
             # Generate session name similar to WhatsApp format
             session_name = f"discord_{message.guild.id}_{message.author.id}" if message.guild else f"discord_dm_{message.author.id}"
-            
+
             logger.info(f"Processing Discord message: '{content}' from user: {message.author.name} in session: {session_name}")
-            
+
             # Send typing indicator
             async with message.channel.typing():
                 # Route message to MessageRouter (same as WhatsApp)
@@ -152,16 +152,16 @@ class DiscordChannelHandler(ChannelHandler):
                         whatsapp_raw_payload=None,  # Discord doesn't use WhatsApp payload
                         media_contents=None  # TODO: Handle Discord attachments if needed
                     )
-                    
+
                     logger.info(f"Got agent response for Discord user {message.author.name}: {len(str(agent_response))} characters")
-                    
+
                     # Send response back to Discord
                     if agent_response:
                         response_text = extract_response_text(agent_response)
                         await self._send_response_to_discord(message.channel, response_text)
                     else:
                         await message.channel.send("I'm sorry, I couldn't process your message right now. Please try again later.")
-                        
+
                 except TypeError as te:
                     # Fallback for older versions of MessageRouter without media parameters
                     logger.warning(f"Route_message did not accept media_contents parameter, retrying without it: {te}")
@@ -174,17 +174,17 @@ class DiscordChannelHandler(ChannelHandler):
                         session_origin="discord",
                         whatsapp_raw_payload=None
                     )
-                    
+
                     if agent_response:
                         response_text = extract_response_text(agent_response)
                         await self._send_response_to_discord(message.channel, response_text)
                     else:
                         await message.channel.send("I'm sorry, I couldn't process your message right now. Please try again later.")
-                
+
                 except Exception as e:
                     logger.error(f"Error processing Discord message: {e}", exc_info=True)
                     await message.channel.send("I encountered an error while processing your message. Please try again later.")
-        
+
         except Exception as e:
             logger.error(f"Error in Discord message handler: {e}", exc_info=True)
 
@@ -193,17 +193,17 @@ class DiscordChannelHandler(ChannelHandler):
         # Extract token from instance configuration only
         bot_token = getattr(instance, 'discord_bot_token', None) or ""
         client_id = getattr(instance, 'discord_client_id', None) or ""
-        
+
         # Validate configuration values
         if not bot_token or bot_token.lower() in ["string", "null", "undefined", ""]:
             logger.error(f"Invalid Discord bot token for instance '{instance.name}'. Please provide a valid bot token.")
             raise ValidationError(f"Invalid Discord bot token for instance '{instance.name}'. Please provide a valid bot token from Discord Developer Portal.")
-        
+
         if not client_id or client_id.lower() in ["string", "null", "undefined", ""]:
             logger.error(f"Invalid Discord client ID for instance '{instance.name}'. Please provide a valid client ID.")
             raise ValidationError(f"Invalid Discord client ID for instance '{instance.name}'. Please provide a valid client ID from Discord Developer Portal.")
         logger.debug(f"Discord config validated for instance '{instance.name}' - Token: {'*' * len(bot_token)}, Client ID: {client_id}")
-        
+
         return {
             "token": bot_token,
             "client_id": client_id
@@ -227,7 +227,7 @@ class DiscordChannelHandler(ChannelHandler):
             if instance.name in self._bot_instances:
                 existing_bot = self._bot_instances[instance.name]
                 logger.info(f"Discord bot instance '{instance.name}' already exists with status: {existing_bot.status}")
-                
+
                 if existing_bot.status == "connected":
                     logger.info(f"Instance '{instance.name}' is already connected and running")
                     return {
@@ -242,13 +242,13 @@ class DiscordChannelHandler(ChannelHandler):
                     await self._cleanup_bot_instance(instance.name)
             # Validate configuration
             bot_config = self._validate_bot_config(instance)
-            
+
             # Create Discord client
             intents = discord.Intents.default()
             intents.message_content = True  # Required for message content access
             intents.guilds = True
             intents.guild_messages = True
-            
+
             client = discord.Client(intents=intents)
             # Generate invite URL
             invite_url = self._generate_invite_url(bot_config["client_id"])
@@ -258,7 +258,7 @@ class DiscordChannelHandler(ChannelHandler):
                 status="connecting",
                 invite_url=invite_url
             )
-            
+
             # Store the instance
             self._bot_instances[instance.name] = bot_instance
             # Set up event handlers
@@ -266,22 +266,22 @@ class DiscordChannelHandler(ChannelHandler):
             async def on_ready():
                 logger.info(f"Discord bot '{instance.name}' logged in as {client.user}")
                 bot_instance.status = "connected"
-            
+
             @client.event
             async def on_disconnect():
                 logger.warning(f"Discord bot '{instance.name}' disconnected")
                 bot_instance.status = "disconnected"
-            
+
             @client.event
             async def on_error(event, *args, **kwargs):
                 logger.error(f"Discord bot '{instance.name}' error in {event}: {args}, {kwargs}")
                 bot_instance.status = "error"
-            
+
             @client.event
             async def on_message(message):
                 """Handle incoming Discord messages with @mention detection."""
                 await self._handle_message(message, instance, client)
-            
+
             # Start the bot in a background task
             async def run_bot():
                 try:
@@ -325,7 +325,7 @@ class DiscordChannelHandler(ChannelHandler):
         """Get Discord bot invite URL (Discord doesn't use QR codes like WhatsApp)."""
         try:
             logger.debug(f"=== INVITE URL REQUEST START for {instance.name} ===")
-            
+
             # Check if instance exists
             if instance.name not in self._bot_instances:
                 logger.warning(f"Discord bot instance '{instance.name}' not found")
@@ -336,7 +336,7 @@ class DiscordChannelHandler(ChannelHandler):
                     message=f"Discord bot instance '{instance.name}' not found. Create the instance first."
                 )
             bot_instance = self._bot_instances[instance.name]
-            
+
             # If we don't have an invite URL, generate it
             if not bot_instance.invite_url:
                 try:
@@ -350,7 +350,7 @@ class DiscordChannelHandler(ChannelHandler):
                         message=str(e)
                     )
             logger.debug(f"Discord invite URL for '{instance.name}': {bot_instance.invite_url}")
-            
+
             return QRCodeResponse(
                 instance_name=instance.name,
                 channel_type="discord",
@@ -376,13 +376,13 @@ class DiscordChannelHandler(ChannelHandler):
                     status="not_found"
                 )
             bot_instance = self._bot_instances[instance.name]
-            
+
             # Get additional connection info
             channel_data = {
                 "invite_url": bot_instance.invite_url,
                 "error_message": bot_instance.error_message
             }
-            
+
             # Add bot-specific data if connected
             if bot_instance.status == "connected" and bot_instance.client.user:
                 channel_data.update({
@@ -409,19 +409,19 @@ class DiscordChannelHandler(ChannelHandler):
         """Restart Discord bot connection."""
         try:
             logger.info(f"Restarting Discord bot instance '{instance.name}'...")
-            
+
             # Clean up existing instance
             if instance.name in self._bot_instances:
                 await self._cleanup_bot_instance(instance.name)
-            
+
             # Create new instance
             result = await self.create_instance(instance)
-            
+
             if "error" not in result:
                 logger.info(f"Discord bot instance '{instance.name}' restarted successfully")
                 result["status"] = "restarted"
                 result["message"] = f"Discord bot instance '{instance.name}' restarted successfully"
-            
+
             return result
         except Exception as e:
             logger.error(f"Failed to restart Discord bot instance: {e}")
@@ -430,7 +430,7 @@ class DiscordChannelHandler(ChannelHandler):
         """Logout/disconnect Discord bot."""
         try:
             logger.info(f"Logging out Discord bot instance '{instance.name}'...")
-            
+
             if instance.name not in self._bot_instances:
                 return {
                     "instance_name": instance.name,
@@ -438,7 +438,7 @@ class DiscordChannelHandler(ChannelHandler):
                     "message": f"Discord bot instance '{instance.name}' not found"
                 }
             await self._cleanup_bot_instance(instance.name)
-            
+
             logger.info(f"Discord bot instance '{instance.name}' logged out successfully")
             return {
                 "instance_name": instance.name,
@@ -452,7 +452,7 @@ class DiscordChannelHandler(ChannelHandler):
         """Delete Discord bot instance."""
         try:
             logger.info(f"Deleting Discord bot instance '{instance.name}'...")
-            
+
             if instance.name not in self._bot_instances:
                 return {
                     "instance_name": instance.name,
@@ -460,11 +460,11 @@ class DiscordChannelHandler(ChannelHandler):
                     "message": f"Discord bot instance '{instance.name}' not found"
                 }
             await self._cleanup_bot_instance(instance.name)
-            
+
             logger.info(f"Discord bot instance '{instance.name}' deleted successfully")
             return {
                 "instance_name": instance.name,
-                "status": "deleted", 
+                "status": "deleted",
                 "message": f"Discord bot instance '{instance.name}' deleted successfully"
             }
         except Exception as e:
@@ -474,9 +474,9 @@ class DiscordChannelHandler(ChannelHandler):
         """Clean up Discord bot instance resources."""
         if instance_name not in self._bot_instances:
             return
-            
+
         bot_instance = self._bot_instances[instance_name]
-        
+
         try:
             # Cancel the bot task if it exists
             if bot_instance.task and not bot_instance.task.done():
@@ -487,11 +487,11 @@ class DiscordChannelHandler(ChannelHandler):
                     pass
                 except Exception as e:
                     logger.warning(f"Error cancelling bot task for '{instance_name}': {e}")
-            
+
             # Close the Discord client
             if bot_instance.client and not bot_instance.client.is_closed():
                 await bot_instance.client.close()
-                
+
         except Exception as e:
             logger.warning(f"Error during cleanup of Discord bot '{instance_name}': {e}")
         finally:

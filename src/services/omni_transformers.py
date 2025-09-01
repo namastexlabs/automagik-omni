@@ -1,14 +1,14 @@
 # src/services/omni_transformers.py
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime
 from src.api.schemas.omni import (
-    OmniContact, OmniChat, OmniChannelInfo, 
+    OmniContact, OmniChat, OmniChannelInfo,
     ChannelType, OmniContactStatus, OmniChatType
 )
 
 class WhatsAppTransformer:
     """Transform WhatsApp data to omni format."""
-    
+
     @staticmethod
     def contact_to_omni(whatsapp_contact: Dict[str, Any], instance_name: str) -> OmniContact:
         """Transform WhatsApp contact to omni format."""
@@ -37,8 +37,8 @@ class WhatsAppTransformer:
             },
             last_seen=WhatsAppTransformer._parse_datetime(whatsapp_contact.get("lastSeen"))
         )
-    
-    @staticmethod  
+
+    @staticmethod
     def chat_to_omni(whatsapp_chat: Dict[str, Any], instance_name: str) -> OmniChat:
         """Transform WhatsApp chat to omni format."""
         if not whatsapp_chat:
@@ -55,7 +55,7 @@ class WhatsAppTransformer:
             chat_type = OmniChatType.GROUP
         elif whatsapp_chat.get("id", "").endswith("@broadcast"):
             chat_type = OmniChatType.CHANNEL
-            
+
         return OmniChat(
             id=whatsapp_chat.get("id", ""),
             name=whatsapp_chat.get("name") or whatsapp_chat.get("pushName") or "Unknown",
@@ -75,7 +75,7 @@ class WhatsAppTransformer:
             },
             last_message_at=WhatsAppTransformer._parse_datetime(whatsapp_chat.get("lastMessageTime"))
         )
-    
+
     @staticmethod
     def channel_to_omni(instance_name: str, status_data: Dict[str, Any], instance_config: Dict[str, Any]) -> OmniChannelInfo:
         """Transform WhatsApp instance to omni channel info."""
@@ -103,7 +103,7 @@ class WhatsAppTransformer:
             connected_at=WhatsAppTransformer._parse_datetime(status_data.get("connectedAt")),
             last_activity_at=WhatsAppTransformer._parse_datetime(status_data.get("lastActivity"))
         )
-    
+
     @staticmethod
     def _parse_datetime(timestamp: Any) -> Optional[datetime]:
         """Parse WhatsApp timestamp to datetime."""
@@ -118,17 +118,17 @@ class WhatsAppTransformer:
 
 class DiscordTransformer:
     """Transform Discord data to omni format."""
-    
+
     @staticmethod
     def contact_to_omni(discord_user: Dict[str, Any], instance_name: str) -> OmniContact:
-        """Transform Discord user to omni format.""" 
+        """Transform Discord user to omni format."""
         status_map = {
             "online": OmniContactStatus.ONLINE,
             "idle": OmniContactStatus.AWAY,
             "dnd": OmniContactStatus.DND,
             "offline": OmniContactStatus.OFFLINE,
         }
-        
+
         return OmniContact(
             id=str(discord_user.get("id", "")),
             name=discord_user.get("global_name") or discord_user.get("username", "Unknown"),
@@ -140,21 +140,21 @@ class DiscordTransformer:
             channel_data={
                 "username": discord_user.get("username"),
                 "discriminator": discord_user.get("discriminator"),
-                "global_name": discord_user.get("global_name"), 
+                "global_name": discord_user.get("global_name"),
                 "is_bot": discord_user.get("bot", False),
                 "is_system": discord_user.get("system", False),
                 "activities": discord_user.get("activities", []),
                 "raw_data": discord_user
             }
         )
-    
+
     @staticmethod
     def chat_to_omni(discord_channel: Dict[str, Any], instance_name: str) -> OmniChat:
         """Transform Discord channel to omni format."""
         # Map Discord channel types
         type_map = {
             0: OmniChatType.DIRECT,    # DM
-            1: OmniChatType.DIRECT,    # DM  
+            1: OmniChatType.DIRECT,    # DM
             2: OmniChatType.GROUP,     # Group DM
             4: OmniChatType.CHANNEL,   # Guild category
             5: OmniChatType.CHANNEL,   # Guild text
@@ -162,10 +162,10 @@ class DiscordTransformer:
             11: OmniChatType.THREAD,   # Guild public thread
             12: OmniChatType.THREAD,   # Guild private thread
         }
-        
+
         channel_type = int(discord_channel.get("type", 0))
         chat_type = type_map.get(channel_type, OmniChatType.CHANNEL)
-        
+
         return OmniChat(
             id=str(discord_channel.get("id", "")),
             name=discord_channel.get("name") or f"DM-{discord_channel.get('id')}",
@@ -185,7 +185,7 @@ class DiscordTransformer:
             },
             created_at=DiscordTransformer._parse_snowflake_timestamp(discord_channel.get("id"))
         )
-    
+
     @staticmethod
     def channel_to_omni(instance_name: str, status_data: Dict[str, Any], instance_config: Dict[str, Any]) -> OmniChannelInfo:
         """Transform Discord instance to omni channel info."""
@@ -213,7 +213,7 @@ class DiscordTransformer:
             connected_at=DiscordTransformer._parse_datetime(status_data.get("connected_at")),
             last_activity_at=DiscordTransformer._parse_datetime(status_data.get("last_activity"))
         )
-    
+
     @staticmethod
     def _build_avatar_url(user: Dict[str, Any]) -> Optional[str]:
         """Build Discord avatar URL."""
@@ -222,7 +222,7 @@ class DiscordTransformer:
         user_id = user.get("id")
         avatar_hash = user.get("avatar")
         return f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png"
-    
+
     @staticmethod
     def _parse_snowflake_timestamp(snowflake: Any) -> Optional[datetime]:
         """Parse Discord snowflake to datetime."""
@@ -234,7 +234,7 @@ class DiscordTransformer:
             return datetime.fromtimestamp(timestamp)
         except:
             return None
-    
+
     @staticmethod
     def _parse_datetime(timestamp: Any) -> Optional[datetime]:
         """Parse Discord timestamp to datetime."""

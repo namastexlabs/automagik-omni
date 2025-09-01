@@ -30,7 +30,7 @@ class TelemetryClient:
         self.user_id = self._get_or_create_user_id()
         self.session_id = str(uuid.uuid4())
         self.enabled = self._is_telemetry_enabled()
-        
+
         # Project identification
         self.project_name = "automagik-omni"
         self.project_version = "0.2.0"
@@ -39,13 +39,13 @@ class TelemetryClient:
     def _get_or_create_user_id(self) -> str:
         """Generate or retrieve anonymous user identifier."""
         user_id_file = Path.home() / ".automagik-omni" / "user_id"
-        
+
         if user_id_file.exists():
             try:
                 return user_id_file.read_text().strip()
             except Exception:
                 pass
-        
+
         # Create new anonymous UUID
         user_id = str(uuid.uuid4())
         try:
@@ -53,7 +53,7 @@ class TelemetryClient:
             user_id_file.write_text(user_id)
         except Exception:
             pass  # Continue with in-memory ID if file creation fails
-        
+
         return user_id
 
     def _is_telemetry_enabled(self) -> bool:
@@ -61,20 +61,20 @@ class TelemetryClient:
         # Check environment variable
         if os.getenv("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", "false").lower() == "true":
             return False
-        
+
         # Check for opt-out file
         if (Path.home() / ".automagik-omni-no-telemetry").exists():
             return False
-        
+
         # Auto-disable in CI/testing environments
         ci_environments = ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS", "GITLAB_CI"]
         if any(os.getenv(var) for var in ci_environments):
             return False
-        
+
         # Check for development indicators
         if os.getenv("ENVIRONMENT") in ["development", "dev", "test", "testing"]:
             return False
-            
+
         return True
 
     def _get_system_info(self) -> Dict[str, Any]:
@@ -93,7 +93,7 @@ class TelemetryClient:
     def _create_attributes(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Convert data to OTLP attribute format with type safety."""
         attributes = []
-        
+
         # Add system information
         system_info = self._get_system_info()
         for key, value in system_info.items():
@@ -112,7 +112,7 @@ class TelemetryClient:
                     "key": f"system.{key}",
                     "value": {"stringValue": str(value)}
                 })
-        
+
         # Add event data
         for key, value in data.items():
             if isinstance(value, bool):
@@ -132,19 +132,19 @@ class TelemetryClient:
                     "key": f"event.{key}",
                     "value": {"stringValue": sanitized_value}
                 })
-        
+
         return attributes
 
     def _send_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """Send telemetry event to the endpoint."""
         if not self.enabled:
             return  # Silent no-op when disabled
-        
+
         try:
             # Generate trace and span IDs
             trace_id = f"{uuid.uuid4().hex}{uuid.uuid4().hex}"  # 32 chars
             span_id = f"{uuid.uuid4().hex[:16]}"  # 16 chars
-            
+
             # Create OTLP-compatible payload
             payload = {
                 "resourceSpans": [{
@@ -177,18 +177,18 @@ class TelemetryClient:
                     }]
                 }]
             }
-            
+
             # Send HTTP request
             request = Request(
                 self.endpoint,
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
-            
+
             with urlopen(request, timeout=self.timeout) as response:
                 if response.status != 200:
                     logger.debug(f"Telemetry event failed with status {response.status}")
-                    
+
         except (URLError, HTTPError, TimeoutError) as e:
             # Log only in debug mode, never crash the application
             logger.debug(f"Telemetry network error: {e}")

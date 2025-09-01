@@ -1,16 +1,16 @@
 # src/channels/omni_base.py
-from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any, Tuple
+from abc import abstractmethod
+from typing import List, Optional, Tuple
 from src.channels.base import ChannelHandler
 from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo
 from src.db.models import InstanceConfig
 
 class OmniChannelHandler(ChannelHandler):
     """Extended channel handler with omni operations support."""
-    
+
     @abstractmethod
     async def get_contacts(
-        self, 
+        self,
         instance: InstanceConfig,
         page: int = 1,
         page_size: int = 50,
@@ -19,23 +19,23 @@ class OmniChannelHandler(ChannelHandler):
     ) -> Tuple[List[OmniContact], int]:
         """
         Get contacts from this channel in omni format.
-        
+
         Args:
             instance: The instance configuration
             page: Page number for pagination (1-based)
             page_size: Number of items per page
             search_query: Optional search query to filter contacts
             status_filter: Optional status filter (online, offline, etc.)
-        
+
         Returns:
             Tuple of (contacts_list, total_count)
         """
         pass
-    
-    @abstractmethod 
+
+    @abstractmethod
     async def get_chats(
         self,
-        instance: InstanceConfig, 
+        instance: InstanceConfig,
         page: int = 1,
         page_size: int = 50,
         chat_type_filter: Optional[str] = None,
@@ -43,55 +43,55 @@ class OmniChannelHandler(ChannelHandler):
     ) -> Tuple[List[OmniChat], int]:
         """
         Get chats/conversations from this channel in omni format.
-        
+
         Args:
             instance: The instance configuration
             page: Page number for pagination (1-based)
             page_size: Number of items per page
             chat_type_filter: Optional chat type filter (direct, group, channel, thread)
             archived: Optional filter for archived chats (True, False, None for all)
-        
+
         Returns:
             Tuple of (chats_list, total_count)
         """
         pass
-    
+
     @abstractmethod
     async def get_channel_info(self, instance: InstanceConfig) -> OmniChannelInfo:
         """
         Get channel information in omni format.
-        
+
         Args:
             instance: The instance configuration
-            
+
         Returns:
             OmniChannelInfo with channel status and capabilities
         """
         pass
-    
+
     # Optional methods for future extensibility
     async def get_contact_by_id(self, instance: InstanceConfig, contact_id: str) -> Optional[OmniContact]:
         """
         Get a specific contact by ID in omni format.
-        
+
         Args:
             instance: The instance configuration
             contact_id: The contact identifier
-            
+
         Returns:
             OmniContact or None if not found
         """
         # Default implementation returns None - handlers can override
         return None
-    
+
     async def get_chat_by_id(self, instance: InstanceConfig, chat_id: str) -> Optional[OmniChat]:
         """
         Get a specific chat by ID in omni format.
-        
+
         Args:
             instance: The instance configuration
             chat_id: The chat identifier
-            
+
         Returns:
             OmniChat or None if not found
         """

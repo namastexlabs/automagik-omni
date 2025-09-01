@@ -7,9 +7,7 @@ Tests both WhatsApp and Discord transformers with:
 - Data format-specific ID patterns
 - Boundary conditions and malformed data
 """
-import pytest
 from datetime import datetime
-from typing import Dict, Any
 from src.services.omni_transformers import WhatsAppTransformer, DiscordTransformer
 from src.api.schemas.omni import (
     ChannelType, OmniContactStatus, OmniChatType,
@@ -27,9 +25,9 @@ class TestWhatsAppTransformer:
             "isGroup": False,
             "status": "active"
         }
-        
+
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact, "test-instance")
-        
+
         assert isinstance(contact, OmniContact)
         assert contact.id == "5511999999999@c.us"
         assert contact.name == "Test Contact"
@@ -37,10 +35,10 @@ class TestWhatsAppTransformer:
         assert contact.instance_name == "test-instance"
         assert contact.status == OmniContactStatus.UNKNOWN
         assert contact.avatar_url == "https://example.com/avatar.jpg"
-        
+
         # Verify channel-specific data
         assert contact.channel_data["phone_number"] == "5511999999999"
-        
+
         # Verify timestamp parsing
         assert contact.last_seen is not None
         expected_datetime = datetime.fromtimestamp(1640995200)  # Converted from milliseconds
@@ -52,9 +50,9 @@ class TestWhatsAppTransformer:
             "name": "Minimal Contact",
             # Missing optional fields: profilePicture, lastSeen, status
         }
-        
+
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact, "test-instance")
-        
+
         assert contact.id == "5511888888888@c.us"
         assert contact.name == "Minimal Contact"
         assert contact.channel_type == ChannelType.WHATSAPP
@@ -70,9 +68,9 @@ class TestWhatsAppTransformer:
             "lastSeen": None,
             "status": None
         }
-        
+
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact, "test-instance")
-        
+
         assert contact.avatar_url is None
         assert contact.last_seen is None
         assert contact.status == OmniContactStatus.UNKNOWN
@@ -85,16 +83,16 @@ class TestWhatsAppTransformer:
             "lastSeen": 0,
             "status": ""
         }
-        
+
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact, "test-instance")
-        
+
         assert contact.avatar_url == ""  # Empty string preserved
         assert contact.last_seen is None  # Current implementation treats 0 as falsy
         assert contact.status == OmniContactStatus.UNKNOWN
     def test_contact_to_omni_none_input(self):
         """Test contact transformation with None input."""
         contact = WhatsAppTransformer.contact_to_omni(None, "test-instance")
-        
+
         assert isinstance(contact, OmniContact)
         # Should create empty contact with instance info
         assert contact.instance_name == "test-instance"
@@ -110,7 +108,7 @@ class TestWhatsAppTransformer:
             "",  # Empty string
             "12345",  # No domain
         ]
-        
+
         for invalid_id in invalid_patterns:
             whatsapp_contact = {"id": invalid_id, "name": "Test"}
             # Should handle gracefully without throwing
@@ -123,12 +121,12 @@ class TestWhatsAppTransformer:
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact_push, "test")
         # Should prefer pushName over name
         assert contact.name == "Push Name"
-        
+
         # Test with only name field
         whatsapp_contact_name = {"id": "test2@c.us", "name": "Only Name"}
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact_name, "test")
         assert contact.name == "Only Name"
-        
+
         # Test fallback when both are empty
         whatsapp_contact_fallback = {"id": "test3@c.us", "name": "", "pushName": None}
         contact = WhatsAppTransformer.contact_to_omni(whatsapp_contact_fallback, "test")
@@ -143,9 +141,9 @@ class TestWhatsAppTransformer:
             "isGroup": False,
             "participants": []
         }
-        
+
         chat = WhatsAppTransformer.chat_to_omni(whatsapp_chat, "test-instance")
-        
+
         assert isinstance(chat, OmniChat)
         assert chat.id == "5511999999999@c.us"
         assert chat.name == "Direct Chat"
@@ -164,9 +162,9 @@ class TestWhatsAppTransformer:
             "isGroup": True,
             "participants": ["user1@c.us", "user2@c.us", "user3@c.us"]
         }
-        
+
         chat = WhatsAppTransformer.chat_to_omni(whatsapp_chat, "test-instance")
-        
+
         assert chat.chat_type == OmniChatType.GROUP
         assert chat.participant_count == 3
         assert chat.channel_data["group_id"] == "120363025@g.us"
@@ -180,14 +178,14 @@ class TestWhatsAppTransformer:
             "isGroup": False,
             "isBroadcast": True
         }
-        
+
         chat = WhatsAppTransformer.chat_to_omni(whatsapp_chat, "test-instance")
-        
+
         assert chat.chat_type == OmniChatType.CHANNEL  # @broadcast maps to CHANNEL
     def test_chat_to_omni_none_input(self):
         """Test chat transformation with None input."""
         chat = WhatsAppTransformer.chat_to_omni(None, "test-instance")
-        
+
         assert isinstance(chat, OmniChat)
         assert chat.instance_name == "test-instance"
         assert chat.channel_type == ChannelType.WHATSAPP
@@ -201,7 +199,7 @@ class TestWhatsAppTransformer:
             {"name": "No ID"},  # Missing ID
             {},  # Empty dict
         ]
-        
+
         for invalid_chat in invalid_chats:
             # Should handle gracefully
             chat = WhatsAppTransformer.chat_to_omni(invalid_chat, "test")
@@ -218,15 +216,15 @@ class TestWhatsAppTransformer:
             "connectedAt": 1640995200000,
             "lastActivity": 1640995200000
         }
-        
+
         instance_config = {
             "display_name": "WhatsApp Instance"
         }
-        
+
         channel_info = WhatsAppTransformer.channel_to_omni(
             "test-whatsapp", status_data, instance_config
         )
-        
+
         assert isinstance(channel_info, OmniChannelInfo)
         assert channel_info.instance_name == "test-whatsapp"
         assert channel_info.channel_type == ChannelType.WHATSAPP
@@ -238,13 +236,13 @@ class TestWhatsAppTransformer:
         status_data = {
             "status": "connecting"
         }
-        
+
         instance_config = {}
-        
+
         channel_info = WhatsAppTransformer.channel_to_omni(
             "minimal-instance", status_data, instance_config
         )
-        
+
         assert channel_info.instance_name == "minimal-instance"
         assert channel_info.status == "connecting"
         assert channel_info.display_name == "minimal-instance"  # Fallback
@@ -258,11 +256,11 @@ class TestWhatsAppTransformer:
             ("no-domain", "no-domain"),  # Fallback
             ("", ""),  # Empty string
         ]
-        
+
         for whatsapp_id, expected_phone in test_cases:
             contact = {"id": whatsapp_id, "name": "Test"}
             transformed = WhatsAppTransformer.contact_to_omni(contact, "test")
-            
+
             if "phone_number" in transformed.channel_data:
                 assert transformed.channel_data["phone_number"] == expected_phone
     def test_whatsapp_timestamp_parsing(self):
@@ -274,7 +272,7 @@ class TestWhatsAppTransformer:
             (None, None),                                         # None
             ("invalid", None),                                    # Invalid string
         ]
-        
+
         for input_timestamp, expected_datetime in test_cases:
             contact = {
                 "id": "test@c.us",
@@ -282,7 +280,7 @@ class TestWhatsAppTransformer:
                 "lastSeen": input_timestamp
             }
             transformed = WhatsAppTransformer.contact_to_omni(contact, "test")
-            
+
             if expected_datetime:
                 assert transformed.last_seen == expected_datetime
             else:
@@ -295,7 +293,7 @@ class TestWhatsAppTransformer:
             (None, None),  # None preserved
             ("invalid-url", "invalid-url"),  # Invalid URL still preserved
         ]
-        
+
         for input_url, expected_url in test_cases:
             contact = {
                 "id": "test@c.us",
@@ -318,24 +316,24 @@ class TestDiscordTransformer:
             "status": "online",
             "bot": False
         }
-        
+
         contact = DiscordTransformer.contact_to_omni(discord_user, "test-discord")
-        
+
         assert isinstance(contact, OmniContact)
         assert contact.id == "987654321098765432"
         assert contact.name == "Test User Global"  # Prefers global_name
         assert contact.channel_type == ChannelType.DISCORD
         assert contact.instance_name == "test-discord"
         assert contact.status == OmniContactStatus.ONLINE  # 'online' maps to ONLINE
-        
+
         # Verify Discord-specific data
         assert contact.channel_data["username"] == "testuser"
         assert contact.channel_data["discriminator"] == "0001"
         assert contact.channel_data["global_name"] == "Test User Global"
         assert contact.channel_data["is_bot"] == False
-        
+
         # Verify avatar URL construction
-        expected_avatar = f"https://cdn.discordapp.com/avatars/987654321098765432/a_1234567890abcdef1234567890abcdef.png"
+        expected_avatar = "https://cdn.discordapp.com/avatars/987654321098765432/a_1234567890abcdef1234567890abcdef.png"
         assert contact.avatar_url == expected_avatar
     def test_contact_to_omni_no_global_name(self):
         """Test Discord user transformation without global_name."""
@@ -347,9 +345,9 @@ class TestDiscordTransformer:
             "discriminator": "0001",
             "status": "idle"
         }
-        
+
         contact = DiscordTransformer.contact_to_omni(discord_user, "test-discord")
-        
+
         # Should fall back to display_name or username
         assert contact.name == "olduser"
     def test_contact_to_omni_no_avatar(self):
@@ -362,9 +360,9 @@ class TestDiscordTransformer:
             "avatar": None,
             "status": "dnd"
         }
-        
+
         contact = DiscordTransformer.contact_to_omni(discord_user, "test-discord")
-        
+
         assert contact.avatar_url is None
     def test_discord_status_mapping(self):
         """Test Discord status to omni status mapping."""
@@ -376,7 +374,7 @@ class TestDiscordTransformer:
             ("invisible", OmniContactStatus.UNKNOWN),  # Unknown status maps to UNKNOWN
             ("unknown", OmniContactStatus.UNKNOWN),  # Default fallback
         ]
-        
+
         for discord_status, expected_omni_status in status_mappings:
             discord_user = {
                 "id": 123456789,
@@ -396,9 +394,9 @@ class TestDiscordTransformer:
             "position": 0,
             "nsfw": False
         }
-        
+
         chat = DiscordTransformer.chat_to_omni(discord_channel, "test-discord")
-        
+
         assert isinstance(chat, OmniChat)
         assert chat.id == "111222333444555666"
         assert chat.name == "general"
@@ -415,9 +413,9 @@ class TestDiscordTransformer:
             "type": 2,  # Group DM
             "member_count": 3
         }
-        
+
         chat = DiscordTransformer.chat_to_omni(discord_channel, "test-discord")
-        
+
         assert chat.chat_type == OmniChatType.GROUP
         assert chat.participant_count == 3
     def test_chat_to_omni_dm_channel(self):
@@ -428,9 +426,9 @@ class TestDiscordTransformer:
             "type": 1,  # DM channel
             "member_count": 1
         }
-        
+
         chat = DiscordTransformer.chat_to_omni(discord_channel, "test-discord")
-        
+
         assert chat.chat_type == OmniChatType.DIRECT
         assert chat.participant_count == 1
     def test_discord_channel_type_mapping(self):
@@ -446,7 +444,7 @@ class TestDiscordTransformer:
             (12, OmniChatType.THREAD),    # Guild private thread
             (999, OmniChatType.CHANNEL),  # Unknown type defaults to CHANNEL
         ]
-        
+
         for discord_type, expected_chat_type in type_mappings:
             discord_channel = {
                 "id": 123456789,
@@ -467,15 +465,15 @@ class TestDiscordTransformer:
             "connected_at": 1640995200,
             "last_activity": 1640995200
         }
-        
+
         instance_config = {
             "display_name": "Discord Bot"
         }
-        
+
         channel_info = DiscordTransformer.channel_to_omni(
             "test-discord", status_data, instance_config
         )
-        
+
         assert isinstance(channel_info, OmniChannelInfo)
         assert channel_info.instance_name == "test-discord"
         assert channel_info.channel_type == ChannelType.DISCORD
@@ -490,7 +488,7 @@ class TestDiscordTransformer:
             (987654321, None, None),  # No avatar
             (111222333, "", None),    # Empty avatar hash
         ]
-        
+
         for user_id, avatar_hash, expected_url in test_cases:
             discord_user = {
                 "id": user_id,
@@ -505,9 +503,9 @@ class TestDiscordTransformer:
             "id": 123456789012345678,  # Integer
             "username": "testuser"
         }
-        
+
         contact = DiscordTransformer.contact_to_omni(discord_user, "test")
-        
+
         # ID should be converted to string
         assert isinstance(contact.id, str)
         assert contact.id == "123456789012345678"
@@ -522,7 +520,7 @@ class TestDiscordTransformer:
         }
         contact = DiscordTransformer.contact_to_omni(user_all_names, "test")
         assert contact.name == "Global Name"
-        
+
         # Test without global_name
         user_no_global = {
             "id": 456,
@@ -531,7 +529,7 @@ class TestDiscordTransformer:
         }
         contact = DiscordTransformer.contact_to_omni(user_no_global, "test")
         assert contact.name == "username_only"  # Implementation doesn't use display_name
-        
+
         # Test with only username
         user_only_username = {
             "id": 789,
@@ -548,7 +546,7 @@ class TestDiscordTransformer:
             {"id": None},         # Null id
             {"id": "not-number"}, # Wrong id type
         ]
-        
+
         for malformed_input in malformed_inputs:
             # Should handle gracefully without throwing
             contact = DiscordTransformer.contact_to_omni(malformed_input, "test")
@@ -564,7 +562,7 @@ class TestDiscordTransformer:
             [],           # List
             {"nested": "dict"},  # Dict
         ]
-        
+
         for edge_case in edge_cases:
             contact = {"id": "test@c.us", "name": "Test", "lastSeen": edge_case}
             # Should handle gracefully without crashing

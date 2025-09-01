@@ -27,7 +27,7 @@ router = APIRouter()
 async def get_supported_channels(api_key: str = Depends(verify_api_key)):
     """
     Get list of supported channel types.
-    
+
     Returns available channels (WhatsApp, Discord, Slack) with configuration requirements.
     """
     try:
@@ -106,7 +106,7 @@ class InstanceConfigCreate(BaseModel):
     # Automagik instance identification (for UI display)
     automagik_instance_id: Optional[str] = Field(None, description="Automagik instance ID")
     automagik_instance_name: Optional[str] = Field(None, description="Automagik instance name")
-    
+
     # Unified agent fields (optional for creation, use defaults if not provided)
     agent_instance_type: Optional[str] = Field(default="automagik", description="Agent instance type: automagik or hive")
     agent_id: Optional[str] = Field(default=None, description="Agent or team ID")
@@ -123,7 +123,7 @@ class InstanceConfigUpdate(BaseModel):
     whatsapp_instance: Optional[str] = None
     session_id_prefix: Optional[str] = None
     webhook_base64: Optional[bool] = None
-    
+
     # Discord-specific fields
     discord_bot_token: Optional[str] = None
     discord_client_id: Optional[str] = None
@@ -131,7 +131,7 @@ class InstanceConfigUpdate(BaseModel):
     discord_default_channel_id: Optional[str] = None
     discord_voice_enabled: Optional[bool] = None
     discord_slash_commands_enabled: Optional[bool] = None
-    
+
     agent_api_url: Optional[str] = None
     agent_api_key: Optional[str] = None
     default_agent: Optional[str] = None
@@ -139,7 +139,7 @@ class InstanceConfigUpdate(BaseModel):
     is_default: Optional[bool] = None
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
-    
+
     # Unified agent fields
     agent_instance_type: Optional[str] = None
     agent_id: Optional[str] = None
@@ -169,7 +169,7 @@ class InstanceConfigResponse(BaseModel):
     whatsapp_instance: Optional[str]
     session_id_prefix: Optional[str]
     webhook_base64: Optional[bool]
-    
+
     # Discord-specific fields - SECURITY FIX: Don't expose actual token
     has_discord_bot_token: Optional[bool] = None  # Security: Don't expose actual token
     discord_client_id: Optional[str] = None
@@ -177,7 +177,7 @@ class InstanceConfigResponse(BaseModel):
     discord_default_channel_id: Optional[str] = None
     discord_voice_enabled: Optional[bool] = None
     discord_slash_commands_enabled: Optional[bool] = None
-    
+
     agent_api_url: str
     agent_api_key: str
     default_agent: Optional[str]
@@ -186,16 +186,16 @@ class InstanceConfigResponse(BaseModel):
     is_active: bool
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
-    
+
     # Profile information from Evolution API
     profile_name: Optional[str] = None
     profile_pic_url: Optional[str] = None
     owner_jid: Optional[str] = None
-    
+
     created_at: datetime
     updated_at: datetime
     evolution_status: Optional[EvolutionStatusInfo] = None
-    
+
     # Unified agent fields
     agent_instance_type: Optional[str] = None
     agent_id: Optional[str] = None
@@ -278,7 +278,7 @@ async def create_instance(
         logger.info(
             f"Instance name normalized: '{original_name}' -> '{normalized_name}'"
         )
-        
+
         # Check if normalization removed too much content (validation)
         # If the normalized name is significantly shorter or only contains basic chars after heavy modification
         if len(normalized_name) < len(original_name) * 0.5 or "!" in original_name:
@@ -341,7 +341,7 @@ async def create_instance(
             # Update instance with Evolution API details
             if "evolution_apikey" in creation_result:
                 db_instance.evolution_key = creation_result["evolution_apikey"]
-            
+
             # Mark instance as active after successful creation
             db_instance.is_active = True
             db.commit()
@@ -846,16 +846,16 @@ async def discover_instances(
 ):
     """Discover available instances from external services."""
     discovered_instances = []
-    
+
     try:
         # Get all configured instances to check their external status
         instances = db.query(InstanceConfig).all()
-        
+
         for instance in instances:
             try:
                 handler = ChannelHandlerFactory.get_handler(instance.channel_type)
                 status_info = await handler.get_status(instance)
-                
+
                 discovered_instances.append({
                     "name": instance.name,
                     "channel_type": instance.channel_type,
@@ -874,7 +874,7 @@ async def discover_instances(
                     "active": False,
                     "error": str(e)
                 })
-                
+
         return {
             "message": "Instance discovery completed",
             "instances": discovered_instances,

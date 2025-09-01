@@ -46,30 +46,30 @@ def _create_postgresql_test_database():
     """Create a temporary PostgreSQL database for testing."""
     import uuid
     from sqlalchemy import create_engine, text
-    
+
     # Database connection details from environment
     postgres_host = os.environ.get("POSTGRES_HOST", "localhost")
     postgres_port = os.environ.get("POSTGRES_PORT", "5432")
     postgres_user = os.environ.get("POSTGRES_USER", "postgres")
     postgres_password = os.environ.get("POSTGRES_PASSWORD", "")
     postgres_db = os.environ.get("POSTGRES_DB", "postgres")
-    
+
     # Create a unique test database name
     test_db_name = f"test_omni_{uuid.uuid4().hex[:8]}"
-    
+
     # Connect to PostgreSQL server to create test database
     server_url = f"postgresql://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_db}"
     server_engine = create_engine(server_url, isolation_level="AUTOCOMMIT")
-    
+
     try:
         # Create test database
         with server_engine.connect() as conn:
             conn.execute(text(f'CREATE DATABASE "{test_db_name}"'))
-        
+
         # Return connection URL for the test database
         test_db_url = f"postgresql://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{test_db_name}"
         return test_db_url, test_db_name, server_engine
-        
+
     except Exception as e:
         server_engine.dispose()
         raise Exception(f"Failed to create PostgreSQL test database: {e}")
@@ -97,7 +97,7 @@ def _cleanup_postgresql_test_database(test_db_name: str, server_engine):
 @pytest.fixture(scope="function")
 def test_db() -> Generator[Session, None, None]:
     """Create a test database session.
-    
+
     Database selection priority:
     1. TEST_DATABASE_URL environment variable (explicit override)
     2. PostgreSQL if POSTGRES_HOST is set and psycopg2 is available
@@ -105,10 +105,10 @@ def test_db() -> Generator[Session, None, None]:
     """
     engine = None
     cleanup_func = None
-    
+
     # Check for explicit test database URL override
     test_db_url = os.environ.get("TEST_DATABASE_URL")
-    
+
     if test_db_url:
         # Use the explicit test database from environment
         if test_db_url.startswith("sqlite"):
@@ -118,25 +118,25 @@ def test_db() -> Generator[Session, None, None]:
         else:
             engine = create_engine(test_db_url)
         print(f"Using explicit test database: {test_db_url}")
-        
+
     elif os.environ.get("POSTGRES_HOST"):
         # Try to use PostgreSQL if configured
         try:
             import psycopg2  # Check if PostgreSQL driver is available
             test_db_url, test_db_name, server_engine = _create_postgresql_test_database()
             engine = create_engine(test_db_url)
-            
+
             # Set up cleanup function
             cleanup_func = lambda: _cleanup_postgresql_test_database(test_db_name, server_engine)
             print(f"Created PostgreSQL test database: {test_db_name}")
-            
+
         except ImportError:
             print("Warning: psycopg2 not available, falling back to SQLite")
             engine = None
         except Exception as e:
             print(f"Warning: PostgreSQL setup failed ({e}), falling back to SQLite")
             engine = None
-    
+
     # Fallback to temporary SQLite database
     if engine is None:
         import tempfile
@@ -162,13 +162,13 @@ def test_db() -> Generator[Session, None, None]:
         # Ensure any pending transactions are rolled back
         db.rollback()
         db.close()
-        
+
         # Drop tables for clean state
         try:
             Base.metadata.drop_all(bind=engine)
         except Exception as e:
             print(f"Warning: Failed to drop tables during cleanup: {e}")
-        
+
         # Database-specific cleanup
         if cleanup_func:
             # PostgreSQL: Drop the entire test database
@@ -179,7 +179,7 @@ def test_db() -> Generator[Session, None, None]:
                 os.unlink(engine._test_temp_file)
             except OSError:
                 pass  # File might already be deleted
-        
+
         # Dispose of the engine
         engine.dispose()
 
@@ -202,7 +202,7 @@ def test_client(test_db):
     """Create FastAPI test client with overridden database."""
     # Import after environment is set and before app is created
     from src.api.deps import verify_api_key, get_database
-    
+
     # Import app AFTER setting up the test environment
     from src.api.app import app
 
@@ -221,7 +221,7 @@ def test_client(test_db):
 
     app.dependency_overrides[verify_api_key] = mock_verify_api_key
     app.dependency_overrides[get_database] = override_db_dependency
-    
+
     # Import and override the base database dependency too
     from src.db.database import get_db
     app.dependency_overrides[get_db] = override_base_get_db
@@ -550,7 +550,7 @@ def expected_mention_jids():
         "with_spaces": ["5511999999999@s.whatsapp.net"],
         "multiple": [
             "5511111111111@s.whatsapp.net",
-            "5511222222222@s.whatsapp.net", 
+            "5511222222222@s.whatsapp.net",
             "5511333333333@s.whatsapp.net"
         ],
         "mixed": ["5511999999999@s.whatsapp.net"],

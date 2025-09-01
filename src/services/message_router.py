@@ -17,7 +17,7 @@ logger = logging.getLogger("src.services.message_router")
 class RouteType(Enum):
     """Route types for message routing."""
     AGENT = "agent"
-    HIVE = "hive" 
+    HIVE = "hive"
     HYBRID = "hybrid"
 
 
@@ -32,10 +32,10 @@ class MessageRouter:
     Routes messages to the appropriate agent system.
     Supports both traditional API routing and AutomagikHive streaming.
     """
-    
+
     def __init__(self):
         """Initialize the MessageRouter."""
-    
+
     def route_message(
         self,
         message_text: str,
@@ -71,18 +71,18 @@ class MessageRouter:
         )
         logger.info(f"Message text: {message_text}")
         logger.info(f"Session origin: {session_origin}")
-        
+
         # Determine the agent name to use
         agent_name = None
         if agent_config and "name" in agent_config:
             agent_name = agent_config["name"]
-        
+
         # If no agent name is specified in the config, use a default
         if not agent_name:
             agent_name = "default"
-        
+
         logger.info(f"Using agent name: {agent_name}")
-        
+
         # If user_id is provided, prioritize it over user dict
         if user_id:
             logger.info(f"Using provided user_id: {user_id}")
@@ -99,29 +99,29 @@ class MessageRouter:
                 "No user_id provided - letting instance-specific agent API handle user creation"
             )
             user_id = None
-        
+
         # Process the message through the Agent API
         try:
             # Check if this is a Hive instance configuration
             is_hive = agent_config and agent_config.get("instance_type") == "hive"
-            
+
             if is_hive and agent_config.get("instance_config"):
                 # Use AutomagikHive client for Hive instances
                 logger.info("Detected Hive instance configuration - using AutomagikHive client")
                 from src.services.automagik_hive_client import AutomagikHiveClient
-                
+
                 instance_config = agent_config.get("instance_config")
                 hive_client = AutomagikHiveClient(config_override=instance_config)
-                
+
                 # Determine if this is a team or agent
                 agent_type = agent_config.get("agent_type", "agent")
                 agent_id = agent_config.get("name")  # This should be the agent_id or team_id
-                
+
                 logger.info(f"Routing to Hive {agent_type}: {agent_id}")
-                
+
                 # Use synchronous wrapper for async Hive calls
                 import asyncio
-                
+
                 async def call_hive():
                     try:
                         if agent_type == "team":
@@ -144,7 +144,7 @@ class MessageRouter:
                                 user_id=str(user_id) if user_id else None,
                                 metadata={"user_data": user} if user else None
                             )
-                        
+
                         # Handle streaming vs non-streaming response
                         if agent_config.get("stream_mode", False):
                             # Stream response with newline-based chunking
@@ -153,7 +153,7 @@ class MessageRouter:
                             event_count = 0
                             buffer = ""
                             responses = []
-                            
+
                             async for event in response:
                                 event_count += 1
                                 logger.info(f"Received streaming event #{event_count}: {type(event)} - {hasattr(event, 'content')}")
@@ -161,7 +161,7 @@ class MessageRouter:
                                     logger.info(f"Event content: {event.content[:100]}")
                                     buffer += event.content
                                     full_response += event.content
-                                    
+
                                     # Check if buffer contains newline(s)
                                     while '\n' in buffer:
                                         # Split at the first newline
@@ -170,18 +170,18 @@ class MessageRouter:
                                             # Add the line to responses (will be sent as a chunk)
                                             responses.append(line)
                                             logger.info(f"Streaming chunk ready: {line[:100]}")
-                            
+
                             # Add any remaining buffer content
                             if buffer.strip():
                                 responses.append(buffer)
                                 logger.info(f"Final chunk: {buffer[:100]}")
-                            
+
                             logger.info(f"Streaming complete - {event_count} events received, {len(responses)} chunks")
                             logger.info(f"Final response length: {len(full_response)}")
-                            
+
                             # Return with streaming chunks for progressive sending
                             return {
-                                "response": full_response, 
+                                "response": full_response,
                                 "success": True,
                                 "streaming_chunks": responses
                             }
@@ -189,7 +189,7 @@ class MessageRouter:
                             # Non-streaming response
                             logger.info(f"Hive response received: {response}")
                             logger.info(f"Hive response type: {type(response)}")
-                            
+
                             # Hive API returns JSON with 'content' field
                             if isinstance(response, dict):
                                 content = response.get("content", "")
@@ -200,27 +200,27 @@ class MessageRouter:
                             else:
                                 # Handle other response types
                                 content = getattr(response, 'content', str(response))
-                            
+
                             logger.info(f"Extracted content: {content[:200] if content else 'EMPTY'}")
                             return {"response": content, "success": True}
                     except Exception as e:
                         logger.error(f"Hive API error: {e}")
                         return {"response": str(e), "success": False}
-                
+
                 # Run the async function
                 try:
                     loop = asyncio.get_event_loop()
                 except RuntimeError:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                
+
                 response = loop.run_until_complete(call_hive())
                 return response.get("response", "Error processing Hive request")
-                
+
             elif agent_config and "api_url" in agent_config:
                 # Use traditional Automagik API client
                 from src.services.agent_api_client import AgentApiClient
-                
+
                 class InstanceConfig:
                     def __init__(
                         self,
@@ -235,7 +235,7 @@ class MessageRouter:
                         self.agent_api_key = agent_api_key
                         self.default_agent = default_agent
                         self.agent_timeout = agent_timeout
-                
+
                 instance_override = InstanceConfig(
                     name=agent_config.get("name", "unknown"),
                     agent_api_url=agent_config.get("api_url"),
@@ -276,14 +276,14 @@ class MessageRouter:
                     channel_payload=whatsapp_raw_payload,
                     trace_context=trace_context,
                 )
-            
+
             # Memory creation is handled by the Automagik Agents API, no need to create it here
             return response
-            
+
         except Exception as e:
             logger.error(f"Error routing message: {e}", exc_info=True)
             return "Sorry, I encountered an error processing your message."
-    
+
     async def route_message_streaming(
         self,
         message_text: str,
@@ -300,7 +300,7 @@ class MessageRouter:
     ) -> bool:
         """
         Route a message to AutomagikHive streaming for real-time WhatsApp delivery.
-        
+
         Args:
             message_text: Message text
             recipient: WhatsApp recipient ID for streaming delivery
@@ -313,14 +313,14 @@ class MessageRouter:
             session_origin: Session origin (default: "whatsapp")
             media_contents: List of media content objects (optional)
             trace_context: TraceContext for message lifecycle tracking (optional)
-            
+
         Returns:
             True if streaming was successful, False otherwise
         """
         # Import here to avoid circular imports
         from src.channels.whatsapp.streaming_integration_enhanced import get_enhanced_streaming_instance
         from src.services.streaming_trace_context import StreamingTraceContext
-        
+
         # Use session_name if provided
         session_identifier = session_name
         logger.info(
@@ -328,7 +328,7 @@ class MessageRouter:
         )
         logger.info(f"Streaming to WhatsApp recipient: {recipient}")
         logger.info(f"Message text: {message_text}")
-        
+
         try:
             # Convert trace_context to StreamingTraceContext if needed
             streaming_trace_context = trace_context
@@ -347,10 +347,10 @@ class MessageRouter:
                     session_name=session_identifier
                 )
                 logger.info("Converted standard trace context to streaming trace context")
-            
+
             # Get the enhanced streaming instance for this configuration
             streaming_instance = get_enhanced_streaming_instance(instance_config)
-            
+
             # Determine routing type based on instance configuration
             # First try unified schema
             if hasattr(instance_config, 'is_hive') and instance_config.is_hive:
@@ -398,32 +398,32 @@ class MessageRouter:
             else:
                 logger.error("No AutomagikHive agent_id configured for streaming")
                 return False
-            
+
             if success:
                 logger.info(f"AutomagikHive streaming completed successfully for {recipient}")
             else:
                 logger.warning(f"AutomagikHive streaming failed for {recipient}")
-            
+
             return success
-            
+
         except Exception as e:
             logger.error(f"Error in AutomagikHive streaming for {recipient}: {e}", exc_info=True)
             return False
-    
+
     def should_use_streaming(self, instance_config: InstanceConfig) -> bool:
         """
         Determine if streaming should be used for this instance.
-        
+
         Args:
             instance_config: Instance configuration
-            
+
         Returns:
             True if streaming should be used, False for traditional API routing
         """
         # Get agent config to check stream_mode (consistent with other streaming logic)
         agent_config = instance_config.get_agent_config()
         stream_mode = agent_config.get("stream_mode", False)
-        
+
         logger.debug(f"Checking streaming for instance {instance_config.name}:")
         logger.debug(f"  - stream_mode from agent_config: {stream_mode}")
         logger.debug(f"  - agent_instance_type: {getattr(instance_config, 'agent_instance_type', None)}")
@@ -431,11 +431,11 @@ class MessageRouter:
         logger.debug(f"  - agent_api_url: {bool(getattr(instance_config, 'agent_api_url', None))}")
         logger.debug(f"  - agent_api_key: {bool(getattr(instance_config, 'agent_api_key', None))}")
         logger.debug(f"  - agent_id: {getattr(instance_config, 'agent_id', None)}")
-        
+
         if not stream_mode:
             logger.debug("Streaming disabled: stream_mode is False")
             return False
-        
+
         # For unified schema: check if this is a hive instance with streaming
         if hasattr(instance_config, 'is_hive') and instance_config.is_hive:
             # Require API configuration
@@ -448,7 +448,7 @@ class MessageRouter:
                 return False
             logger.debug("Streaming ENABLED for Hive instance")
             return True
-        
+
         # Backward compatibility: check legacy hive fields
         if hasattr(instance_config, 'hive_enabled') and instance_config.hive_enabled:
             if not instance_config.hive_api_url or not instance_config.hive_api_key:
@@ -461,10 +461,10 @@ class MessageRouter:
                 return True
             logger.debug("Streaming disabled (legacy): No hive_agent_id or hive_team_id")
             return False
-        
+
         logger.debug("Streaming disabled: Not a Hive instance")
         return False
-    
+
     async def route_message_smart(
         self,
         message_text: str,
@@ -481,7 +481,7 @@ class MessageRouter:
     ) -> Union[str, Dict[str, Any], bool]:
         """
         Smart routing that automatically chooses between traditional API and streaming.
-        
+
         Args:
             message_text: Message text
             recipient: WhatsApp recipient ID for streaming delivery
@@ -494,7 +494,7 @@ class MessageRouter:
             session_origin: Session origin (default: "whatsapp")
             media_contents: List of media content objects (optional)
             trace_context: TraceContext for message lifecycle tracking (optional)
-            
+
         Returns:
             For streaming: True if successful, False if failed
             For traditional API: Response string or dict from the handler
@@ -525,7 +525,7 @@ class MessageRouter:
                     "api_key": instance_config.agent_api_key,
                     "timeout": getattr(instance_config, 'agent_timeout', 60),
                 }
-            
+
             return self.route_message(
                 message_text=message_text,
                 user_id=user_id,

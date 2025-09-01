@@ -4,22 +4,19 @@ Omni multi-channel API endpoints.
 Provides consistent access to contacts, chats, and channel information across all supported channels.
 """
 import logging
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.api.schemas.omni import (
     OmniContactsResponse, OmniChatsResponse, OmniChannelsResponse,
-    OmniContact, OmniChat, OmniChannelInfo,
-    OmniErrorResponse, OmniErrorDetail,
-    ChannelType
+    OmniContact, OmniChat, ChannelType
 )
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory
 from src.channels.handlers.whatsapp_chat_handler import WhatsAppChatHandler
 from src.channels.handlers.discord_chat_handler import DiscordChatHandler
 from src.channels.omni_base import OmniChannelHandler
-from datetime import datetime
 
 router = APIRouter(prefix="/instances", tags=["omni-instances"])
 logger = logging.getLogger(__name__)
@@ -55,16 +52,16 @@ async def get_omni_contacts(
 ):
     """
     Get contacts from instance in omni format.
-    
+
     Supports pagination, search, and filtering across all channel types.
     Returns contacts in a consistent format regardless of the underlying channel.
     """
     try:
         logger.info(f"Fetching omni contacts for instance '{instance_name}' - page: {page}, size: {page_size}")
-        
+
         # Get instance configuration
         instance = get_instance_by_name(instance_name, db)
-        
+
         # If channel_type filter is provided, ensure it matches instance channel
         if channel_type and instance.channel_type != channel_type.value:
             return OmniContactsResponse(
@@ -82,10 +79,10 @@ async def get_omni_contacts(
                     "message": f"Instance {instance_name} is {instance.channel_type}, not {channel_type.value}"
                 }]
             )
-        
+
         # Get omni handler for instance channel type
         handler = get_omni_handler(instance.channel_type)
-        
+
         # Fetch contacts
         contacts, total_count = await handler.get_contacts(
             instance=instance,
@@ -94,12 +91,12 @@ async def get_omni_contacts(
             search_query=search_query,
             status_filter=status_filter
         )
-        
+
         # Calculate pagination info
         has_more = (page * page_size) < total_count
-        
+
         logger.info(f"Successfully fetched {len(contacts)} contacts (total: {total_count}) for instance '{instance_name}'")
-        
+
         return OmniContactsResponse(
             contacts=contacts,
             total_count=total_count,
@@ -110,7 +107,7 @@ async def get_omni_contacts(
             channel_type=ChannelType(instance.channel_type),
             partial_errors=[]
         )
-        
+
     except HTTPException:
         # Re-raise HTTP exceptions (like instance not found)
         raise
@@ -134,16 +131,16 @@ async def get_omni_chats(
 ):
     """
     Get chats from instance in omni format.
-    
+
     Supports pagination and filtering across all channel types.
     Returns chats in a consistent format regardless of the underlying channel.
     """
     try:
         logger.info(f"Fetching omni chats for instance '{instance_name}' - page: {page}, size: {page_size}")
-        
+
         # Get instance configuration
         instance = get_instance_by_name(instance_name, db)
-        
+
         # If channel_type filter is provided, ensure it matches instance channel
         if channel_type and instance.channel_type != channel_type.value:
             return OmniChatsResponse(
@@ -161,10 +158,10 @@ async def get_omni_chats(
                     "message": f"Instance {instance_name} is {instance.channel_type}, not {channel_type.value}"
                 }]
             )
-        
+
         # Get omni handler for instance channel type
         handler = get_omni_handler(instance.channel_type)
-        
+
         # Fetch chats
         chats, total_count = await handler.get_chats(
             instance=instance,
@@ -173,12 +170,12 @@ async def get_omni_chats(
             chat_type_filter=chat_type_filter,
             archived=archived
         )
-        
+
         # Calculate pagination info
         has_more = (page * page_size) < total_count
-        
+
         logger.info(f"Successfully fetched {len(chats)} chats (total: {total_count}) for instance '{instance_name}'")
-        
+
         return OmniChatsResponse(
             chats=chats,
             total_count=total_count,
@@ -189,7 +186,7 @@ async def get_omni_chats(
             channel_type=ChannelType(instance.channel_type),
             partial_errors=[]
         )
-        
+
     except HTTPException:
         # Re-raise HTTP exceptions (like instance not found)
         raise
@@ -208,53 +205,53 @@ async def get_omni_channels(
 ):
     """
     Get all channel instances in omni format.
-    
+
     Returns information about all configured instances across all channel types,
     including their connection status and capabilities.
     """
     try:
         logger.info(f"Fetching omni channels - channel_type filter: {channel_type}")
-        
+
         # Get all instances from database
         query = db.query(InstanceConfig)
         if channel_type:
             query = query.filter(InstanceConfig.channel_type == channel_type.value)
         instances = query.all()
-        
+
         channels = []
         partial_errors = []
         healthy_count = 0
-        
+
         for instance in instances:
             try:
                 # Get omni handler for instance channel type
                 handler = get_omni_handler(instance.channel_type)
-                
+
                 # Get channel info
                 channel_info = await handler.get_channel_info(instance)
                 channels.append(channel_info)
-                
+
                 if channel_info.is_healthy:
                     healthy_count += 1
-                    
+
             except Exception as e:
                 logger.warning(f"Failed to get channel info for instance '{instance.name}': {e}")
                 partial_errors.append({
                     "instance_name": instance.name,
                     "channel_type": instance.channel_type,
-                    "error_code": "channel_info_error", 
+                    "error_code": "channel_info_error",
                     "message": f"Failed to get channel info: {str(e)}"
                 })
-        
+
         logger.info(f"Successfully fetched {len(channels)} channels ({healthy_count} healthy)")
-        
+
         return OmniChannelsResponse(
             channels=channels,
             total_count=len(channels),
             healthy_count=healthy_count,
             partial_errors=partial_errors
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to fetch omni channels: {e}")
         raise HTTPException(
@@ -274,25 +271,25 @@ async def get_omni_contact_by_id(
     """
     try:
         logger.info(f"Fetching omni contact '{contact_id}' for instance '{instance_name}'")
-        
+
         # Get instance configuration
         instance = get_instance_by_name(instance_name, db)
-        
+
         # Get omni handler for instance channel type
         handler = get_omni_handler(instance.channel_type)
-        
+
         # Fetch contact
         contact = await handler.get_contact_by_id(instance, contact_id)
-        
+
         if not contact:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Contact '{contact_id}' not found in instance '{instance_name}'"
             )
-        
+
         logger.info(f"Successfully fetched contact '{contact_id}' for instance '{instance_name}'")
         return contact
-        
+
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
@@ -315,25 +312,25 @@ async def get_omni_chat_by_id(
     """
     try:
         logger.info(f"Fetching omni chat '{chat_id}' for instance '{instance_name}'")
-        
+
         # Get instance configuration
         instance = get_instance_by_name(instance_name, db)
-        
+
         # Get omni handler for instance channel type
         handler = get_omni_handler(instance.channel_type)
-        
+
         # Fetch chat
         chat = await handler.get_chat_by_id(instance, chat_id)
-        
+
         if not chat:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Chat '{chat_id}' not found in instance '{instance_name}'"
             )
-        
+
         logger.info(f"Successfully fetched chat '{chat_id}' for instance '{instance_name}'")
         return chat
-        
+
     except HTTPException:
         # Re-raise HTTP exceptions
         raise

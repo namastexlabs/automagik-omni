@@ -3,7 +3,7 @@
 Extended Evolution API client with omni endpoints support.
 """
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 from urllib.parse import quote
 from src.channels.whatsapp.evolution_client import EvolutionClient
 
@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 class OmniEvolutionClient(EvolutionClient):
     """Extended Evolution client with omni operations support."""
-    
+
     async def fetch_contacts(
-        self, 
+        self,
         instance_name: str,
         page: int = 1,
         page_size: int = 50
@@ -26,11 +26,11 @@ class OmniEvolutionClient(EvolutionClient):
         return await self._request(
             "GET", f"/chat/findContacts/{quote(instance_name, safe='')}", params=params
         )
-    
+
     async def fetch_chats(
         self,
         instance_name: str,
-        page: int = 1, 
+        page: int = 1,
         page_size: int = 50
     ) -> Dict[str, Any]:
         """Fetch chats/conversations for an instance."""

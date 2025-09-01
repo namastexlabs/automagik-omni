@@ -15,7 +15,7 @@ class TestWhatsAppMentionParser:
         """Test basic @phone format without country code."""
         text = "Hello @5511999999999, how are you?"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 1
         assert mentions[0] == "5511999999999@s.whatsapp.net"
@@ -24,8 +24,8 @@ class TestWhatsAppMentionParser:
         """Test @+phone format with country code."""
         text = "Contact @+5511888888888 for details"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
-        assert original == text  
+
+        assert original == text
         assert len(mentions) == 1
         assert mentions[0] == "5511888888888@s.whatsapp.net"
 
@@ -33,7 +33,7 @@ class TestWhatsAppMentionParser:
         """Test @phone format with spaces."""
         text = "Meeting with @55 11 999999999 at 3pm"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 1
         assert mentions[0] == "5511999999999@s.whatsapp.net"
@@ -42,7 +42,7 @@ class TestWhatsAppMentionParser:
         """Test @+phone format with spaces."""
         text = "Call @+55 11 888888888 tomorrow"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 1
         assert mentions[0] == "5511888888888@s.whatsapp.net"
@@ -51,7 +51,7 @@ class TestWhatsAppMentionParser:
         """Test multiple mentions in one message."""
         text = "Meeting with @5511999999999 and @+5511888888888 at 3pm"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 2
         assert "5511999999999@s.whatsapp.net" in mentions
@@ -61,7 +61,7 @@ class TestWhatsAppMentionParser:
         """Test text without any mentions."""
         text = "This is a normal message without mentions"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 0
 
@@ -69,7 +69,7 @@ class TestWhatsAppMentionParser:
         """Test that duplicate mentions are deduplicated."""
         text = "Contact @5511999999999 or @5511999999999 for help"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 1
         assert mentions[0] == "5511999999999@s.whatsapp.net"
@@ -78,7 +78,7 @@ class TestWhatsAppMentionParser:
         """Test that invalid @formats are ignored."""
         text = "Email me at user@domain.com or contact @support"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 0
 
@@ -86,7 +86,7 @@ class TestWhatsAppMentionParser:
         """Test mixed valid and invalid mentions."""
         text = "Contact @5511999999999 or email user@domain.com"
         original, mentions = WhatsAppMentionParser.extract_mentions(text)
-        
+
         assert original == text
         assert len(mentions) == 1
         assert mentions[0] == "5511999999999@s.whatsapp.net"
@@ -99,7 +99,7 @@ class TestWhatsAppMentionParser:
 
     def test_normalize_phone_with_plus(self):
         """Test phone number already with plus."""
-        phone = "+5511999999999"  
+        phone = "+5511999999999"
         normalized = WhatsAppMentionParser._normalize_phone(phone)
         assert normalized == "+5511999999999"
 
@@ -125,7 +125,7 @@ class TestWhatsAppMentionParser:
         """Test parsing explicit mention list."""
         phone_list = ["+5511999999999", "5511888888888", "+55 11 777777777"]
         jids = WhatsAppMentionParser.parse_explicit_mentions(phone_list)
-        
+
         assert len(jids) == 3
         assert "5511999999999@s.whatsapp.net" in jids
         assert "5511888888888@s.whatsapp.net" in jids
@@ -135,7 +135,7 @@ class TestWhatsAppMentionParser:
         """Test explicit mentions with duplicates."""
         phone_list = ["+5511999999999", "5511999999999", "+55 11 999999999"]
         jids = WhatsAppMentionParser.parse_explicit_mentions(phone_list)
-        
+
         assert len(jids) == 1
         assert jids[0] == "5511999999999@s.whatsapp.net"
 
@@ -159,10 +159,10 @@ class TestWhatsAppMentionParser:
     def test_extract_mentions_parametrized(self, input_text: str, expected_count: int, expected_jids: List[str]):
         """Parametrized test for various mention formats."""
         original, mentions = WhatsAppMentionParser.extract_mentions(input_text)
-        
+
         assert original == input_text
         assert len(mentions) == expected_count
-        
+
         for expected_jid in expected_jids:
             assert expected_jid in mentions
 
@@ -186,11 +186,11 @@ class TestWhatsAppMentionParser:
                 "expected_count": 1
             }
         ]
-        
+
         for scenario in scenarios:
             original, mentions = WhatsAppMentionParser.extract_mentions(scenario["text"])
             assert len(mentions) == scenario["expected_count"]
-            
+
             # Verify all mentions are valid JIDs
             for mention in mentions:
                 assert mention.endswith("@s.whatsapp.net")
@@ -200,10 +200,10 @@ class TestWhatsAppMentionParser:
 if __name__ == "__main__":
     # Run tests manually if needed
     test_instance = TestWhatsAppMentionParser()
-    
+
     # Run a few key tests
     test_instance.test_extract_mentions_basic_format()
     test_instance.test_extract_mentions_multiple_mentions()
     test_instance.test_parse_explicit_mentions()
-    
+
     print("✅ All manual tests passed!")

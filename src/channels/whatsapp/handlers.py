@@ -547,14 +547,14 @@ class WhatsAppMessageHandler:
                 # IMPORTANT: Check if the stored agent_user_id is from the same instance/agent
                 agent_user_id = None
                 current_agent_name = agent_config.get("name") if agent_config else "default"
-                
+
                 if local_user and local_user.last_agent_user_id:
                     # Check if this is the same instance/agent combination
                     # For now, we'll clear the user_id if switching between instances
                     # TODO: In the future, store per-instance user_ids
                     stored_session_prefix = local_user.last_session_name_interaction.split('_')[0] if local_user.last_session_name_interaction else None
                     current_session_prefix = session_name.split('_')[0] if session_name else None
-                    
+
                     if stored_session_prefix == current_session_prefix:
                         agent_user_id = local_user.last_agent_user_id
                         logger.info(
@@ -568,7 +568,7 @@ class WhatsAppMessageHandler:
                     logger.info(
                         f"No stored agent user_id for phone {formatted_phone}, will create new user via agent API"
                     )
-                
+
                 logger.info(
                     f"Routing message to API for user {user_dict['phone_number']}, session {session_name}: {message_content}"
                 )

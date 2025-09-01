@@ -27,18 +27,18 @@ def mock_httpx_client():
         client_instance = AsyncMock()
         client_instance.__aenter__ = AsyncMock(return_value=client_instance)
         client_instance.__aexit__ = AsyncMock(return_value=None)
-        
+
         # Mock the request method to prevent actual HTTP calls
         mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.text = '{"status": "success", "data": []}'
         mock_response.json.return_value = {"status": "success", "data": []}
         client_instance.request.return_value = mock_response
-        
+
         mock_client.return_value = client_instance
         yield mock_client
 
-@pytest.fixture(autouse=True)  
+@pytest.fixture(autouse=True)
 def mock_discord_py():
     """Mock discord.py dependencies globally."""
     with patch('discord.Client'), \
@@ -190,7 +190,7 @@ class TestWhatsAppChatHandler:
             "profileName": "Test Profile"
         }
         mock_get_status.return_value = mock_status_response
-        
+
         channel_info = await handler.get_channel_info(mock_instance_config)
         assert isinstance(channel_info, OmniChannelInfo)
         assert channel_info.instance_name == "test-whatsapp"
@@ -207,7 +207,7 @@ class TestWhatsAppChatHandler:
         # Mock the HTTP client to ensure no real requests
         mock_httpx_instance = AsyncMock()
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
-        
+
         client = AsyncMock()
         # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
         client.get_connection_state.return_value = {"status": "connected"}
@@ -215,7 +215,7 @@ class TestWhatsAppChatHandler:
         mock_get_client.return_value = client
         with pytest.raises(Exception, match="Connection timeout"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
-            
+
     @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
     @pytest.mark.asyncio
@@ -226,7 +226,7 @@ class TestWhatsAppChatHandler:
         # Mock the HTTP client to ensure no real requests
         mock_httpx_instance = AsyncMock()
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
-        
+
         client = AsyncMock()
         # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
         client.get_connection_state.return_value = {"status": "connected"}
@@ -240,11 +240,11 @@ class TestWhatsAppChatHandler:
         # Test with valid configuration - should not raise exception
         mock_instance_config.evolution_url = "https://api.evolution.test"
         mock_instance_config.evolution_key = "valid-key"
-        
+
         # Mock client creation
         mock_client_instance = MagicMock()
         mock_client_class.return_value = mock_client_instance
-        
+
         # Should create client successfully
         client = handler._get_omni_evolution_client(mock_instance_config)
         assert client is not None
@@ -326,7 +326,7 @@ class TestDiscordChatHandler:
             "discord_guild_id": "123456789012345678"
         }
         return config
-    
+
     @pytest.fixture
     def mock_discord_client(self):
         """Mock Discord client with proper structure."""
@@ -334,7 +334,7 @@ class TestDiscordChatHandler:
         client = AsyncMock()
         # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
         client.get_connection_state.return_value = {"status": "connected"}
-        
+
         # Mock guild
         guild = MagicMock()
         guild.id = 123456789012345678
@@ -342,14 +342,14 @@ class TestDiscordChatHandler:
         guild.member_count = 100
         guild.icon = MagicMock()
         guild.icon.url = "https://cdn.discordapp.com/icons/123456789012345678/avatar.png"
-        
+
         # Mock members - FIXED: Configure mock to return string values instead of MagicMocks
         member1 = MagicMock()
         member1.id = 987654321098765432
         # Critical fix: configure_mock ensures attributes return actual values, not MagicMocks
         member1.configure_mock(
             name="testuser",
-            username="testuser", 
+            username="testuser",
             display_name="Test User",
             global_name="Test User",
             discriminator="0001",
@@ -365,26 +365,26 @@ class TestDiscordChatHandler:
         member1.avatar.configure_mock(url="https://cdn.discordapp.com/avatars/987654321098765432/avatar.png")
         # Mock guild reference
         member1.guild = guild
-        
+
         guild.members = [member1]
         client.guilds = [guild]
-        
+
         # Mock guild.get_member method
         def mock_get_member(user_id):
             if user_id == 987654321098765432:
                 return member1
             return None
-        
+
         guild.get_member = mock_get_member
-        
+
         # Mock async methods
         async def mock_fetch_user(user_id):
             if user_id == 987654321098765432:
                 return member1
             raise Exception("User not found")
-        
+
         client.fetch_user = mock_fetch_user
-        
+
         # Mock channels
         channel1 = MagicMock()
         channel1.id = 111222333444555666
@@ -399,18 +399,18 @@ class TestDiscordChatHandler:
         channel1.nsfw = False
         channel1.slowmode_delay = 0
         channel1.members = []
-        
+
         guild.channels = [channel1]
-        
+
         def mock_get_channel(channel_id):
             if channel_id == 111222333444555666:
                 return channel1
             return None
-        
+
         client.get_channel = mock_get_channel
-        
+
         return client
-    
+
     @pytest.fixture
     def mock_bot_instance(self, mock_discord_client):
         """Mock DiscordBotInstance."""
@@ -421,7 +421,7 @@ class TestDiscordChatHandler:
         bot_instance.invite_url = None
         bot_instance.error_message = None
         return bot_instance
-    
+
     @pytest.fixture
     def handler(self, mock_bot_instance, mock_instance_config):
         """Create DiscordChatHandler instance with mocked bot instance."""
@@ -480,9 +480,9 @@ class TestDiscordChatHandler:
         # Mock the get_status response
         mock_get_status.return_value = MagicMock()
         mock_get_status.return_value.channel_data = {"status": "connected"}
-        
+
         mock_discord_client.latency = 0.050  # 50ms latency
-        
+
         channel_info = await handler.get_channel_info(mock_instance_config)
         assert isinstance(channel_info, OmniChannelInfo)
     @pytest.mark.asyncio
@@ -492,7 +492,7 @@ class TestDiscordChatHandler:
         """Test handling when Discord bot is not initialized."""
         handler = DiscordChatHandler()
         # Don't add any bot instances to _bot_instances
-        
+
         contacts, total_count = await handler.get_contacts(mock_instance_config, page=1, page_size=50)
         assert len(contacts) == 0
         assert total_count == 0
@@ -530,51 +530,51 @@ class TestDiscordChatHandler:
         assert chat is None
 class TestHandlerErrorScenarios:
     """Test error scenarios common to both handlers."""
-    
+
     def test_invalid_instance_config(self):
         """Test handling of invalid instance configurations."""
         whatsapp_handler = WhatsAppChatHandler()
         discord_handler = DiscordChatHandler()
-        
+
         # Test with None config
         with pytest.raises(Exception):
             whatsapp_handler._get_omni_evolution_client(None)
-    
+
     @patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client')
     @patch('src.channels.whatsapp.evolution_client.httpx.AsyncClient')
     @pytest.mark.asyncio
     async def test_network_timeout_scenarios(self, mock_httpx_client, mock_get_client):
         """Test various network timeout scenarios."""
         handler = WhatsAppChatHandler()
-        
+
         config = MagicMock(spec=InstanceConfig)
         config.name = "timeout-test"
         config.channel_type = "whatsapp"
         config.evolution_url = "https://slow-api.test.com"
         config.evolution_key = "test-key"
-        
+
         # Mock the HTTP client to ensure no real requests
         mock_httpx_instance = AsyncMock()
         mock_httpx_client.return_value.__aenter__.return_value = mock_httpx_instance
-        
+
         client = AsyncMock()
         # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
         client.get_connection_state.return_value = {"status": "connected"}
-        
+
         # Test connection timeout
         client.fetch_contacts.side_effect = Exception("Connection timeout after 30s")
         mock_get_client.return_value = client
-        
+
         with pytest.raises(Exception, match="Connection timeout"):
             await handler.get_contacts(config, page=1, page_size=50)
 class TestOmniHandlerIntegration:
     """Integration tests for omni handlers."""
-    
+
     @pytest.mark.asyncio
     async def test_whatsapp_to_discord_data_compatibility(self):
         """Test that data from WhatsApp handler is compatible with omni schemas."""
         whatsapp_handler = WhatsAppChatHandler()
-        
+
         config = MagicMock(spec=InstanceConfig)
         config.name = "whatsapp-integration"
         config.channel_type = "whatsapp"
@@ -582,7 +582,7 @@ class TestOmniHandlerIntegration:
             "evolution_api_url": "https://api.test.com",
             "evolution_api_key": "test-key"
         }
-        
+
         with patch('src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client') as mock_get_client:
             client = AsyncMock()
             # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
@@ -600,38 +600,38 @@ class TestOmniHandlerIntegration:
                 "total": 1
             }
             mock_get_client.return_value = client
-            
+
             contacts, total_count = await whatsapp_handler.get_contacts(
                 config, page=1, page_size=50, search_query=None
             )
-            
+
             # Verify the contact can be serialized/deserialized
             contact = contacts[0]
             contact_dict = contact.model_dump()
-            
+
             # Should contain all required omni fields
             required_fields = [
                 "id", "name", "channel_type", "instance_name",
                 "status", "created_at", "last_seen"
             ]
-            
+
             for field in required_fields:
                 assert field in contact_dict
-            
+
             # Verify omni contact can be reconstructed
             reconstructed = OmniContact.model_validate(contact_dict)
             assert reconstructed.id == contact.id
             assert reconstructed.name == contact.name
             assert reconstructed.channel_type == contact.channel_type
-    
+
     def test_omni_schemas_validation(self):
         """Test that omni schemas properly validate required fields."""
         from pydantic import ValidationError
-        
+
         # Test OmniContact validation
         with pytest.raises(ValidationError):
             OmniContact()  # Missing required fields
-        
+
         # Valid contact should pass
         contact = OmniContact(
             id="test@example.com",
@@ -642,7 +642,7 @@ class TestOmniHandlerIntegration:
         )
         assert contact.id == "test@example.com"
         assert contact.status == OmniContactStatus.ONLINE
-        
+
         # Test OmniChat validation
         chat = OmniChat(
             id="chat-123",
@@ -652,32 +652,32 @@ class TestOmniHandlerIntegration:
             chat_type=OmniChatType.GROUP
         )
         assert chat.chat_type == OmniChatType.GROUP
-    
+
     @pytest.mark.asyncio
     async def test_cross_handler_functionality(self):
         """Test that both handlers implement the same interface correctly."""
         whatsapp_handler = WhatsAppChatHandler()
         discord_handler = DiscordChatHandler()
-        
+
         # Both should have the same public methods
         whatsapp_methods = set(dir(whatsapp_handler))
         discord_methods = set(dir(discord_handler))
-        
+
         # Core methods should be present in both
         core_methods = {
             'get_contacts', 'get_chats', 'get_channel_info',
             'get_contact_by_id', 'get_chat_by_id'
         }
-        
+
         assert core_methods.issubset(whatsapp_methods)
         assert core_methods.issubset(discord_methods)
-        
+
         # Both should be callable with the same signature
         import inspect
-        
+
         for method_name in core_methods:
             whatsapp_sig = inspect.signature(getattr(whatsapp_handler, method_name))
             discord_sig = inspect.signature(getattr(discord_handler, method_name))
-            
+
             # Parameter names and types should match
             assert list(whatsapp_sig.parameters.keys()) == list(discord_sig.parameters.keys())

@@ -6,16 +6,15 @@ from pyproject.toml using importlib.metadata.
 """
 
 import importlib.metadata
-from typing import Optional
 
 
 def get_version() -> str:
     """
     Get the package version from pyproject.toml.
-    
+
     Returns:
         str: The version string (e.g., "0.3.0")
-        
+
     Raises:
         PackageNotFoundError: If the package is not installed
     """
@@ -29,7 +28,7 @@ def get_version() -> str:
 def get_version_safe() -> str:
     """
     Get the package version with safe fallback.
-    
+
     Returns:
         str: The version string, with fallback to development version
     """

@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
-from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
 from src.channels.message_sender import OmniChannelMessageSender
 from src.channels.discord.utils import DiscordIDValidator
@@ -39,10 +38,10 @@ class SendTextRequest(BaseModel):
     quoted_message_id: Optional[str] = Field(
         None, description="ID of message to quote/reply to"
     )
-    
+
     # NEW: Mention support
     auto_parse_mentions: bool = Field(
-        default=True, 
+        default=True,
         description="Automatically detect and convert @phone mentions in text"
     )
     mentioned: Optional[List[str]] = Field(
@@ -167,13 +166,13 @@ def _resolve_recipient(
 ) -> str:
     """
     Resolve user_id or phone_number to the appropriate recipient identifier for the channel.
-    
+
     For WhatsApp: Converts to WhatsApp JID format using the user service.
     For Discord: Validates channel ID as Discord snowflake format.
 
     Resolution order:
     1. If user_id provided: lookup in our local user database
-    2. If not found locally: try agent API (backward compatibility)  
+    2. If not found locally: try agent API (backward compatibility)
     3. If phone_number provided: validate and use directly
 
     Args:
@@ -184,7 +183,7 @@ def _resolve_recipient(
 
     Returns:
         str: Channel-appropriate recipient identifier (WhatsApp JID or Discord channel ID)
-        
+
     Raises:
         HTTPException: If validation fails or required data is missing
     """
@@ -240,7 +239,7 @@ def _resolve_recipient(
     # Direct phone number/channel ID usage
     if phone_number:
         logger.info(f"Using provided phone number/channel ID directly: {phone_number}")
-        
+
         # For Discord, validate as channel ID (snowflake format)
         if channel_type == "discord":
             if not DiscordIDValidator.is_valid_snowflake(phone_number):
@@ -278,7 +277,7 @@ def _format_phone_to_jid(phone_number: str) -> str:
     return clean_phone
 
 
-@router.post("/{instance_name}/send-text", 
+@router.post("/{instance_name}/send-text",
              response_model=MessageResponse,
              summary="Send Text Message",
              description="Send a text message through any configured channel")
@@ -290,7 +289,7 @@ async def send_text_message(
 ):
     """
     Send a text message to a recipient through the specified instance channel.
-    
+
     Supports WhatsApp, Discord, and other configured channels with automatic mention parsing and message threading.
     """
 
@@ -333,7 +332,7 @@ async def send_text_message(
         return MessageResponse(success=False, status="error", error=str(e))
 
 
-@router.post("/{instance_name}/send-media", 
+@router.post("/{instance_name}/send-media",
              response_model=MessageResponse,
              summary="Send Media Message",
              description="Send images, videos, documents, or other media files")
@@ -345,7 +344,7 @@ async def send_media_message(
 ):
     """
     Send media files (images, videos, documents) to recipients.
-    
+
     Supports URL or base64 input with optional captions and filenames.
     """
 
