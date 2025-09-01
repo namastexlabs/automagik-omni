@@ -90,7 +90,7 @@ jobs:
             });
             
             // Save context
-            const context = {
+            const prContext = {
               pr_number: pr.data.number,
               pr_title: pr.data.title,
               pr_body: pr.data.body || '',
@@ -107,7 +107,7 @@ jobs:
             
             // Write to file for Claude
             const fs = require('fs');
-            fs.writeFileSync('pr_context.json', JSON.stringify(context, null, 2));
+            fs.writeFileSync('pr_context.json', JSON.stringify(prContext, null, 2));
             
             // Output for next steps
             core.setOutput('pr_title', pr.data.title);
