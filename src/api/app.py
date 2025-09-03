@@ -325,34 +325,25 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # Add server information
+    # Add server information with both production and local servers
     openapi_schema["servers"] = [
         {
-            "url": f"http://{config.api.host}:{config.api.port}",
-            "description": "Development Server",
+            "url": "https://omni-mctech.namastex.ai",
+            "description": "Production Server",
+        },
+        {
+            "url": "http://localhost:8882",
+            "description": "Local Development Server",
         }
     ]
 
-    # Add Bearer token authentication scheme
-    if "components" not in openapi_schema:
-        openapi_schema["components"] = {}
-    if "securitySchemes" not in openapi_schema["components"]:
-        openapi_schema["components"]["securitySchemes"] = {}
-
-    openapi_schema["components"]["securitySchemes"]["bearerAuth"] = {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Enter your API key as a Bearer token",
-    }
-
-    # Apply security globally to all /api/v1 endpoints (except health)
-    for path, path_item in openapi_schema.get("paths", {}).items():
-        if path.startswith("/api/v1/") and path != "/health":
-            for method, operation in path_item.items():
-                if method.lower() in ["get", "post", "put", "delete", "patch"]:
-                    if "security" not in operation:
-                        operation["security"] = [{"bearerAuth": []}]
+    # Update the existing HTTPBearer security scheme with better description
+    if "components" in openapi_schema and "securitySchemes" in openapi_schema["components"]:
+        if "HTTPBearer" in openapi_schema["components"]["securitySchemes"]:
+            openapi_schema["components"]["securitySchemes"]["HTTPBearer"]["description"] = (
+                "Enter your API key as a Bearer token (e.g., 'namastex888')"
+            )
+            openapi_schema["components"]["securitySchemes"]["HTTPBearer"]["bearerFormat"] = "API Key"
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
