@@ -22,7 +22,7 @@ def get_version() -> str:
         return importlib.metadata.version("automagik-omni")
     except importlib.metadata.PackageNotFoundError:
         # Fallback to a default version if package is not installed
-        return "0.3.0-dev"
+        return "0.4.0-dev"
 
 
 def get_version_safe() -> str:
@@ -35,7 +35,7 @@ def get_version_safe() -> str:
     try:
         return get_version()
     except Exception:
-        return "0.3.0-dev"
+        return "0.4.0-dev"
 
 
 # For backward compatibility
