@@ -85,6 +85,9 @@ class InstanceConfig(Base):
     # Instance status
     is_active = Column(Boolean, default=False, index=True)  # Evolution connection status
 
+    # Allowlist configuration
+    allowlist_enabled = Column(Boolean, default=False, nullable=False)  # Enable user allowlist
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
@@ -211,6 +214,48 @@ class User(Base):
     def unique_key(self) -> str:
         """Generate unique key for phone + instance combination."""
         return f"{self.instance_name}:{self.phone_number}"
+
+
+class AllowedUser(Base):
+    """
+    Allowed users model for multi-channel user access control.
+
+    This model manages which users are allowed to interact with specific instances
+    across different channels (WhatsApp, Discord, etc.).
+    """
+
+    __tablename__ = "allowed_users"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Instance relationship
+    instance_name = Column(String, ForeignKey("instance_configs.name", ondelete="CASCADE"), nullable=False, index=True)
+    instance = relationship("InstanceConfig")
+
+    # Channel and user identification
+    channel_type = Column(String, nullable=False, index=True)  # "whatsapp", "discord", etc.
+    user_identifier = Column(String, nullable=False, index=True)  # Channel-specific user ID
+
+    # User metadata
+    display_name = Column(String, nullable=True)  # Human-readable name
+    added_by = Column(String, nullable=True)  # Who added this user
+    notes = Column(String, nullable=True)  # Optional notes about this user
+
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<AllowedUser(instance='{self.instance_name}', channel='{self.channel_type}', user='{self.user_identifier}')>"
+
+    @property
+    def unique_key(self) -> str:
+        """Generate unique key for instance + channel + user combination."""
+        return f"{self.instance_name}:{self.channel_type}:{self.user_identifier}"
 
 
 # Import trace models to ensure they're registered with SQLAlchemy
