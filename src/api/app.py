@@ -436,6 +436,24 @@ async def _handle_evolution_webhook(instance_config, request: Request):
 
         logger.debug(f"Webhook data: {data}")
 
+        # Check allowlist before processing message
+        from src.middleware.allowlist_middleware import AllowlistMiddleware
+        from src.db.database import SessionLocal
+
+        with SessionLocal() as db:
+            allowlist_middleware = AllowlistMiddleware(db)
+            should_process, reason = allowlist_middleware.should_process_message(instance_config, data)
+
+            if not should_process:
+                # Log the blocked message for monitoring
+                user_id = allowlist_middleware._extract_user_identifier(instance_config.channel_type, data)
+                if user_id:
+                    allowlist_middleware.log_blocked_message(instance_config, user_id, reason, data)
+
+                # Return early without processing
+                logger.info(f"🚫 MESSAGE BLOCKED: {reason}")
+                return {"status": "blocked", "message": "User not authorized", "reason": reason}
+
         # Start message tracing
         with get_trace_context(data, instance_config.name) as trace:
             # Update the Evolution API sender with the webhook data
