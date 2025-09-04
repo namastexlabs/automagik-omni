@@ -8,6 +8,7 @@ from src.core.telemetry import track_command, telemetry_client
 from src.cli.instance_cli import app as instance_app
 from src.cli.telemetry_cli import app as telemetry_app
 from src.cli.discord_cli import app as discord_app
+from src.cli.allowlist_cli import app as allowlist_app
 
 # Create main app
 app = typer.Typer(help="Automagik Omni: Multi-tenant omnichannel messaging hub")
@@ -15,6 +16,7 @@ app = typer.Typer(help="Automagik Omni: Multi-tenant omnichannel messaging hub")
 app.add_typer(instance_app, name="instance", help="Instance management commands")
 app.add_typer(telemetry_app, name="telemetry", help="Telemetry management commands")
 app.add_typer(discord_app, name="discord", help="Discord bot management commands")
+app.add_typer(allowlist_app, name="allowlist", help="User allowlist management commands")
 
 
 @app.callback()
