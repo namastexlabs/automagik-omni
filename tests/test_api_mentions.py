@@ -98,7 +98,7 @@ class TestApiMentions:
         # Check payload
         request_payload = call_args[1]["json"]
         assert request_payload["number"] == "5511777777777"
-        assert request_payload["text"] == payload["text"]
+        assert request_payload["textMessage"]["text"] == payload["text"]
 
         # Should have auto-parsed mentions in the payload
         assert "mentioned" in request_payload
