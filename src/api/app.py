@@ -334,7 +334,7 @@ def custom_openapi():
         {
             "url": "http://localhost:8882",
             "description": "Local Development Server",
-        }
+        },
     ]
 
     # Update the existing HTTPBearer security scheme with better description
