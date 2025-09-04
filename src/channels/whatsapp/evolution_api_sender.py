@@ -283,9 +283,11 @@ class EvolutionApiSender:
                     if "textMessage" in error_message:
                         logger.warning("Trying fallback with old text format")
                         fallback_payload = {"number": formatted_recipient, "text": text}
-                        if mentioned: fallback_payload["mentioned"] = mentioned
-                        if mentions_everyone: fallback_payload["mentionsEveryOne"] = True
-                        
+                        if mentioned:
+                            fallback_payload["mentioned"] = mentioned
+                        if mentions_everyone:
+                            fallback_payload["mentionsEveryOne"] = True
+
                         fallback_response = requests.post(url, headers=headers, json=fallback_payload)
                         if fallback_response.status_code in [200, 201, 202]:
                             logger.info("Fallback succeeded")
