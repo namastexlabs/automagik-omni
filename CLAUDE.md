@@ -125,6 +125,54 @@ The system will automatically choose the right agents, but you can be specific:
 - Spawn automagik-omni-genie-dev-fixer for debugging
 - Spawn automagik-omni-genie-clone for complex multi-task coordination
 
+## 🔐 Allowlist Feature - User Access Control
+
+### Overview
+The allowlist feature provides secure user access control across multiple messaging channels (WhatsApp, Discord, etc.). Only pre-configured users can interact with instances when allowlist is enabled.
+
+### Quick Setup
+1. **Run database migration**: `alembic upgrade head`
+2. **Enable for instance**: `automagik-omni allowlist enable <instance_name>`
+3. **Add users**: `automagik-omni allowlist add <instance> <channel> <user_id>`
+
+### CLI Commands
+```bash
+# Add user to allowlist
+automagik-omni allowlist add my-instance whatsapp 5511999999999@s.whatsapp.net --name "User Name"
+
+# Remove user
+automagik-omni allowlist remove my-instance whatsapp 5511999999999@s.whatsapp.net
+
+# List all allowed users
+automagik-omni allowlist list
+
+# Enable/disable allowlist
+automagik-omni allowlist enable my-instance
+automagik-omni allowlist disable my-instance
+
+# Check status
+automagik-omni allowlist status
+
+# Test user access
+automagik-omni allowlist check my-instance whatsapp 5511999999999@s.whatsapp.net
+```
+
+### Channel-Specific User IDs
+- **WhatsApp**: `5511999999999@s.whatsapp.net` (phone number + @s.whatsapp.net)
+- **Discord**: `123456789012345678` (Discord user ID - enable Developer Mode to copy)
+
+### How It Works
+- When allowlist is **enabled**: Only users in the allowlist can send messages
+- When allowlist is **disabled**: All users can send messages (default behavior)
+- **Fail-safe**: If errors occur, messages are allowed by default
+- **Per-instance**: Each instance has independent allowlist configuration
+
+### Troubleshooting
+- **Check allowlist status**: `automagik-omni allowlist status --instance <name>`
+- **Verify user is added**: `automagik-omni allowlist list --instance <name>`
+- **Test specific user**: `automagik-omni allowlist check <instance> <channel> <user_id>`
+- **View logs**: Messages show "🚫 MESSAGE BLOCKED" when users are filtered
+
 ## 💡 Development Tips
 
 ### Let the Analyzer Guide You
