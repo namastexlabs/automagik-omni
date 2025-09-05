@@ -325,17 +325,23 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # Add server information with both production and local servers
-    openapi_schema["servers"] = [
-        {
-            "url": "https://omni-mctech.namastex.ai",
+    # Add server information dynamically from configuration
+    servers = []
+    
+    # Add production server if configured
+    if config.api.prod_server_url:
+        servers.append({
+            "url": config.api.prod_server_url,
             "description": "Production Server",
-        },
-        {
-            "url": "http://localhost:8882",
-            "description": "Local Development Server",
-        }
-    ]
+        })
+    
+    # Always add local development server with actual configured port
+    servers.append({
+        "url": f"http://localhost:{config.api.port}",
+        "description": "Local Development Server",
+    })
+    
+    openapi_schema["servers"] = servers
 
     # Update the existing HTTPBearer security scheme with better description
     if "components" in openapi_schema and "securitySchemes" in openapi_schema["components"]:

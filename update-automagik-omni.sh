@@ -14,8 +14,9 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== Automagik Omni Update Script ===${NC}"
 
-# Change to project directory
-cd /home/namastex/prod/automagik-omni
+# Change to script's directory (project root)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
 
 # 1. Check for uncommitted changes
 echo -e "${YELLOW}Checking for uncommitted changes...${NC}"
@@ -38,7 +39,21 @@ git pull origin ${CURRENT_BRANCH}
 
 # 3. Sync dependencies with uv
 echo -e "${YELLOW}Syncing dependencies with uv...${NC}"
-/home/namastex/.local/bin/uv sync
+# Try to find uv in common locations
+if command -v uv &> /dev/null; then
+    uv sync
+elif [ -f "$HOME/.local/bin/uv" ]; then
+    "$HOME/.local/bin/uv" sync
+elif [ -f "$HOME/.cargo/bin/uv" ]; then
+    "$HOME/.cargo/bin/uv" sync
+else
+    echo -e "${YELLOW}uv not found in PATH. Trying to sync with pip...${NC}"
+    if [ -f "requirements.txt" ]; then
+        pip install -r requirements.txt
+    else
+        echo -e "${RED}Could not find uv or requirements.txt${NC}"
+    fi
+fi
 
 # 4. Check PM2 status before restart
 echo -e "${YELLOW}Checking PM2 status...${NC}"
