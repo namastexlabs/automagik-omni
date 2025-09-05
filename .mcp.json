@@ -4,9 +4,9 @@
       "command": "uvx",
       "args": ["--with", "automagik-tools==0.8.20", "automagik-tools", "tool", "omni"],
       "env": {
-        "OMNI_API_KEY": "namastex888",
+        "OMNI_API_KEY": "omni_pMiwTvBpQxZWz6Da_MW0hive_ywoO09vTST",
         "OMNI_BASE_URL": "http://localhost:8882",
-        "OMNI_DEFAULT_INSTANCE": "testonho"
+        "OMNI_DEFAULT_INSTANCE": "jack"
       }
     }
   }
