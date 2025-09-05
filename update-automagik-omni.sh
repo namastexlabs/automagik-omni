@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Automagik Omni Update Script
+# Automagik Omni Update Script2
 # Updates code, syncs dependencies, and restarts PM2 process
 
 set -e  # Exit on error
