@@ -156,7 +156,7 @@ class TestHealthEndpoints(TestAPIEndpoints):
 
         # Verify bearer auth is configured
         assert "securitySchemes" in schema["components"]
-        assert "bearerAuth" in schema["components"]["securitySchemes"]
+        assert "HTTPBearer" in schema["components"]["securitySchemes"]
 
 
 class TestAuthenticationSecurity(TestAPIEndpoints):

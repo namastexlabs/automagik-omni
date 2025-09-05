@@ -244,7 +244,7 @@ class EvolutionApiSender:
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
 
-        payload = {"number": formatted_recipient, "text": text}
+        payload = {"number": formatted_recipient, "textMessage": {"text": text}}
 
         # Add mention parameters
         if mentioned:
@@ -278,6 +278,20 @@ class EvolutionApiSender:
                     error_response = response.json()
                     error_message = str(error_response.get("message", ""))
                     logger.error(f"Evolution API 400 error response: {error_response}")
+
+                    # Try fallback with old text format if textMessage property error
+                    if "textMessage" in error_message:
+                        logger.warning("Trying fallback with old text format")
+                        fallback_payload = {"number": formatted_recipient, "text": text}
+                        if mentioned:
+                            fallback_payload["mentioned"] = mentioned
+                        if mentions_everyone:
+                            fallback_payload["mentionsEveryOne"] = True
+
+                        fallback_response = requests.post(url, headers=headers, json=fallback_payload)
+                        if fallback_response.status_code in [200, 201, 202]:
+                            logger.info("Fallback succeeded")
+                            return True
 
                     if quoted_message and ("typebotSessionId" in error_message or "database" in error_message.lower()):
                         logger.warning(f"Evolution API 400 error (known database schema issue): {error_message}")
