@@ -24,6 +24,9 @@ RESTful APIs with authentication, real-time streaming, WebSocket support, and Do
 ### 🔄 Message Intelligence
 Advanced message routing, mention parsing, media handling, and context-aware responses for natural conversations.
 
+### 🔐 User Access Control
+Allowlist feature for restricting message responses to pre-configured users across all messaging channels with fail-safe security.
+
 ## Installation
 
 ### Universal Installation (Recommended)
@@ -106,6 +109,10 @@ make cli-create
 
 # View detailed status
 make status-local
+
+# Configure user access control
+automagik-omni allowlist enable my-instance
+automagik-omni allowlist add my-instance whatsapp +1234567890
 ```
 
 ## API Usage
