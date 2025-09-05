@@ -382,13 +382,15 @@ async def health_check():
 
     # Check Discord service status if available
     try:
-        # Get Discord bot manager instance (if running)
-        from src.services.discord_service import discord_bot_manager
+        # Access Discord bot manager via the exported discord_service
+        from src.services.discord_service import discord_service
 
-        if discord_bot_manager:
+        bot_manager = getattr(discord_service, "bot_manager", None)
+
+        if bot_manager:
             bot_statuses = {}
-            for instance_name in discord_bot_manager.bots.keys():
-                bot_status = discord_bot_manager.get_bot_status(instance_name)
+            for instance_name in bot_manager.bots.keys():
+                bot_status = bot_manager.get_bot_status(instance_name)
                 if bot_status:
                     bot_statuses[instance_name] = {
                         "status": bot_status.status,
@@ -400,7 +402,7 @@ async def health_check():
             health_status["services"]["discord"] = {
                 "status": "up" if bot_statuses else "down",
                 "instances": bot_statuses,
-                "voice_sessions": len(discord_bot_manager.voice_manager.get_voice_sessions()),
+                "voice_sessions": len(bot_manager.voice_manager.get_voice_sessions()),
             }
         else:
             health_status["services"]["discord"] = {

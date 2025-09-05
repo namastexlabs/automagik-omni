@@ -90,6 +90,8 @@ class DiscordServiceManager:
 
     def start_missing_bots(self):
         """Start any Discord bots that aren't currently running."""
+        logger.info("🔍 Checking for Discord bots to start...")
+        
         if not self.feature_config.enabled:
             if self.active_bots:
                 logger.info("Discord is disabled, stopping all active bots")
@@ -100,7 +102,12 @@ class DiscordServiceManager:
 
         try:
             discord_instances = self.get_discord_instances()
+            logger.info(f"📋 Found {len(discord_instances)} Discord instances in database")
 
+            if len(discord_instances) == 0:
+                logger.warning("⚠️ No Discord instances found in database. Make sure to create one using the API or CLI.")
+                return
+            
             if len(discord_instances) > self.feature_config.max_instances:
                 logger.warning(
                     f"Found {len(discord_instances)} Discord instances, but max allowed is {self.feature_config.max_instances}"
