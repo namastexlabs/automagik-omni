@@ -290,7 +290,7 @@ class AutomagikHiveClient:
     async def _create_non_streaming_run(self, endpoint: str, payload: dict) -> Dict[str, Any]:
         """Create a non-streaming run using multipart/form-data."""
         client = await self._get_client()
-        headers = {"Authorization": f"Bearer {self.api_key}"}  # Don't set Content-Type for multipart
+        headers = {"X-API-Key": self.api_key}  # Don't set Content-Type for multipart
 
         try:
             # Convert payload to form data, filtering out None values
@@ -318,7 +318,7 @@ class AutomagikHiveClient:
         """Create a streaming run and return event iterator using multipart/form-data."""
         client = await self._get_client()
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "X-API-Key": self.api_key,
             "Accept": "text/event-stream",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
