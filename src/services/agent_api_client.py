@@ -551,7 +551,8 @@ class AgentApiClient:
         # Check if we're configured to use Hive API
         # Use the instance configuration flag when available
         if self.instance_config:
-            is_hive = self.instance_config.is_hive
+            # Check the agent_instance_type field directly
+            is_hive = getattr(self.instance_config, 'agent_instance_type', 'automagik') == 'hive'
         else:
             # Fallback to port 8000 detection for backward compatibility when no config
             # Hive API instances run on port 8000, Automagik Core instances run on port 8881
