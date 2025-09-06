@@ -409,37 +409,6 @@ class MessageRouter:
                             user_id=str(user_id) if user_id else None,
                         )
                     )
-            # Backward compatibility with legacy fields
-            elif (
-                hasattr(instance_config, "hive_agent_id")
-                and instance_config.hive_agent_id
-            ):
-                # Route to agent streaming with enhanced tracing
-                logger.info(
-                    f"Streaming to AutomagikHive agent: {instance_config.hive_agent_id}"
-                )
-                success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
-                    recipient=recipient,
-                    agent_id=instance_config.hive_agent_id,
-                    message=message_text,
-                    trace_context=streaming_trace_context,
-                    user_id=str(user_id) if user_id else None,
-                )
-            elif (
-                hasattr(instance_config, "hive_team_id")
-                and instance_config.hive_team_id
-            ):
-                # Route to team streaming with enhanced tracing
-                logger.info(
-                    f"Streaming to AutomagikHive team: {instance_config.hive_team_id}"
-                )
-                success = await streaming_instance.stream_team_to_whatsapp_with_traces(
-                    recipient=recipient,
-                    team_id=instance_config.hive_team_id,
-                    message=message_text,
-                    trace_context=streaming_trace_context,
-                    user_id=str(user_id) if user_id else None,
-                )
             else:
                 logger.error("No AutomagikHive agent_id configured for streaming")
                 return False
@@ -506,26 +475,6 @@ class MessageRouter:
             logger.debug("Streaming ENABLED for Hive instance")
             return True
 
-        # Backward compatibility: check legacy hive fields
-        if hasattr(instance_config, "hive_enabled") and instance_config.hive_enabled:
-            if not instance_config.hive_api_url or not instance_config.hive_api_key:
-                logger.debug("Streaming disabled (legacy): Missing Hive API URL or key")
-                return False
-            has_agent = (
-                hasattr(instance_config, "hive_agent_id")
-                and instance_config.hive_agent_id
-            )
-            has_team = (
-                hasattr(instance_config, "hive_team_id")
-                and instance_config.hive_team_id
-            )
-            if has_agent or has_team:
-                logger.debug("Streaming ENABLED (legacy Hive fields)")
-                return True
-            logger.debug(
-                "Streaming disabled (legacy): No hive_agent_id or hive_team_id"
-            )
-            return False
 
         logger.debug("Streaming disabled: Not a Hive instance")
         return False

@@ -79,23 +79,6 @@ class InstanceConfig(Base):
     # Legacy field for backward compatibility (will be migrated to agent_id)
     default_agent = Column(String, nullable=True)  # Deprecated - use agent_id instead
 
-    # Legacy AutomagikHive fields (deprecated - kept for migration)
-    hive_enabled = Column(
-        Boolean, default=False, nullable=True
-    )  # Deprecated - use agent_instance_type
-    hive_api_url = Column(String, nullable=True)  # Deprecated - use agent_api_url
-    hive_api_key = Column(String, nullable=True)  # Deprecated - use agent_api_key
-    hive_agent_id = Column(
-        String, nullable=True
-    )  # Deprecated - use agent_id with agent_type="agent"
-    hive_team_id = Column(
-        String, nullable=True
-    )  # Deprecated - use agent_id with agent_type="team"
-    hive_timeout = Column(Integer, nullable=True)  # Deprecated - use agent_timeout
-    hive_stream_mode = Column(
-        Boolean, nullable=True
-    )  # Deprecated - use agent_stream_mode
-
     # Automagik instance identification (for UI display)
     automagik_instance_id = Column(String, nullable=True)
     automagik_instance_name = Column(String, nullable=True)
@@ -168,38 +151,6 @@ class InstanceConfig(Base):
         }
         return config
 
-    # Backward compatibility methods
-    def has_hive_config(self) -> bool:
-        """Legacy: Check if instance has complete AutomagikHive configuration."""
-        # Check new unified fields
-        if self.is_hive:
-            return (
-                bool(self.agent_api_url)
-                and bool(self.agent_api_key)
-                and bool(self.agent_id)
-            )
-        # Fall back to legacy fields if they exist
-        return (
-            self.hive_enabled
-            and bool(self.hive_api_url)
-            and bool(self.hive_api_key)
-            and (bool(self.hive_agent_id) or bool(self.hive_team_id))
-        )
-
-    def get_hive_config(self) -> dict:
-        """Legacy: Get AutomagikHive configuration as dictionary."""
-        # Use new unified fields if this is a hive instance
-        if self.is_hive:
-            return self.get_agent_config()
-        # Fall back to legacy fields
-        return {
-            "api_url": self.hive_api_url,
-            "api_key": self.hive_api_key,
-            "agent_id": self.hive_agent_id,
-            "team_id": self.hive_team_id,
-            "timeout": self.hive_timeout,
-            "stream_mode": self.hive_stream_mode,
-        }
 
 
 class User(Base):

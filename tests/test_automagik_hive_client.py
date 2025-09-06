@@ -65,30 +65,6 @@ class TestAutomagikHiveClientInit:
         assert client.default_agent_id == "dict-agent"
         assert client.default_team_id == "dict-team"
 
-    def test_init_with_legacy_hive_config(self, test_db):
-        """Test initialization with legacy hive configuration."""
-        instance_config = InstanceConfig(
-            name="legacy-hive",
-            agent_api_url="https://automagik.com",
-            agent_api_key="automagik-key",
-            # Legacy hive fields
-            hive_api_url="https://legacy-hive.com",
-            hive_api_key="legacy-hive-key",
-            hive_agent_id="legacy-agent",
-            hive_team_id="legacy-team",
-            hive_timeout=150,
-        )
-        test_db.add(instance_config)
-        test_db.commit()
-
-        client = AutomagikHiveClient(config_override=instance_config)
-
-        # Should use legacy hive fields
-        assert client.api_url == "https://legacy-hive.com"
-        assert client.api_key == "legacy-hive-key"
-        assert client.timeout == 150
-        assert client.default_agent_id == "legacy-agent"
-        assert client.default_team_id == "legacy-team"
 
     def test_init_no_config(self):
         """Test initialization without configuration (should raise error)."""
