@@ -174,8 +174,11 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
         from src.api.deps import verify_api_key, get_database
@@ -233,8 +236,11 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
         from src.api.deps import verify_api_key, get_database
@@ -286,8 +292,11 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
         from src.api.deps import verify_api_key, get_database
