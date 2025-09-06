@@ -55,7 +55,9 @@ class HealthMonitor:
         """Record an error occurrence."""
         self.error_count += 1
         self.last_error = error_message
-        logger.warning(f"Health monitor recorded error for {self.instance_name}: {error_message}")
+        logger.warning(
+            f"Health monitor recorded error for {self.instance_name}: {error_message}"
+        )
 
     def get_status(self) -> HealthStatus:
         """Get current health status."""
@@ -66,7 +68,9 @@ class HealthMonitor:
         time_since_heartbeat = current_time - self.last_heartbeat
         if time_since_heartbeat > 120:  # No heartbeat for 2 minutes
             status = "unhealthy"
-        elif time_since_heartbeat > 60 or self.error_count > 10:  # 1 minute or high errors
+        elif (
+            time_since_heartbeat > 60 or self.error_count > 10
+        ):  # 1 minute or high errors
             status = "degraded"
         else:
             status = "healthy"
@@ -128,7 +132,8 @@ class HealthMonitor:
 
                     # Only log status changes that indicate problems or recovery
                     if health_status.status in ["degraded", "unhealthy"] or (
-                        previous_status in ["degraded", "unhealthy"] and health_status.status == "healthy"
+                        previous_status in ["degraded", "unhealthy"]
+                        and health_status.status == "healthy"
                     ):
                         logger.info(
                             f"Health status changed for {self.instance_name}: {previous_status} -> {health_status.status}"

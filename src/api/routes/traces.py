@@ -98,19 +98,31 @@ class TraceQuery(BaseModel):
 async def list_traces(
     phone: Optional[str] = Query(None, description="Filter by sender phone number"),
     instance_name: Optional[str] = Query(None, description="Filter by instance name"),
-    trace_status: Optional[str] = Query(None, description="Filter by status (received, processing, completed, failed)"),
+    trace_status: Optional[str] = Query(
+        None, description="Filter by status (received, processing, completed, failed)"
+    ),
     message_type: Optional[str] = Query(None, description="Filter by message type"),
     session_name: Optional[str] = Query(None, description="Filter by session name"),
-    agent_session_id: Optional[str] = Query(None, description="Filter by agent session ID"),
-    sender_phone: Optional[str] = Query(None, description="Filter by sender phone (alias for phone)"),
+    agent_session_id: Optional[str] = Query(
+        None, description="Filter by agent session ID"
+    ),
+    sender_phone: Optional[str] = Query(
+        None, description="Filter by sender phone (alias for phone)"
+    ),
     has_media: Optional[bool] = Query(None, description="Filter by media presence"),
-    start_date: Optional[datetime] = Query(None, description="Start date filter (ISO format)"),
-    end_date: Optional[datetime] = Query(None, description="End date filter (ISO format)"),
+    start_date: Optional[datetime] = Query(
+        None, description="Start date filter (ISO format)"
+    ),
+    end_date: Optional[datetime] = Query(
+        None, description="End date filter (ISO format)"
+    ),
     all_time: bool = Query(
         False,
         description="If true, fetch all data without date filters (overrides start_date/end_date)",
     ),
-    limit: int = Query(50, ge=1, le=1000, description="Maximum number of traces to return"),
+    limit: int = Query(
+        50, ge=1, le=1000, description="Maximum number of traces to return"
+    ),
     offset: int = Query(0, ge=0, description="Number of traces to skip"),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
@@ -198,7 +210,9 @@ async def get_trace(
 @router.get("/traces/{trace_id}/payloads", response_model=List[TracePayloadResponse])
 async def get_trace_payloads(
     trace_id: str,
-    include_payload: bool = Query(False, description="Include actual payload data in response"),
+    include_payload: bool = Query(
+        False, description="Include actual payload data in response"
+    ),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
@@ -234,8 +248,12 @@ async def get_trace_payloads(
 
 @router.get("/traces/analytics/summary", response_model=TraceAnalytics)
 async def get_trace_analytics(
-    start_date: Optional[datetime] = Query(None, description="Start date for analytics (ISO format)"),
-    end_date: Optional[datetime] = Query(None, description="End date for analytics (ISO format)"),
+    start_date: Optional[datetime] = Query(
+        None, description="Start date for analytics (ISO format)"
+    ),
+    end_date: Optional[datetime] = Query(
+        None, description="End date for analytics (ISO format)"
+    ),
     all_time: bool = Query(
         False,
         description="If true, fetch all data without date filters (overrides start_date/end_date)",
@@ -275,19 +293,24 @@ async def get_trace_analytics(
         total_messages = len(traces)
         successful_messages = len([t for t in traces if t.status == "completed"])
         failed_messages = len([t for t in traces if t.status == "failed"])
-        success_rate = (successful_messages / total_messages * 100) if total_messages > 0 else 0
+        success_rate = (
+            (successful_messages / total_messages * 100) if total_messages > 0 else 0
+        )
 
         # Calculate average processing times
         completed_traces = [t for t in traces if t.total_processing_time_ms is not None]
         avg_processing_time = (
-            sum(t.total_processing_time_ms for t in completed_traces) / len(completed_traces)
+            sum(t.total_processing_time_ms for t in completed_traces)
+            / len(completed_traces)
             if completed_traces
             else None
         )
 
         agent_traces = [t for t in traces if t.agent_processing_time_ms is not None]
         avg_agent_time = (
-            sum(t.agent_processing_time_ms for t in agent_traces) / len(agent_traces) if agent_traces else None
+            sum(t.agent_processing_time_ms for t in agent_traces) / len(agent_traces)
+            if agent_traces
+            else None
         )
 
         # Group by message types
@@ -300,7 +323,9 @@ async def get_trace_analytics(
         error_stages = {}
         for trace in traces:
             if trace.error_stage:
-                error_stages[trace.error_stage] = error_stages.get(trace.error_stage, 0) + 1
+                error_stages[trace.error_stage] = (
+                    error_stages.get(trace.error_stage, 0) + 1
+                )
 
         # Group by instances
         instances = {}
@@ -313,7 +338,9 @@ async def get_trace_analytics(
             successful_messages=successful_messages,
             failed_messages=failed_messages,
             success_rate=round(success_rate, 2),
-            avg_processing_time_ms=(round(avg_processing_time, 2) if avg_processing_time else None),
+            avg_processing_time_ms=(
+                round(avg_processing_time, 2) if avg_processing_time else None
+            ),
             avg_agent_time_ms=round(avg_agent_time, 2) if avg_agent_time else None,
             message_types=message_types,
             error_stages=error_stages,
@@ -331,7 +358,9 @@ async def get_trace_analytics(
 @router.get("/traces/phone/{phone_number}", response_model=List[TraceResponse])
 async def get_traces_by_phone(
     phone_number: str,
-    limit: int = Query(50, ge=1, le=500, description="Maximum number of traces to return"),
+    limit: int = Query(
+        50, ge=1, le=500, description="Maximum number of traces to return"
+    ),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
@@ -351,8 +380,12 @@ async def get_traces_by_phone(
 
 @router.delete("/traces/cleanup")
 async def cleanup_old_traces(
-    days_old: int = Query(30, ge=1, le=365, description="Delete traces older than this many days"),
-    dry_run: bool = Query(True, description="If true, return count without actually deleting"),
+    days_old: int = Query(
+        30, ge=1, le=365, description="Delete traces older than this many days"
+    ),
+    dry_run: bool = Query(
+        True, description="If true, return count without actually deleting"
+    ),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
@@ -364,7 +397,11 @@ async def cleanup_old_traces(
             from datetime import timedelta
 
             cutoff_date = utcnow() - timedelta(days=days_old)
-            count = db.query(MessageTrace).filter(MessageTrace.received_at < cutoff_date).count()
+            count = (
+                db.query(MessageTrace)
+                .filter(MessageTrace.received_at < cutoff_date)
+                .count()
+            )
 
             return {
                 "status": "dry_run",

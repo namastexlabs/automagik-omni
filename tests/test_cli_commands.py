@@ -32,7 +32,9 @@ class TestInstanceCLI:
         assert result.exit_code == 0
         assert "No instances found" in result.stdout
 
-    def test_list_instances_with_data(self, cli_runner, mock_db_session, default_instance_config):
+    def test_list_instances_with_data(
+        self, cli_runner, mock_db_session, default_instance_config
+    ):
         """Test listing instances with existing data."""
         result = cli_runner.invoke(cli_app, ["list"])
 
@@ -41,7 +43,9 @@ class TestInstanceCLI:
         assert "default" in result.stdout
         assert "✓" in result.stdout  # Default indicator
 
-    def test_show_instance_success(self, cli_runner, mock_db_session, default_instance_config):
+    def test_show_instance_success(
+        self, cli_runner, mock_db_session, default_instance_config
+    ):
         """Test showing specific instance details."""
         result = cli_runner.invoke(cli_app, ["show", "default"])
 
@@ -79,7 +83,11 @@ class TestInstanceCLI:
         assert "Instance 'test_instance' created successfully" in result.stdout
 
         # Verify instance was created
-        instance = mock_db_session.query(InstanceConfig).filter_by(name="test_instance").first()
+        instance = (
+            mock_db_session.query(InstanceConfig)
+            .filter_by(name="test_instance")
+            .first()
+        )
         assert instance is not None
         assert instance.whatsapp_instance == "test_whatsapp"
         assert instance.agent_api_url == "http://test-agent.com"
@@ -116,14 +124,18 @@ class TestInstanceCLI:
         assert "Instance 'full_test' set as default" in result.stdout
 
         # Verify instance was created with all parameters
-        instance = mock_db_session.query(InstanceConfig).filter_by(name="full_test").first()
+        instance = (
+            mock_db_session.query(InstanceConfig).filter_by(name="full_test").first()
+        )
         assert instance is not None
         assert instance.evolution_url == "http://evolution.com"
         assert instance.session_id_prefix == "full_"
         assert instance.agent_timeout == 120
         assert instance.is_default is True
 
-    def test_add_instance_duplicate_name(self, cli_runner, mock_db_session, default_instance_config):
+    def test_add_instance_duplicate_name(
+        self, cli_runner, mock_db_session, default_instance_config
+    ):
         """Test adding instance with duplicate name."""
         result = cli_runner.invoke(
             cli_app,
@@ -144,7 +156,9 @@ class TestInstanceCLI:
         assert result.exit_code == 1
         assert "Instance 'default' already exists" in result.stdout
 
-    def test_update_instance_success(self, cli_runner, mock_db_session, default_instance_config):
+    def test_update_instance_success(
+        self, cli_runner, mock_db_session, default_instance_config
+    ):
         """Test updating instance configuration."""
         result = cli_runner.invoke(
             cli_app,
@@ -162,7 +176,9 @@ class TestInstanceCLI:
         assert "Instance 'default' updated successfully" in result.stdout
 
         # Verify updates - refetch from database instead of refresh
-        updated_instance = mock_db_session.query(InstanceConfig).filter_by(name="default").first()
+        updated_instance = (
+            mock_db_session.query(InstanceConfig).filter_by(name="default").first()
+        )
         assert updated_instance.agent_timeout == 180
         assert updated_instance.session_id_prefix == "updated_"
 
@@ -198,14 +214,20 @@ class TestInstanceCLI:
         assert "Instance 'update2' set as default" in result.stdout
 
         # Verify default change - refetch from database instead of refresh
-        updated_instance1 = test_db.query(InstanceConfig).filter_by(name="update1").first()
-        updated_instance2 = test_db.query(InstanceConfig).filter_by(name="update2").first()
+        updated_instance1 = (
+            test_db.query(InstanceConfig).filter_by(name="update1").first()
+        )
+        updated_instance2 = (
+            test_db.query(InstanceConfig).filter_by(name="update2").first()
+        )
         assert updated_instance1.is_default is False
         assert updated_instance2.is_default is True
 
     def test_update_instance_not_found(self, cli_runner, mock_db_session):
         """Test updating non-existent instance."""
-        result = cli_runner.invoke(cli_app, ["update", "nonexistent", "--agent-timeout", "120"])
+        result = cli_runner.invoke(
+            cli_app, ["update", "nonexistent", "--agent-timeout", "120"]
+        )
 
         assert result.exit_code == 1
         assert "Instance 'nonexistent' not found" in result.stdout
@@ -244,7 +266,9 @@ class TestInstanceCLI:
         deleted = test_db.query(InstanceConfig).filter_by(name="delete_me").first()
         assert deleted is None
 
-    def test_delete_instance_with_confirmation(self, cli_runner, mock_db_session, test_db):
+    def test_delete_instance_with_confirmation(
+        self, cli_runner, mock_db_session, test_db
+    ):
         """Test deleting instance with interactive confirmation."""
         # Create two instances (need at least 2 to delete one)
         instance1 = InstanceConfig(
@@ -275,7 +299,9 @@ class TestInstanceCLI:
         assert "Delete instance 'confirm_delete'?" in result.stdout
         assert "Instance 'confirm_delete' deleted successfully" in result.stdout
 
-    def test_delete_instance_cancel_confirmation(self, cli_runner, mock_db_session, test_db):
+    def test_delete_instance_cancel_confirmation(
+        self, cli_runner, mock_db_session, test_db
+    ):
         """Test canceling instance deletion."""
         # Create two instances (need at least 2 to delete one)
         instance1 = InstanceConfig(
@@ -309,7 +335,9 @@ class TestInstanceCLI:
         existing = test_db.query(InstanceConfig).filter_by(name="cancel_delete").first()
         assert existing is not None
 
-    def test_delete_only_instance_fails(self, cli_runner, mock_db_session, default_instance_config):
+    def test_delete_only_instance_fails(
+        self, cli_runner, mock_db_session, default_instance_config
+    ):
         """Test that deleting the only instance fails."""
         result = cli_runner.invoke(cli_app, ["delete", "default", "--force"])
 
@@ -354,8 +382,12 @@ class TestInstanceCLI:
         assert "Instance 'set_default2' set as default" in result.stdout
 
         # Verify default change - refetch from database instead of refresh
-        updated_instance1 = test_db.query(InstanceConfig).filter_by(name="set_default1").first()
-        updated_instance2 = test_db.query(InstanceConfig).filter_by(name="set_default2").first()
+        updated_instance1 = (
+            test_db.query(InstanceConfig).filter_by(name="set_default1").first()
+        )
+        updated_instance2 = (
+            test_db.query(InstanceConfig).filter_by(name="set_default2").first()
+        )
         assert updated_instance1.is_default is False
         assert updated_instance2.is_default is True
 

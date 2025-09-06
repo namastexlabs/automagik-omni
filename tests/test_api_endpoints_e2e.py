@@ -38,7 +38,9 @@ class TestDatabaseSetup:
 
         # Verify tables exist
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+            result = conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            ).fetchall()
             table_names = [row[0] for row in result]
             assert "instance_configs" in table_names
 
@@ -78,7 +80,9 @@ class TestDatabaseSetup:
         try:
             import alembic  # noqa: F401
         except ImportError:
-            pytest.skip("Alembic package not installed - install with: pip install alembic")
+            pytest.skip(
+                "Alembic package not installed - install with: pip install alembic"
+            )
 
         try:
             # Ensure proper import path resolution
@@ -109,6 +113,27 @@ class TestAPIEndpoints:
 
     # Note: Removed conflicting setup_test_environment fixture.
     # Using conftest.py fixtures instead: test_client and mention_api_headers
+    
+    def ensure_test_instance_exists(self, db: "Session") -> InstanceConfig:
+        """Helper to ensure test-instance exists in the database."""
+        from src.db.models import InstanceConfig
+        
+        instance = db.query(InstanceConfig).filter_by(name="test-instance").first()
+        if not instance:
+            instance = InstanceConfig(
+                name="test-instance",
+                channel_type="whatsapp",
+                evolution_url="http://test.com",
+                evolution_key="test-key",
+                whatsapp_instance="test-instance",
+                agent_api_url="http://agent.com",
+                agent_api_key="agent-key",
+                default_agent="test_agent",
+                is_default=False,
+            )
+            db.add(instance)
+            db.commit()
+        return instance
 
 
 class TestHealthEndpoints(TestAPIEndpoints):
@@ -154,9 +179,9 @@ class TestHealthEndpoints(TestAPIEndpoints):
         assert "paths" in schema
         assert "components" in schema
 
-        # Verify bearer auth is configured
+        # Verify API key auth is configured
         assert "securitySchemes" in schema["components"]
-        assert "HTTPBearer" in schema["components"]["securitySchemes"]
+        assert "ApiKeyAuth" in schema["components"]["securitySchemes"]
 
 
 class TestAuthenticationSecurity(TestAPIEndpoints):
@@ -170,16 +195,20 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
         from src.api.deps import verify_api_key, get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -207,16 +236,18 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                     ], f"{method} {endpoint} should require auth but got {response.status_code}"
 
                     # Test with malformed auth header (not Bearer format)
-                    headers = {"Authorization": "NotBearer token"}
-                    response = auth_test_client.request(method, endpoint, headers=headers)
+                    headers = {"x-api-key": "Invalidtoken"}
+                    response = auth_test_client.request(
+                        method, endpoint, headers=headers
+                    )
                     assert response.status_code in [
                         401,
                         403,
                     ], f"{method} {endpoint} should reject malformed auth but got {response.status_code}"
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
     def test_bearer_token_validation(self, test_db, monkeypatch):
         """Test bearer token validation with various scenarios."""
@@ -226,16 +257,20 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
         from src.api.deps import verify_api_key, get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -246,51 +281,52 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         try:
             with TestClient(app) as auth_test_client:
                 test_cases = [
-                    ("", 422),  # Empty auth header - FastAPI validation error
-                    ("invalid-token", 422),  # Invalid format - FastAPI validation error
-                    (
-                        "Bearer invalid-token",
-                        401,
-                    ),  # Invalid bearer token (401 for wrong API key)
-                    (
-                        "Basic dGVzdDp0ZXN0",
-                        422,
-                    ),  # Wrong auth type - FastAPI validation error
+                    ("", 401),  # No API key - should return 401
+                    ("invalid-token", 401),  # Invalid API key - should return 401
+                    ("wrong-api-key", 401),  # Wrong API key - should return 401
                 ]
 
-                for auth_header, expected_status in test_cases:
-                    headers = {"Authorization": auth_header} if auth_header else {}
-                    response = auth_test_client.get("/api/v1/instances", headers=headers)
-                    # For empty/malformed auth headers, FastAPI returns 422 (validation error)
-                    # For invalid tokens, our verify_api_key returns 401
-                    assert response.status_code in [
-                        401,
-                        403,
-                        422,
-                    ], f"Auth header '{auth_header}' should return 401/403/422 but got {response.status_code}"
+                for api_key, expected_status in test_cases:
+                    headers = {"x-api-key": api_key} if api_key else {}
+                    response = auth_test_client.get(
+                        "/api/v1/instances", headers=headers
+                    )
+                    # For missing or invalid API keys, our verify_api_key returns 401
+                    assert response.status_code == expected_status, (
+                        f"API key '{api_key}' should return {expected_status} "
+                        f"but got {response.status_code}"
+                    )
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
-    def test_valid_authentication_works(self, test_db, mention_api_headers, monkeypatch):
+    def test_valid_authentication_works(
+        self, test_db, mention_api_headers, monkeypatch
+    ):
         """Test that valid authentication allows access."""
         # Configure the same API key that mention_api_headers uses
-        monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "namastex888")  # This matches mention_api_headers
+        monkeypatch.setenv(
+            "AUTOMAGIK_OMNI_API_KEY", "namastex888"
+        )  # This matches mention_api_headers
 
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
         from src.api.deps import verify_api_key, get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -301,22 +337,31 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         try:
             with TestClient(app) as auth_test_client:
                 # Test valid authentication with the correct Bearer token
-                response = auth_test_client.get("/api/v1/instances", headers=mention_api_headers)
-                assert response.status_code == 200, f"Valid auth should work but got {response.status_code}"
+                response = auth_test_client.get(
+                    "/api/v1/instances", headers=mention_api_headers
+                )
+                assert (
+                    response.status_code == 200
+                ), f"Valid auth should work but got {response.status_code}"
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
-    def test_webhook_endpoints_no_auth_required(self, test_client):
+    def test_webhook_endpoints_no_auth_required(self, test_client, test_db):
         """Test that webhook endpoints work without authentication (by design)."""
+        # Ensure test instance exists for webhook testing
+        self.ensure_test_instance_exists(test_db)
+        
         webhook_data = {"event": "messages.upsert", "data": {"test": "webhook"}}
 
         # Mock webhook handler to avoid actual processing
         with patch("src.api.app._handle_evolution_webhook") as mock_handler:
             mock_handler.return_value = {"status": "success"}
 
-            response = test_client.post("/webhook/evolution/test-instance", json=webhook_data)
+            response = test_client.post(
+                "/webhook/evolution/test-instance", json=webhook_data
+            )
             # Should work without auth (webhook endpoints are public by design)
             assert response.status_code == 200
 
@@ -331,9 +376,9 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         has_cors = "access-control-allow-origin" in headers_lower
         method_not_allowed = response.status_code == 405
 
-        assert has_cors or method_not_allowed, (
-            f"Expected CORS headers or 405 status, got {response.status_code} with headers {headers_lower}"
-        )
+        assert (
+            has_cors or method_not_allowed
+        ), f"Expected CORS headers or 405 status, got {response.status_code} with headers {headers_lower}"
 
 
 class TestInstanceManagementEndpoints(TestAPIEndpoints):
@@ -341,7 +386,9 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
 
     def test_get_supported_channels(self, test_client, mention_api_headers):
         """Test getting supported channel types."""
-        response = test_client.get("/api/v1/instances/supported-channels", headers=mention_api_headers)
+        response = test_client.get(
+            "/api/v1/instances/supported-channels", headers=mention_api_headers
+        )
         assert response.status_code == 200
         data = response.json()
         assert "supported_channels" in data
@@ -360,13 +407,18 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_list_instances_with_data(self, test_client, mention_api_headers):
+    def test_list_instances_with_data(self, test_client, mention_api_headers, test_db):
         """Test listing instances with data."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        
         response = test_client.get("/api/v1/instances", headers=mention_api_headers)
         assert response.status_code == 200
         instances = response.json()
-        assert len(instances) == 1
-        assert instances[0]["name"] == "test-instance"
+        assert len(instances) >= 1
+        # Find test-instance in the list
+        test_instance = next((i for i in instances if i["name"] == "test-instance"), None)
+        assert test_instance is not None
 
     def test_create_instance_success(self, test_client, mention_api_headers):
         """Test creating a new instance."""
@@ -381,14 +433,18 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
             "default_agent": "test-agent",
         }
 
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
             # Make create_instance async
             async def mock_create_instance(*args, **kwargs):
                 return {"status": "created"}
 
             mock_handler.return_value.create_instance = mock_create_instance
 
-            response = test_client.post("/api/v1/instances", json=instance_data, headers=mention_api_headers)
+            response = test_client.post(
+                "/api/v1/instances", json=instance_data, headers=mention_api_headers
+            )
             assert response.status_code == 201
             data = response.json()
             assert data["name"] == "new-instance"
@@ -407,16 +463,27 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
             "default_agent": "test-agent",
         }
 
-        response = test_client.post("/api/v1/instances", json=instance_data, headers=mention_api_headers)
+        response = test_client.post(
+            "/api/v1/instances", json=instance_data, headers=mention_api_headers
+        )
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
 
-    def test_get_instance_success(self, test_client, mention_api_headers):
+    def test_get_instance_success(self, test_client, mention_api_headers, test_db):
         """Test getting specific instance."""
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
-            mock_handler.return_value.get_instance_status.return_value = {"status": "connected"}
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
+            mock_handler.return_value.get_instance_status.return_value = {
+                "status": "connected"
+            }
 
-            response = test_client.get("/api/v1/instances/test-instance", headers=mention_api_headers)
+            response = test_client.get(
+                "/api/v1/instances/test-instance", headers=mention_api_headers
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["name"] == "test-instance"
@@ -424,11 +491,16 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
 
     def test_get_instance_not_found(self, test_client, mention_api_headers):
         """Test getting non-existent instance."""
-        response = test_client.get("/api/v1/instances/nonexistent", headers=mention_api_headers)
+        response = test_client.get(
+            "/api/v1/instances/nonexistent", headers=mention_api_headers
+        )
         assert response.status_code == 404
 
-    def test_update_instance_success(self, test_client, mention_api_headers):
+    def test_update_instance_success(self, test_client, mention_api_headers, test_db):
         """Test updating instance configuration."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        
         update_data = {
             "agent_api_url": "https://updated-agent.test.com",
             "webhook_base64": False,
@@ -448,7 +520,9 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
     def test_delete_instance_success(self, test_client, mention_api_headers):
         """Test deleting instance."""
         # First create another instance so we're not deleting the only one
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
             # Make create_instance async
             async def mock_create_instance(*args, **kwargs):
                 return {"status": "created"}
@@ -465,27 +539,37 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
                 "agent_api_key": "extra-agent-key",
                 "default_agent": "extra-agent",
             }
-            response = test_client.post("/api/v1/instances", json=extra_instance, headers=mention_api_headers)
+            response = test_client.post(
+                "/api/v1/instances", json=extra_instance, headers=mention_api_headers
+            )
             assert response.status_code == 201
 
         # Now delete the non-default instance
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
             # Make delete_instance async
             async def mock_delete_instance(*args, **kwargs):
                 return {"status": "deleted"}
 
             mock_handler.return_value.delete_instance = mock_delete_instance
 
-            response = test_client.delete("/api/v1/instances/extra-instance", headers=mention_api_headers)
+            response = test_client.delete(
+                "/api/v1/instances/extra-instance", headers=mention_api_headers
+            )
             assert response.status_code == 200
 
 
 class TestInstanceOperationEndpoints(TestAPIEndpoints):
     """Test instance operation endpoints (QR, status, restart, etc.)."""
 
-    def test_get_qr_code(self, test_client, mention_api_headers):
+    def test_get_qr_code(self, test_client, mention_api_headers, test_db):
         """Test getting QR code for instance."""
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
             # Make get_qr_code async
             async def mock_get_qr_code(*args, **kwargs):
                 return {
@@ -498,15 +582,21 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
 
             mock_handler.return_value.get_qr_code = mock_get_qr_code
 
-            response = test_client.get("/api/v1/instances/test-instance/qr", headers=mention_api_headers)
+            response = test_client.get(
+                "/api/v1/instances/test-instance/qr", headers=mention_api_headers
+            )
             assert response.status_code == 200
             data = response.json()
             assert "qr_code" in data
             assert data["qr_code"].startswith("data:image/")
 
-    def test_get_connection_status(self, test_client, mention_api_headers):
+    def test_get_connection_status(self, test_client, mention_api_headers, test_db):
         """Test getting instance connection status."""
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
             # Make get_status async
             async def mock_get_status(*args, **kwargs):
                 return {
@@ -518,33 +608,47 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
 
             mock_handler.return_value.get_status = mock_get_status
 
-            response = test_client.get("/api/v1/instances/test-instance/status", headers=mention_api_headers)
+            response = test_client.get(
+                "/api/v1/instances/test-instance/status", headers=mention_api_headers
+            )
             assert response.status_code == 200
             data = response.json()
             assert "status" in data
 
-    def test_restart_instance(self, test_client, mention_api_headers):
+    def test_restart_instance(self, test_client, mention_api_headers, test_db):
         """Test restarting instance connection."""
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
             # Make restart_instance async
             async def mock_restart_instance(*args, **kwargs):
                 return {"status": "restarted"}
 
             mock_handler.return_value.restart_instance = mock_restart_instance
 
-            response = test_client.post("/api/v1/instances/test-instance/restart", headers=mention_api_headers)
+            response = test_client.post(
+                "/api/v1/instances/test-instance/restart", headers=mention_api_headers
+            )
             assert response.status_code == 200
 
-    def test_logout_instance(self, test_client, mention_api_headers):
+    def test_logout_instance(self, test_client, mention_api_headers, test_db):
         """Test logging out instance."""
-        with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        with patch(
+            "src.channels.base.ChannelHandlerFactory.get_handler"
+        ) as mock_handler:
             # Make logout_instance async
             async def mock_logout_instance(*args, **kwargs):
                 return {"status": "logged_out"}
 
             mock_handler.return_value.logout_instance = mock_logout_instance
 
-            response = test_client.post("/api/v1/instances/test-instance/logout", headers=mention_api_headers)
+            response = test_client.post(
+                "/api/v1/instances/test-instance/logout", headers=mention_api_headers
+            )
             assert response.status_code == 200
 
     def test_discover_instances(self, test_client, mention_api_headers):
@@ -566,7 +670,9 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
 
             mock_service.discover_evolution_instances = mock_discover_instances
 
-            response = test_client.post("/api/v1/instances/discover", headers=mention_api_headers)
+            response = test_client.post(
+                "/api/v1/instances/discover", headers=mention_api_headers
+            )
             assert response.status_code == 200
 
 
@@ -581,7 +687,9 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
         }
 
         # Mock the actual HTTP requests to prevent external API calls
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
@@ -608,7 +716,9 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
         }
 
         # Mock the actual HTTP requests to prevent external API calls
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
@@ -630,7 +740,9 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
         }
 
         # Mock the actual HTTP requests to prevent external API calls
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
@@ -644,15 +756,19 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
             )
             assert response.status_code == 200
 
-    def test_send_contact_message(self, test_client, mention_api_headers):
+    def test_send_contact_message(self, test_client, mention_api_headers, test_db):
         """Test sending contact message."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         message_data = {
             "phone_number": "+1234567890",
             "contacts": [{"full_name": "John Doe", "phone_number": "+1987654321"}],
         }
 
         # Mock the actual HTTP requests to prevent external API calls
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
@@ -675,7 +791,9 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
         }
 
         # Mock the actual HTTP requests to prevent external API calls
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
@@ -694,7 +812,9 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
         request_data = {"phone_number": "+1234567890"}
 
         # Mock the actual HTTP requests to prevent external API calls
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
@@ -717,7 +837,9 @@ class TestTraceEndpoints(TestAPIEndpoints):
 
     def test_list_traces(self, test_client, mention_api_headers):
         """Test listing traces with pagination."""
-        with patch("src.services.trace_service.TraceService.get_traces_by_phone") as mock_get_traces:
+        with patch(
+            "src.services.trace_service.TraceService.get_traces_by_phone"
+        ) as mock_get_traces:
             mock_get_traces.return_value = []
 
             response = test_client.get("/api/v1/traces", headers=mention_api_headers)
@@ -726,7 +848,9 @@ class TestTraceEndpoints(TestAPIEndpoints):
 
     def test_list_traces_with_filters(self, test_client, mention_api_headers):
         """Test listing traces with query filters."""
-        with patch("src.services.trace_service.TraceService.get_traces_by_phone") as mock_get_traces:
+        with patch(
+            "src.services.trace_service.TraceService.get_traces_by_phone"
+        ) as mock_get_traces:
             mock_get_traces.return_value = []
 
             response = test_client.get(
@@ -737,7 +861,9 @@ class TestTraceEndpoints(TestAPIEndpoints):
 
     def test_get_specific_trace(self, test_client, mention_api_headers):
         """Test getting specific trace by ID."""
-        with patch("src.services.trace_service.TraceService.get_trace") as mock_get_trace:
+        with patch(
+            "src.services.trace_service.TraceService.get_trace"
+        ) as mock_get_trace:
             mock_trace = MagicMock()
             mock_trace.to_dict.return_value = {
                 "trace_id": "trace_123",
@@ -762,27 +888,37 @@ class TestTraceEndpoints(TestAPIEndpoints):
             }
             mock_get_trace.return_value = mock_trace
 
-            response = test_client.get("/api/v1/traces/trace_123", headers=mention_api_headers)
+            response = test_client.get(
+                "/api/v1/traces/trace_123", headers=mention_api_headers
+            )
             assert response.status_code == 200
 
     def test_get_trace_payloads(self, test_client, mention_api_headers):
         """Test getting trace payloads."""
         with (
-            patch("src.services.trace_service.TraceService.get_trace") as mock_get_trace,
-            patch("src.services.trace_service.TraceService.get_trace_payloads") as mock_get_payloads,
+            patch(
+                "src.services.trace_service.TraceService.get_trace"
+            ) as mock_get_trace,
+            patch(
+                "src.services.trace_service.TraceService.get_trace_payloads"
+            ) as mock_get_payloads,
         ):
             mock_trace = MagicMock()
             mock_trace.trace_id = "trace_123"
             mock_get_trace.return_value = mock_trace
             mock_get_payloads.return_value = []
 
-            response = test_client.get("/api/v1/traces/trace_123/payloads", headers=mention_api_headers)
+            response = test_client.get(
+                "/api/v1/traces/trace_123/payloads", headers=mention_api_headers
+            )
             assert response.status_code == 200
 
     def test_get_analytics_summary(self, test_client, mention_api_headers):
         """Test getting analytics summary."""
         # Analytics endpoint queries database directly, not TraceService
-        response = test_client.get("/api/v1/traces/analytics/summary", headers=mention_api_headers)
+        response = test_client.get(
+            "/api/v1/traces/analytics/summary", headers=mention_api_headers
+        )
         assert response.status_code == 200
         data = response.json()
         assert "total_messages" in data
@@ -790,18 +926,25 @@ class TestTraceEndpoints(TestAPIEndpoints):
 
     def test_get_traces_by_phone(self, test_client, mention_api_headers):
         """Test getting traces by phone number."""
-        with patch("src.services.trace_service.TraceService.get_traces_by_phone") as mock_get_traces:
+        with patch(
+            "src.services.trace_service.TraceService.get_traces_by_phone"
+        ) as mock_get_traces:
             mock_get_traces.return_value = []
 
-            response = test_client.get("/api/v1/traces/phone/+1234567890", headers=mention_api_headers)
+            response = test_client.get(
+                "/api/v1/traces/phone/+1234567890", headers=mention_api_headers
+            )
             assert response.status_code == 200
 
 
 class TestWebhookEndpoints(TestAPIEndpoints):
     """Test webhook endpoints."""
 
-    def test_evolution_webhook_tenant(self, test_client):
+    def test_evolution_webhook_tenant(self, test_client, test_db):
         """Test multi-tenant webhook endpoint."""
+        # Ensure test instance exists for webhook testing
+        self.ensure_test_instance_exists(test_db)
+        
         webhook_data = {
             "event": "messages.upsert",
             "data": {
@@ -823,7 +966,9 @@ class TestWebhookEndpoints(TestAPIEndpoints):
                 "instance": "test-instance",
             }
 
-            response = test_client.post("/webhook/evolution/test-instance", json=webhook_data)
+            response = test_client.post(
+                "/webhook/evolution/test-instance", json=webhook_data
+            )
             assert response.status_code == 200
             mock_handler.assert_called_once()
 
@@ -847,7 +992,9 @@ class TestErrorHandling(TestAPIEndpoints):
             # Missing required fields
         }
 
-        response = test_client.post("/api/v1/instances", json=incomplete_data, headers=mention_api_headers)
+        response = test_client.post(
+            "/api/v1/instances", json=incomplete_data, headers=mention_api_headers
+        )
         assert response.status_code == 422
 
     def test_invalid_instance_name_format(self, test_client, mention_api_headers):
@@ -863,7 +1010,9 @@ class TestErrorHandling(TestAPIEndpoints):
             "default_agent": "test-agent",
         }
 
-        response = test_client.post("/api/v1/instances", json=invalid_data, headers=mention_api_headers)
+        response = test_client.post(
+            "/api/v1/instances", json=invalid_data, headers=mention_api_headers
+        )
         assert response.status_code == 422
 
     def test_nonexistent_instance_operations(self, test_client, mention_api_headers):
@@ -879,9 +1028,13 @@ class TestErrorHandling(TestAPIEndpoints):
 
         for method, endpoint in endpoints_to_test:
             if method == "POST":
-                response = test_client.request(method, endpoint, json={"test": "data"}, headers=mention_api_headers)
+                response = test_client.request(
+                    method, endpoint, json={"test": "data"}, headers=mention_api_headers
+                )
             else:
-                response = test_client.request(method, endpoint, headers=mention_api_headers)
+                response = test_client.request(
+                    method, endpoint, headers=mention_api_headers
+                )
 
             assert response.status_code in [
                 404,
@@ -896,7 +1049,9 @@ class TestRequestValidation(TestAPIEndpoints):
         """Test phone number format validation."""
         invalid_phone_data = {"phone_number": "invalid-phone", "text": "Test message"}
 
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {"success": True}
 
@@ -921,7 +1076,9 @@ class TestRequestValidation(TestAPIEndpoints):
             "default_agent": "test-agent",
         }
 
-        response = test_client.post("/api/v1/instances", json=invalid_url_data, headers=mention_api_headers)
+        response = test_client.post(
+            "/api/v1/instances", json=invalid_url_data, headers=mention_api_headers
+        )
         assert response.status_code == 422
 
     def test_large_payload_handling(self, test_client, mention_api_headers):
@@ -930,7 +1087,9 @@ class TestRequestValidation(TestAPIEndpoints):
 
         message_data = {"phone_number": "+1234567890", "text": large_text}
 
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {"success": True}
 
@@ -963,7 +1122,9 @@ class TestPerformanceBasics(TestAPIEndpoints):
         end_time = time.time()
 
         assert response.status_code == 200
-        assert (end_time - start_time) < 2.0  # Should respond in under 2 seconds (allows for Evolution API calls)
+        assert (
+            end_time - start_time
+        ) < 2.0  # Should respond in under 2 seconds (allows for Evolution API calls)
 
     def test_concurrent_health_checks(self, test_client):
         """Test multiple concurrent health check requests."""

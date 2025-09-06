@@ -3,9 +3,9 @@ FastAPI dependency injection for database and services.
 """
 
 import logging
-from typing import Generator
+from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from src.db.database import get_db
@@ -13,7 +13,7 @@ from src.db.models import InstanceConfig
 from src.config import config
 
 # Security scheme for API key authentication
-security = HTTPBearer()
+api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
 
 # Module-level logger
 logger = logging.getLogger(__name__)
@@ -24,7 +24,9 @@ def get_database() -> Generator[Session, None, None]:
     yield from get_db()
 
 
-def get_instance_by_name(instance_name: str, db: Session = Depends(get_database)) -> InstanceConfig:
+def get_instance_by_name(
+    instance_name: str, db: Session = Depends(get_database)
+) -> InstanceConfig:
     """
     Get instance configuration by name.
 
@@ -47,12 +49,12 @@ def get_instance_by_name(instance_name: str, db: Session = Depends(get_database)
     return instance
 
 
-def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def verify_api_key(api_key: Optional[str] = Depends(api_key_header)):
     """
-    Verify API key authentication.
+    Verify API key authentication from x-api-key header.
 
     Args:
-        credentials: HTTP Bearer token credentials
+        api_key: API key from x-api-key header via APIKeyHeader security scheme
 
     Returns:
         str: The verified API key
@@ -71,6 +73,15 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
         logger.info("No API key configured, allowing access (development mode)")
         return "development"
 
+    # Check if API key is provided
+    if not api_key:
+        logger.warning("No API key provided in x-api-key header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
     # Mask API keys for security (show only first 4 and last 4 characters)
     def mask_key(key: str) -> str:
         if len(key) <= 8:
@@ -78,17 +89,17 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
         return f"{key[:4]}{'*' * (len(key) - 8)}{key[-4:]}"
 
     logger.debug(f"Expected API key: [{mask_key(config.api.api_key)}]")
-    logger.debug(f"Received credentials: [{mask_key(credentials.credentials)}]")
+    logger.debug(f"Received API key: [{mask_key(api_key)}]")
 
-    if credentials.credentials != config.api.api_key:
+    if api_key != config.api.api_key:
         logger.warning(
-            f"API key mismatch. Expected: [{mask_key(config.api.api_key)}], Got: [{mask_key(credentials.credentials)}]"
+            f"API key mismatch. Expected: [{mask_key(config.api.api_key)}], Got: [{mask_key(api_key)}]"
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "ApiKey"},
         )
 
     logger.info("API key verified successfully")
-    return credentials.credentials
+    return api_key

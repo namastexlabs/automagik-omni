@@ -81,7 +81,9 @@ class TestHiveApiDetection:
             client.api_url = f"http://localhost:{port}"
             client.instance_config = None
 
-            assert client._is_hive_api_mode() is False, f"Port {port} should not be detected as Hive API"
+            assert (
+                client._is_hive_api_mode() is False
+            ), f"Port {port} should not be detected as Hive API"
 
     def test_instance_config_overrides_port_detection(self):
         """Test that instance config is_hive flag overrides port-based detection."""
@@ -128,7 +130,9 @@ class TestEndpointSelection:
         client.api_url = "http://localhost:8000"
         client.instance_config = None
 
-        response = client.run_agent(agent_name="test_agent", message_content="test message")
+        response = client.run_agent(
+            agent_name="test_agent", message_content="test message"
+        )
 
         # Should call _call_hive_api method
         mock_hive_api.assert_called_once()
@@ -177,7 +181,9 @@ class TestEndpointSelection:
         # Should make POST request to /playground/agents/{agent_name}/runs
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        assert call_args[0][0] == "http://localhost:8000/playground/agents/test_agent/runs"
+        assert (
+            call_args[0][0] == "http://localhost:8000/playground/agents/test_agent/runs"
+        )
 
 
 class TestRegressionPrevention:
@@ -193,7 +199,9 @@ class TestRegressionPrevention:
         assert client._is_hive_api_mode() is True
 
         # Should NOT use the /api/v1/agent/ endpoints that caused 404s
-        with patch("src.services.agent_api_client.AgentApiClient._call_hive_api") as mock_hive:
+        with patch(
+            "src.services.agent_api_client.AgentApiClient._call_hive_api"
+        ) as mock_hive:
             mock_hive.return_value = {"response": "success", "success": True}
 
             client.run_agent(agent_name="test_agent", message_content="test")
@@ -217,7 +225,9 @@ class TestRegressionPrevention:
             mock_response.json.return_value = {"response": "success", "success": True}
             mock_post.return_value = mock_response
 
-            client._make_headers = Mock(return_value={"Content-Type": "application/json"})
+            client._make_headers = Mock(
+                return_value={"Content-Type": "application/json"}
+            )
 
             client.run_agent(agent_name="test_agent", message_content="test")
 
@@ -275,7 +285,9 @@ class TestRegressionPrevention:
             client.instance_config = None
 
             result = client._is_hive_api_mode()
-            assert result == expected_is_hive, f"URL {url} should return {expected_is_hive}, got {result}"
+            assert (
+                result == expected_is_hive
+            ), f"URL {url} should return {expected_is_hive}, got {result}"
 
 
 if __name__ == "__main__":

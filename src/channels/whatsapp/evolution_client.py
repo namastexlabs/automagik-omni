@@ -21,7 +21,9 @@ class EvolutionInstance(BaseModel):
     instanceId: Optional[str] = None
     ownerJid: Optional[str] = None  # Evolution returns ownerJid, not owner
     profileName: Optional[str] = None
-    profilePicUrl: Optional[str] = None  # Evolution returns profilePicUrl, not profilePictureUrl
+    profilePicUrl: Optional[str] = (
+        None  # Evolution returns profilePicUrl, not profilePictureUrl
+    )
     profileStatus: Optional[str] = None
     status: str  # "open", "close", "connecting", "created"
     serverUrl: Optional[str] = None
@@ -76,7 +78,9 @@ class EvolutionClient:
 
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.request(method=method, url=url, headers=self.headers, timeout=30.0, **kwargs)
+                response = await client.request(
+                    method=method, url=url, headers=self.headers, timeout=30.0, **kwargs
+                )
 
                 # DEBUG logging for response details
                 logger.debug(f"Evolution API Response: {response.status_code}")
@@ -87,12 +91,16 @@ class EvolutionClient:
                 return response.json()
             except httpx.HTTPStatusError as e:
                 error_text = e.response.text
-                logger.error(f"Evolution API error {e.response.status_code}: {error_text}")
+                logger.error(
+                    f"Evolution API error {e.response.status_code}: {error_text}"
+                )
                 logger.debug(f"Failed request details - URL: {url}, Method: {method}")
                 logger.debug(f"Failed request headers: {self.headers}")
                 if "json" in kwargs:
                     logger.debug(f"Failed request body: {kwargs['json']}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {error_text}")
+                raise Exception(
+                    f"Evolution API error: {e.response.status_code} - {error_text}"
+                )
             except Exception as e:
                 logger.error(f"Evolution API request failed: {e}")
                 logger.debug(f"Failed request details - URL: {url}, Method: {method}")
@@ -136,7 +144,9 @@ class EvolutionClient:
         logger.debug(f"Final instance creation payload: {payload}")
         return await self._request("POST", "/instance/create", json=payload)
 
-    async def fetch_instances(self, instance_name: Optional[str] = None) -> List[EvolutionInstance]:
+    async def fetch_instances(
+        self, instance_name: Optional[str] = None
+    ) -> List[EvolutionInstance]:
         """Fetch Evolution API instances."""
         params = {}
         if instance_name:
@@ -165,11 +175,15 @@ class EvolutionClient:
 
     async def get_connection_state(self, instance_name: str) -> Dict[str, Any]:
         """Get connection state of an instance."""
-        return await self._request("GET", f"/instance/connectionState/{quote(instance_name, safe='')}")
+        return await self._request(
+            "GET", f"/instance/connectionState/{quote(instance_name, safe='')}"
+        )
 
     async def connect_instance(self, instance_name: str) -> Dict[str, Any]:
         """Get connection info and QR code for instance."""
-        return await self._request("GET", f"/instance/connect/{quote(instance_name, safe='')}")
+        return await self._request(
+            "GET", f"/instance/connect/{quote(instance_name, safe='')}"
+        )
 
     async def restart_instance(self, instance_name: str) -> Dict[str, Any]:
         """
@@ -179,7 +193,9 @@ class EvolutionClient:
         If it fails with 404, the instance might need to be recreated.
         """
         try:
-            return await self._request("PUT", f"/instance/restart/{quote(instance_name, safe='')}")
+            return await self._request(
+                "PUT", f"/instance/restart/{quote(instance_name, safe='')}"
+            )
         except Exception as e:
             # If restart endpoint doesn't exist, log but don't fail catastrophically
             if "404" in str(e):
@@ -195,11 +211,15 @@ class EvolutionClient:
 
     async def logout_instance(self, instance_name: str) -> Dict[str, Any]:
         """Logout a WhatsApp instance."""
-        return await self._request("DELETE", f"/instance/logout/{quote(instance_name, safe='')}")
+        return await self._request(
+            "DELETE", f"/instance/logout/{quote(instance_name, safe='')}"
+        )
 
     async def delete_instance(self, instance_name: str) -> Dict[str, Any]:
         """Delete a WhatsApp instance."""
-        return await self._request("DELETE", f"/instance/delete/{quote(instance_name, safe='')}")
+        return await self._request(
+            "DELETE", f"/instance/delete/{quote(instance_name, safe='')}"
+        )
 
     async def set_webhook(
         self,
@@ -222,7 +242,9 @@ class EvolutionClient:
                 "byEvents": False,  # Use "byEvents" not "webhookByEvents"
             }
         }
-        logger.info(f"Setting webhook for {instance_name} with payload: {webhook_payload}")
+        logger.info(
+            f"Setting webhook for {instance_name} with payload: {webhook_payload}"
+        )
 
         return await self._request(
             "POST",
@@ -230,7 +252,9 @@ class EvolutionClient:
             json=webhook_payload,
         )
 
-    async def set_settings(self, instance_name: str, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def set_settings(
+        self, instance_name: str, settings: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Set settings for an instance."""
         if settings is None:
             settings = {
@@ -243,7 +267,9 @@ class EvolutionClient:
                 "syncFullHistory": True,
             }
 
-        return await self._request("POST", f"/settings/set/{quote(instance_name, safe='')}", json=settings)
+        return await self._request(
+            "POST", f"/settings/set/{quote(instance_name, safe='')}", json=settings
+        )
 
 
 # Global Evolution client instance
@@ -256,11 +282,15 @@ def get_evolution_client() -> EvolutionClient:
 
     if evolution_client is None:
         # Use environment variables for Evolution API configuration
-        evolution_url = replace_localhost_with_ipv4(config.get_env("EVOLUTION_API_URL", "http://localhost:8080"))
+        evolution_url = replace_localhost_with_ipv4(
+            config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
+        )
         evolution_key = config.get_env("EVOLUTION_API_KEY", "")
 
         logger.debug(f"Evolution API configuration - URL: {evolution_url}")
-        logger.debug(f"Evolution API configuration - Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}")
+        logger.debug(
+            f"Evolution API configuration - Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}"
+        )
 
         if not evolution_key:
             logger.error("EVOLUTION_API_KEY not configured in environment")

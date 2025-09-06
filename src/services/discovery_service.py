@@ -47,7 +47,9 @@ class DiscoveryService:
         )
 
         if not existing_instances:
-            logger.info("No existing WhatsApp instances with Evolution API config found")
+            logger.info(
+                "No existing WhatsApp instances with Evolution API config found"
+            )
             return []
 
         synced_instances = []
@@ -74,25 +76,37 @@ class DiscoveryService:
                 # Create client for this specific server
                 from src.channels.whatsapp.evolution_client import EvolutionClient
 
-                evolution_client = EvolutionClient(server_info["url"], server_info["key"])
+                evolution_client = EvolutionClient(
+                    server_info["url"], server_info["key"]
+                )
 
                 # Fetch all instances from this Evolution API
                 evolution_instances = await evolution_client.fetch_instances()
-                logger.info(f"Found {len(evolution_instances)} instances on {server_info['url']}")
+                logger.info(
+                    f"Found {len(evolution_instances)} instances on {server_info['url']}"
+                )
 
                 for evo_instance in evolution_instances:
-                    logger.debug(f"Processing Evolution instance: {evo_instance.instanceName}")
+                    logger.debug(
+                        f"Processing Evolution instance: {evo_instance.instanceName}"
+                    )
 
                     # Check if instance already exists in database
                     existing_instance = (
-                        db.query(InstanceConfig).filter(InstanceConfig.name == evo_instance.instanceName).first()
+                        db.query(InstanceConfig)
+                        .filter(InstanceConfig.name == evo_instance.instanceName)
+                        .first()
                     )
 
                     if existing_instance:
                         # Update existing instance with latest Evolution data
-                        updated = self._update_existing_instance(existing_instance, evo_instance)
+                        updated = self._update_existing_instance(
+                            existing_instance, evo_instance
+                        )
                         if updated:
-                            logger.info(f"Updated existing instance: {evo_instance.instanceName}")
+                            logger.info(
+                                f"Updated existing instance: {evo_instance.instanceName}"
+                            )
                         synced_instances.append(existing_instance)
                     else:
                         # Create new instance from Evolution data using this server's config
@@ -100,24 +114,32 @@ class DiscoveryService:
                             evo_instance, db, server_info["url"], server_info["key"]
                         )
                         if new_instance:
-                            logger.info(f"Created new instance from Evolution: {evo_instance.instanceName}")
+                            logger.info(
+                                f"Created new instance from Evolution: {evo_instance.instanceName}"
+                            )
                             synced_instances.append(new_instance)
 
             except Exception as e:
-                logger.warning(f"Failed to query Evolution API {server_info['url']}: {e}")
+                logger.warning(
+                    f"Failed to query Evolution API {server_info['url']}: {e}"
+                )
                 continue
 
         # Commit all changes
         try:
             db.commit()
-            logger.info(f"Discovery complete - {len(synced_instances)} instances synced")
+            logger.info(
+                f"Discovery complete - {len(synced_instances)} instances synced"
+            )
         except Exception as e:
             logger.error(f"Error committing discovery changes: {e}")
             db.rollback()
 
         return synced_instances
 
-    def _update_existing_instance(self, db_instance: InstanceConfig, evo_instance: EvolutionInstance) -> bool:
+    def _update_existing_instance(
+        self, db_instance: InstanceConfig, evo_instance: EvolutionInstance
+    ) -> bool:
         """
         Update existing database instance with Evolution data (conservative approach).
 
@@ -144,20 +166,33 @@ class DiscoveryService:
         if db_instance.is_active != expected_active:
             db_instance.is_active = expected_active
             updated = True
-            logger.debug(f"Updated {db_instance.name} status: {evo_instance.status} -> active={expected_active}")
+            logger.debug(
+                f"Updated {db_instance.name} status: {evo_instance.status} -> active={expected_active}"
+            )
 
         # Only update default_agent if it's currently empty/default and Evolution has profile data
-        if (not db_instance.default_agent or db_instance.default_agent == "default-agent") and evo_instance.profileName:
+        if (
+            not db_instance.default_agent
+            or db_instance.default_agent == "default-agent"
+        ) and evo_instance.profileName:
             db_instance.default_agent = evo_instance.profileName
             updated = True
-            logger.debug(f"Updated {db_instance.name} default_agent to Evolution profile: {evo_instance.profileName}")
+            logger.debug(
+                f"Updated {db_instance.name} default_agent to Evolution profile: {evo_instance.profileName}"
+            )
 
         # Update profile information from Evolution API
-        if evo_instance.profileName and db_instance.profile_name != evo_instance.profileName:
+        if (
+            evo_instance.profileName
+            and db_instance.profile_name != evo_instance.profileName
+        ):
             db_instance.profile_name = evo_instance.profileName
             updated = True
 
-        if evo_instance.profilePicUrl and db_instance.profile_pic_url != evo_instance.profilePicUrl:
+        if (
+            evo_instance.profilePicUrl
+            and db_instance.profile_pic_url != evo_instance.profilePicUrl
+        ):
             db_instance.profile_pic_url = evo_instance.profilePicUrl
             updated = True
 
@@ -188,10 +223,16 @@ class DiscoveryService:
         """
         try:
             # Double-check that instance doesn't already exist
-            existing = db.query(InstanceConfig).filter(InstanceConfig.name == evo_instance.instanceName).first()
+            existing = (
+                db.query(InstanceConfig)
+                .filter(InstanceConfig.name == evo_instance.instanceName)
+                .first()
+            )
 
             if existing:
-                logger.debug(f"Instance {evo_instance.instanceName} already exists in database, skipping creation")
+                logger.debug(
+                    f"Instance {evo_instance.instanceName} already exists in database, skipping creation"
+                )
                 return None
 
             # Map Evolution status to our boolean
@@ -224,14 +265,18 @@ class DiscoveryService:
             db.add(new_instance)
             db.flush()  # Get the ID
 
-            logger.info(f"Auto-created instance from Evolution: {new_instance.name} (ID: {new_instance.id})")
+            logger.info(
+                f"Auto-created instance from Evolution: {new_instance.name} (ID: {new_instance.id})"
+            )
             return new_instance
 
         except Exception as e:
             logger.error(f"Error creating instance from Evolution data: {e}")
             return None
 
-    async def sync_instance_status(self, instance_name: str, db: Session) -> Optional[Dict[str, Any]]:
+    async def sync_instance_status(
+        self, instance_name: str, db: Session
+    ) -> Optional[Dict[str, Any]]:
         """
         Sync a specific instance's status with Evolution API.
 
@@ -243,24 +288,34 @@ class DiscoveryService:
             Evolution connection state or None if sync failed
         """
         # Get the instance to get its Evolution API credentials
-        db_instance = db.query(InstanceConfig).filter(InstanceConfig.name == instance_name).first()
+        db_instance = (
+            db.query(InstanceConfig)
+            .filter(InstanceConfig.name == instance_name)
+            .first()
+        )
 
         if not db_instance:
             logger.warning(f"Instance {instance_name} not found in database")
             return None
 
         if not db_instance.evolution_url or not db_instance.evolution_key:
-            logger.warning(f"Instance {instance_name} missing Evolution API credentials")
+            logger.warning(
+                f"Instance {instance_name} missing Evolution API credentials"
+            )
             return None
 
         try:
             # Create Evolution client with instance-specific credentials
             from src.channels.whatsapp.evolution_client import EvolutionClient
 
-            evolution_client = EvolutionClient(db_instance.evolution_url, db_instance.evolution_key)
+            evolution_client = EvolutionClient(
+                db_instance.evolution_url, db_instance.evolution_key
+            )
 
             # Get current status from Evolution
-            connection_state = await evolution_client.get_connection_state(instance_name)
+            connection_state = await evolution_client.get_connection_state(
+                instance_name
+            )
 
             # Update status based on Evolution response
             if "instance" in connection_state:
@@ -270,7 +325,9 @@ class DiscoveryService:
                 if db_instance.is_active != new_active:
                     db_instance.is_active = new_active
                     db.commit()
-                    logger.info(f"Updated {instance_name} status: {evo_state} -> active={new_active}")
+                    logger.info(
+                        f"Updated {instance_name} status: {evo_state} -> active={new_active}"
+                    )
 
             return connection_state
 

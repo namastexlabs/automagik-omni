@@ -44,15 +44,21 @@ class OmniContact(BaseModel):
 
     # Optional universal fields
     avatar_url: Optional[str] = Field(None, description="Profile picture URL")
-    status: OmniContactStatus = Field(OmniContactStatus.UNKNOWN, description="Online status")
+    status: OmniContactStatus = Field(
+        OmniContactStatus.UNKNOWN, description="Online status"
+    )
     is_verified: Optional[bool] = Field(None, description="Verification status")
     is_business: Optional[bool] = Field(None, description="Business account indicator")
 
     # Channel-specific data (preserved as dict for flexibility)
-    channel_data: Dict[str, Any] = Field(default_factory=dict, description="Channel-specific contact data")
+    channel_data: Dict[str, Any] = Field(
+        default_factory=dict, description="Channel-specific contact data"
+    )
 
     # Metadata
-    created_at: Optional[datetime] = Field(None, description="Contact creation timestamp")
+    created_at: Optional[datetime] = Field(
+        None, description="Contact creation timestamp"
+    )
     last_seen: Optional[datetime] = Field(None, description="Last activity timestamp")
 
 
@@ -79,11 +85,15 @@ class OmniChat(BaseModel):
     unread_count: Optional[int] = Field(None, description="Unread message count")
 
     # Channel-specific data
-    channel_data: Dict[str, Any] = Field(default_factory=dict, description="Channel-specific chat data")
+    channel_data: Dict[str, Any] = Field(
+        default_factory=dict, description="Channel-specific chat data"
+    )
 
     # Timestamps
     created_at: Optional[datetime] = Field(None, description="Chat creation timestamp")
-    last_message_at: Optional[datetime] = Field(None, description="Last message timestamp")
+    last_message_at: Optional[datetime] = Field(
+        None, description="Last message timestamp"
+    )
 
 
 # Core Omni Channel Model
@@ -96,7 +106,9 @@ class OmniChannelInfo(BaseModel):
     display_name: str = Field(..., description="Human-readable instance name")
 
     # Connection status
-    status: str = Field(..., description="Connection status: connected|disconnected|connecting|error")
+    status: str = Field(
+        ..., description="Connection status: connected|disconnected|connecting|error"
+    )
     is_healthy: bool = Field(..., description="Overall health status")
 
     # Capabilities (what operations are supported)
@@ -114,11 +126,17 @@ class OmniChannelInfo(BaseModel):
     total_chats: Optional[int] = Field(None, description="Total chats count")
 
     # Channel-specific data
-    channel_data: Dict[str, Any] = Field(default_factory=dict, description="Channel-specific information")
+    channel_data: Dict[str, Any] = Field(
+        default_factory=dict, description="Channel-specific information"
+    )
 
     # Timestamps
-    connected_at: Optional[datetime] = Field(None, description="Connection established timestamp")
-    last_activity_at: Optional[datetime] = Field(None, description="Last activity timestamp")
+    connected_at: Optional[datetime] = Field(
+        None, description="Connection established timestamp"
+    )
+    last_activity_at: Optional[datetime] = Field(
+        None, description="Last activity timestamp"
+    )
 
 
 # Response wrapper models
@@ -133,10 +151,14 @@ class OmniContactsResponse(BaseModel):
 
     # Instance information
     instance_name: str = Field(..., description="Queried instance name")
-    channel_type: Optional[ChannelType] = Field(None, description="Channel type filter applied")
+    channel_type: Optional[ChannelType] = Field(
+        None, description="Channel type filter applied"
+    )
 
     # Error handling for multi-channel queries
-    partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
+    partial_errors: List[Dict[str, str]] = Field(
+        default_factory=list, description="Per-channel errors"
+    )
 
 
 class OmniChatsResponse(BaseModel):
@@ -150,32 +172,46 @@ class OmniChatsResponse(BaseModel):
 
     # Instance information
     instance_name: str = Field(..., description="Queried instance name")
-    channel_type: Optional[ChannelType] = Field(None, description="Channel type filter applied")
+    channel_type: Optional[ChannelType] = Field(
+        None, description="Channel type filter applied"
+    )
 
     # Error handling for multi-channel queries
-    partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
+    partial_errors: List[Dict[str, str]] = Field(
+        default_factory=list, description="Per-channel errors"
+    )
 
 
 class OmniChannelsResponse(BaseModel):
     """Response model for omni channels endpoint."""
 
-    channels: List[OmniChannelInfo] = Field(..., description="List of channel instances")
+    channels: List[OmniChannelInfo] = Field(
+        ..., description="List of channel instances"
+    )
     total_count: int = Field(..., description="Total number of channels")
     healthy_count: int = Field(..., description="Number of healthy channels")
 
     # Error handling
-    partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
+    partial_errors: List[Dict[str, str]] = Field(
+        default_factory=list, description="Per-channel errors"
+    )
 
 
 # Error response models
 class OmniErrorDetail(BaseModel):
     """Detailed error information for omni endpoints."""
 
-    instance_name: Optional[str] = Field(None, description="Instance that caused the error")
-    channel_type: Optional[ChannelType] = Field(None, description="Channel type that caused the error")
+    instance_name: Optional[str] = Field(
+        None, description="Instance that caused the error"
+    )
+    channel_type: Optional[ChannelType] = Field(
+        None, description="Channel type that caused the error"
+    )
     error_code: str = Field(..., description="Error code")
     error_message: str = Field(..., description="Human-readable error message")
-    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
+    details: Optional[Dict[str, Any]] = Field(
+        None, description="Additional error details"
+    )
 
 
 class OmniErrorResponse(BaseModel):
@@ -183,5 +219,9 @@ class OmniErrorResponse(BaseModel):
 
     success: bool = Field(False, description="Operation success status")
     error: str = Field(..., description="Primary error message")
-    details: List[OmniErrorDetail] = Field(default_factory=list, description="Detailed error information")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Error occurrence timestamp")
+    details: List[OmniErrorDetail] = Field(
+        default_factory=list, description="Detailed error information"
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Error occurrence timestamp"
+    )

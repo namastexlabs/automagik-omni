@@ -43,7 +43,9 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
         return True
     except OperationalError:
         # Database doesn't exist, try to create it
-        logger.info(f"Database '{database_name}' does not exist, attempting to create...")
+        logger.info(
+            f"Database '{database_name}' does not exist, attempting to create..."
+        )
 
         try:
             # Connect to postgres database to create the target database

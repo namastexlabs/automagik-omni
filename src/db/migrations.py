@@ -150,7 +150,9 @@ def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
 
         if thread.is_alive():
             # Thread is still running after timeout
-            logger.warning(f"Stamping operation timed out after {timeout_seconds}s, but database is functional")
+            logger.warning(
+                f"Stamping operation timed out after {timeout_seconds}s, but database is functional"
+            )
             # Even if stamping times out, the database is still functional
             # This is not a critical error
             return True
@@ -188,7 +190,9 @@ def auto_migrate() -> bool:
         head_revision = get_head_revision()
         has_tables = check_database_exists()
 
-        logger.info(f"Database state: current={current_revision}, head={head_revision}, has_tables={has_tables}")
+        logger.info(
+            f"Database state: current={current_revision}, head={head_revision}, has_tables={has_tables}"
+        )
 
         if not has_tables:
             # Empty database - run all migrations
@@ -197,12 +201,16 @@ def auto_migrate() -> bool:
 
         elif current_revision is None and has_tables:
             # Existing database without revision tracking - stamp it as current
-            logger.info("Existing database without revision tracking detected, stamping as current...")
+            logger.info(
+                "Existing database without revision tracking detected, stamping as current..."
+            )
             success = stamp_database(head_revision)
             if success:
                 logger.info("Database successfully stamped with current revision")
             else:
-                logger.warning("Failed to stamp database, but continuing anyway (database is functional)")
+                logger.warning(
+                    "Failed to stamp database, but continuing anyway (database is functional)"
+                )
                 # Return True to allow the application to continue
                 # The database is functional, just missing revision tracking
                 return True

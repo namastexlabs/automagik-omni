@@ -33,7 +33,9 @@ class PayloadTester:
         except Exception as e:
             logger.error(f"Failed to create directory {self.save_directory}: {e}")
 
-    def save_webhook_as_agent_payload(self, webhook_data: Dict[str, Any], instance_config=None) -> Optional[str]:
+    def save_webhook_as_agent_payload(
+        self, webhook_data: Dict[str, Any], instance_config=None
+    ) -> Optional[str]:
         """Save webhook data in agent API format for testing.
 
         Args:
@@ -51,7 +53,9 @@ class PayloadTester:
 
             # Determine message type and content
             message_type = self._extract_message_type(data)
-            message_content = self._extract_message_content(data, message_obj, push_name)
+            message_content = self._extract_message_content(
+                data, message_obj, push_name
+            )
 
             # Build agent API payload
             agent_payload = {
@@ -63,7 +67,9 @@ class PayloadTester:
                     "email": "",
                     "user_data": {
                         "name": push_name,
-                        "whatsapp_id": data.get("key", {}).get("remoteJid", "test@s.whatsapp.net"),
+                        "whatsapp_id": data.get("key", {}).get(
+                            "remoteJid", "test@s.whatsapp.net"
+                        ),
                         "source": "whatsapp_test",
                     },
                 },
@@ -75,7 +81,9 @@ class PayloadTester:
                 agent_payload["media_contents"] = media_contents
 
             # Generate filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Include milliseconds
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[
+                :-3
+            ]  # Include milliseconds
             message_id = data.get("key", {}).get("id", "unknown")
             filename = f"agent_payload_{message_type}_{timestamp}_{message_id[:8]}.json"
 
@@ -87,7 +95,9 @@ class PayloadTester:
             logger.info(f"💾 Saved agent API test payload: {file_path}")
 
             # Also save a curl command file
-            self._save_curl_command(agent_payload, file_path.replace(".json", "_curl.sh"))
+            self._save_curl_command(
+                agent_payload, file_path.replace(".json", "_curl.sh")
+            )
 
             return file_path
 
@@ -123,7 +133,9 @@ class PayloadTester:
         else:
             return "text"
 
-    def _extract_message_content(self, data: Dict[str, Any], message_obj: Dict[str, Any], push_name: str) -> str:
+    def _extract_message_content(
+        self, data: Dict[str, Any], message_obj: Dict[str, Any], push_name: str
+    ) -> str:
         """Extract message content with user name prefix."""
         content = ""
 
@@ -145,7 +157,9 @@ class PayloadTester:
         else:
             return f"[{push_name}]: "
 
-    def _extract_media_contents(self, data: Dict[str, Any], message_obj: Dict[str, Any]) -> Optional[list]:
+    def _extract_media_contents(
+        self, data: Dict[str, Any], message_obj: Dict[str, Any]
+    ) -> Optional[list]:
         """Extract media contents in agent API format."""
         media_contents = []
 
@@ -163,8 +177,12 @@ class PayloadTester:
 
                 # Build media item
                 media_item = {
-                    "mime_type": media_info.get("mimetype", f"{media_type.replace('Message', '')}/"),
-                    "alt_text": media_info.get("caption", f"{media_type.replace('Message', '')} content"),
+                    "mime_type": media_info.get(
+                        "mimetype", f"{media_type.replace('Message', '')}/"
+                    ),
+                    "alt_text": media_info.get(
+                        "caption", f"{media_type.replace('Message', '')} content"
+                    ),
                 }
 
                 # Add URL if available

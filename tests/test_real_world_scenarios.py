@@ -53,9 +53,15 @@ class TestRealWorldScenarios:
         # Mock external services to prevent real API calls
         with (
             patch("src.services.message_router.message_router") as mock_router,
-            patch("src.services.agent_api_client.agent_api_client") as mock_agent_client,
-            patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_requests,
-            patch("src.channels.whatsapp.evolution_client.EvolutionClient") as mock_evolution_client,
+            patch(
+                "src.services.agent_api_client.agent_api_client"
+            ) as mock_agent_client,
+            patch(
+                "src.channels.whatsapp.evolution_api_sender.requests.post"
+            ) as mock_requests,
+            patch(
+                "src.channels.whatsapp.evolution_client.EvolutionClient"
+            ) as mock_evolution_client,
         ):
             # Setup message router mock
             mock_router.route_message.return_value = {
@@ -107,7 +113,7 @@ class TestRealWorldScenarios:
     def api_headers(self):
         """Realistic API headers using real environment API key."""
         return {
-            "Authorization": "Bearer namastex888",
+            "x-api-key": "namastex888",
             "Content-Type": "application/json",
             "User-Agent": "AutomagikOmni-Test/1.0",
         }
@@ -123,7 +129,9 @@ class TestRealWorldScenarios:
         # Step 2: Create new WhatsApp instance
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
             # Make create_instance async using AsyncMock
-            mock_evo.return_value.create_instance = AsyncMock(return_value={"status": "created", "qr_code": "test-qr"})
+            mock_evo.return_value.create_instance = AsyncMock(
+                return_value={"status": "created", "qr_code": "test-qr"}
+            )
 
             instance_data = {
                 "name": "production-whatsapp",
@@ -137,7 +145,9 @@ class TestRealWorldScenarios:
                 "webhook_base64": True,
             }
 
-            response = client.post("/api/v1/instances", json=instance_data, headers=api_headers)
+            response = client.post(
+                "/api/v1/instances", json=instance_data, headers=api_headers
+            )
             assert response.status_code == 201
             created_instance = response.json()
             assert created_instance["name"] == "production-whatsapp"
@@ -157,7 +167,9 @@ class TestRealWorldScenarios:
                 )
             )
 
-            response = client.get("/api/v1/instances/production-whatsapp/qr", headers=api_headers)
+            response = client.get(
+                "/api/v1/instances/production-whatsapp/qr", headers=api_headers
+            )
             assert response.status_code == 200
             qr_data = response.json()
             assert "qr_code" in qr_data
@@ -182,13 +194,17 @@ class TestRealWorldScenarios:
                 )
             )
 
-            response = client.get("/api/v1/instances/production-whatsapp/status", headers=api_headers)
+            response = client.get(
+                "/api/v1/instances/production-whatsapp/status", headers=api_headers
+            )
             assert response.status_code == 200
             status = response.json()
             assert status["status"] == "connected"
 
         # Step 5: Send a test message
-        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
+        with patch(
+            "src.channels.whatsapp.evolution_api_sender.requests.post"
+        ) as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = {
                 "success": True,
@@ -212,7 +228,9 @@ class TestRealWorldScenarios:
 
         # Step 6: Update instance configuration (e.g., change agent API)
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.update_instance = AsyncMock(return_value={"status": "updated"})
+            mock_evo.return_value.update_instance = AsyncMock(
+                return_value={"status": "updated"}
+            )
 
             update_data = {
                 "agent_api_url": "https://agent-v2.prod.company.com",
@@ -244,7 +262,9 @@ class TestRealWorldScenarios:
 
         # Step 9: Create a second instance to allow deletion of the default one
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.create_instance = AsyncMock(return_value={"status": "created"})
+            mock_evo.return_value.create_instance = AsyncMock(
+                return_value={"status": "created"}
+            )
 
             second_instance_data = {
                 "name": "backup-whatsapp",
@@ -257,14 +277,20 @@ class TestRealWorldScenarios:
                 "default_agent": "backup-agent",
             }
 
-            response = client.post("/api/v1/instances", json=second_instance_data, headers=api_headers)
+            response = client.post(
+                "/api/v1/instances", json=second_instance_data, headers=api_headers
+            )
             assert response.status_code == 201
 
         # Step 10: Now delete the original instance (should work since it's not the only one)
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.delete_instance = AsyncMock(return_value={"status": "deleted"})
+            mock_evo.return_value.delete_instance = AsyncMock(
+                return_value={"status": "deleted"}
+            )
 
-            response = client.delete("/api/v1/instances/production-whatsapp", headers=api_headers)
+            response = client.delete(
+                "/api/v1/instances/production-whatsapp", headers=api_headers
+            )
             assert response.status_code == 200  # Delete returns 200, not 204
 
         # Step 11: Verify production instance is gone but backup remains
@@ -304,10 +330,14 @@ class TestRealWorldScenarios:
 
         # Create both instances
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.create_instance = AsyncMock(return_value={"status": "created"})
+            mock_evo.return_value.create_instance = AsyncMock(
+                return_value={"status": "created"}
+            )
 
             for instance_data in instances_data:
-                response = client.post("/api/v1/instances", json=instance_data, headers=api_headers)
+                response = client.post(
+                    "/api/v1/instances", json=instance_data, headers=api_headers
+                )
                 assert response.status_code == 201
 
         # Simulate webhook from tenant A
@@ -335,7 +365,9 @@ class TestRealWorldScenarios:
                 "trace_id": "trace_a_001",
             }
 
-            response = client.post("/webhook/evolution/tenant-a-whatsapp", json=tenant_a_webhook)
+            response = client.post(
+                "/webhook/evolution/tenant-a-whatsapp", json=tenant_a_webhook
+            )
             assert response.status_code == 200
             result = response.json()
             assert result["instance"] == "tenant-a-whatsapp"
@@ -365,7 +397,9 @@ class TestRealWorldScenarios:
                 "trace_id": "trace_b_001",
             }
 
-            response = client.post("/webhook/evolution/tenant-b-whatsapp", json=tenant_b_webhook)
+            response = client.post(
+                "/webhook/evolution/tenant-b-whatsapp", json=tenant_b_webhook
+            )
             assert response.status_code == 200
             result = response.json()
             assert result["instance"] == "tenant-b-whatsapp"
@@ -399,7 +433,9 @@ class TestRealWorldScenarios:
                 side_effect=Exception("Connection failed to Evolution API")
             )
 
-            response = client.post("/api/v1/instances", json=invalid_instance, headers=api_headers)
+            response = client.post(
+                "/api/v1/instances", json=invalid_instance, headers=api_headers
+            )
             # Should handle gracefully with proper error message
             assert response.status_code in [400, 500]
 
@@ -426,17 +462,25 @@ class TestRealWorldScenarios:
         }
 
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.create_instance = AsyncMock(return_value={"status": "created"})
+            mock_evo.return_value.create_instance = AsyncMock(
+                return_value={"status": "created"}
+            )
 
-            response = client.post("/api/v1/instances", json=valid_instance, headers=api_headers)
+            response = client.post(
+                "/api/v1/instances", json=valid_instance, headers=api_headers
+            )
             assert response.status_code == 201
 
         # Test 4: Simulate temporary service failure and recovery
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
             # First call fails
-            mock_evo.return_value.get_status = AsyncMock(side_effect=Exception("Temporary service failure"))
+            mock_evo.return_value.get_status = AsyncMock(
+                side_effect=Exception("Temporary service failure")
+            )
 
-            response = client.get("/api/v1/instances/recovery-test/status", headers=api_headers)
+            response = client.get(
+                "/api/v1/instances/recovery-test/status", headers=api_headers
+            )
             assert response.status_code in [500, 503]
 
             # Second call succeeds (service recovered)
@@ -450,7 +494,9 @@ class TestRealWorldScenarios:
                 )
             )
 
-            response = client.get("/api/v1/instances/recovery-test/status", headers=api_headers)
+            response = client.get(
+                "/api/v1/instances/recovery-test/status", headers=api_headers
+            )
             assert response.status_code == 200
 
     def test_performance_under_load(self, client, api_headers):
@@ -469,9 +515,13 @@ class TestRealWorldScenarios:
         }
 
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.create_instance = AsyncMock(return_value={"status": "created"})
+            mock_evo.return_value.create_instance = AsyncMock(
+                return_value={"status": "created"}
+            )
 
-            response = client.post("/api/v1/instances", json=instance_data, headers=api_headers)
+            response = client.post(
+                "/api/v1/instances", json=instance_data, headers=api_headers
+            )
             assert response.status_code == 201
 
         # Test rapid health checks (common monitoring pattern)
@@ -523,7 +573,9 @@ class TestRealWorldScenarios:
                 }
 
                 start = time.time()
-                response = client.post("/webhook/evolution/load-test-instance", json=webhook_data)
+                response = client.post(
+                    "/webhook/evolution/load-test-instance", json=webhook_data
+                )
                 end = time.time()
 
                 return response.status_code, end - start
@@ -572,11 +624,15 @@ class TestRealWorldScenarios:
 
         # Create instances
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.create_instance = AsyncMock(return_value={"status": "created"})
+            mock_evo.return_value.create_instance = AsyncMock(
+                return_value={"status": "created"}
+            )
 
             created_instances = []
             for instance_data in instances:
-                response = client.post("/api/v1/instances", json=instance_data, headers=api_headers)
+                response = client.post(
+                    "/api/v1/instances", json=instance_data, headers=api_headers
+                )
                 assert response.status_code == 201
                 created_instances.append(response.json())
 
@@ -592,8 +648,12 @@ class TestRealWorldScenarios:
         assert "persistence-test-2" in instance_names
 
         # Verify configuration differences are preserved
-        inst1 = next(inst for inst in listed_instances if inst["name"] == "persistence-test-1")
-        inst2 = next(inst for inst in listed_instances if inst["name"] == "persistence-test-2")
+        inst1 = next(
+            inst for inst in listed_instances if inst["name"] == "persistence-test-1"
+        )
+        inst2 = next(
+            inst for inst in listed_instances if inst["name"] == "persistence-test-2"
+        )
 
         assert inst1["webhook_base64"]
         assert not inst2["webhook_base64"]
@@ -601,7 +661,9 @@ class TestRealWorldScenarios:
         assert inst2["evolution_key"] == "persist-key-2"
 
         # Test individual instance retrieval
-        response = client.get("/api/v1/instances/persistence-test-1", headers=api_headers)
+        response = client.get(
+            "/api/v1/instances/persistence-test-1", headers=api_headers
+        )
         assert response.status_code == 200
         individual_inst = response.json()
         assert individual_inst["name"] == "persistence-test-1"
@@ -609,7 +671,9 @@ class TestRealWorldScenarios:
 
         # Test update operation and verify persistence
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
-            mock_evo.return_value.update_instance = AsyncMock(return_value={"status": "updated"})
+            mock_evo.return_value.update_instance = AsyncMock(
+                return_value={"status": "updated"}
+            )
 
             update_data = {"webhook_base64": False}
             response = client.put(
@@ -620,13 +684,17 @@ class TestRealWorldScenarios:
             assert response.status_code == 200
 
         # Verify update persisted
-        response = client.get("/api/v1/instances/persistence-test-1", headers=api_headers)
+        response = client.get(
+            "/api/v1/instances/persistence-test-1", headers=api_headers
+        )
         assert response.status_code == 200
         updated_inst = response.json()
         assert not updated_inst["webhook_base64"]  # Should be updated
 
         # Verify other instance unchanged
-        response = client.get("/api/v1/instances/persistence-test-2", headers=api_headers)
+        response = client.get(
+            "/api/v1/instances/persistence-test-2", headers=api_headers
+        )
         assert response.status_code == 200
         unchanged_inst = response.json()
         assert not unchanged_inst["webhook_base64"]  # Should remain the same

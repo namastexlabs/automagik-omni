@@ -20,7 +20,9 @@ class RateLimitWindow:
 class RateLimiter:
     """Optimized rate limiter with TTL-based cleanup and efficient operations."""
 
-    def __init__(self, max_requests: int = 5, time_window: int = 60, cleanup_interval: int = 300):
+    def __init__(
+        self, max_requests: int = 5, time_window: int = 60, cleanup_interval: int = 300
+    ):
         """
         Initialize rate limiter.
 
@@ -35,7 +37,9 @@ class RateLimiter:
         self.windows: Dict[str, RateLimitWindow] = {}
         self._last_global_cleanup = time.time()
 
-    def _cleanup_old_requests(self, window: RateLimitWindow, current_time: float) -> None:
+    def _cleanup_old_requests(
+        self, window: RateLimitWindow, current_time: float
+    ) -> None:
         """Efficiently remove expired requests from window using deque operations."""
         cutoff_time = current_time - window.time_window
 
