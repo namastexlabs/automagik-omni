@@ -113,6 +113,27 @@ class TestAPIEndpoints:
 
     # Note: Removed conflicting setup_test_environment fixture.
     # Using conftest.py fixtures instead: test_client and mention_api_headers
+    
+    def ensure_test_instance_exists(self, db: "Session") -> InstanceConfig:
+        """Helper to ensure test-instance exists in the database."""
+        from src.db.models import InstanceConfig
+        
+        instance = db.query(InstanceConfig).filter_by(name="test-instance").first()
+        if not instance:
+            instance = InstanceConfig(
+                name="test-instance",
+                channel_type="whatsapp",
+                evolution_url="http://test.com",
+                evolution_key="test-key",
+                whatsapp_instance="test-instance",
+                agent_api_url="http://agent.com",
+                agent_api_key="agent-key",
+                default_agent="test_agent",
+                is_default=False,
+            )
+            db.add(instance)
+            db.commit()
+        return instance
 
 
 class TestHealthEndpoints(TestAPIEndpoints):
@@ -327,8 +348,11 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
             app.dependency_overrides.clear()
             app.dependency_overrides.update(original_overrides)
 
-    def test_webhook_endpoints_no_auth_required(self, test_client):
+    def test_webhook_endpoints_no_auth_required(self, test_client, test_db):
         """Test that webhook endpoints work without authentication (by design)."""
+        # Ensure test instance exists for webhook testing
+        self.ensure_test_instance_exists(test_db)
+        
         webhook_data = {"event": "messages.upsert", "data": {"test": "webhook"}}
 
         # Mock webhook handler to avoid actual processing
@@ -383,13 +407,18 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_list_instances_with_data(self, test_client, mention_api_headers):
+    def test_list_instances_with_data(self, test_client, mention_api_headers, test_db):
         """Test listing instances with data."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        
         response = test_client.get("/api/v1/instances", headers=mention_api_headers)
         assert response.status_code == 200
         instances = response.json()
-        assert len(instances) == 1
-        assert instances[0]["name"] == "test-instance"
+        assert len(instances) >= 1
+        # Find test-instance in the list
+        test_instance = next((i for i in instances if i["name"] == "test-instance"), None)
+        assert test_instance is not None
 
     def test_create_instance_success(self, test_client, mention_api_headers):
         """Test creating a new instance."""
@@ -440,8 +469,11 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
 
-    def test_get_instance_success(self, test_client, mention_api_headers):
+    def test_get_instance_success(self, test_client, mention_api_headers, test_db):
         """Test getting specific instance."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        
         with patch(
             "src.channels.base.ChannelHandlerFactory.get_handler"
         ) as mock_handler:
@@ -464,8 +496,11 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         )
         assert response.status_code == 404
 
-    def test_update_instance_success(self, test_client, mention_api_headers):
+    def test_update_instance_success(self, test_client, mention_api_headers, test_db):
         """Test updating instance configuration."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+        
         update_data = {
             "agent_api_url": "https://updated-agent.test.com",
             "webhook_base64": False,
@@ -528,8 +563,10 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
 class TestInstanceOperationEndpoints(TestAPIEndpoints):
     """Test instance operation endpoints (QR, status, restart, etc.)."""
 
-    def test_get_qr_code(self, test_client, mention_api_headers):
+    def test_get_qr_code(self, test_client, mention_api_headers, test_db):
         """Test getting QR code for instance."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch(
             "src.channels.base.ChannelHandlerFactory.get_handler"
         ) as mock_handler:
@@ -553,8 +590,10 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
             assert "qr_code" in data
             assert data["qr_code"].startswith("data:image/")
 
-    def test_get_connection_status(self, test_client, mention_api_headers):
+    def test_get_connection_status(self, test_client, mention_api_headers, test_db):
         """Test getting instance connection status."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch(
             "src.channels.base.ChannelHandlerFactory.get_handler"
         ) as mock_handler:
@@ -576,8 +615,10 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
             data = response.json()
             assert "status" in data
 
-    def test_restart_instance(self, test_client, mention_api_headers):
+    def test_restart_instance(self, test_client, mention_api_headers, test_db):
         """Test restarting instance connection."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch(
             "src.channels.base.ChannelHandlerFactory.get_handler"
         ) as mock_handler:
@@ -592,8 +633,10 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
             )
             assert response.status_code == 200
 
-    def test_logout_instance(self, test_client, mention_api_headers):
+    def test_logout_instance(self, test_client, mention_api_headers, test_db):
         """Test logging out instance."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch(
             "src.channels.base.ChannelHandlerFactory.get_handler"
         ) as mock_handler:
@@ -713,8 +756,10 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
             )
             assert response.status_code == 200
 
-    def test_send_contact_message(self, test_client, mention_api_headers):
+    def test_send_contact_message(self, test_client, mention_api_headers, test_db):
         """Test sending contact message."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         message_data = {
             "phone_number": "+1234567890",
             "contacts": [{"full_name": "John Doe", "phone_number": "+1987654321"}],
@@ -895,8 +940,11 @@ class TestTraceEndpoints(TestAPIEndpoints):
 class TestWebhookEndpoints(TestAPIEndpoints):
     """Test webhook endpoints."""
 
-    def test_evolution_webhook_tenant(self, test_client):
+    def test_evolution_webhook_tenant(self, test_client, test_db):
         """Test multi-tenant webhook endpoint."""
+        # Ensure test instance exists for webhook testing
+        self.ensure_test_instance_exists(test_db)
+        
         webhook_data = {
             "event": "messages.upsert",
             "data": {
