@@ -50,7 +50,7 @@ class TestEvolutionApiSenderMentions:
         payload = call_args[1]["json"]
 
         assert payload["number"] == recipient.replace("@g.us", "")
-        assert payload["textMessage"]["text"] == text
+        assert payload["text"] == text
         assert "mentioned" in payload
         assert len(payload["mentioned"]) == 2
         assert "5511999999999@s.whatsapp.net" in payload["mentioned"]
@@ -85,7 +85,7 @@ class TestEvolutionApiSenderMentions:
         payload = call_args[1]["json"]
 
         assert payload["number"] == recipient.replace("@g.us", "")
-        assert payload["textMessage"]["text"] == text
+        assert payload["text"] == text
         assert payload["mentioned"] == mentioned_jids
 
     @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
@@ -110,7 +110,7 @@ class TestEvolutionApiSenderMentions:
         payload = call_args[1]["json"]
 
         assert payload["number"] == recipient.replace("@g.us", "")
-        assert payload["textMessage"]["text"] == text
+        assert payload["text"] == text
         assert payload["mentionsEveryOne"] is True
 
     @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
@@ -133,7 +133,7 @@ class TestEvolutionApiSenderMentions:
         payload = call_args[1]["json"]
 
         assert payload["number"] == recipient.replace("@g.us", "")
-        assert payload["textMessage"]["text"] == text
+        assert payload["text"] == text
         assert "mentioned" not in payload
         assert "mentionsEveryOne" not in payload
 
@@ -190,13 +190,13 @@ class TestEvolutionApiSenderMentions:
         first_call_payload = mock_post.call_args_list[0][1]["json"]
         assert first_call_payload["mentioned"] == mentioned_jids
         assert first_call_payload["mentionsEveryOne"] is True
-        assert first_call_payload["textMessage"]["text"] == "First part"
+        assert first_call_payload["text"] == "First part"
 
         # Second message should not have mentions
         second_call_payload = mock_post.call_args_list[1][1]["json"]
         assert "mentioned" not in second_call_payload
         assert "mentionsEveryOne" not in second_call_payload
-        assert second_call_payload["textMessage"]["text"] == "Second part"
+        assert second_call_payload["text"] == "Second part"
 
     def test_send_text_message_missing_config(self, sender):
         """Test sending message without proper configuration."""

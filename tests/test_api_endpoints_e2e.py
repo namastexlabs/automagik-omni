@@ -182,8 +182,9 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -220,9 +221,9 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                         403,
                     ], f"{method} {endpoint} should reject malformed auth but got {response.status_code}"
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
     def test_bearer_token_validation(self, test_db, monkeypatch):
         """Test bearer token validation with various scenarios."""
@@ -240,8 +241,9 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -268,9 +270,9 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                         f"but got {response.status_code}"
                     )
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
     def test_valid_authentication_works(
         self, test_db, mention_api_headers, monkeypatch
@@ -292,8 +294,9 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -311,9 +314,9 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                     response.status_code == 200
                 ), f"Valid auth should work but got {response.status_code}"
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
     def test_webhook_endpoints_no_auth_required(self, test_client):
         """Test that webhook endpoints work without authentication (by design)."""
