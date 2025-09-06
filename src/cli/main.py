@@ -83,9 +83,15 @@ def run():
         from src.core.telemetry import telemetry_client
 
         if telemetry_client.is_enabled():
-            logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni")
-            logger.info("   • Collected: CLI usage, API performance, system info (no personal data)")
-            logger.info("   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true")
+            logger.info(
+                "📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni"
+            )
+            logger.info(
+                "   • Collected: CLI usage, API performance, system info (no personal data)"
+            )
+            logger.info(
+                "   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true"
+            )
         else:
             logger.info("📊 Telemetry disabled")
 

@@ -98,22 +98,34 @@ class TelemetryClient:
         system_info = self._get_system_info()
         for key, value in system_info.items():
             if isinstance(value, bool):
-                attributes.append({"key": f"system.{key}", "value": {"boolValue": value}})
+                attributes.append(
+                    {"key": f"system.{key}", "value": {"boolValue": value}}
+                )
             elif isinstance(value, (int, float)):
-                attributes.append({"key": f"system.{key}", "value": {"doubleValue": float(value)}})
+                attributes.append(
+                    {"key": f"system.{key}", "value": {"doubleValue": float(value)}}
+                )
             else:
-                attributes.append({"key": f"system.{key}", "value": {"stringValue": str(value)}})
+                attributes.append(
+                    {"key": f"system.{key}", "value": {"stringValue": str(value)}}
+                )
 
         # Add event data
         for key, value in data.items():
             if isinstance(value, bool):
-                attributes.append({"key": f"event.{key}", "value": {"boolValue": value}})
+                attributes.append(
+                    {"key": f"event.{key}", "value": {"boolValue": value}}
+                )
             elif isinstance(value, (int, float)):
-                attributes.append({"key": f"event.{key}", "value": {"doubleValue": float(value)}})
+                attributes.append(
+                    {"key": f"event.{key}", "value": {"doubleValue": float(value)}}
+                )
             else:
                 # Truncate long strings and sanitize sensitive data
                 sanitized_value = str(value)[:500]
-                attributes.append({"key": f"event.{key}", "value": {"stringValue": sanitized_value}})
+                attributes.append(
+                    {"key": f"event.{key}", "value": {"stringValue": sanitized_value}}
+                )
 
         return attributes
 
@@ -175,8 +187,12 @@ class TelemetryClient:
                                         "spanId": span_id,
                                         "name": event_type,
                                         "kind": "SPAN_KIND_INTERNAL",
-                                        "startTimeUnixNano": int(time.time() * 1_000_000_000),
-                                        "endTimeUnixNano": int(time.time() * 1_000_000_000),
+                                        "startTimeUnixNano": int(
+                                            time.time() * 1_000_000_000
+                                        ),
+                                        "endTimeUnixNano": int(
+                                            time.time() * 1_000_000_000
+                                        ),
                                         "attributes": self._create_attributes(data),
                                         "status": {"code": "STATUS_CODE_OK"},
                                     }
@@ -196,7 +212,9 @@ class TelemetryClient:
 
             with urlopen(request, timeout=self.timeout) as response:
                 if response.status != 200:
-                    logger.debug(f"Telemetry event failed with status {response.status}")
+                    logger.debug(
+                        f"Telemetry event failed with status {response.status}"
+                    )
 
         except (URLError, HTTPError, TimeoutError) as e:
             # Log only in debug mode, never crash the application
@@ -251,7 +269,9 @@ class TelemetryClient:
             data["duration_ms"] = duration_ms
         self._send_event("webhook_processed", data)
 
-    def track_instance_operation(self, operation: str, success: bool = True, **kwargs) -> None:
+    def track_instance_operation(
+        self, operation: str, success: bool = True, **kwargs
+    ) -> None:
         """Track instance management operations."""
         data = {"operation": operation, "success": success, **kwargs}
         self._send_event("instance_operation", data)
@@ -261,7 +281,9 @@ class TelemetryClient:
         data = {"feature": feature, **kwargs}
         self._send_event("feature_usage", data)
 
-    def track_installation(self, install_type: str = "unknown", first_run: bool = False) -> None:
+    def track_installation(
+        self, install_type: str = "unknown", first_run: bool = False
+    ) -> None:
         """Track installation events."""
         data = {"install_type": install_type, "first_run": first_run}
         self._send_event("installation", data)
@@ -301,8 +323,13 @@ class TelemetryClient:
             "project_name": self.project_name,
             "project_version": self.project_version,
             "endpoint": self.endpoint,
-            "opt_out_file_exists": (Path.home() / ".automagik-omni-no-telemetry").exists(),
-            "env_var_disabled": os.getenv("AUTOMAGIK_OMNI_DISABLE_TELEMETRY", "false").lower() == "true",
+            "opt_out_file_exists": (
+                Path.home() / ".automagik-omni-no-telemetry"
+            ).exists(),
+            "env_var_disabled": os.getenv(
+                "AUTOMAGIK_OMNI_DISABLE_TELEMETRY", "false"
+            ).lower()
+            == "true",
         }
 
 
@@ -311,7 +338,9 @@ telemetry_client = TelemetryClient()
 
 
 # Convenience functions
-def track_command(command: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs) -> None:
+def track_command(
+    command: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs
+) -> None:
     """Track CLI command execution."""
     telemetry_client.track_command(command, success, duration_ms, **kwargs)
 
@@ -324,10 +353,14 @@ def track_api_request(
     **kwargs,
 ) -> None:
     """Track API request."""
-    telemetry_client.track_api_request(endpoint, method, status_code, duration_ms, **kwargs)
+    telemetry_client.track_api_request(
+        endpoint, method, status_code, duration_ms, **kwargs
+    )
 
 
-def track_webhook_processed(channel: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs) -> None:
+def track_webhook_processed(
+    channel: str, success: bool = True, duration_ms: Optional[float] = None, **kwargs
+) -> None:
     """Track webhook processing."""
     telemetry_client.track_webhook_processed(channel, success, duration_ms, **kwargs)
 

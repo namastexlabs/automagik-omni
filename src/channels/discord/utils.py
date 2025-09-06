@@ -150,7 +150,9 @@ class PermissionCalculator:
             Integer representing the preset permissions
         """
         if preset_name in PERMISSION_PRESETS:
-            return PermissionCalculator.calculate_permissions(PERMISSION_PRESETS[preset_name])
+            return PermissionCalculator.calculate_permissions(
+                PERMISSION_PRESETS[preset_name]
+            )
         else:
             logger.error(f"Unknown permission preset: {preset_name}")
             return 0
@@ -176,7 +178,9 @@ class PermissionCalculator:
         return permissions
 
     @staticmethod
-    def has_permission(permission_int: int, check_permission: Union[str, DiscordPermissions]) -> bool:
+    def has_permission(
+        permission_int: int, check_permission: Union[str, DiscordPermissions]
+    ) -> bool:
         """
         Check if a permission integer includes a specific permission.
 
@@ -245,7 +249,9 @@ class InviteURLGenerator:
         return f"{base_url}?{query_string}"
 
     @staticmethod
-    def generate_preset_urls(client_id: str, guild_id: Optional[str] = None) -> Dict[str, str]:
+    def generate_preset_urls(
+        client_id: str, guild_id: Optional[str] = None
+    ) -> Dict[str, str]:
         """
         Generate invite URLs for all permission presets.
 
@@ -259,7 +265,9 @@ class InviteURLGenerator:
         urls = {}
 
         for preset_name in PERMISSION_PRESETS.keys():
-            urls[preset_name] = InviteURLGenerator.generate_invite_url(client_id, preset_name, guild_id=guild_id)
+            urls[preset_name] = InviteURLGenerator.generate_invite_url(
+                client_id, preset_name, guild_id=guild_id
+            )
 
         return urls
 
@@ -268,7 +276,9 @@ class DiscordIDValidator:
     """Validate Discord IDs (snowflakes) and related identifiers."""
 
     SNOWFLAKE_PATTERN = re.compile(r"^[0-9]{15,21}$")
-    WEBHOOK_URL_PATTERN = re.compile(r"^https://discord\.com/api/webhooks/([0-9]+)/([A-Za-z0-9\-_]+)/?$")
+    WEBHOOK_URL_PATTERN = re.compile(
+        r"^https://discord\.com/api/webhooks/([0-9]+)/([A-Za-z0-9\-_]+)/?$"
+    )
 
     @staticmethod
     def is_valid_snowflake(snowflake: str) -> bool:
@@ -394,7 +404,9 @@ class EmbedBuilder:
             self.embed_data["footer"]["icon_url"] = icon_url
         return self
 
-    def author(self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> "EmbedBuilder":
+    def author(
+        self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None
+    ) -> "EmbedBuilder":
         """Set embed author."""
         self.embed_data["author"] = {"name": name}
         if url:
@@ -418,7 +430,9 @@ class EmbedBuilder:
         if "fields" not in self.embed_data:
             self.embed_data["fields"] = []
 
-        self.embed_data["fields"].append({"name": name, "value": value, "inline": inline})
+        self.embed_data["fields"].append(
+            {"name": name, "value": value, "inline": inline}
+        )
         return self
 
     def build(self) -> Dict[str, Any]:
@@ -528,7 +542,9 @@ class FormatConverter:
 
 
 # Utility functions for common operations
-def create_error_embed(title: str, description: str, error_details: Optional[str] = None) -> Dict[str, Any]:
+def create_error_embed(
+    title: str, description: str, error_details: Optional[str] = None
+) -> Dict[str, Any]:
     """Create a standardized error embed."""
     builder = EmbedBuilder()
     builder.title(f"🚨 {title}")
@@ -553,7 +569,9 @@ def create_success_embed(title: str, description: str) -> Dict[str, Any]:
     return builder.build()
 
 
-def create_info_embed(title: str, description: str, fields: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def create_info_embed(
+    title: str, description: str, fields: Optional[List[Dict[str, Any]]] = None
+) -> Dict[str, Any]:
     """Create a standardized info embed."""
     builder = EmbedBuilder()
     builder.title(f"ℹ️ {title}")
@@ -590,7 +608,9 @@ def validate_discord_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
     if id_validation["invalid"]:
         results["valid"] = False
-        results["errors"].extend([f"Invalid ID: {item}" for item in id_validation["invalid"]])
+        results["errors"].extend(
+            [f"Invalid ID: {item}" for item in id_validation["invalid"]]
+        )
 
     # Check required fields
     required_fields = ["bot_token", "client_id"]
@@ -605,6 +625,8 @@ def validate_discord_config(config: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(value, str):
             for pattern in placeholder_patterns:
                 if pattern in value.upper():
-                    results["warnings"].append(f"Placeholder value detected in {key}: {value}")
+                    results["warnings"].append(
+                        f"Placeholder value detected in {key}: {value}"
+                    )
 
     return results

@@ -76,7 +76,11 @@ class UserService:
         whatsapp_jid = self._format_phone_to_jid(phone_number)
 
         # Try to find existing user by phone + instance
-        user = db.query(User).filter_by(phone_number=phone_number, instance_name=instance_name).first()
+        user = (
+            db.query(User)
+            .filter_by(phone_number=phone_number, instance_name=instance_name)
+            .first()
+        )
 
         if user:
             # Update existing user
@@ -113,7 +117,9 @@ class UserService:
         db.commit()
         db.refresh(user)
 
-        logger.info(f"Created new user {user.id} for phone {phone_number} in instance {instance_name}")
+        logger.info(
+            f"Created new user {user.id} for phone {phone_number} in instance {instance_name}"
+        )
         return user
 
     def get_user_by_id(self, user_id: str, db: Session) -> Optional[User]:
@@ -159,7 +165,9 @@ class UserService:
         logger.info(f"Updated session for user {user_id} to {session_name}")
         return True
 
-    def update_user_agent_id(self, user_id: str, agent_user_id: str, db: Session) -> bool:
+    def update_user_agent_id(
+        self, user_id: str, agent_user_id: str, db: Session
+    ) -> bool:
         """
         Update user's last agent user ID.
 
@@ -187,7 +195,9 @@ class UserService:
         logger.info(f"Updated agent user ID for user {user_id} to {agent_user_id}")
         return True
 
-    def find_user_by_phone(self, phone_number: str, instance_name: str, db: Session) -> Optional[User]:
+    def find_user_by_phone(
+        self, phone_number: str, instance_name: str, db: Session
+    ) -> Optional[User]:
         """
         Find user by phone number and instance.
 
@@ -199,7 +209,11 @@ class UserService:
         Returns:
             Optional[User]: User record if found
         """
-        return db.query(User).filter_by(phone_number=phone_number, instance_name=instance_name).first()
+        return (
+            db.query(User)
+            .filter_by(phone_number=phone_number, instance_name=instance_name)
+            .first()
+        )
 
     def get_user_by_agent_id(self, agent_user_id: str, db: Session) -> Optional[User]:
         """
@@ -242,7 +256,9 @@ class UserService:
             Optional[Dict]: User data from agent API if found
         """
         # Global agent API client is disabled - using instance-specific configurations
-        logger.debug("Global agent API lookup skipped - using instance-specific configurations")
+        logger.debug(
+            "Global agent API lookup skipped - using instance-specific configurations"
+        )
         return None
 
 

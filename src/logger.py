@@ -122,7 +122,9 @@ class ColoredFormatter(logging.Formatter):
         if self.use_colors:
             levelname = record_copy.levelname
             if levelname in self.COLORS:
-                colored_levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
+                colored_levelname = (
+                    f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
+                )
                 record_copy.levelname = colored_levelname
 
         # Shorten module name for non-error logs

@@ -37,14 +37,18 @@ class TestCapture:
     def enable_capture(self):
         """Enable test capture."""
         self.capture_enabled = True
-        logger.info("🎯 Test capture ENABLED - send a WhatsApp image to capture real data")
+        logger.info(
+            "🎯 Test capture ENABLED - send a WhatsApp image to capture real data"
+        )
 
     def disable_capture(self):
         """Disable test capture."""
         self.capture_enabled = False
         logger.info("⏹️ Test capture DISABLED")
 
-    def capture_media_message(self, webhook_data: Dict[str, Any], instance_config=None) -> Optional[str]:
+    def capture_media_message(
+        self, webhook_data: Dict[str, Any], instance_config=None
+    ) -> Optional[str]:
         """Capture a real media message from WhatsApp for testing.
 
         Args:
@@ -157,7 +161,9 @@ class TestCapture:
         else:
             return "unknown"
 
-    def _build_agent_payload(self, webhook_data: Dict[str, Any], push_name: str) -> Dict[str, Any]:
+    def _build_agent_payload(
+        self, webhook_data: Dict[str, Any], push_name: str
+    ) -> Dict[str, Any]:
         """Build agent API payload from webhook data."""
         data = webhook_data.get("data", {})
         message_obj = data.get("message", {})
@@ -176,7 +182,9 @@ class TestCapture:
                 "email": "",
                 "user_data": {
                     "name": push_name,
-                    "whatsapp_id": data.get("key", {}).get("remoteJid", "test@s.whatsapp.net"),
+                    "whatsapp_id": data.get("key", {}).get(
+                        "remoteJid", "test@s.whatsapp.net"
+                    ),
                     "source": "whatsapp_test_capture",
                 },
             },
@@ -189,7 +197,9 @@ class TestCapture:
 
         return payload
 
-    def _extract_message_content(self, data: Dict[str, Any], message_obj: Dict[str, Any], push_name: str) -> str:
+    def _extract_message_content(
+        self, data: Dict[str, Any], message_obj: Dict[str, Any], push_name: str
+    ) -> str:
         """Extract message content with user name prefix."""
         content = ""
 
@@ -209,7 +219,9 @@ class TestCapture:
         else:
             return f"[{push_name}]: "
 
-    def _build_media_contents(self, data: Dict[str, Any], message_obj: Dict[str, Any]) -> Optional[list]:
+    def _build_media_contents(
+        self, data: Dict[str, Any], message_obj: Dict[str, Any]
+    ) -> Optional[list]:
         """Build media contents array for agent API."""
         media_contents = []
 
@@ -227,7 +239,9 @@ class TestCapture:
 
                 # Build media item with base64 data
                 media_item = {
-                    "mime_type": media_info.get("mimetype", f"{media_type.replace('Message', '')}/"),
+                    "mime_type": media_info.get(
+                        "mimetype", f"{media_type.replace('Message', '')}/"
+                    ),
                     "alt_text": media_info.get(
                         "caption",
                         f"Real {media_type.replace('Message', '')} from WhatsApp",

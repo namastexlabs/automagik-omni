@@ -23,7 +23,9 @@ class MessageTrace(Base):
     __tablename__ = "message_traces"
 
     # Unique trace ID for the entire message lifecycle
-    trace_id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    trace_id = Column(
+        String, primary_key=True, index=True, default=lambda: str(uuid.uuid4())
+    )
 
     # Instance and message identification
     instance_name = Column(String, ForeignKey("instance_configs.name"), index=True)
@@ -53,7 +55,9 @@ class MessageTrace(Base):
     completed_at = Column(DateTime)
 
     # Status tracking
-    status = Column(String, default="received", index=True)  # received, processing, agent_called, completed, failed
+    status = Column(
+        String, default="received", index=True
+    )  # received, processing, agent_called, completed, failed
     error_message = Column(Text)
     error_stage = Column(String)  # Stage where error occurred
 
@@ -73,7 +77,9 @@ class MessageTrace(Base):
     evolution_success = Column(Boolean)
 
     # Relationships
-    payloads = relationship("TracePayload", back_populates="trace", cascade="all, delete-orphan")
+    payloads = relationship(
+        "TracePayload", back_populates="trace", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<MessageTrace(trace_id='{self.trace_id}', status='{self.status}', sender='{self.sender_phone}')>"
@@ -95,7 +101,9 @@ class MessageTrace(Base):
             "error_message": self.error_message,
             "error_stage": self.error_stage,
             "received_at": self.received_at.isoformat() if self.received_at else None,
-            "completed_at": (self.completed_at.isoformat() if self.completed_at else None),
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
             "agent_processing_time_ms": self.agent_processing_time_ms,
             "total_processing_time_ms": self.total_processing_time_ms,
             "agent_response_success": self.agent_response_success,
@@ -115,7 +123,9 @@ class TracePayload(Base):
     trace_id = Column(String, ForeignKey("message_traces.trace_id"), index=True)
 
     # Stage and payload identification
-    stage = Column(String, index=True)  # webhook_received, agent_request, agent_response, evolution_send
+    stage = Column(
+        String, index=True
+    )  # webhook_received, agent_request, agent_response, evolution_send
     payload_type = Column(String)  # request, response, webhook
 
     # Compressed payload data
@@ -157,7 +167,10 @@ class TracePayload(Base):
             # Check content flags
             json_lower = json_str.lower()
             self.contains_base64 = "base64" in json_lower
-            self.contains_media = any(media in json_lower for media in ["image", "video", "audio", "document", "media"])
+            self.contains_media = any(
+                media in json_lower
+                for media in ["image", "video", "audio", "document", "media"]
+            )
 
         except Exception as e:
             # If compression fails, store error

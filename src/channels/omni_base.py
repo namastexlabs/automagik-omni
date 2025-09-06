@@ -71,7 +71,9 @@ class OmniChannelHandler(ChannelHandler):
         pass
 
     # Optional methods for future extensibility
-    async def get_contact_by_id(self, instance: InstanceConfig, contact_id: str) -> Optional[OmniContact]:
+    async def get_contact_by_id(
+        self, instance: InstanceConfig, contact_id: str
+    ) -> Optional[OmniContact]:
         """
         Get a specific contact by ID in omni format.
 
@@ -85,7 +87,9 @@ class OmniChannelHandler(ChannelHandler):
         # Default implementation returns None - handlers can override
         return None
 
-    async def get_chat_by_id(self, instance: InstanceConfig, chat_id: str) -> Optional[OmniChat]:
+    async def get_chat_by_id(
+        self, instance: InstanceConfig, chat_id: str
+    ) -> Optional[OmniChat]:
         """
         Get a specific chat by ID in omni format.
 

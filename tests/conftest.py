@@ -94,7 +94,9 @@ def _cleanup_postgresql_test_database(test_db_name: str, server_engine):
             # Drop the test database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db_name}"'))
     except Exception as e:
-        print(f"Warning: Failed to cleanup PostgreSQL test database {test_db_name}: {e}")
+        print(
+            f"Warning: Failed to cleanup PostgreSQL test database {test_db_name}: {e}"
+        )
     finally:
         server_engine.dispose()
 
@@ -117,7 +119,9 @@ def test_db() -> Generator[Session, None, None]:
     if test_db_url:
         # Use the explicit test database from environment
         if test_db_url.startswith("sqlite"):
-            engine = create_engine(test_db_url, connect_args={"check_same_thread": False})
+            engine = create_engine(
+                test_db_url, connect_args={"check_same_thread": False}
+            )
         else:
             engine = create_engine(test_db_url)
         print(f"Using explicit test database: {test_db_url}")
@@ -127,7 +131,9 @@ def test_db() -> Generator[Session, None, None]:
         try:
             import psycopg2  # noqa: F401 - Check if PostgreSQL driver is available
 
-            test_db_url, test_db_name, server_engine = _create_postgresql_test_database()
+            test_db_url, test_db_name, server_engine = (
+                _create_postgresql_test_database()
+            )
             engine = create_engine(test_db_url)
 
             # Set up cleanup function
@@ -149,7 +155,9 @@ def test_db() -> Generator[Session, None, None]:
 
         temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         temp_db.close()
-        engine = create_engine(f"sqlite:///{temp_db.name}", connect_args={"check_same_thread": False})
+        engine = create_engine(
+            f"sqlite:///{temp_db.name}", connect_args={"check_same_thread": False}
+        )
         engine._test_temp_file = temp_db.name
         print(f"Using temporary SQLite database: {temp_db.name}")
 
@@ -233,7 +241,9 @@ def test_client(test_db):
     app.dependency_overrides[get_db] = override_base_get_db
 
     # Mock Evolution API calls to prevent external dependencies
-    with patch("src.channels.whatsapp.evolution_client.get_evolution_client") as mock_client:
+    with patch(
+        "src.channels.whatsapp.evolution_client.get_evolution_client"
+    ) as mock_client:
         mock_evolution = Mock()
 
         # Fixed mock for create_instance to return correct structure
@@ -416,14 +426,18 @@ def mock_agent_api_client():
         mock_instance = mock_class.return_value
         mock_instance.health_check = Mock(return_value=True)
         mock_instance.process_message = AsyncMock(return_value="Mock agent response")
-        mock_instance.run_agent = AsyncMock(return_value={"response": "Mock agent response"})
+        mock_instance.run_agent = AsyncMock(
+            return_value={"response": "Mock agent response"}
+        )
         yield mock_instance
 
 
 @pytest.fixture
 def mock_evolution_api_sender():
     """Mock EvolutionApiSender for testing."""
-    with patch("src.channels.whatsapp.evolution_api_sender.EvolutionApiSender") as mock_class:
+    with patch(
+        "src.channels.whatsapp.evolution_api_sender.EvolutionApiSender"
+    ) as mock_class:
         mock_instance = mock_class.return_value
         mock_instance.send_text_message = AsyncMock(return_value=True)
         mock_instance.send_presence = AsyncMock(return_value=True)
@@ -483,7 +497,9 @@ class AsyncMockResponse:
         if self.status_code >= 400:
             from httpx import HTTPStatusError
 
-            raise HTTPStatusError(f"HTTP {self.status_code}", request=None, response=self)
+            raise HTTPStatusError(
+                f"HTTP {self.status_code}", request=None, response=self
+            )
 
 
 @pytest.fixture
