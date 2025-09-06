@@ -308,11 +308,11 @@ def custom_openapi():
 - Multi-tenant architecture with isolated instances
 - Universal messaging across WhatsApp, Discord, and Slack
 - Message tracing and analytics
-- Bearer token authentication
+- API key authentication via x-api-key header
 
 ## Quick Start
 
-1. Include API key in `Authorization: Bearer <token>` header
+1. Include API key in `x-api-key` header
 2. Create an instance for your channel
 3. Send messages using the omni endpoints
 4. Monitor activity via traces and health endpoints
@@ -343,13 +343,28 @@ def custom_openapi():
     
     openapi_schema["servers"] = servers
 
-    # Update the existing HTTPBearer security scheme with better description
-    if "components" in openapi_schema and "securitySchemes" in openapi_schema["components"]:
-        if "HTTPBearer" in openapi_schema["components"]["securitySchemes"]:
-            openapi_schema["components"]["securitySchemes"]["HTTPBearer"]["description"] = (
-                "Enter your API key as a Bearer token (e.g., 'namastex888')"
-            )
-            openapi_schema["components"]["securitySchemes"]["HTTPBearer"]["bearerFormat"] = "API Key"
+    # Add ApiKeyAuth security scheme
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    if "securitySchemes" not in openapi_schema["components"]:
+        openapi_schema["components"]["securitySchemes"] = {}
+    
+    # Replace any existing security scheme with ApiKeyAuth
+    openapi_schema["components"]["securitySchemes"] = {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "x-api-key",
+            "description": "API key for authentication (e.g., 'namastex888')"
+        }
+    }
+    
+    # Update security requirement for all operations
+    for path in openapi_schema.get("paths", {}).values():
+        for operation in path.values():
+            if isinstance(operation, dict) and "security" in operation:
+                # Update existing security to use ApiKeyAuth
+                operation["security"] = [{"ApiKeyAuth": []}]
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema

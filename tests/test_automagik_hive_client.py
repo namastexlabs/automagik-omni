@@ -120,7 +120,7 @@ class TestAutomagikHiveClientHeaders:
         headers = client._make_headers()
 
         expected_headers = {
-            "Authorization": "Bearer test-api-key",
+            "x-api-key": "test-api-key",
             "User-Agent": "automagik-omni/1.0",
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -135,7 +135,7 @@ class TestAutomagikHiveClientHeaders:
         headers = client._make_headers(accept_sse=True)
 
         expected_headers = {
-            "Authorization": "Bearer test-api-key",
+            "x-api-key": "test-api-key",
             "User-Agent": "automagik-omni/1.0",
             "Accept": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -577,7 +577,7 @@ class TestAutomagikHiveClientHealthCheck:
         mock_get.assert_called_once_with(
             "https://hive.test.com/health",
             headers={
-                "Authorization": "Bearer test-key",
+                "x-api-key": "test-key",
                 "User-Agent": "automagik-omni/1.0",
                 "Content-Type": "application/json",
                 "Accept": "application/json",

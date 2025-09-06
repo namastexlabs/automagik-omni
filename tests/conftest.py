@@ -561,4 +561,4 @@ def expected_mention_jids():
 @pytest.fixture
 def mention_api_headers():
     """Standard headers for mention API testing."""
-    return {"Content-Type": "application/json", "Authorization": "Bearer namastex888"}
+    return {"Content-Type": "application/json", "x-api-key": "namastex888"}

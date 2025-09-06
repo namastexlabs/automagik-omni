@@ -207,7 +207,7 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                     ], f"{method} {endpoint} should require auth but got {response.status_code}"
 
                     # Test with malformed auth header (not Bearer format)
-                    headers = {"Authorization": "NotBearer token"}
+                    headers = {"x-api-key": "Invalidtoken"}
                     response = auth_test_client.request(method, endpoint, headers=headers)
                     assert response.status_code in [
                         401,
