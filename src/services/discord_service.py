@@ -39,7 +39,9 @@ class DiscordService:
             with self.lock:
                 if self._loop_thread is None:
                     # Start event loop in separate thread
-                    self._loop_thread = threading.Thread(target=self._run_event_loop, daemon=True)
+                    self._loop_thread = threading.Thread(
+                        target=self._run_event_loop, daemon=True
+                    )
                     self._loop_thread.start()
 
                     # Wait a moment for loop to initialize
@@ -121,28 +123,42 @@ class DiscordService:
             # Get instance configuration from database
             db = SessionLocal()
             try:
-                instance = db.query(InstanceConfig).filter_by(name=instance_name, channel_type="discord").first()
+                instance = (
+                    db.query(InstanceConfig)
+                    .filter_by(name=instance_name, channel_type="discord")
+                    .first()
+                )
 
                 if not instance:
-                    logger.error(f"Discord instance '{instance_name}' not found in database")
+                    logger.error(
+                        f"Discord instance '{instance_name}' not found in database"
+                    )
                     return False
 
                 if not instance.discord_bot_token:
-                    logger.error(f"Discord instance '{instance_name}' has no bot token configured")
+                    logger.error(
+                        f"Discord instance '{instance_name}' has no bot token configured"
+                    )
                     return False
 
                 # Check if already running
                 with self.lock:
                     if instance_name in self._running_instances:
-                        logger.warning(f"Discord bot '{instance_name}' is already running")
+                        logger.warning(
+                            f"Discord bot '{instance_name}' is already running"
+                        )
                         return False
 
                     # Start bot in event loop
                     if not self._event_loop:
-                        logger.error("Discord service not started - no event loop available")
+                        logger.error(
+                            "Discord service not started - no event loop available"
+                        )
                         return False
 
-                    future = asyncio.run_coroutine_threadsafe(self._start_bot_internal(instance), self._event_loop)
+                    future = asyncio.run_coroutine_threadsafe(
+                        self._start_bot_internal(instance), self._event_loop
+                    )
 
                     success = future.result(timeout=10.0)
 
@@ -152,11 +168,19 @@ class DiscordService:
                             "started_at": utcnow(),  # ✅ FIXED: Using timezone-aware utility
                             "status": "running",
                         }
-                        track_command("discord_start", success=True, instance_name=instance_name)
-                        logger.info(f"✅ Discord bot '{instance_name}' started successfully")
+                        track_command(
+                            "discord_start", success=True, instance_name=instance_name
+                        )
+                        logger.info(
+                            f"✅ Discord bot '{instance_name}' started successfully"
+                        )
                     else:
-                        track_command("discord_start", success=False, instance_name=instance_name)
-                        logger.error(f"❌ Failed to start Discord bot '{instance_name}'")
+                        track_command(
+                            "discord_start", success=False, instance_name=instance_name
+                        )
+                        logger.error(
+                            f"❌ Failed to start Discord bot '{instance_name}'"
+                        )
 
                     return success
 
@@ -164,7 +188,9 @@ class DiscordService:
                 db.close()
 
         except Exception as e:
-            logger.error(f"Error starting Discord bot '{instance_name}': {e}", exc_info=True)
+            logger.error(
+                f"Error starting Discord bot '{instance_name}': {e}", exc_info=True
+            )
             track_command(
                 "discord_start",
                 success=False,
@@ -188,26 +214,40 @@ class DiscordService:
                     return False
 
                 if not self._event_loop:
-                    logger.error("Discord service not started - no event loop available")
+                    logger.error(
+                        "Discord service not started - no event loop available"
+                    )
                     return False
 
-                future = asyncio.run_coroutine_threadsafe(self._stop_bot_internal(instance_name), self._event_loop)
+                future = asyncio.run_coroutine_threadsafe(
+                    self._stop_bot_internal(instance_name), self._event_loop
+                )
 
                 success = future.result(timeout=10.0)
 
                 if success:
                     del self._running_instances[instance_name]
-                    track_command("discord_stop", success=True, instance_name=instance_name)
-                    logger.info(f"✅ Discord bot '{instance_name}' stopped successfully")
+                    track_command(
+                        "discord_stop", success=True, instance_name=instance_name
+                    )
+                    logger.info(
+                        f"✅ Discord bot '{instance_name}' stopped successfully"
+                    )
                 else:
-                    track_command("discord_stop", success=False, instance_name=instance_name)
+                    track_command(
+                        "discord_stop", success=False, instance_name=instance_name
+                    )
                     logger.error(f"❌ Failed to stop Discord bot '{instance_name}'")
 
                 return success
 
         except Exception as e:
-            logger.error(f"Error stopping Discord bot '{instance_name}': {e}", exc_info=True)
-            track_command("discord_stop", success=False, instance_name=instance_name, error=str(e))
+            logger.error(
+                f"Error stopping Discord bot '{instance_name}': {e}", exc_info=True
+            )
+            track_command(
+                "discord_stop", success=False, instance_name=instance_name, error=str(e)
+            )
             return False
 
     async def _stop_bot_internal(self, instance_name: str) -> bool:
@@ -221,7 +261,9 @@ class DiscordService:
         # Stop the bot first
         if instance_name in self._running_instances:
             if not self.stop_bot(instance_name):
-                logger.error(f"Failed to stop Discord bot '{instance_name}' for restart")
+                logger.error(
+                    f"Failed to stop Discord bot '{instance_name}' for restart"
+                )
                 return False
 
         # Start the bot again
@@ -250,7 +292,9 @@ class DiscordService:
             )
             return None
 
-    async def _get_bot_status_internal(self, instance_name: str) -> Optional[Dict[str, Any]]:
+    async def _get_bot_status_internal(
+        self, instance_name: str
+    ) -> Optional[Dict[str, Any]]:
         """Internal method to get bot status in event loop."""
         try:
             bot_status = self.bot_manager.get_bot_status(instance_name)
@@ -268,7 +312,9 @@ class DiscordService:
                 "last_heartbeat": bot_status.last_heartbeat,
                 "uptime": bot_status.uptime,
                 "error_message": bot_status.error_message,
-                "started_at": instance_info.get("started_at"),  # ✅ Uses timezone-aware timestamp
+                "started_at": instance_info.get(
+                    "started_at"
+                ),  # ✅ Uses timezone-aware timestamp
                 "service_status": instance_info.get("status", "unknown"),
             }
         except Exception as e:
@@ -285,7 +331,9 @@ class DiscordService:
         try:
             db = SessionLocal()
             try:
-                instances = db.query(InstanceConfig).filter_by(channel_type="discord").all()
+                instances = (
+                    db.query(InstanceConfig).filter_by(channel_type="discord").all()
+                )
 
                 result = []
                 for instance in instances:
@@ -314,7 +362,8 @@ class DiscordService:
         with self.lock:
             return {
                 "service_running": self._event_loop is not None,
-                "loop_thread_alive": self._loop_thread is not None and self._loop_thread.is_alive(),
+                "loop_thread_alive": self._loop_thread is not None
+                and self._loop_thread.is_alive(),
                 "running_bots": len(self._running_instances),
                 "bot_instances": list(self._running_instances.keys()),
             }

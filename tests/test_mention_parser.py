@@ -163,7 +163,9 @@ class TestWhatsAppMentionParser:
             ("@12345678901234567", 0, []),  # Too long for basic pattern
         ],
     )
-    def test_extract_mentions_parametrized(self, input_text: str, expected_count: int, expected_jids: List[str]):
+    def test_extract_mentions_parametrized(
+        self, input_text: str, expected_count: int, expected_jids: List[str]
+    ):
         """Parametrized test for various mention formats."""
         original, mentions = WhatsAppMentionParser.extract_mentions(input_text)
 
@@ -195,13 +197,17 @@ class TestWhatsAppMentionParser:
         ]
 
         for scenario in scenarios:
-            original, mentions = WhatsAppMentionParser.extract_mentions(scenario["text"])
+            original, mentions = WhatsAppMentionParser.extract_mentions(
+                scenario["text"]
+            )
             assert len(mentions) == scenario["expected_count"]
 
             # Verify all mentions are valid JIDs
             for mention in mentions:
                 assert mention.endswith("@s.whatsapp.net")
-                assert len(mention.split("@")[0]) >= 10  # Reasonable phone number length
+                assert (
+                    len(mention.split("@")[0]) >= 10
+                )  # Reasonable phone number length
 
 
 if __name__ == "__main__":

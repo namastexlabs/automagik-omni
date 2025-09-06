@@ -29,7 +29,9 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
         Get contacts from Discord in unified format.
         """
         try:
-            logger.debug(f"Fetching Discord contacts for instance {instance.name} - page: {page}, size: {page_size}")
+            logger.debug(
+                f"Fetching Discord contacts for instance {instance.name} - page: {page}, size: {page_size}"
+            )
 
             # Check if bot instance exists
             if instance.name not in self._bot_instances:
@@ -63,7 +65,9 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                 filtered_users = []
                 search_lower = search_query.lower()
                 for user in user_list:
-                    user_name = (user.global_name or user.display_name or user.name).lower()
+                    user_name = (
+                        user.global_name or user.display_name or user.name
+                    ).lower()
                     if search_lower in user_name:
                         filtered_users.append(user)
                 user_list = filtered_users
@@ -95,11 +99,16 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         "bot": getattr(user, "bot", False),
                         "system": getattr(user, "system", False),
                         "status": str(getattr(user, "status", "unknown")),
-                        "activities": [activity.name for activity in getattr(user, "activities", [])],
+                        "activities": [
+                            activity.name
+                            for activity in getattr(user, "activities", [])
+                        ],
                         "verified": getattr(user, "verified", None),
                     }
 
-                    omni_contact = DiscordTransformer.contact_to_omni(user_data, instance.name)
+                    omni_contact = DiscordTransformer.contact_to_omni(
+                        user_data, instance.name
+                    )
                     contacts.append(omni_contact)
                 except Exception as e:
                     logger.warning(f"Failed to transform Discord user data: {e}")
@@ -111,7 +120,9 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
             return contacts, total_count
 
         except Exception as e:
-            logger.error(f"Failed to fetch Discord contacts for instance {instance.name}: {e}")
+            logger.error(
+                f"Failed to fetch Discord contacts for instance {instance.name}: {e}"
+            )
             return [], 0
 
     async def get_chats(
@@ -126,7 +137,9 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
         Get chats/conversations from Discord in unified format.
         """
         try:
-            logger.debug(f"Fetching Discord chats for instance {instance.name} - page: {page}, size: {page_size}")
+            logger.debug(
+                f"Fetching Discord chats for instance {instance.name} - page: {page}, size: {page_size}"
+            )
 
             # Check if bot instance exists
             if instance.name not in self._bot_instances:
@@ -165,14 +178,20 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                     channel_type = getattr(channel, "type", None)
                     if channel_type is not None:
                         # Map Discord channel types to our unified types
-                        discord_type_value = channel_type.value if hasattr(channel_type, "value") else int(channel_type)
+                        discord_type_value = (
+                            channel_type.value
+                            if hasattr(channel_type, "value")
+                            else int(channel_type)
+                        )
 
                         if chat_type_filter == "direct" and discord_type_value in [
                             0,
                             1,
                         ]:  # DM channels
                             filtered_channels.append(channel)
-                        elif chat_type_filter == "group" and discord_type_value == 2:  # Group DM
+                        elif (
+                            chat_type_filter == "group" and discord_type_value == 2
+                        ):  # Group DM
                             filtered_channels.append(channel)
                         elif chat_type_filter == "channel" and discord_type_value in [
                             4,
@@ -203,7 +222,8 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                 try:
                     channel_data = {
                         "id": getattr(channel, "id", ""),
-                        "name": getattr(channel, "name", "") or f"Channel-{getattr(channel, 'id', '')}",
+                        "name": getattr(channel, "name", "")
+                        or f"Channel-{getattr(channel, 'id', '')}",
                         "type": (
                             getattr(channel, "type", 0).value
                             if hasattr(getattr(channel, "type", 0), "value")
@@ -211,18 +231,26 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         ),
                         "guild_id": getattr(channel, "guild_id", None)
                         or (
-                            getattr(channel, "guild", {}).id if hasattr(getattr(channel, "guild", None), "id") else None
+                            getattr(channel, "guild", {}).id
+                            if hasattr(getattr(channel, "guild", None), "id")
+                            else None
                         ),
                         "parent_id": getattr(channel, "parent_id", None),
                         "topic": getattr(channel, "topic", None),
                         "position": getattr(channel, "position", None),
                         "nsfw": getattr(channel, "nsfw", False),
                         "rate_limit_per_user": getattr(channel, "slowmode_delay", None),
-                        "member_count": (len(getattr(channel, "members", [])) if hasattr(channel, "members") else None),
+                        "member_count": (
+                            len(getattr(channel, "members", []))
+                            if hasattr(channel, "members")
+                            else None
+                        ),
                         "permission_overwrites": [],  # We could add this if needed
                     }
 
-                    omni_chat = DiscordTransformer.chat_to_omni(channel_data, instance.name)
+                    omni_chat = DiscordTransformer.chat_to_omni(
+                        channel_data, instance.name
+                    )
                     chats.append(omni_chat)
                 except Exception as e:
                     logger.warning(f"Failed to transform Discord channel data: {e}")
@@ -234,7 +262,9 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
             return chats, total_count
 
         except Exception as e:
-            logger.error(f"Failed to fetch Discord chats for instance {instance.name}: {e}")
+            logger.error(
+                f"Failed to fetch Discord chats for instance {instance.name}: {e}"
+            )
             return [], 0
 
     async def get_channel_info(self, instance: InstanceConfig) -> OmniChannelInfo:
@@ -289,21 +319,31 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                 "instance_name": instance.name,
             }
 
-            omni_channel_info = DiscordTransformer.channel_to_omni(instance.name, status_data, instance_config)
+            omni_channel_info = DiscordTransformer.channel_to_omni(
+                instance.name, status_data, instance_config
+            )
 
-            logger.info(f"Successfully fetched Discord channel info for instance {instance.name}")
+            logger.info(
+                f"Successfully fetched Discord channel info for instance {instance.name}"
+            )
             return omni_channel_info
 
         except Exception as e:
-            logger.error(f"Failed to fetch Discord channel info for instance {instance.name}: {e}")
+            logger.error(
+                f"Failed to fetch Discord channel info for instance {instance.name}: {e}"
+            )
             raise
 
-    async def get_contact_by_id(self, instance: InstanceConfig, contact_id: str) -> Optional[OmniContact]:
+    async def get_contact_by_id(
+        self, instance: InstanceConfig, contact_id: str
+    ) -> Optional[OmniContact]:
         """
         Get a specific Discord contact by ID in unified format.
         """
         try:
-            logger.debug(f"Fetching Discord contact {contact_id} for instance {instance.name}")
+            logger.debug(
+                f"Fetching Discord contact {contact_id} for instance {instance.name}"
+            )
 
             # Check if bot instance exists and is connected
             if (
@@ -330,8 +370,12 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         "verified": getattr(user, "verified", None),
                     }
 
-                    omni_contact = DiscordTransformer.contact_to_omni(user_data, instance.name)
-                    logger.info(f"Found Discord contact {contact_id} for instance {instance.name}")
+                    omni_contact = DiscordTransformer.contact_to_omni(
+                        user_data, instance.name
+                    )
+                    logger.info(
+                        f"Found Discord contact {contact_id} for instance {instance.name}"
+                    )
                     return omni_contact
             except Exception:
                 # If fetch_user fails, try to find in guild members
@@ -347,27 +391,42 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                             "bot": getattr(member, "bot", False),
                             "system": getattr(member, "system", False),
                             "status": str(getattr(member, "status", "unknown")),
-                            "activities": [activity.name for activity in getattr(member, "activities", [])],
+                            "activities": [
+                                activity.name
+                                for activity in getattr(member, "activities", [])
+                            ],
                             "verified": getattr(member, "verified", None),
                         }
 
-                        omni_contact = DiscordTransformer.contact_to_omni(user_data, instance.name)
-                        logger.info(f"Found Discord contact {contact_id} for instance {instance.name}")
+                        omni_contact = DiscordTransformer.contact_to_omni(
+                            user_data, instance.name
+                        )
+                        logger.info(
+                            f"Found Discord contact {contact_id} for instance {instance.name}"
+                        )
                         return omni_contact
 
-            logger.warning(f"Discord contact {contact_id} not found for instance {instance.name}")
+            logger.warning(
+                f"Discord contact {contact_id} not found for instance {instance.name}"
+            )
             return None
 
         except Exception as e:
-            logger.error(f"Failed to fetch Discord contact {contact_id} for instance {instance.name}: {e}")
+            logger.error(
+                f"Failed to fetch Discord contact {contact_id} for instance {instance.name}: {e}"
+            )
             return None
 
-    async def get_chat_by_id(self, instance: InstanceConfig, chat_id: str) -> Optional[OmniChat]:
+    async def get_chat_by_id(
+        self, instance: InstanceConfig, chat_id: str
+    ) -> Optional[OmniChat]:
         """
         Get a specific Discord chat by ID in unified format.
         """
         try:
-            logger.debug(f"Fetching Discord chat {chat_id} for instance {instance.name}")
+            logger.debug(
+                f"Fetching Discord chat {chat_id} for instance {instance.name}"
+            )
 
             # Check if bot instance exists and is connected
             if (
@@ -389,7 +448,8 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                 if channel:
                     channel_data = {
                         "id": getattr(channel, "id", ""),
-                        "name": getattr(channel, "name", "") or f"Channel-{getattr(channel, 'id', '')}",
+                        "name": getattr(channel, "name", "")
+                        or f"Channel-{getattr(channel, 'id', '')}",
                         "type": (
                             getattr(channel, "type", 0).value
                             if hasattr(getattr(channel, "type", 0), "value")
@@ -397,26 +457,40 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
                         ),
                         "guild_id": getattr(channel, "guild_id", None)
                         or (
-                            getattr(channel, "guild", {}).id if hasattr(getattr(channel, "guild", None), "id") else None
+                            getattr(channel, "guild", {}).id
+                            if hasattr(getattr(channel, "guild", None), "id")
+                            else None
                         ),
                         "parent_id": getattr(channel, "parent_id", None),
                         "topic": getattr(channel, "topic", None),
                         "position": getattr(channel, "position", None),
                         "nsfw": getattr(channel, "nsfw", False),
                         "rate_limit_per_user": getattr(channel, "slowmode_delay", None),
-                        "member_count": (len(getattr(channel, "members", [])) if hasattr(channel, "members") else None),
+                        "member_count": (
+                            len(getattr(channel, "members", []))
+                            if hasattr(channel, "members")
+                            else None
+                        ),
                         "permission_overwrites": [],
                     }
 
-                    omni_chat = DiscordTransformer.chat_to_omni(channel_data, instance.name)
-                    logger.info(f"Found Discord chat {chat_id} for instance {instance.name}")
+                    omni_chat = DiscordTransformer.chat_to_omni(
+                        channel_data, instance.name
+                    )
+                    logger.info(
+                        f"Found Discord chat {chat_id} for instance {instance.name}"
+                    )
                     return omni_chat
             except Exception as e:
                 logger.warning(f"Failed to fetch Discord channel {chat_id}: {e}")
 
-            logger.warning(f"Discord chat {chat_id} not found for instance {instance.name}")
+            logger.warning(
+                f"Discord chat {chat_id} not found for instance {instance.name}"
+            )
             return None
 
         except Exception as e:
-            logger.error(f"Failed to fetch Discord chat {chat_id} for instance {instance.name}: {e}")
+            logger.error(
+                f"Failed to fetch Discord chat {chat_id} for instance {instance.name}: {e}"
+            )
             return None

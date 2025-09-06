@@ -132,7 +132,11 @@ class TestSessionFilteringAPI:
 
         # Configure mock to return only traces with the specific agent session ID
         target_agent_session = "agent_session_abc123"
-        expected_traces = [trace for trace in sample_traces if trace.agent_session_id == target_agent_session]
+        expected_traces = [
+            trace
+            for trace in sample_traces
+            if trace.agent_session_id == target_agent_session
+        ]
 
         # Create mock trace objects with to_dict method
         mock_traces = []
@@ -152,8 +156,12 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
-                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
+                "received_at": (
+                    trace.received_at.isoformat() if trace.received_at else None
+                ),
+                "completed_at": (
+                    trace.completed_at.isoformat() if trace.completed_at else None
+                ),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -161,13 +169,17 @@ class TestSessionFilteringAPI:
             }
             mock_traces.append(mock_trace)
 
-        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces
-        mock_db_session.query.return_value.filter.return_value.count.return_value = len(mock_traces)
+        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            mock_traces
+        )
+        mock_db_session.query.return_value.filter.return_value.count.return_value = len(
+            mock_traces
+        )
 
         # Make the API request
         response = client.get(
             f"/api/v1/traces?agent_session_id={target_agent_session}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -189,7 +201,11 @@ class TestSessionFilteringAPI:
 
         # Configure mock to return only traces with the specific session name
         target_session_name = "user_john_session"
-        expected_traces = [trace for trace in sample_traces if trace.session_name == target_session_name]
+        expected_traces = [
+            trace
+            for trace in sample_traces
+            if trace.session_name == target_session_name
+        ]
 
         # Create mock trace objects with to_dict method
         mock_traces = []
@@ -209,8 +225,12 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
-                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
+                "received_at": (
+                    trace.received_at.isoformat() if trace.received_at else None
+                ),
+                "completed_at": (
+                    trace.completed_at.isoformat() if trace.completed_at else None
+                ),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -218,13 +238,17 @@ class TestSessionFilteringAPI:
             }
             mock_traces.append(mock_trace)
 
-        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces
-        mock_db_session.query.return_value.filter.return_value.count.return_value = len(mock_traces)
+        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            mock_traces
+        )
+        mock_db_session.query.return_value.filter.return_value.count.return_value = len(
+            mock_traces
+        )
 
         # Make the API request
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -265,8 +289,12 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
-                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
+                "received_at": (
+                    trace.received_at.isoformat() if trace.received_at else None
+                ),
+                "completed_at": (
+                    trace.completed_at.isoformat() if trace.completed_at else None
+                ),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -274,13 +302,17 @@ class TestSessionFilteringAPI:
             }
             mock_traces.append(mock_trace)
 
-        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces
-        mock_db_session.query.return_value.filter.return_value.count.return_value = len(mock_traces)
+        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            mock_traces
+        )
+        mock_db_session.query.return_value.filter.return_value.count.return_value = len(
+            mock_traces
+        )
 
         # Make the API request
         response = client.get(
             "/api/v1/traces?has_media=true",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -306,7 +338,8 @@ class TestSessionFilteringAPI:
         expected_traces = [
             trace
             for trace in sample_traces
-            if trace.session_name == target_session_name and trace.instance_name == target_instance_name
+            if trace.session_name == target_session_name
+            and trace.instance_name == target_instance_name
         ]
 
         # Create mock trace objects with to_dict method
@@ -327,8 +360,12 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
-                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
+                "received_at": (
+                    trace.received_at.isoformat() if trace.received_at else None
+                ),
+                "completed_at": (
+                    trace.completed_at.isoformat() if trace.completed_at else None
+                ),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -336,13 +373,17 @@ class TestSessionFilteringAPI:
             }
             mock_traces.append(mock_trace)
 
-        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces
-        mock_db_session.query.return_value.filter.return_value.count.return_value = len(mock_traces)
+        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            mock_traces
+        )
+        mock_db_session.query.return_value.filter.return_value.count.return_value = len(
+            mock_traces
+        )
 
         # Make the API request with combined filters
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}&instance_name={target_instance_name}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -355,7 +396,9 @@ class TestSessionFilteringAPI:
             assert trace["session_name"] == target_session_name
             assert trace["instance_name"] == target_instance_name
 
-    def test_session_isolation_between_instances(self, client, sample_traces, mock_db_session):
+    def test_session_isolation_between_instances(
+        self, client, sample_traces, mock_db_session
+    ):
         """Test that sessions are isolated between instances."""
         from src.api.deps import get_database
         from unittest.mock import Mock
@@ -365,7 +408,9 @@ class TestSessionFilteringAPI:
 
         # Configure mock to return only traces from instance_a
         target_instance = "instance_a"
-        expected_traces = [trace for trace in sample_traces if trace.instance_name == target_instance]
+        expected_traces = [
+            trace for trace in sample_traces if trace.instance_name == target_instance
+        ]
 
         # Create mock trace objects with to_dict method
         mock_traces = []
@@ -385,8 +430,12 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
-                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
+                "received_at": (
+                    trace.received_at.isoformat() if trace.received_at else None
+                ),
+                "completed_at": (
+                    trace.completed_at.isoformat() if trace.completed_at else None
+                ),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -394,26 +443,34 @@ class TestSessionFilteringAPI:
             }
             mock_traces.append(mock_trace)
 
-        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces
-        mock_db_session.query.return_value.filter.return_value.count.return_value = len(mock_traces)
+        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            mock_traces
+        )
+        mock_db_session.query.return_value.filter.return_value.count.return_value = len(
+            mock_traces
+        )
 
         # Make the API request filtering by instance
         response = client.get(
             f"/api/v1/traces?instance_name={target_instance}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 4  # trace_001, trace_002, trace_004, trace_005 are from instance_a
+        assert (
+            len(data) == 4
+        )  # trace_001, trace_002, trace_004, trace_005 are from instance_a
 
         # Verify all returned traces are from the target instance only
         for trace in data:
             assert trace["instance_name"] == target_instance
 
         # Verify no traces from instance_b are returned
-        instance_b_traces = [trace for trace in data if trace["instance_name"] == "instance_b"]
+        instance_b_traces = [
+            trace for trace in data if trace["instance_name"] == "instance_b"
+        ]
         assert len(instance_b_traces) == 0
 
     def test_null_agent_session_id_handling(self, client, sample_traces):
@@ -442,7 +499,7 @@ class TestSessionFilteringAPI:
 
             response = client.get(
                 f"/api/v1/traces?agent_session_id={non_existent_session}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -460,7 +517,9 @@ class TestSessionFilteringAPI:
 
         # Create mock traces with proper to_dict method
         mock_traces = []
-        for i, trace in enumerate([t for t in sample_traces if t.sender_phone == target_phone]):
+        for i, trace in enumerate(
+            [t for t in sample_traces if t.sender_phone == target_phone]
+        ):
             mock_trace = Mock()
             mock_trace.to_dict.return_value = {
                 "trace_id": f"trace_{i:03d}",
@@ -505,13 +564,13 @@ class TestSessionFilteringAPI:
             # Test with 'phone' parameter
             response1 = client.get(
                 f"/api/v1/traces?phone={target_phone}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             # Test with 'sender_phone' parameter
             response2 = client.get(
                 f"/api/v1/traces?sender_phone={target_phone}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response1.status_code == 200
@@ -520,7 +579,9 @@ class TestSessionFilteringAPI:
             # Clean up
             app.dependency_overrides.clear()
 
-    def test_session_filtering_with_pagination(self, client, sample_traces, mock_db_session):
+    def test_session_filtering_with_pagination(
+        self, client, sample_traces, mock_db_session
+    ):
         """Test session filtering works with pagination."""
         from src.api.deps import get_database
         from unittest.mock import Mock
@@ -530,7 +591,11 @@ class TestSessionFilteringAPI:
 
         # Configure mock to return traces with pagination
         target_session_name = "user_john_session"
-        all_matching_traces = [trace for trace in sample_traces if trace.session_name == target_session_name]
+        all_matching_traces = [
+            trace
+            for trace in sample_traces
+            if trace.session_name == target_session_name
+        ]
 
         # Simulate pagination: limit=1, offset=0 (first page)
         paginated_traces = all_matching_traces[:1]  # Only first trace
@@ -553,8 +618,12 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
-                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
+                "received_at": (
+                    trace.received_at.isoformat() if trace.received_at else None
+                ),
+                "completed_at": (
+                    trace.completed_at.isoformat() if trace.completed_at else None
+                ),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -562,7 +631,9 @@ class TestSessionFilteringAPI:
             }
             mock_traces.append(mock_trace)
 
-        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces
+        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            mock_traces
+        )
         mock_db_session.query.return_value.filter.return_value.count.return_value = len(
             all_matching_traces
         )  # Total count
@@ -570,7 +641,7 @@ class TestSessionFilteringAPI:
         # Make the API request with pagination
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}&limit=1&offset=0",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -602,8 +673,12 @@ class TestSessionFilteringAPI:
                 "status": trace.status,
                 "error_message": trace.error_message,
                 "error_stage": trace.error_stage,
-                "received_at": (trace.received_at.isoformat() if trace.received_at else None),
-                "completed_at": (trace.completed_at.isoformat() if trace.completed_at else None),
+                "received_at": (
+                    trace.received_at.isoformat() if trace.received_at else None
+                ),
+                "completed_at": (
+                    trace.completed_at.isoformat() if trace.completed_at else None
+                ),
                 "agent_processing_time_ms": trace.agent_processing_time_ms,
                 "total_processing_time_ms": trace.total_processing_time_ms,
                 "agent_response_success": trace.agent_response_success,
@@ -611,11 +686,13 @@ class TestSessionFilteringAPI:
             }
             mock_traces_page2.append(mock_trace)
 
-        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_traces_page2
+        mock_db_session.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            mock_traces_page2
+        )
 
         response_page2 = client.get(
             f"/api/v1/traces?session_name={target_session_name}&limit=1&offset=1",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         assert response_page2.status_code == 200
@@ -642,7 +719,7 @@ class TestSessionFilteringAPI:
             # Test with invalid boolean value
             response = client.get(
                 "/api/v1/traces?has_media=invalid_bool",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             # Should return 422 for validation error
@@ -678,7 +755,7 @@ class TestSessionFilteringEdgeCases:
             # Empty session_name parameter should be ignored
             response = client.get(
                 "/api/v1/traces?session_name=",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -713,7 +790,7 @@ class TestSessionFilteringEdgeCases:
             unicode_session = "用户_会话_测试"
             response = client.get(
                 f"/api/v1/traces?session_name={unicode_session}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -748,7 +825,7 @@ class TestSessionFilteringEdgeCases:
             long_session_id = "a" * 1000
             response = client.get(
                 f"/api/v1/traces?agent_session_id={long_session_id}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200

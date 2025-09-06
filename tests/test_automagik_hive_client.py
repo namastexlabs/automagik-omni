@@ -212,13 +212,17 @@ class TestAutomagikHiveClientAgentRuns:
         config = {"api_url": "https://hive.test.com", "api_key": "test-key"}
         client = AutomagikHiveClient(config_override=config)
 
-        response = await client.create_agent_run(agent_id="test-agent", message="Test prompt", stream=False)
+        response = await client.create_agent_run(
+            agent_id="test-agent", message="Test prompt", stream=False
+        )
 
         # Verify request
         mock_post.assert_called_once()
         call_args = mock_post.call_args
         assert call_args is not None, "Mock was not called"
-        assert call_args[0][0] == "https://hive.test.com/playground/agents/test-agent/runs"
+        assert (
+            call_args[0][0] == "https://hive.test.com/playground/agents/test-agent/runs"
+        )
 
         # Check payload (now form data)
         assert call_args[1] is not None, "No keyword arguments passed to mock"
@@ -255,7 +259,9 @@ class TestAutomagikHiveClientAgentRuns:
         client = AutomagikHiveClient(config_override=config)
 
         events = []
-        async for event in await client.create_agent_run(agent_id="test-agent", message="Test prompt", stream=True):
+        async for event in await client.create_agent_run(
+            agent_id="test-agent", message="Test prompt", stream=True
+        ):
             events.append(event)
 
         # Verify request
@@ -263,7 +269,9 @@ class TestAutomagikHiveClientAgentRuns:
         call_args = mock_stream.call_args
         assert call_args is not None, "Mock was not called"
         assert call_args[0][0] == "POST"
-        assert call_args[0][1] == "https://hive.test.com/playground/agents/test-agent/runs"
+        assert (
+            call_args[0][1] == "https://hive.test.com/playground/agents/test-agent/runs"
+        )
 
         # Check payload (now form data)
         assert call_args[1] is not None, "No keyword arguments passed to mock"
@@ -319,12 +327,16 @@ class TestAutomagikHiveClientTeamRuns:
         config = {"api_url": "https://hive.test.com", "api_key": "test-key"}
         client = AutomagikHiveClient(config_override=config)
 
-        response = await client.create_team_run(team_id="test-team", message="Team prompt", stream=False)
+        response = await client.create_team_run(
+            team_id="test-team", message="Team prompt", stream=False
+        )
 
         # Verify request
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        assert call_args[0][0] == "https://hive.test.com/playground/teams/test-team/runs"
+        assert (
+            call_args[0][0] == "https://hive.test.com/playground/teams/test-team/runs"
+        )
 
         # Check response (implementation returns dict, not HiveRunResponse)
         assert isinstance(response, dict)
@@ -378,7 +390,9 @@ class TestAutomagikHiveClientContinueConversation:
 
         # continue_conversation always streams
         events = []
-        async for event in client.continue_conversation(run_id="original_run_123", message="Continue prompt"):
+        async for event in client.continue_conversation(
+            run_id="original_run_123", message="Continue prompt"
+        ):
             events.append(event)
 
         # Verify we got events
@@ -501,7 +515,9 @@ class TestAutomagikHiveClientConversationStreaming:
         config = {"api_url": "https://hive.test.com", "api_key": "test-key"}
         client = AutomagikHiveClient(config_override=config)
 
-        async with client.stream_agent_conversation(agent_id="test-agent", message="Test prompt") as stream:
+        async with client.stream_agent_conversation(
+            agent_id="test-agent", message="Test prompt"
+        ) as stream:
             # Collect all events from the stream
             events = []
             async for event in stream:
@@ -544,7 +560,9 @@ class TestAutomagikHiveClientConversationStreaming:
         config = {"api_url": "https://hive.test.com", "api_key": "test-key"}
         client = AutomagikHiveClient(config_override=config)
 
-        async with client.stream_team_conversation(team_id="test-team", message="Team prompt") as stream:
+        async with client.stream_team_conversation(
+            team_id="test-team", message="Team prompt"
+        ) as stream:
             # Collect all events from the stream
             events = []
             async for event in stream:
@@ -634,7 +652,9 @@ class TestAutomagikHiveClientErrorHandling:
         mock_response.text = "Unauthorized"
 
         # Mock raise_for_status to raise HTTPStatusError
-        http_error = HTTPStatusError("401 Unauthorized", request=MagicMock(), response=mock_response)
+        http_error = HTTPStatusError(
+            "401 Unauthorized", request=MagicMock(), response=mock_response
+        )
         mock_response.raise_for_status.side_effect = http_error
         mock_post.return_value = mock_response
 
@@ -653,7 +673,9 @@ class TestAutomagikHiveClientErrorHandling:
         mock_response.text = "Internal server error"
 
         # Mock raise_for_status to raise HTTPStatusError
-        http_error = HTTPStatusError("500 Internal Server Error", request=MagicMock(), response=mock_response)
+        http_error = HTTPStatusError(
+            "500 Internal Server Error", request=MagicMock(), response=mock_response
+        )
         mock_response.raise_for_status.side_effect = http_error
         mock_post.return_value = mock_response
 
@@ -732,7 +754,9 @@ class TestAutomagikHiveClientEdgeCases:
             mock_post.return_value = mock_response
 
             # Should handle long prompt
-            await client.create_agent_run(agent_id="test", message=long_prompt, stream=False)
+            await client.create_agent_run(
+                agent_id="test", message=long_prompt, stream=False
+            )
 
             # Verify long message was sent
             call_args = mock_post.call_args

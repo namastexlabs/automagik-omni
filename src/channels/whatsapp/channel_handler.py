@@ -31,7 +31,9 @@ class WhatsAppChannelHandler(ChannelHandler):
         evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
             config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         )
-        evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
+        evolution_key = instance.evolution_key or config.get_env(
+            "EVOLUTION_API_KEY", ""
+        )
 
         logger.debug(
             f"Instance config - URL: {instance.evolution_url}, Key: {'*' * len(instance.evolution_key) if instance.evolution_key else 'NOT SET'}"
@@ -55,34 +57,48 @@ class WhatsAppChannelHandler(ChannelHandler):
             "undefined",
             "",
         ]:
-            logger.error(f"Invalid Evolution API key detected: '{evolution_key}'. Please provide a valid API key.")
-            raise Exception(f"Invalid Evolution API key: '{evolution_key}'. Please provide a valid API key.")
+            logger.error(
+                f"Invalid Evolution API key detected: '{evolution_key}'. Please provide a valid API key."
+            )
+            raise Exception(
+                f"Invalid Evolution API key: '{evolution_key}'. Please provide a valid API key."
+            )
 
         if not evolution_url.startswith(("http://", "https://")):
-            logger.error(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
+            logger.error(
+                f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://"
+            )
             raise ValidationError(
                 f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://"
             )
 
-        logger.debug(f"Creating Evolution client for instance '{instance.name}' - URL: {evolution_url}")
+        logger.debug(
+            f"Creating Evolution client for instance '{instance.name}' - URL: {evolution_url}"
+        )
         logger.debug(
             f"Using Evolution API key: {evolution_key[:8]}{'*' * (len(evolution_key) - 8) if len(evolution_key) > 8 else evolution_key}"
         )
 
         return EvolutionClient(evolution_url, evolution_key)
 
-    async def create_instance(self, instance: InstanceConfig, **kwargs) -> Dict[str, Any]:
+    async def create_instance(
+        self, instance: InstanceConfig, **kwargs
+    ) -> Dict[str, Any]:
         """Create a new WhatsApp instance in Evolution API or use existing one."""
         try:
             evolution_client = self._get_evolution_client(instance)
 
             # First, check if an Evolution instance with this name already exists
-            logger.info(f"Checking if Evolution instance '{instance.name}' already exists...")
+            logger.info(
+                f"Checking if Evolution instance '{instance.name}' already exists..."
+            )
 
             # Fetch all instances and filter locally to avoid 404 errors
             try:
                 all_instances = await evolution_client.fetch_instances()
-                existing_instances = [inst for inst in all_instances if inst.instanceName == instance.name]
+                existing_instances = [
+                    inst for inst in all_instances if inst.instanceName == instance.name
+                ]
             except Exception as fetch_error:
                 logger.warning(f"Could not fetch existing instances: {fetch_error}")
                 existing_instances = []
@@ -90,7 +106,9 @@ class WhatsAppChannelHandler(ChannelHandler):
             if existing_instances:
                 # Instance already exists, use it
                 existing_instance = existing_instances[0]
-                logger.info(f"Evolution instance '{instance.name}' already exists, using existing instance")
+                logger.info(
+                    f"Evolution instance '{instance.name}' already exists, using existing instance"
+                )
 
                 # Set webhook URL for existing instance if needed
                 webhook_url = replace_localhost_with_ipv4(
@@ -110,9 +128,13 @@ class WhatsAppChannelHandler(ChannelHandler):
 
                     # Also configure settings for existing instance
                     await evolution_client.set_settings(instance.name)
-                    logger.info(f"Updated settings for existing instance: {instance.name}")
+                    logger.info(
+                        f"Updated settings for existing instance: {instance.name}"
+                    )
                 except Exception as config_error:
-                    logger.warning(f"Failed to update webhook/settings for existing instance: {config_error}")
+                    logger.warning(
+                        f"Failed to update webhook/settings for existing instance: {config_error}"
+                    )
 
                 return {
                     "evolution_response": {
@@ -147,7 +169,9 @@ class WhatsAppChannelHandler(ChannelHandler):
                 "base64": instance.webhook_base64,  # Use "base64" not "webhookBase64"
                 "byEvents": False,  # Use "byEvents" not "webhookByEvents"
             }
-            logger.info(f"Creating instance '{instance.name}' with webhook_base64={instance.webhook_base64}")
+            logger.info(
+                f"Creating instance '{instance.name}' with webhook_base64={instance.webhook_base64}"
+            )
 
             evolution_request = EvolutionCreateRequest(
                 instanceName=instance.name,
@@ -164,9 +188,13 @@ class WhatsAppChannelHandler(ChannelHandler):
             # Configure additional settings if needed
             try:
                 await evolution_client.set_settings(instance.name)
-                logger.info(f"Configured additional settings for new instance: {instance.name}")
+                logger.info(
+                    f"Configured additional settings for new instance: {instance.name}"
+                )
             except Exception as config_error:
-                logger.debug(f"Additional settings configuration not needed or failed: {config_error}")
+                logger.debug(
+                    f"Additional settings configuration not needed or failed: {config_error}"
+                )
 
             # Post-creation webhook update to ensure correct base64 setting
             # This is needed because Evolution API v2.3.0 doesn't properly respect
@@ -182,7 +210,9 @@ class WhatsAppChannelHandler(ChannelHandler):
                     f"Updated webhook configuration post-creation: {webhook_url} (base64={instance.webhook_base64})"
                 )
             except Exception as webhook_error:
-                logger.warning(f"Failed to update webhook configuration post-creation: {webhook_error}")
+                logger.warning(
+                    f"Failed to update webhook configuration post-creation: {webhook_error}"
+                )
 
             # Handle different response formats from Evolution API
             if isinstance(response, dict):
@@ -197,7 +227,9 @@ class WhatsAppChannelHandler(ChannelHandler):
                     else response.get("hash")
                 )
             else:
-                logger.warning(f"Unexpected response format from Evolution API: {response}")
+                logger.warning(
+                    f"Unexpected response format from Evolution API: {response}"
+                )
                 evolution_instance_id = None
                 evolution_apikey = None
 
@@ -236,7 +268,9 @@ class WhatsAppChannelHandler(ChannelHandler):
 
             # If instance is in connecting state, try to restart it first to get fresh QR
             if current_state == "connecting":
-                logger.info("Instance is in connecting state, restarting to get fresh QR...")
+                logger.info(
+                    "Instance is in connecting state, restarting to get fresh QR..."
+                )
                 try:
                     await evolution_client.restart_instance(instance.name)
                     logger.debug("Instance restart initiated")
@@ -259,12 +293,16 @@ class WhatsAppChannelHandler(ChannelHandler):
 
             # Extract QR code from response
             if isinstance(connect_response, dict):
-                logger.debug(f"Response is dict with keys: {list(connect_response.keys())}")
+                logger.debug(
+                    f"Response is dict with keys: {list(connect_response.keys())}"
+                )
 
                 # Check for QR code in direct base64 field (Evolution API v2.x format)
                 if "base64" in connect_response and connect_response["base64"]:
                     qr_code = connect_response["base64"]
-                    logger.debug(f"Found QR code in base64 field, length: {len(qr_code)}")
+                    logger.debug(
+                        f"Found QR code in base64 field, length: {len(qr_code)}"
+                    )
                     message = "QR code ready for scanning"
                 # Check for QR code in nested qrcode object (older format)
                 elif "qrcode" in connect_response:
@@ -272,7 +310,9 @@ class WhatsAppChannelHandler(ChannelHandler):
                     logger.debug(f"QRCode data type: {type(qrcode_data)}")
                     if isinstance(qrcode_data, dict) and "base64" in qrcode_data:
                         qr_code = qrcode_data.get("base64")
-                        logger.debug(f"Found QR code in nested format, length: {len(qr_code) if qr_code else 0}")
+                        logger.debug(
+                            f"Found QR code in nested format, length: {len(qr_code) if qr_code else 0}"
+                        )
                         message = "QR code ready for scanning"
                     else:
                         logger.debug(f"QRCode data format unexpected: {qrcode_data}")
@@ -284,7 +324,9 @@ class WhatsAppChannelHandler(ChannelHandler):
                     message = "Instance exists but no QR available - may need to restart instance"
                     logger.debug("Got count=0 response, instance may need restart")
                 else:
-                    logger.debug("No base64, qrcode, message, or count field in response")
+                    logger.debug(
+                        "No base64, qrcode, message, or count field in response"
+                    )
             else:
                 logger.debug(f"Response is not dict: {connect_response}")
 

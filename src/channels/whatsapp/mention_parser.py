@@ -49,7 +49,9 @@ class WhatsAppMentionParser:
                 whatsapp_jid = cls._phone_to_jid(clean_phone)
                 if whatsapp_jid not in mentioned_jids:
                     mentioned_jids.append(whatsapp_jid)
-                    logger.debug(f"Extracted mention: {match.group(0)} -> {whatsapp_jid}")
+                    logger.debug(
+                        f"Extracted mention: {match.group(0)} -> {whatsapp_jid}"
+                    )
 
         if mentioned_jids:
             logger.info(f"Extracted {len(mentioned_jids)} mentions from text")
@@ -118,7 +120,9 @@ class WhatsAppMentionParser:
             if jid not in jids:
                 jids.append(jid)
 
-        logger.info(f"Converted {len(phone_list)} explicit mentions to {len(jids)} JIDs")
+        logger.info(
+            f"Converted {len(phone_list)} explicit mentions to {len(jids)} JIDs"
+        )
         return jids
 
 

@@ -15,7 +15,9 @@ class WhatsAppTransformer:
     """Transform WhatsApp data to omni format."""
 
     @staticmethod
-    def contact_to_omni(whatsapp_contact: Dict[str, Any], instance_name: str) -> OmniContact:
+    def contact_to_omni(
+        whatsapp_contact: Dict[str, Any], instance_name: str
+    ) -> OmniContact:
         """Transform WhatsApp contact to omni format."""
         if not whatsapp_contact:
             return OmniContact(
@@ -26,7 +28,9 @@ class WhatsAppTransformer:
             )
         return OmniContact(
             id=whatsapp_contact.get("id") or "",
-            name=whatsapp_contact.get("pushName") or whatsapp_contact.get("name") or "Unknown",
+            name=whatsapp_contact.get("pushName")
+            or whatsapp_contact.get("name")
+            or "Unknown",
             channel_type=ChannelType.WHATSAPP,
             instance_name=instance_name,
             avatar_url=whatsapp_contact.get("profilePictureUrl"),
@@ -40,7 +44,9 @@ class WhatsAppTransformer:
                 "push_name": whatsapp_contact.get("pushName"),
                 "raw_data": whatsapp_contact,
             },
-            last_seen=WhatsAppTransformer._parse_datetime(whatsapp_contact.get("lastSeen")),
+            last_seen=WhatsAppTransformer._parse_datetime(
+                whatsapp_contact.get("lastSeen")
+            ),
         )
 
     @staticmethod
@@ -63,22 +69,32 @@ class WhatsAppTransformer:
 
         return OmniChat(
             id=whatsapp_chat.get("id", ""),
-            name=whatsapp_chat.get("name") or whatsapp_chat.get("pushName") or "Unknown",
+            name=whatsapp_chat.get("name")
+            or whatsapp_chat.get("pushName")
+            or "Unknown",
             chat_type=chat_type,
             channel_type=ChannelType.WHATSAPP,
             instance_name=instance_name,
-            participant_count=(len(whatsapp_chat.get("participants", [])) if chat_type == OmniChatType.GROUP else None),
+            participant_count=(
+                len(whatsapp_chat.get("participants", []))
+                if chat_type == OmniChatType.GROUP
+                else None
+            ),
             is_muted=whatsapp_chat.get("isMuted", False),
             is_archived=whatsapp_chat.get("isArchived", False),
             is_pinned=whatsapp_chat.get("isPinned", False),
             unread_count=whatsapp_chat.get("unreadCount", 0),
             channel_data={
-                "group_id": (whatsapp_chat.get("id") if chat_type == OmniChatType.GROUP else None),
+                "group_id": (
+                    whatsapp_chat.get("id") if chat_type == OmniChatType.GROUP else None
+                ),
                 "participants": whatsapp_chat.get("participants", []),
                 "group_metadata": whatsapp_chat.get("groupMetadata"),
                 "raw_data": whatsapp_chat,
             },
-            last_message_at=WhatsAppTransformer._parse_datetime(whatsapp_chat.get("lastMessageTime")),
+            last_message_at=WhatsAppTransformer._parse_datetime(
+                whatsapp_chat.get("lastMessageTime")
+            ),
         )
 
     @staticmethod
@@ -107,8 +123,12 @@ class WhatsAppTransformer:
                 "raw_status": status_data,
                 "raw_config": instance_config,
             },
-            connected_at=WhatsAppTransformer._parse_datetime(status_data.get("connectedAt")),
-            last_activity_at=WhatsAppTransformer._parse_datetime(status_data.get("lastActivity")),
+            connected_at=WhatsAppTransformer._parse_datetime(
+                status_data.get("connectedAt")
+            ),
+            last_activity_at=WhatsAppTransformer._parse_datetime(
+                status_data.get("lastActivity")
+            ),
         )
 
     @staticmethod
@@ -118,7 +138,9 @@ class WhatsAppTransformer:
             return None
         try:
             if isinstance(timestamp, (int, float)):
-                return datetime.fromtimestamp(timestamp / 1000 if timestamp > 1e10 else timestamp)
+                return datetime.fromtimestamp(
+                    timestamp / 1000 if timestamp > 1e10 else timestamp
+                )
             return datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
         except Exception:
             return None
@@ -128,7 +150,9 @@ class DiscordTransformer:
     """Transform Discord data to omni format."""
 
     @staticmethod
-    def contact_to_omni(discord_user: Dict[str, Any], instance_name: str) -> OmniContact:
+    def contact_to_omni(
+        discord_user: Dict[str, Any], instance_name: str
+    ) -> OmniContact:
         """Transform Discord user to omni format."""
         status_map = {
             "online": OmniContactStatus.ONLINE,
@@ -139,11 +163,14 @@ class DiscordTransformer:
 
         return OmniContact(
             id=str(discord_user.get("id", "")),
-            name=discord_user.get("global_name") or discord_user.get("username", "Unknown"),
+            name=discord_user.get("global_name")
+            or discord_user.get("username", "Unknown"),
             channel_type=ChannelType.DISCORD,
             instance_name=instance_name,
             avatar_url=DiscordTransformer._build_avatar_url(discord_user),
-            status=status_map.get(discord_user.get("status"), OmniContactStatus.UNKNOWN),
+            status=status_map.get(
+                discord_user.get("status"), OmniContactStatus.UNKNOWN
+            ),
             is_verified=discord_user.get("verified"),
             channel_data={
                 "username": discord_user.get("username"),
@@ -191,7 +218,9 @@ class DiscordTransformer:
                 "permissions": discord_channel.get("permission_overwrites", []),
                 "raw_data": discord_channel,
             },
-            created_at=DiscordTransformer._parse_snowflake_timestamp(discord_channel.get("id")),
+            created_at=DiscordTransformer._parse_snowflake_timestamp(
+                discord_channel.get("id")
+            ),
         )
 
     @staticmethod
@@ -220,8 +249,12 @@ class DiscordTransformer:
                 "raw_status": status_data,
                 "raw_config": instance_config,
             },
-            connected_at=DiscordTransformer._parse_datetime(status_data.get("connected_at")),
-            last_activity_at=DiscordTransformer._parse_datetime(status_data.get("last_activity")),
+            connected_at=DiscordTransformer._parse_datetime(
+                status_data.get("connected_at")
+            ),
+            last_activity_at=DiscordTransformer._parse_datetime(
+                status_data.get("last_activity")
+            ),
         )
 
     @staticmethod

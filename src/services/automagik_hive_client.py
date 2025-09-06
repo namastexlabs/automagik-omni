@@ -57,7 +57,9 @@ class AutomagikHiveClient:
     with robust error handling and connection management.
     """
 
-    def __init__(self, config_override: Optional[Union[InstanceConfig, Dict[str, Any]]] = None):
+    def __init__(
+        self, config_override: Optional[Union[InstanceConfig, Dict[str, Any]]] = None
+    ):
         """
         Initialize the AutomagikHive client.
 
@@ -73,14 +75,16 @@ class AutomagikHiveClient:
             self.api_key = getattr(config_override, "hive_api_key", None) or getattr(
                 config_override, "agent_api_key", None
             )
-            self.default_agent_id = getattr(config_override, "hive_agent_id", None) or getattr(
-                config_override, "agent_id", None
-            )
-            self.default_team_id = getattr(config_override, "hive_team_id", None) or getattr(
-                config_override, "team_id", None
-            )
+            self.default_agent_id = getattr(
+                config_override, "hive_agent_id", None
+            ) or getattr(config_override, "agent_id", None)
+            self.default_team_id = getattr(
+                config_override, "hive_team_id", None
+            ) or getattr(config_override, "team_id", None)
             self.timeout = (
-                getattr(config_override, "hive_timeout", None) or getattr(config_override, "agent_timeout", None) or 30
+                getattr(config_override, "hive_timeout", None)
+                or getattr(config_override, "agent_timeout", None)
+                or 30
             )
             self.stream_mode = (
                 getattr(config_override, "hive_stream_mode", None)
@@ -95,7 +99,9 @@ class AutomagikHiveClient:
             self.timeout = config_override.get("timeout", 30)
             self.stream_mode = config_override.get("stream_mode", True)
         else:
-            raise ValueError("config_override must be InstanceConfig instance or dictionary")
+            raise ValueError(
+                "config_override must be InstanceConfig instance or dictionary"
+            )
 
         # Validate required configuration
         if not self.api_url:
@@ -112,10 +118,14 @@ class AutomagikHiveClient:
         self._client_lock = asyncio.Lock()
 
         # Connection pool settings
-        self._connection_limits = httpx.Limits(max_keepalive_connections=5, max_connections=10, keepalive_expiry=30.0)
+        self._connection_limits = httpx.Limits(
+            max_keepalive_connections=5, max_connections=10, keepalive_expiry=30.0
+        )
 
         # Timeout configuration
-        self._timeout_config = httpx.Timeout(connect=10.0, read=float(self.timeout), write=10.0, pool=5.0)
+        self._timeout_config = httpx.Timeout(
+            connect=10.0, read=float(self.timeout), write=10.0, pool=5.0
+        )
 
         logger.info(f"AutomagikHive client initialized - URL: {self.api_url}")
 
@@ -135,7 +145,9 @@ class AutomagikHiveClient:
                 }
             )
         else:
-            headers.update({"Content-Type": "application/json", "Accept": "application/json"})
+            headers.update(
+                {"Content-Type": "application/json", "Accept": "application/json"}
+            )
 
         return headers
 
@@ -283,11 +295,15 @@ class AutomagikHiveClient:
 
         endpoint = f"{self.api_url}/playground/agents/{agent_id}/runs/{run_id}/continue"
 
-        request_data = HiveContinueRequest(message=message, user_id=user_id, metadata=metadata)
+        request_data = HiveContinueRequest(
+            message=message, user_id=user_id, metadata=metadata
+        )
 
         return self._create_streaming_run(endpoint, request_data.model_dump())
 
-    async def _create_non_streaming_run(self, endpoint: str, payload: dict) -> Dict[str, Any]:
+    async def _create_non_streaming_run(
+        self, endpoint: str, payload: dict
+    ) -> Dict[str, Any]:
         """Create a non-streaming run using multipart/form-data."""
         client = await self._get_client()
         headers = {"X-API-Key": self.api_key}  # Don't set Content-Type for multipart
@@ -304,17 +320,23 @@ class AutomagikHiveClient:
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
-                raise AutomagikHiveAuthError(f"Authentication failed: {e.response.text}")
+                raise AutomagikHiveAuthError(
+                    f"Authentication failed: {e.response.text}"
+                )
             elif e.response.status_code == 404:
                 raise AutomagikHiveError(f"Endpoint not found: {endpoint}")
             else:
-                raise AutomagikHiveError(f"HTTP error {e.response.status_code}: {e.response.text}")
+                raise AutomagikHiveError(
+                    f"HTTP error {e.response.status_code}: {e.response.text}"
+                )
         except (ConnectTimeout, ReadTimeout, TimeoutException) as e:
             raise AutomagikHiveConnectionError(f"Connection timeout: {str(e)}")
         except Exception as e:
             raise AutomagikHiveError(f"Unexpected error: {str(e)}")
 
-    async def _create_streaming_run(self, endpoint: str, payload: dict) -> AsyncIterator[HiveEvent]:
+    async def _create_streaming_run(
+        self, endpoint: str, payload: dict
+    ) -> AsyncIterator[HiveEvent]:
         """Create a streaming run and return event iterator using multipart/form-data."""
         client = await self._get_client()
         headers = {
@@ -328,14 +350,18 @@ class AutomagikHiveClient:
             # Convert payload to form data, filtering out None values
             form_data = {k: str(v) for k, v in payload.items() if v is not None}
 
-            async with client.stream("POST", endpoint, data=form_data, headers=headers) as response:
+            async with client.stream(
+                "POST", endpoint, data=form_data, headers=headers
+            ) as response:
                 if response.status_code == 401:
                     raise AutomagikHiveAuthError("Authentication failed")
                 elif response.status_code == 404:
                     raise AutomagikHiveError(f"Endpoint not found: {endpoint}")
                 elif response.status_code != 200:
                     error_text = await response.aread()
-                    raise AutomagikHiveError(f"HTTP error {response.status_code}: {error_text.decode()}")
+                    raise AutomagikHiveError(
+                        f"HTTP error {response.status_code}: {error_text.decode()}"
+                    )
 
                 async for event in self.stream_events(response):
                     yield event
@@ -400,21 +426,29 @@ class AutomagikHiveClient:
                 # Special handling: Check if this looks like concatenated JSON without newlines
                 # Hive sometimes sends all JSON objects concatenated on a single line
                 if text.startswith("{") and text.count("}{") > 0 and "\n" not in text:
-                    logger.debug("Detected concatenated JSON objects in single chunk without newlines")
+                    logger.debug(
+                        "Detected concatenated JSON objects in single chunk without newlines"
+                    )
                     # Process immediately without line splitting
                     json_objects = self._split_concatenated_json(text)
                     if json_objects:
-                        logger.debug(f"Successfully split chunk into {len(json_objects)} JSON objects")
+                        logger.debug(
+                            f"Successfully split chunk into {len(json_objects)} JSON objects"
+                        )
                         for json_obj_str in json_objects:
                             try:
                                 event_data = json.loads(json_obj_str)
                                 json_object_count += 1
-                                logger.debug(f"Parsed JSON object #{json_object_count} from chunk")
+                                logger.debug(
+                                    f"Parsed JSON object #{json_object_count} from chunk"
+                                )
 
                                 event = self._create_event_from_data(event_data)
                                 if event:
                                     event_count += 1
-                                    logger.debug(f"Created event #{event_count}: {type(event).__name__}")
+                                    logger.debug(
+                                        f"Created event #{event_count}: {type(event).__name__}"
+                                    )
                                     yield event
 
                                     if event.event == HiveEventType.RUN_COMPLETED:
@@ -432,7 +466,9 @@ class AutomagikHiveClient:
                 # Check if buffer contains concatenated JSON (not SSE format)
                 # This handles the case where Hive sends raw concatenated JSON
                 if buffer.strip().startswith("{") and "}{" in buffer:
-                    logger.debug("Buffer contains concatenated JSON, processing without line splitting")
+                    logger.debug(
+                        "Buffer contains concatenated JSON, processing without line splitting"
+                    )
                     json_buffer = buffer
                     buffer = ""  # Clear the buffer
 
@@ -440,21 +476,29 @@ class AutomagikHiveClient:
                     if json_buffer.count("}{") > 0:
                         json_objects = self._split_concatenated_json(json_buffer)
                         if json_objects:
-                            logger.debug(f"Successfully split buffer into {len(json_objects)} JSON objects")
+                            logger.debug(
+                                f"Successfully split buffer into {len(json_objects)} JSON objects"
+                            )
                             for json_obj_str in json_objects:
                                 try:
                                     event_data = json.loads(json_obj_str)
                                     json_object_count += 1
-                                    logger.debug(f"Parsed JSON object #{json_object_count}")
+                                    logger.debug(
+                                        f"Parsed JSON object #{json_object_count}"
+                                    )
 
                                     event = self._create_event_from_data(event_data)
                                     if event:
                                         event_count += 1
-                                        logger.debug(f"Created event #{event_count}: {type(event).__name__}")
+                                        logger.debug(
+                                            f"Created event #{event_count}: {type(event).__name__}"
+                                        )
                                         yield event
 
                                         if event.event == HiveEventType.RUN_COMPLETED:
-                                            logger.info(f"Run completed: {event.run_id}")
+                                            logger.info(
+                                                f"Run completed: {event.run_id}"
+                                            )
                                             return
                                 except json.JSONDecodeError as e:
                                     logger.debug(f"Failed to parse JSON: {e}")
@@ -489,12 +533,16 @@ class AutomagikHiveClient:
                         try:
                             event_data = json.loads(data)
                             json_object_count += 1
-                            logger.debug(f"Parsed complete SSE JSON #{json_object_count}: {event_data}")
+                            logger.debug(
+                                f"Parsed complete SSE JSON #{json_object_count}: {event_data}"
+                            )
 
                             event = self._create_event_from_data(event_data)
                             if event:
                                 event_count += 1
-                                logger.debug(f"Created event #{event_count}: {type(event).__name__} - {event}")
+                                logger.debug(
+                                    f"Created event #{event_count}: {type(event).__name__} - {event}"
+                                )
                                 yield event
 
                                 # Break on completion event
@@ -505,7 +553,9 @@ class AutomagikHiveClient:
                         except json.JSONDecodeError:
                             # Not complete JSON, add to json_buffer
                             json_buffer += data
-                            logger.debug(f"SSE data not complete JSON, added to buffer: {len(json_buffer)} chars")
+                            logger.debug(
+                                f"SSE data not complete JSON, added to buffer: {len(json_buffer)} chars"
+                            )
                         continue
 
                     # For non-SSE lines, accumulate in json_buffer
@@ -518,9 +568,13 @@ class AutomagikHiveClient:
                     if json_buffer.strip() and not json_buffer.strip().startswith("{"):
                         if json_buffer.strip().startswith('"') and "}{" in json_buffer:
                             # Buffer is missing the opening brace, add it back
-                            logger.debug("Detected missing opening brace in buffer, fixing...")
+                            logger.debug(
+                                "Detected missing opening brace in buffer, fixing..."
+                            )
                             json_buffer = "{" + json_buffer
-                            logger.debug(f"Fixed buffer now starts with: {json_buffer[:50]}...")
+                            logger.debug(
+                                f"Fixed buffer now starts with: {json_buffer[:50]}..."
+                            )
 
                     # Try to parse the accumulated JSON - handle concatenated objects
                     json_objects = []
@@ -528,11 +582,17 @@ class AutomagikHiveClient:
 
                     # First check if we have concatenated objects
                     if remaining_buffer.count("}{") > 0:
-                        logger.debug("Detected concatenated JSON objects in buffer, attempting to split...")
+                        logger.debug(
+                            "Detected concatenated JSON objects in buffer, attempting to split..."
+                        )
                         json_objects = self._split_concatenated_json(remaining_buffer)
                         if json_objects:
-                            logger.debug(f"Successfully split into {len(json_objects)} JSON objects")
-                            remaining_buffer = ""  # Clear buffer since we split successfully
+                            logger.debug(
+                                f"Successfully split into {len(json_objects)} JSON objects"
+                            )
+                            remaining_buffer = (
+                                ""  # Clear buffer since we split successfully
+                            )
                         else:
                             logger.warning(
                                 f"Failed to split concatenated JSON, buffer content: {remaining_buffer[:500]}{'...' if len(remaining_buffer) > 500 else ''}"
@@ -542,10 +602,14 @@ class AutomagikHiveClient:
                         try:
                             event_data = json.loads(remaining_buffer)
                             json_objects = [remaining_buffer]
-                            remaining_buffer = ""  # Clear buffer since we parsed successfully
+                            remaining_buffer = (
+                                ""  # Clear buffer since we parsed successfully
+                            )
                         except json.JSONDecodeError as e:
                             # Not complete JSON object yet, continue accumulating
-                            logger.debug(f"JSON not complete yet ({str(e)}), buffer length: {len(remaining_buffer)}")
+                            logger.debug(
+                                f"JSON not complete yet ({str(e)}), buffer length: {len(remaining_buffer)}"
+                            )
                             continue
 
                     # Process all parsed JSON objects
@@ -553,12 +617,16 @@ class AutomagikHiveClient:
                         try:
                             event_data = json.loads(json_obj_str)
                             json_object_count += 1
-                            logger.debug(f"Parsed JSON object #{json_object_count}: {event_data}")
+                            logger.debug(
+                                f"Parsed JSON object #{json_object_count}: {event_data}"
+                            )
 
                             event = self._create_event_from_data(event_data)
                             if event:
                                 event_count += 1
-                                logger.debug(f"Created event #{event_count}: {type(event).__name__} - {event}")
+                                logger.debug(
+                                    f"Created event #{event_count}: {type(event).__name__} - {event}"
+                                )
                                 yield event
 
                                 # Break on completion event
@@ -582,29 +650,39 @@ class AutomagikHiveClient:
                     # Try to parse as single JSON object first
                     event_data = json.loads(json_buffer)
                     json_object_count += 1
-                    logger.debug(f"Parsed final JSON object #{json_object_count}: {event_data}")
+                    logger.debug(
+                        f"Parsed final JSON object #{json_object_count}: {event_data}"
+                    )
 
                     event = self._create_event_from_data(event_data)
                     if event:
                         event_count += 1
-                        logger.debug(f"Created final event #{event_count}: {type(event).__name__} - {event}")
+                        logger.debug(
+                            f"Created final event #{event_count}: {type(event).__name__} - {event}"
+                        )
                         yield event
 
                 except json.JSONDecodeError as e:
                     # Try to split concatenated JSON objects
                     if json_buffer.count("}{") > 0:
-                        logger.debug("Detected concatenated JSON objects in final buffer, attempting to split...")
+                        logger.debug(
+                            "Detected concatenated JSON objects in final buffer, attempting to split..."
+                        )
                         json_objects = self._split_concatenated_json(json_buffer)
 
                         if json_objects:
-                            logger.debug(f"Successfully split final buffer into {len(json_objects)} JSON objects")
+                            logger.debug(
+                                f"Successfully split final buffer into {len(json_objects)} JSON objects"
+                            )
 
                             # Process each JSON object
                             for json_obj_str in json_objects:
                                 try:
                                     event_data = json.loads(json_obj_str)
                                     json_object_count += 1
-                                    logger.debug(f"Parsed final split JSON object #{json_object_count}: {event_data}")
+                                    logger.debug(
+                                        f"Parsed final split JSON object #{json_object_count}: {event_data}"
+                                    )
 
                                     event = self._create_event_from_data(event_data)
                                     if event:
@@ -615,14 +693,22 @@ class AutomagikHiveClient:
                                         yield event
 
                                 except json.JSONDecodeError as split_error:
-                                    logger.debug(f"Failed to parse final split JSON object: {split_error}")
+                                    logger.debug(
+                                        f"Failed to parse final split JSON object: {split_error}"
+                                    )
                                     logger.debug(f"Problematic JSON: {json_obj_str}")
                                 except Exception as split_error:
-                                    logger.error(f"Error processing final split JSON object: {split_error}")
+                                    logger.error(
+                                        f"Error processing final split JSON object: {split_error}"
+                                    )
                         else:
-                            logger.warning(f"Failed to parse final JSON buffer: {json_buffer} - Error: {e}")
+                            logger.warning(
+                                f"Failed to parse final JSON buffer: {json_buffer} - Error: {e}"
+                            )
                     else:
-                        logger.warning(f"Failed to parse final JSON buffer: {json_buffer} - Error: {e}")
+                        logger.warning(
+                            f"Failed to parse final JSON buffer: {json_buffer} - Error: {e}"
+                        )
                 except Exception as e:
                     logger.error(f"Failed to process final JSON object: {e}")
 
@@ -671,7 +757,9 @@ class AutomagikHiveClient:
 
             # Must start with opening brace
             if json_text[i] != "{":
-                logger.warning(f"Expected '{{' at position {i}, found '{json_text[i]}' in: {json_text[i : i + 50]}...")
+                logger.warning(
+                    f"Expected '{{' at position {i}, found '{json_text[i]}' in: {json_text[i : i + 50]}..."
+                )
                 break
 
             # Find the matching closing brace
@@ -709,7 +797,9 @@ class AutomagikHiveClient:
                 # Reached end without closing brace - treat as incomplete
                 if brace_count > 0:
                     incomplete_json = json_text[start:]
-                    logger.debug(f"Incomplete JSON object at end: {incomplete_json[:100]}...")
+                    logger.debug(
+                        f"Incomplete JSON object at end: {incomplete_json[:100]}..."
+                    )
 
         return json_objects
 
@@ -729,13 +819,17 @@ class AutomagikHiveClient:
                 event_type = event_data["event"]
                 if event_type == "TeamRunResponseContent":
                     event_data["event"] = "RunResponseContent"
-                    logger.debug("Mapped event type 'TeamRunResponseContent' to 'RunResponseContent'")
+                    logger.debug(
+                        "Mapped event type 'TeamRunResponseContent' to 'RunResponseContent'"
+                    )
                 elif event_type == "TeamRunStarted":
                     event_data["event"] = "RunStarted"
                     logger.debug("Mapped event type 'TeamRunStarted' to 'RunStarted'")
                 elif event_type == "TeamRunCompleted":
                     event_data["event"] = "RunCompleted"
-                    logger.debug("Mapped event type 'TeamRunCompleted' to 'RunCompleted'")
+                    logger.debug(
+                        "Mapped event type 'TeamRunCompleted' to 'RunCompleted'"
+                    )
 
             event = parse_hive_event(event_data)
             return event
@@ -751,7 +845,9 @@ class AutomagikHiveClient:
             return error_event
 
     @asynccontextmanager
-    async def stream_agent_conversation(self, agent_id: Optional[str] = None, message: str = "", **kwargs):
+    async def stream_agent_conversation(
+        self, agent_id: Optional[str] = None, message: str = "", **kwargs
+    ):
         """
         Context manager for streaming agent conversations.
 
@@ -765,7 +861,9 @@ class AutomagikHiveClient:
             agent_id = self.default_agent_id
 
         try:
-            stream = await self.create_agent_run(agent_id=agent_id, message=message, stream=True, **kwargs)
+            stream = await self.create_agent_run(
+                agent_id=agent_id, message=message, stream=True, **kwargs
+            )
             yield stream
         except Exception as e:
             logger.error(f"Error in agent conversation stream: {e}")
@@ -775,7 +873,9 @@ class AutomagikHiveClient:
             pass
 
     @asynccontextmanager
-    async def stream_team_conversation(self, team_id: Optional[str] = None, message: str = "", **kwargs):
+    async def stream_team_conversation(
+        self, team_id: Optional[str] = None, message: str = "", **kwargs
+    ):
         """
         Context manager for streaming team conversations.
 
@@ -788,10 +888,14 @@ class AutomagikHiveClient:
         if not team_id:
             team_id = self.default_team_id
             if not team_id:
-                raise ValueError("No team_id provided and no default team_id configured")
+                raise ValueError(
+                    "No team_id provided and no default team_id configured"
+                )
 
         try:
-            stream = await self.create_team_run(team_id=team_id, message=message, stream=True, **kwargs)
+            stream = await self.create_team_run(
+                team_id=team_id, message=message, stream=True, **kwargs
+            )
             yield stream
         except Exception as e:
             logger.error(f"Error in team conversation stream: {e}")
