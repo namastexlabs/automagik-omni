@@ -145,10 +145,10 @@ Configuration:
 ```json
 {
   "agent_instance_type": "hive",
-  "hive_api_url": "https://hive-api.com",
-  "hive_api_key": "secure-key",
-  "hive_agent_id": "team-456",
-  "stream_mode": true
+  "agent_api_url": "https://hive-api.com",
+  "agent_api_key": "secure-key",
+  "agent_id": "team-456",
+  "agent_stream_mode": true
 }
 ```
 

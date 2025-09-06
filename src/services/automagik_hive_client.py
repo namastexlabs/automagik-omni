@@ -68,28 +68,14 @@ class AutomagikHiveClient:
         """
         # Extract configuration from InstanceConfig or dict
         if isinstance(config_override, InstanceConfig):
-            # Try legacy fields first for backward compatibility, then unified fields
-            self.api_url = getattr(config_override, "hive_api_url", None) or getattr(
-                config_override, "agent_api_url", None
-            )
-            self.api_key = getattr(config_override, "hive_api_key", None) or getattr(
-                config_override, "agent_api_key", None
-            )
-            self.default_agent_id = getattr(
-                config_override, "hive_agent_id", None
-            ) or getattr(config_override, "agent_id", None)
-            self.default_team_id = getattr(
-                config_override, "hive_team_id", None
-            ) or getattr(config_override, "team_id", None)
-            self.timeout = (
-                getattr(config_override, "hive_timeout", None)
-                or getattr(config_override, "agent_timeout", None)
-                or 30
-            )
+            # Use unified agent fields
+            self.api_url = getattr(config_override, "agent_api_url", None)
+            self.api_key = getattr(config_override, "agent_api_key", None)
+            self.default_agent_id = getattr(config_override, "agent_id", None)
+            self.default_team_id = getattr(config_override, "team_id", None)
+            self.timeout = getattr(config_override, "agent_timeout", None) or 30
             self.stream_mode = (
-                getattr(config_override, "hive_stream_mode", None)
-                or getattr(config_override, "agent_stream_mode", None)
-                or True
+                getattr(config_override, "agent_stream_mode", None) or True
             )
         elif isinstance(config_override, dict):
             self.api_url = config_override.get("api_url")

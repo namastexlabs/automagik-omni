@@ -87,30 +87,6 @@ class TestInstanceConfigOmniFields:
         assert instance.agent_type == "team"
         assert instance.agent_stream_mode is True
 
-    def test_legacy_hive_fields(self, test_db):
-        """Test that legacy hive fields still work."""
-        instance = InstanceConfig(
-            name="legacy-hive",
-            agent_api_url="http://automagik.com",
-            agent_api_key="key",
-            hive_enabled=True,
-            hive_api_url="https://hive.com",
-            hive_api_key="hive-key",
-            hive_agent_id="hive-agent",
-            hive_team_id=None,
-            hive_timeout=45,
-            hive_stream_mode=True,
-        )
-        test_db.add(instance)
-        test_db.commit()
-
-        # Legacy fields should be accessible
-        assert instance.hive_enabled is True
-        assert instance.hive_api_url == "https://hive.com"
-        assert instance.hive_api_key == "hive-key"
-        assert instance.hive_agent_id == "hive-agent"
-        assert instance.hive_timeout == 45
-        assert instance.hive_stream_mode is True
 
 
 class TestInstanceConfigProperties:
@@ -289,100 +265,6 @@ class TestInstanceConfigMethods:
         config = instance.get_agent_config()
         assert config["agent_id"] == "fallback-agent"
 
-    def test_has_hive_config_omni(self, test_db):
-        """Test has_hive_config with omni fields."""
-        # Complete hive config
-        complete = InstanceConfig(
-            name="complete-hive",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
-            agent_api_key="key",
-            agent_id="agent-123",
-        )
-        test_db.add(complete)
-        test_db.commit()
-
-        assert complete.has_hive_config() is True
-
-        # Incomplete hive config (missing agent_id)
-        incomplete = InstanceConfig(
-            name="incomplete-hive",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
-            agent_api_key="key",
-        )
-        test_db.add(incomplete)
-        test_db.commit()
-
-        # With default agent_id, should still be valid
-        assert incomplete.has_hive_config() is True  # agent_id defaults to "default"
-
-    def test_has_hive_config_legacy(self, test_db):
-        """Test has_hive_config with legacy fields."""
-        # Complete legacy config
-        legacy = InstanceConfig(
-            name="legacy-hive",
-            agent_api_url="https://automagik.com",
-            agent_api_key="key",
-            hive_enabled=True,
-            hive_api_url="https://hive.com",
-            hive_api_key="hive-key",
-            hive_agent_id="hive-agent",
-        )
-        test_db.add(legacy)
-        test_db.commit()
-
-        assert legacy.has_hive_config() is True
-
-    def test_get_hive_config_omni(self, test_db):
-        """Test get_hive_config with omni fields."""
-        instance = InstanceConfig(
-            name="hive-config",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
-            agent_api_key="hive-key",
-            agent_id="agent-123",
-            agent_type="team",
-            agent_timeout=45,
-            agent_stream_mode=True,
-        )
-        test_db.add(instance)
-        test_db.commit()
-
-        config = instance.get_hive_config()
-
-        assert config["instance_type"] == "hive"
-        assert config["api_url"] == "https://hive.com"
-        assert config["api_key"] == "hive-key"
-        assert config["agent_id"] == "agent-123"
-        assert config["agent_type"] == "team"
-        assert config["timeout"] == 45
-        assert config["stream_mode"] is True
-
-    def test_get_hive_config_legacy(self, test_db):
-        """Test get_hive_config with legacy fields."""
-        instance = InstanceConfig(
-            name="legacy-hive-config",
-            agent_api_url="https://automagik.com",
-            agent_api_key="key",
-            hive_enabled=True,
-            hive_api_url="https://hive.com",
-            hive_api_key="hive-key",
-            hive_agent_id="hive-agent",
-            hive_timeout=30,
-            hive_stream_mode=True,
-        )
-        test_db.add(instance)
-        test_db.commit()
-
-        config = instance.get_hive_config()
-
-        # Should return legacy format
-        assert config["api_url"] == "https://hive.com"
-        assert config["api_key"] == "hive-key"
-        assert config["agent_id"] == "hive-agent"
-        assert config["timeout"] == 30
-        assert config["stream_mode"] is True
 
 
 class TestInstanceConfigEdgeCases:
@@ -404,26 +286,6 @@ class TestInstanceConfigEdgeCases:
         # Should fall back to "default"
         assert config["agent_id"] == "default"
 
-    def test_mixed_configuration(self, test_db):
-        """Test instance with both omni and legacy fields."""
-        instance = InstanceConfig(
-            name="mixed",
-            agent_instance_type="hive",
-            agent_api_url="https://new.com",
-            agent_api_key="new-key",
-            agent_id="new-agent",
-            hive_api_url="https://old.com",
-            hive_api_key="old-key",
-            hive_agent_id="old-agent",
-        )
-        test_db.add(instance)
-        test_db.commit()
-
-        # Omni fields should take precedence
-        config = instance.get_agent_config()
-        assert config["api_url"] == "https://new.com"
-        assert config["api_key"] == "new-key"
-        assert config["agent_id"] == "new-agent"
 
     def test_invalid_instance_type(self, test_db):
         """Test handling of invalid instance type."""
