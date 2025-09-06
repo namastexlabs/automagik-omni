@@ -105,7 +105,7 @@ class TestMentionsIntegration:
 
             # Verify payload structure
             assert request_payload["number"] == "5511777777777"
-            assert request_payload["textMessage"]["text"] == payload["text"]
+            assert request_payload["text"] == payload["text"]
 
             # Verify mentions were parsed correctly
             assert "mentioned" in request_payload
@@ -199,7 +199,7 @@ class TestMentionsIntegration:
             request_payload = call_args[1]["json"]
 
             assert request_payload["mentionsEveryOne"] is True
-            assert request_payload["textMessage"]["text"] == payload["text"]
+            assert request_payload["text"] == payload["text"]
 
     def test_mention_flow_with_split_messages(
         self, client, test_instance_config, api_headers
@@ -242,7 +242,7 @@ class TestMentionsIntegration:
             assert "mentioned" in first_payload
             assert "5511999999999@s.whatsapp.net" in first_payload["mentioned"]
             assert (
-                first_payload["textMessage"]["text"] == "First part with @5511999999999"
+                first_payload["text"] == "First part with @5511999999999"
             )
 
             # Second message should not have mentions
@@ -250,7 +250,7 @@ class TestMentionsIntegration:
             second_payload = second_call[1]["json"]
             assert "mentioned" not in second_payload
             assert (
-                second_payload["textMessage"]["text"] == "Second part without mentions"
+                second_payload["text"] == "Second part without mentions"
             )
 
     def test_mention_flow_error_handling(
