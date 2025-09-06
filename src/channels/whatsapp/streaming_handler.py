@@ -74,7 +74,9 @@ class WhatsAppStreamingHandler:
             original_handler: Fallback to original handler if needed
         """
         if not instance_config:
-            logger.warning("No instance config provided, falling back to original handler")
+            logger.warning(
+                "No instance config provided, falling back to original handler"
+            )
             if original_handler:
                 return original_handler(message, instance_config, trace_context)
             return
@@ -89,16 +91,24 @@ class WhatsAppStreamingHandler:
         logger.debug(f"Checking streaming for recipient {recipient}")
         logger.debug(f"Instance config type: {type(instance_config)}")
         logger.debug(f"Instance config name: {getattr(instance_config, 'name', 'N/A')}")
-        logger.debug(f"Instance agent_instance_type: {getattr(instance_config, 'agent_instance_type', 'N/A')}")
-        logger.debug(f"Instance agent_stream_mode: {getattr(instance_config, 'agent_stream_mode', 'N/A')}")
-        logger.debug(f"Instance agent_id: {getattr(instance_config, 'agent_id', 'N/A')}")
+        logger.debug(
+            f"Instance agent_instance_type: {getattr(instance_config, 'agent_instance_type', 'N/A')}"
+        )
+        logger.debug(
+            f"Instance agent_stream_mode: {getattr(instance_config, 'agent_stream_mode', 'N/A')}"
+        )
+        logger.debug(
+            f"Instance agent_id: {getattr(instance_config, 'agent_id', 'N/A')}"
+        )
 
         should_stream = message_router.should_use_streaming(instance_config)
         logger.debug(f"should_use_streaming returned: {should_stream}")
 
         if should_stream:
             logger.info(f"Using AutomagikHive streaming for {recipient}")
-            self._handle_streaming_message(message, recipient, instance_config, trace_context)
+            self._handle_streaming_message(
+                message, recipient, instance_config, trace_context
+            )
         else:
             logger.info(f"Using traditional handler for {recipient}")
             if original_handler:
@@ -129,7 +139,9 @@ class WhatsAppStreamingHandler:
             if "from" in message:
                 return message["from"]
 
-            logger.warning(f"Could not extract recipient from message structure: {list(message.keys())}")
+            logger.warning(
+                f"Could not extract recipient from message structure: {list(message.keys())}"
+            )
             return None
 
         except Exception as e:
@@ -158,7 +170,9 @@ class WhatsAppStreamingHandler:
 
         # Schedule the async streaming in the event loop
         asyncio.run_coroutine_threadsafe(
-            self._async_stream_message(message, recipient, instance_config, trace_context),
+            self._async_stream_message(
+                message, recipient, instance_config, trace_context
+            ),
             self.loop,
         )
 
@@ -192,7 +206,9 @@ class WhatsAppStreamingHandler:
             user_id = self._extract_user_id(message, instance_config)
             session_name = self._generate_session_name(message, recipient)
 
-            logger.info(f"Processing streaming message from {recipient}: {message_text[:50]}...")
+            logger.info(
+                f"Processing streaming message from {recipient}: {message_text[:50]}..."
+            )
 
             # Route to streaming with smart routing
             success = await message_router.route_message_smart(
@@ -208,12 +224,16 @@ class WhatsAppStreamingHandler:
             )
 
             if success is True:
-                logger.info(f"AutomagikHive streaming completed successfully for {recipient}")
+                logger.info(
+                    f"AutomagikHive streaming completed successfully for {recipient}"
+                )
             elif success is False:
                 logger.warning(f"AutomagikHive streaming failed for {recipient}")
             else:
                 # Traditional API response - this shouldn't happen in streaming path
-                logger.warning(f"Unexpected response type from smart routing: {type(success)}")
+                logger.warning(
+                    f"Unexpected response type from smart routing: {type(success)}"
+                )
 
         except Exception as e:
             logger.error(
@@ -241,7 +261,10 @@ class WhatsAppStreamingHandler:
                     return msg_data["conversation"]
 
                 # Extended text message
-                if "extendedTextMessage" in msg_data and "text" in msg_data["extendedTextMessage"]:
+                if (
+                    "extendedTextMessage" in msg_data
+                    and "text" in msg_data["extendedTextMessage"]
+                ):
                     return msg_data["extendedTextMessage"]["text"]
 
             # Alternative structure
@@ -249,7 +272,10 @@ class WhatsAppStreamingHandler:
                 msg_data = message["message"]
                 if "conversation" in msg_data:
                     return msg_data["conversation"]
-                if "extendedTextMessage" in msg_data and "text" in msg_data["extendedTextMessage"]:
+                if (
+                    "extendedTextMessage" in msg_data
+                    and "text" in msg_data["extendedTextMessage"]
+                ):
                     return msg_data["extendedTextMessage"]["text"]
 
             logger.debug("No text content found in message structure")
@@ -259,7 +285,9 @@ class WhatsAppStreamingHandler:
             logger.error(f"Error extracting message text: {e}")
             return None
 
-    def _extract_user_id(self, message: Dict[str, Any], instance_config: InstanceConfig) -> Optional[str]:
+    def _extract_user_id(
+        self, message: Dict[str, Any], instance_config: InstanceConfig
+    ) -> Optional[str]:
         """
         Extract or generate user ID for routing.
 
@@ -305,23 +333,31 @@ def integrate_streaming_with_handler(original_process_message_func):
         Enhanced function with streaming support
     """
 
-    def enhanced_process_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
+    def enhanced_process_message(
+        self, message: Dict[str, Any], instance_config=None, trace_context=None
+    ):
         """Enhanced process message with streaming support."""
 
         # Check if we should use streaming
-        logger.debug(f"[DECORATOR] Checking streaming, instance_config type: {type(instance_config)}")
+        logger.debug(
+            f"[DECORATOR] Checking streaming, instance_config type: {type(instance_config)}"
+        )
         logger.debug(
             f"[DECORATOR] Instance name: {getattr(instance_config, 'name', 'N/A') if instance_config else 'None'}"
         )
 
         if instance_config and message_router.should_use_streaming(instance_config):
-            logger.debug("[DECORATOR] Streaming check PASSED, calling streaming handler")
+            logger.debug(
+                "[DECORATOR] Streaming check PASSED, calling streaming handler"
+            )
             # Use streaming handler
             streaming_handler.handle_message_with_streaming(
                 message=message,
                 instance_config=instance_config,
                 trace_context=trace_context,
-                original_handler=lambda m, ic, tc: original_process_message_func(self, m, ic, tc),
+                original_handler=lambda m, ic, tc: original_process_message_func(
+                    self, m, ic, tc
+                ),
             )
         else:
             logger.debug("[DECORATOR] Streaming check FAILED, using original handler")

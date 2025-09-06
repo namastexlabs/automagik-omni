@@ -26,7 +26,7 @@ class TestAllTimeParameter:
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers using real environment API key."""
-        return {"Authorization": "Bearer namastex888"}
+        return {"x-api-key": "namastex888"}
 
     @pytest.fixture
     def sample_traces(self):
@@ -134,7 +134,9 @@ class TestAllTimeParameter:
         finally:
             app.dependency_overrides.clear()
 
-    def test_traces_no_all_time_param_defaults_to_24_hours(self, client, auth_headers, sample_traces):
+    def test_traces_no_all_time_param_defaults_to_24_hours(
+        self, client, auth_headers, sample_traces
+    ):
         """Test GET /traces without all_time parameter defaults to last 24 hours."""
         from src.api.deps import get_database
 
@@ -163,7 +165,9 @@ class TestAllTimeParameter:
         finally:
             app.dependency_overrides.clear()
 
-    def test_traces_all_time_overrides_date_params(self, client, auth_headers, sample_traces):
+    def test_traces_all_time_overrides_date_params(
+        self, client, auth_headers, sample_traces
+    ):
         """Test that all_time=true overrides explicit start_date/end_date parameters."""
         from src.api.deps import get_database
 
@@ -200,7 +204,9 @@ class TestAllTimeParameter:
         finally:
             app.dependency_overrides.clear()
 
-    def test_traces_respects_date_filters_when_all_time_false(self, client, auth_headers, sample_traces):
+    def test_traces_respects_date_filters_when_all_time_false(
+        self, client, auth_headers, sample_traces
+    ):
         """Test that date filtering works normally when all_time=false."""
         from src.api.deps import get_database
 
@@ -256,7 +262,9 @@ class TestAllTimeParameter:
         app.dependency_overrides[get_database] = mock_db_generator
 
         try:
-            response = client.get("/api/v1/traces/analytics/summary?all_time=true", headers=auth_headers)
+            response = client.get(
+                "/api/v1/traces/analytics/summary?all_time=true", headers=auth_headers
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -266,7 +274,9 @@ class TestAllTimeParameter:
         finally:
             app.dependency_overrides.clear()
 
-    def test_analytics_summary_all_time_false_no_dates(self, client, auth_headers, sample_traces):
+    def test_analytics_summary_all_time_false_no_dates(
+        self, client, auth_headers, sample_traces
+    ):
         """Test analytics summary with all_time=false defaults to last 24 hours."""
         from src.api.deps import get_database
 
@@ -284,7 +294,9 @@ class TestAllTimeParameter:
         app.dependency_overrides[get_database] = mock_db_generator
 
         try:
-            response = client.get("/api/v1/traces/analytics/summary?all_time=false", headers=auth_headers)
+            response = client.get(
+                "/api/v1/traces/analytics/summary?all_time=false", headers=auth_headers
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -294,7 +306,9 @@ class TestAllTimeParameter:
         finally:
             app.dependency_overrides.clear()
 
-    def test_analytics_summary_no_all_time_param(self, client, auth_headers, sample_traces):
+    def test_analytics_summary_no_all_time_param(
+        self, client, auth_headers, sample_traces
+    ):
         """Test analytics summary without all_time parameter defaults to 24 hours."""
         from src.api.deps import get_database
 
@@ -313,7 +327,9 @@ class TestAllTimeParameter:
 
         try:
             # Test without all_time parameter - should behave same as all_time=false
-            response = client.get("/api/v1/traces/analytics/summary", headers=auth_headers)
+            response = client.get(
+                "/api/v1/traces/analytics/summary", headers=auth_headers
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -323,7 +339,9 @@ class TestAllTimeParameter:
         finally:
             app.dependency_overrides.clear()
 
-    def test_analytics_summary_all_time_overrides_dates(self, client, auth_headers, sample_traces):
+    def test_analytics_summary_all_time_overrides_dates(
+        self, client, auth_headers, sample_traces
+    ):
         """Test that all_time=true overrides date parameters in analytics summary."""
         from src.api.deps import get_database
 
@@ -386,7 +404,9 @@ class TestAllTimeParameter:
             invalid_values = ["invalid", "1", "0", "yes", "no"]
 
             for invalid_value in invalid_values:
-                response = client.get(f"/api/v1/traces?all_time={invalid_value}", headers=auth_headers)
+                response = client.get(
+                    f"/api/v1/traces?all_time={invalid_value}", headers=auth_headers
+                )
                 # FastAPI should handle boolean conversion or return validation error
                 assert response.status_code in [
                     200,
@@ -433,7 +453,9 @@ class TestAllTimeParameter:
         finally:
             app.dependency_overrides.clear()
 
-    def test_backward_compatibility_existing_behavior(self, client, auth_headers, sample_traces):
+    def test_backward_compatibility_existing_behavior(
+        self, client, auth_headers, sample_traces
+    ):
         """Test that existing behavior is preserved when all_time parameter is not used."""
         from src.api.deps import get_database
 
@@ -458,7 +480,9 @@ class TestAllTimeParameter:
             response1 = client.get("/api/v1/traces", headers=auth_headers)
             assert response1.status_code == 200
 
-            response2 = client.get("/api/v1/traces/analytics/summary", headers=auth_headers)
+            response2 = client.get(
+                "/api/v1/traces/analytics/summary", headers=auth_headers
+            )
             assert response2.status_code == 200
             data = response2.json()
             assert "total_messages" in data

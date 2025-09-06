@@ -15,7 +15,6 @@ import os
 import sys
 import logging
 import signal
-import time
 import threading
 from pathlib import Path
 from typing import Set
@@ -29,7 +28,9 @@ from src.db.models import InstanceConfig
 from src.services.discord_service import discord_service
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +39,9 @@ class DiscordFeatureConfig:
 
     def __init__(self):
         self.enabled = os.getenv("DISCORD_ENABLED", "true").lower() == "true"
-        self.voice_enabled = os.getenv("DISCORD_VOICE_ENABLED", "true").lower() == "true"
+        self.voice_enabled = (
+            os.getenv("DISCORD_VOICE_ENABLED", "true").lower() == "true"
+        )
         self.max_instances = int(os.getenv("DISCORD_MAX_INSTANCES", "10"))
 
     def log_config(self):
@@ -78,11 +81,16 @@ class DiscordServiceManager:
                 .all()
             )
 
-            result = [(inst.name, inst.discord_bot_token, inst.discord_voice_enabled) for inst in instances]
+            result = [
+                (inst.name, inst.discord_bot_token, inst.discord_voice_enabled)
+                for inst in instances
+            ]
 
             # Apply voice filtering if voice is globally disabled
             if not self.feature_config.voice_enabled:
-                logger.info("Discord voice functionality is disabled via DISCORD_VOICE_ENABLED=false")
+                logger.info(
+                    "Discord voice functionality is disabled via DISCORD_VOICE_ENABLED=false"
+                )
 
             return result
         finally:
@@ -91,7 +99,7 @@ class DiscordServiceManager:
     def start_missing_bots(self):
         """Start any Discord bots that aren't currently running."""
         logger.info("🔍 Checking for Discord bots to start...")
-        
+
         if not self.feature_config.enabled:
             if self.active_bots:
                 logger.info("Discord is disabled, stopping all active bots")
@@ -102,23 +110,31 @@ class DiscordServiceManager:
 
         try:
             discord_instances = self.get_discord_instances()
-            logger.info(f"📋 Found {len(discord_instances)} Discord instances in database")
+            logger.info(
+                f"📋 Found {len(discord_instances)} Discord instances in database"
+            )
 
             if len(discord_instances) == 0:
-                logger.warning("⚠️ No Discord instances found in database. Make sure to create one using the API or CLI.")
+                logger.warning(
+                    "⚠️ No Discord instances found in database. Make sure to create one using the API or CLI."
+                )
                 return
-            
+
             if len(discord_instances) > self.feature_config.max_instances:
                 logger.warning(
                     f"Found {len(discord_instances)} Discord instances, but max allowed is {self.feature_config.max_instances}"
                 )
-                discord_instances = discord_instances[: self.feature_config.max_instances]
+                discord_instances = discord_instances[
+                    : self.feature_config.max_instances
+                ]
 
             for instance_name, token, voice_enabled in discord_instances:
                 if instance_name not in self.active_bots:
                     # Check voice configuration
                     if voice_enabled and not self.feature_config.voice_enabled:
-                        logger.warning(f"Discord bot {instance_name} has voice enabled but global voice is disabled")
+                        logger.warning(
+                            f"Discord bot {instance_name} has voice enabled but global voice is disabled"
+                        )
 
                     logger.info(f"Starting Discord bot: {instance_name}")
                     if discord_service.start_bot(instance_name):
@@ -148,18 +164,24 @@ class DiscordServiceManager:
 
         # Check if Discord is disabled
         if not self.feature_config.enabled:
-            logger.info("Discord functionality is disabled. Service manager will not start Discord bots.")
+            logger.info(
+                "Discord functionality is disabled. Service manager will not start Discord bots."
+            )
             logger.info("Set DISCORD_ENABLED=true to enable Discord functionality.")
             # Still run the loop to monitor for configuration changes
             try:
                 while not self.shutdown_event.is_set():
                     # Use wait with timeout for better signal handling
-                    if self.shutdown_event.wait(timeout=60):  # Check every minute for config changes
+                    if self.shutdown_event.wait(
+                        timeout=60
+                    ):  # Check every minute for config changes
                         break
                     # Reload config to check for changes
                     new_config = DiscordFeatureConfig()
                     if new_config.enabled != self.feature_config.enabled:
-                        logger.info("Discord configuration changed, restarting service manager...")
+                        logger.info(
+                            "Discord configuration changed, restarting service manager..."
+                        )
                         break
             except KeyboardInterrupt:
                 logger.info("Received interrupt signal")
