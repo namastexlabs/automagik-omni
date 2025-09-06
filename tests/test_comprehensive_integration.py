@@ -26,7 +26,9 @@ class TestOmnichannelIntegration:
     @pytest.fixture
     def db_session(self):
         """Create test database session."""
-        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        engine = create_engine(
+            "sqlite:///:memory:", connect_args={"check_same_thread": False}
+        )
         Base.metadata.create_all(bind=engine)
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         session = SessionLocal()
@@ -107,7 +109,9 @@ class TestOmnichannelIntegration:
 
     @pytest.mark.asyncio
     @patch("src.channels.whatsapp.channel_handler.EvolutionClient")
-    async def test_whatsapp_handler_create_instance(self, mock_evolution_client, db_session):
+    async def test_whatsapp_handler_create_instance(
+        self, mock_evolution_client, db_session
+    ):
         """Test WhatsApp channel handler instance creation."""
         # Setup mock
         mock_client = Mock()
@@ -151,11 +155,15 @@ class TestOmnichannelIntegration:
 
     @pytest.mark.asyncio
     @patch("src.channels.whatsapp.channel_handler.EvolutionClient")
-    async def test_whatsapp_handler_existing_instance(self, mock_evolution_client, db_session):
+    async def test_whatsapp_handler_existing_instance(
+        self, mock_evolution_client, db_session
+    ):
         """Test WhatsApp handler reusing existing Evolution instance."""
         # Setup mock with existing instance
         existing_instance = Mock()
-        existing_instance.instanceName = "existing_whatsapp"  # Match the instance name we're testing
+        existing_instance.instanceName = (
+            "existing_whatsapp"  # Match the instance name we're testing
+        )
         existing_instance.instanceId = "existing-123"
         existing_instance.apikey = "existing-key"
         existing_instance.dict.return_value = {"instanceId": "existing-123"}
@@ -263,7 +271,9 @@ class TestOmnichannelIntegration:
         assert default.name == "default_test1"
 
         # Set second as default
-        db_session.query(InstanceConfig).filter_by(is_default=True).update({"is_default": False})
+        db_session.query(InstanceConfig).filter_by(is_default=True).update(
+            {"is_default": False}
+        )
         instance2.is_default = True
         db_session.commit()
 
@@ -306,8 +316,12 @@ class TestOmnichannelIntegration:
         instances = db_session.query(InstanceConfig).all()
         assert len(instances) == 2
 
-        whatsapp_found = db_session.query(InstanceConfig).filter_by(channel_type="whatsapp").first()
+        whatsapp_found = (
+            db_session.query(InstanceConfig).filter_by(channel_type="whatsapp").first()
+        )
         assert whatsapp_found.evolution_url == "http://test.com"
 
-        slack_found = db_session.query(InstanceConfig).filter_by(channel_type="slack").first()
+        slack_found = (
+            db_session.query(InstanceConfig).filter_by(channel_type="slack").first()
+        )
         assert slack_found.evolution_url is None

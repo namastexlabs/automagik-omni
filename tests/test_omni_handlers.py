@@ -110,9 +110,13 @@ class TestWhatsAppChatHandler:
         assert hasattr(handler, "get_chats")
         assert hasattr(handler, "get_channel_info")
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @pytest.mark.asyncio
-    async def test_get_contacts_success(self, mock_get_client, handler, mock_instance_config, mock_evolution_client):
+    async def test_get_contacts_success(
+        self, mock_get_client, handler, mock_instance_config, mock_evolution_client
+    ):
         """Test successful contacts retrieval."""
         mock_get_client.return_value = mock_evolution_client
         contacts, total_count = await handler.get_contacts(
@@ -136,7 +140,9 @@ class TestWhatsAppChatHandler:
             instance_name="test-whatsapp", page=1, page_size=50
         )
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @pytest.mark.asyncio
     async def test_get_contacts_with_search_query(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -164,12 +170,18 @@ class TestWhatsAppChatHandler:
         assert contact.avatar_url is None
         assert contact.last_seen is None
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @pytest.mark.asyncio
-    async def test_get_chats_success(self, mock_get_client, handler, mock_instance_config, mock_evolution_client):
+    async def test_get_chats_success(
+        self, mock_get_client, handler, mock_instance_config, mock_evolution_client
+    ):
         """Test successful chats retrieval."""
         mock_get_client.return_value = mock_evolution_client
-        chats, total_count = await handler.get_chats(mock_instance_config, page=1, page_size=50)
+        chats, total_count = await handler.get_chats(
+            mock_instance_config, page=1, page_size=50
+        )
         assert len(chats) == 1
         assert total_count == 1
         chat = chats[0]
@@ -183,7 +195,9 @@ class TestWhatsAppChatHandler:
 
     @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler.get_status")
     @pytest.mark.asyncio
-    async def test_get_channel_info_success(self, mock_get_status, handler, mock_instance_config):
+    async def test_get_channel_info_success(
+        self, mock_get_status, handler, mock_instance_config
+    ):
         """Test successful channel info retrieval."""
         # Mock the get_status response
         mock_status_response = MagicMock()
@@ -203,7 +217,9 @@ class TestWhatsAppChatHandler:
         assert channel_info.display_name == "WhatsApp - test-whatsapp"
         assert channel_info.status == "connected"
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @patch("src.channels.whatsapp.evolution_client.httpx.AsyncClient")
     @pytest.mark.asyncio
     async def test_evolution_api_timeout_handling(
@@ -222,10 +238,14 @@ class TestWhatsAppChatHandler:
         with pytest.raises(Exception, match="Connection timeout"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @patch("src.channels.whatsapp.evolution_client.httpx.AsyncClient")
     @pytest.mark.asyncio
-    async def test_evolution_api_404_handling(self, mock_httpx_client, mock_get_client, handler, mock_instance_config):
+    async def test_evolution_api_404_handling(
+        self, mock_httpx_client, mock_get_client, handler, mock_instance_config
+    ):
         """Test handling of Evolution API 404 responses."""
         # Mock the HTTP client to ensure no real requests
         mock_httpx_instance = AsyncMock()
@@ -240,7 +260,9 @@ class TestWhatsAppChatHandler:
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
 
     @patch("src.channels.handlers.whatsapp_chat_handler.OmniEvolutionClient")
-    def test_evolution_client_configuration_validation(self, mock_client_class, handler, mock_instance_config):
+    def test_evolution_client_configuration_validation(
+        self, mock_client_class, handler, mock_instance_config
+    ):
         """Test Evolution API client configuration validation."""
         # Test with valid configuration - should not raise exception
         mock_instance_config.evolution_url = "https://api.evolution.test"
@@ -253,9 +275,13 @@ class TestWhatsAppChatHandler:
         # Should create client successfully
         client = handler._get_omni_evolution_client(mock_instance_config)
         assert client is not None
-        mock_client_class.assert_called_once_with("https://api.evolution.test", "valid-key")
+        mock_client_class.assert_called_once_with(
+            "https://api.evolution.test", "valid-key"
+        )
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @pytest.mark.asyncio
     async def test_get_contact_by_id_success(
         self, mock_get_client, handler, mock_instance_config, mock_evolution_client
@@ -275,26 +301,38 @@ class TestWhatsAppChatHandler:
             ],
             "total": 1,
         }
-        contact = await handler.get_contact_by_id(mock_instance_config, "5511999999999@c.us")
+        contact = await handler.get_contact_by_id(
+            mock_instance_config, "5511999999999@c.us"
+        )
         assert contact is not None
         assert contact.id == "5511999999999@c.us"
         assert contact.name == "Specific Contact"
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @pytest.mark.asyncio
-    async def test_get_contact_by_id_not_found(self, mock_get_client, handler, mock_instance_config):
+    async def test_get_contact_by_id_not_found(
+        self, mock_get_client, handler, mock_instance_config
+    ):
         """Test contact not found scenario."""
         client = AsyncMock()
         # PRECISION FIX: Ensure get_connection_state returns real dict to prevent AsyncMock.keys() error
         client.get_connection_state.return_value = {"status": "connected"}
         client.fetch_contacts.return_value = {"data": [], "total": 0}
         mock_get_client.return_value = client
-        contact = await handler.get_contact_by_id(mock_instance_config, "nonexistent@c.us")
+        contact = await handler.get_contact_by_id(
+            mock_instance_config, "nonexistent@c.us"
+        )
         assert contact is None
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @pytest.mark.asyncio
-    async def test_get_chat_by_id_success(self, mock_get_client, handler, mock_instance_config, mock_evolution_client):
+    async def test_get_chat_by_id_success(
+        self, mock_get_client, handler, mock_instance_config, mock_evolution_client
+    ):
         """Test successful chat retrieval by ID."""
         mock_get_client.return_value = mock_evolution_client
         # Mock get_chats instead since get_chat_by_id uses it internally
@@ -345,7 +383,9 @@ class TestDiscordChatHandler:
         guild.name = "Test Server"
         guild.member_count = 100
         guild.icon = MagicMock()
-        guild.icon.url = "https://cdn.discordapp.com/icons/123456789012345678/avatar.png"
+        guild.icon.url = (
+            "https://cdn.discordapp.com/icons/123456789012345678/avatar.png"
+        )
 
         # Mock members - FIXED: Configure mock to return string values instead of MagicMocks
         member1 = MagicMock()
@@ -366,7 +406,9 @@ class TestDiscordChatHandler:
         )
         # Mock avatar with string URL
         member1.avatar = MagicMock()
-        member1.avatar.configure_mock(url="https://cdn.discordapp.com/avatars/987654321098765432/avatar.png")
+        member1.avatar.configure_mock(
+            url="https://cdn.discordapp.com/avatars/987654321098765432/avatar.png"
+        )
         # Mock guild reference
         member1.guild = guild
 
@@ -435,7 +477,9 @@ class TestDiscordChatHandler:
         return handler
 
     @pytest.mark.asyncio
-    async def test_get_contacts_success(self, handler, mock_instance_config, mock_discord_client):
+    async def test_get_contacts_success(
+        self, handler, mock_instance_config, mock_discord_client
+    ):
         """Test successful contacts retrieval from Discord."""
         contacts, total_count = await handler.get_contacts(
             mock_instance_config, page=1, page_size=50, search_query=None
@@ -456,9 +500,13 @@ class TestDiscordChatHandler:
         assert not contact.channel_data["is_bot"]
 
     @pytest.mark.asyncio
-    async def test_get_chats_success(self, handler, mock_instance_config, mock_discord_client):
+    async def test_get_chats_success(
+        self, handler, mock_instance_config, mock_discord_client
+    ):
         """Test successful chats retrieval from Discord."""
-        chats, total_count = await handler.get_chats(mock_instance_config, page=1, page_size=50)
+        chats, total_count = await handler.get_chats(
+            mock_instance_config, page=1, page_size=50
+        )
         assert len(chats) == 1
         assert total_count == 1
         chat = chats[0]
@@ -472,9 +520,13 @@ class TestDiscordChatHandler:
         assert "guild_id" in chat.channel_data
         assert chat.channel_data["guild_id"] == 123456789012345678
 
-    @patch("src.channels.handlers.discord_chat_handler.DiscordChannelHandler.get_status")
+    @patch(
+        "src.channels.handlers.discord_chat_handler.DiscordChannelHandler.get_status"
+    )
     @pytest.mark.asyncio
-    async def test_get_channel_info_success(self, mock_get_status, handler, mock_instance_config, mock_discord_client):
+    async def test_get_channel_info_success(
+        self, mock_get_status, handler, mock_instance_config, mock_discord_client
+    ):
         """Test successful channel info retrieval."""
         # Mock the get_status response
         mock_get_status.return_value = MagicMock()
@@ -491,26 +543,38 @@ class TestDiscordChatHandler:
         handler = DiscordChatHandler()
         # Don't add any bot instances to _bot_instances
 
-        contacts, total_count = await handler.get_contacts(mock_instance_config, page=1, page_size=50)
+        contacts, total_count = await handler.get_contacts(
+            mock_instance_config, page=1, page_size=50
+        )
         assert len(contacts) == 0
         assert total_count == 0
 
     @pytest.mark.asyncio
-    async def test_get_contact_by_id_success(self, handler, mock_instance_config, mock_discord_client):
+    async def test_get_contact_by_id_success(
+        self, handler, mock_instance_config, mock_discord_client
+    ):
         """Test successful contact retrieval by ID."""
-        contact = await handler.get_contact_by_id(mock_instance_config, "987654321098765432")
+        contact = await handler.get_contact_by_id(
+            mock_instance_config, "987654321098765432"
+        )
         assert contact is not None
         assert contact.id == "987654321098765432"
         assert contact.name == "Test User"
 
     @pytest.mark.asyncio
-    async def test_get_contact_by_id_not_found(self, handler, mock_instance_config, mock_discord_client):
+    async def test_get_contact_by_id_not_found(
+        self, handler, mock_instance_config, mock_discord_client
+    ):
         """Test contact not found scenario."""
-        contact = await handler.get_contact_by_id(mock_instance_config, "999999999999999999")
+        contact = await handler.get_contact_by_id(
+            mock_instance_config, "999999999999999999"
+        )
         assert contact is None
 
     @pytest.mark.asyncio
-    async def test_get_chat_by_id_success(self, handler, mock_instance_config, mock_discord_client):
+    async def test_get_chat_by_id_success(
+        self, handler, mock_instance_config, mock_discord_client
+    ):
         """Test successful chat retrieval by ID."""
         chat = await handler.get_chat_by_id(mock_instance_config, "111222333444555666")
         assert chat is not None
@@ -518,7 +582,9 @@ class TestDiscordChatHandler:
         assert chat.name == "general"
 
     @pytest.mark.asyncio
-    async def test_get_chat_by_id_not_found(self, handler, mock_instance_config, mock_discord_client):
+    async def test_get_chat_by_id_not_found(
+        self, handler, mock_instance_config, mock_discord_client
+    ):
         """Test chat not found scenario."""
         chat = await handler.get_chat_by_id(mock_instance_config, "999999999999999999")
         assert chat is None
@@ -536,7 +602,9 @@ class TestHandlerErrorScenarios:
         with pytest.raises(Exception):
             whatsapp_handler._get_omni_evolution_client(None)
 
-    @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
+    @patch(
+        "src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client"
+    )
     @patch("src.channels.whatsapp.evolution_client.httpx.AsyncClient")
     @pytest.mark.asyncio
     async def test_network_timeout_scenarios(self, mock_httpx_client, mock_get_client):
@@ -601,7 +669,9 @@ class TestOmniHandlerIntegration:
             }
             mock_get_client.return_value = client
 
-            contacts, total_count = await whatsapp_handler.get_contacts(config, page=1, page_size=50, search_query=None)
+            contacts, total_count = await whatsapp_handler.get_contacts(
+                config, page=1, page_size=50, search_query=None
+            )
 
             # Verify the contact can be serialized/deserialized
             contact = contacts[0]
@@ -686,4 +756,6 @@ class TestOmniHandlerIntegration:
             discord_sig = inspect.signature(getattr(discord_handler, method_name))
 
             # Parameter names and types should match
-            assert list(whatsapp_sig.parameters.keys()) == list(discord_sig.parameters.keys())
+            assert list(whatsapp_sig.parameters.keys()) == list(
+                discord_sig.parameters.keys()
+            )

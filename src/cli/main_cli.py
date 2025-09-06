@@ -19,7 +19,9 @@ app.add_typer(discord_app, name="discord", help="Discord bot management commands
 
 @app.callback()
 def main(
-    no_telemetry: bool = typer.Option(False, "--no-telemetry", help="Disable telemetry for this session"),
+    no_telemetry: bool = typer.Option(
+        False, "--no-telemetry", help="Disable telemetry for this session"
+    ),
     version: bool = typer.Option(False, "--version", help="Show version information"),
 ):
     """
@@ -92,7 +94,9 @@ def health_check():
         # Display results
         typer.echo(f"Database: {db_status}")
         typer.echo(f"Configuration: {config_status}")
-        typer.echo(f"Telemetry: {'✅ Enabled' if telemetry_client.is_enabled() else '❌ Disabled'}")
+        typer.echo(
+            f"Telemetry: {'✅ Enabled' if telemetry_client.is_enabled() else '❌ Disabled'}"
+        )
 
         success = "Error" not in db_status and "Invalid" not in config_status
         track_command(
@@ -183,7 +187,9 @@ def show_status():
         typer.echo(f"API Host: {config.api.host}")
         typer.echo(f"API Port: {config.api.port}")
         typer.echo(f"Database: {config.database.database_url}")
-        typer.echo(f"Telemetry: {'✅ Enabled' if telemetry_client.is_enabled() else '❌ Disabled'}")
+        typer.echo(
+            f"Telemetry: {'✅ Enabled' if telemetry_client.is_enabled() else '❌ Disabled'}"
+        )
 
         # Instance status
         with SessionLocal() as db:

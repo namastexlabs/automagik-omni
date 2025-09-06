@@ -21,7 +21,9 @@ def initialize_whatsapp_components():
     # Set the send_response_callback on the message handler to use the Evolution API sender
     message_handler.send_response_callback = evolution_api_sender.send_text_message
 
-    logger.info("WhatsApp message handler connected to Evolution API sender (HTTP webhooks only)")
+    logger.info(
+        "WhatsApp message handler connected to Evolution API sender (HTTP webhooks only)"
+    )
 
     # Make sure the message handler is started
     if not message_handler.is_running:

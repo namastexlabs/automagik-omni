@@ -25,4 +25,6 @@ try:
     ChannelHandlerFactory.register_handler("discord", DiscordChannelHandler)
     logger.info("Discord channel handler registered")
 except ImportError:
-    logger.info("Discord dependencies not installed. Install with: pip install discord.py")
+    logger.info(
+        "Discord dependencies not installed. Install with: pip install discord.py"
+    )

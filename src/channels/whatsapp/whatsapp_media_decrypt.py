@@ -79,9 +79,13 @@ class WhatsAppMediaDecryptor:
                 return None
 
             # Decrypt the media
-            decrypted_data = self._decrypt_whatsapp_media(encrypted_data, media_key, media_type)
+            decrypted_data = self._decrypt_whatsapp_media(
+                encrypted_data, media_key, media_type
+            )
             if decrypted_data:
-                logger.info(f"Successfully decrypted media (size: {len(decrypted_data)} bytes)")
+                logger.info(
+                    f"Successfully decrypted media (size: {len(decrypted_data)} bytes)"
+                )
                 return decrypted_data
             else:
                 logger.error("Failed to decrypt media")
@@ -132,14 +136,18 @@ class WhatsAppMediaDecryptor:
             content_type = response.headers.get("content-type", "")
             file_size = len(response.content)
 
-            logger.info(f"Downloaded encrypted file: {file_size} bytes, content-type: {content_type}")
+            logger.info(
+                f"Downloaded encrypted file: {file_size} bytes, content-type: {content_type}"
+            )
             return response.content
 
         except Exception as e:
             logger.error(f"Failed to download encrypted file: {e}")
             return None
 
-    def _decrypt_whatsapp_media(self, encrypted_data: bytes, media_key: bytes, media_type: int) -> Optional[bytes]:
+    def _decrypt_whatsapp_media(
+        self, encrypted_data: bytes, media_key: bytes, media_type: int
+    ) -> Optional[bytes]:
         """
         Decrypt WhatsApp media using the standard WhatsApp decryption algorithm.
 
@@ -183,7 +191,9 @@ class WhatsAppMediaDecryptor:
             logger.error(f"Error in WhatsApp media decryption: {e}", exc_info=True)
             return None
 
-    def _expand_key(self, media_key: bytes, media_type: int) -> Optional[Tuple[bytes, bytes, bytes]]:
+    def _expand_key(
+        self, media_key: bytes, media_type: int
+    ) -> Optional[Tuple[bytes, bytes, bytes]]:
         """
         Expand the media key using HKDF to derive IV, cipher key, and MAC key.
 
@@ -237,13 +247,17 @@ class WhatsAppMediaDecryptor:
             logger.error(f"Key expansion failed: {e}")
             return None
 
-    def _verify_mac(self, encrypted_content: bytes, mac_key: bytes, expected_mac: bytes) -> bool:
+    def _verify_mac(
+        self, encrypted_content: bytes, mac_key: bytes, expected_mac: bytes
+    ) -> bool:
         """Verify the HMAC of the encrypted content."""
         try:
             import hmac
 
             # Calculate HMAC-SHA256 of the encrypted content
-            calculated_mac = hmac.new(mac_key, encrypted_content, hashlib.sha256).digest()
+            calculated_mac = hmac.new(
+                mac_key, encrypted_content, hashlib.sha256
+            ).digest()
 
             # WhatsApp uses the first 10 bytes of the HMAC
             calculated_mac_truncated = calculated_mac[:10]
@@ -264,11 +278,15 @@ class WhatsAppMediaDecryptor:
             logger.error(f"MAC verification failed: {e}")
             return False
 
-    def _aes_decrypt(self, encrypted_content: bytes, cipher_key: bytes, iv: bytes) -> Optional[bytes]:
+    def _aes_decrypt(
+        self, encrypted_content: bytes, cipher_key: bytes, iv: bytes
+    ) -> Optional[bytes]:
         """Decrypt content using AES-256-CBC."""
         try:
             if not CRYPTO_AVAILABLE:
-                logger.error("Crypto library not available - cannot decrypt WhatsApp media")
+                logger.error(
+                    "Crypto library not available - cannot decrypt WhatsApp media"
+                )
                 return None
 
             # Create AES cipher in CBC mode
@@ -280,7 +298,9 @@ class WhatsAppMediaDecryptor:
             # Remove PKCS7 padding
             try:
                 decrypted = unpad(decrypted_padded, AES.block_size)
-                logger.debug(f"AES decryption successful, output size: {len(decrypted)} bytes")
+                logger.debug(
+                    f"AES decryption successful, output size: {len(decrypted)} bytes"
+                )
                 return decrypted
             except ValueError as e:
                 logger.error(f"Padding removal failed: {e}")
