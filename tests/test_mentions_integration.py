@@ -39,7 +39,7 @@ class TestMentionsIntegration:
         """Standard API headers for testing."""
         return {
             "Content-Type": "application/json",
-            "Authorization": "Bearer namastex888",
+            "x-api-key": "namastex888",
         }
 
     def test_complete_mention_flow_auto_parse(self, client, test_instance_config, api_headers):

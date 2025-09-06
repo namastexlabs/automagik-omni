@@ -218,7 +218,7 @@ class TestOmniEndpointsAuthentication:
         mock_get_instance.return_value = mock_instance_config
         mock_get_handler.return_value = mock_handler
 
-        headers = {"Authorization": "Bearer invalid-key"}
+        headers = {"x-api-key": "invalid-key"}
         response = test_client.get("/api/v1/instances/test-instance/contacts", headers=headers)
         # In development mode with mocked auth, this will succeed with proper mocking
         # In production with real auth, this would return 401

@@ -179,7 +179,7 @@ class TestSessionFilteringIntegration:
 
         try:
             # First, test without any filters to see what's in the database
-            response_all = test_client.get("/api/v1/traces", headers={"Authorization": "Bearer namastex888"})
+            response_all = test_client.get("/api/v1/traces", headers={"x-api-key": "namastex888"})
             print(f"\nDEBUG: All traces response: {response_all.status_code}")
             all_traces = response_all.json()
             print(f"DEBUG: Total traces in API: {len(all_traces)}")
@@ -190,7 +190,7 @@ class TestSessionFilteringIntegration:
             target_session = "agent_session_abc123"
             response = test_client.get(
                 f"/api/v1/traces?agent_session_id={target_session}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -227,7 +227,7 @@ class TestSessionFilteringIntegration:
             target_session = "user_john_session"
             response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             if response.status_code != 200:
@@ -255,7 +255,7 @@ class TestSessionFilteringIntegration:
             # Filter for traces with media
             response = test_client.get(
                 "/api/v1/traces?has_media=true",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -285,7 +285,7 @@ class TestSessionFilteringIntegration:
 
             response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&instance_name={target_instance}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -315,13 +315,13 @@ class TestSessionFilteringIntegration:
             # Filter by instance A only
             response_a = test_client.get(
                 "/api/v1/traces?instance_name=session_filter_test_a",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             # Filter by instance B only
             response_b = test_client.get(
                 "/api/v1/traces?instance_name=session_filter_test_b",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response_a.status_code == 200
@@ -356,7 +356,7 @@ class TestSessionFilteringIntegration:
             # Filter for non-existent session ID - should return empty
             response = test_client.get(
                 "/api/v1/traces?agent_session_id=nonexistent_session_123",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -393,7 +393,7 @@ class TestSessionFilteringIntegration:
                     print(f"  - {trace.trace_id}: instance={trace.instance_name}, phone={trace.sender_phone}")
 
             # Debug: Get all traces from API
-            all_response = test_client.get("/api/v1/traces", headers={"Authorization": "Bearer namastex888"})
+            all_response = test_client.get("/api/v1/traces", headers={"x-api-key": "namastex888"})
             all_traces = all_response.json()
             print(f"\nDEBUG: API returned {len(all_traces)} total traces")
             if all_traces:
@@ -406,13 +406,13 @@ class TestSessionFilteringIntegration:
             print(f"\nDEBUG: Filtering by phone={target_phone} (encoded: {encoded_phone})")
             response1 = test_client.get(
                 f"/api/v1/traces?phone={encoded_phone}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             # Test with 'sender_phone' parameter
             response2 = test_client.get(
                 f"/api/v1/traces?sender_phone={encoded_phone}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response1.status_code == 200
@@ -454,7 +454,7 @@ class TestSessionFilteringIntegration:
             target_session = "user_john_session"
             response = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&limit=1&offset=0",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -468,7 +468,7 @@ class TestSessionFilteringIntegration:
             # Test offset
             response_offset = test_client.get(
                 f"/api/v1/traces?session_name={target_session}&limit=1&offset=1",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response_offset.status_code == 200

@@ -36,7 +36,7 @@ class TestApiMentions:
         """Standard API headers."""
         return {
             "Content-Type": "application/json",
-            "Authorization": "Bearer namastex888",
+            "x-api-key": "namastex888",
         }
 
     @patch("src.api.routes.messages.get_instance_by_name")

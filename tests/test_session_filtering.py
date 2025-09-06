@@ -167,7 +167,7 @@ class TestSessionFilteringAPI:
         # Make the API request
         response = client.get(
             f"/api/v1/traces?agent_session_id={target_agent_session}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -224,7 +224,7 @@ class TestSessionFilteringAPI:
         # Make the API request
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -280,7 +280,7 @@ class TestSessionFilteringAPI:
         # Make the API request
         response = client.get(
             "/api/v1/traces?has_media=true",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -342,7 +342,7 @@ class TestSessionFilteringAPI:
         # Make the API request with combined filters
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}&instance_name={target_instance_name}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -400,7 +400,7 @@ class TestSessionFilteringAPI:
         # Make the API request filtering by instance
         response = client.get(
             f"/api/v1/traces?instance_name={target_instance}",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -442,7 +442,7 @@ class TestSessionFilteringAPI:
 
             response = client.get(
                 f"/api/v1/traces?agent_session_id={non_existent_session}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -505,13 +505,13 @@ class TestSessionFilteringAPI:
             # Test with 'phone' parameter
             response1 = client.get(
                 f"/api/v1/traces?phone={target_phone}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             # Test with 'sender_phone' parameter
             response2 = client.get(
                 f"/api/v1/traces?sender_phone={target_phone}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response1.status_code == 200
@@ -570,7 +570,7 @@ class TestSessionFilteringAPI:
         # Make the API request with pagination
         response = client.get(
             f"/api/v1/traces?session_name={target_session_name}&limit=1&offset=0",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         # Verify the response
@@ -615,7 +615,7 @@ class TestSessionFilteringAPI:
 
         response_page2 = client.get(
             f"/api/v1/traces?session_name={target_session_name}&limit=1&offset=1",
-            headers={"Authorization": "Bearer namastex888"},
+            headers={"x-api-key": "namastex888"},
         )
 
         assert response_page2.status_code == 200
@@ -642,7 +642,7 @@ class TestSessionFilteringAPI:
             # Test with invalid boolean value
             response = client.get(
                 "/api/v1/traces?has_media=invalid_bool",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             # Should return 422 for validation error
@@ -678,7 +678,7 @@ class TestSessionFilteringEdgeCases:
             # Empty session_name parameter should be ignored
             response = client.get(
                 "/api/v1/traces?session_name=",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -713,7 +713,7 @@ class TestSessionFilteringEdgeCases:
             unicode_session = "用户_会话_测试"
             response = client.get(
                 f"/api/v1/traces?session_name={unicode_session}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
@@ -748,7 +748,7 @@ class TestSessionFilteringEdgeCases:
             long_session_id = "a" * 1000
             response = client.get(
                 f"/api/v1/traces?agent_session_id={long_session_id}",
-                headers={"Authorization": "Bearer namastex888"},
+                headers={"x-api-key": "namastex888"},
             )
 
             assert response.status_code == 200
