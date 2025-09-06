@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "forge": {
+      "args": [
+        "-y",
+        "automagik-forge",
+        "--mcp"
+      ],
+      "command": "npx"
+    },
     "omni": {
       "command": "uvx",
       "args": ["automagik-tools", "tool", "omni"],
