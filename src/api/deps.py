@@ -3,13 +3,17 @@ FastAPI dependency injection for database and services.
 """
 
 import logging
-from typing import Generator
-from fastapi import Depends, HTTPException, status, Header
+from typing import Generator, Optional
+from fastapi import Depends, HTTPException, status
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from src.db.database import get_db
 from src.db.models import InstanceConfig
 from src.config import config
+
+# Security scheme for API key authentication
+api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
 
 # Module-level logger
 logger = logging.getLogger(__name__)
@@ -43,12 +47,12 @@ def get_instance_by_name(instance_name: str, db: Session = Depends(get_database)
     return instance
 
 
-def verify_api_key(x_api_key: str = Header(None, alias="x-api-key")):
+def verify_api_key(api_key: Optional[str] = Depends(api_key_header)):
     """
     Verify API key authentication from x-api-key header.
 
     Args:
-        x_api_key: API key from x-api-key header
+        api_key: API key from x-api-key header via APIKeyHeader security scheme
 
     Returns:
         str: The verified API key
@@ -68,7 +72,7 @@ def verify_api_key(x_api_key: str = Header(None, alias="x-api-key")):
         return "development"
 
     # Check if API key is provided
-    if not x_api_key:
+    if not api_key:
         logger.warning("No API key provided in x-api-key header")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -83,11 +87,11 @@ def verify_api_key(x_api_key: str = Header(None, alias="x-api-key")):
         return f"{key[:4]}{'*' * (len(key) - 8)}{key[-4:]}"
 
     logger.debug(f"Expected API key: [{mask_key(config.api.api_key)}]")
-    logger.debug(f"Received API key: [{mask_key(x_api_key)}]")
+    logger.debug(f"Received API key: [{mask_key(api_key)}]")
 
-    if x_api_key != config.api.api_key:
+    if api_key != config.api.api_key:
         logger.warning(
-            f"API key mismatch. Expected: [{mask_key(config.api.api_key)}], Got: [{mask_key(x_api_key)}]"
+            f"API key mismatch. Expected: [{mask_key(config.api.api_key)}], Got: [{mask_key(api_key)}]"
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -96,4 +100,4 @@ def verify_api_key(x_api_key: str = Header(None, alias="x-api-key")):
         )
 
     logger.info("API key verified successfully")
-    return x_api_key
+    return api_key
