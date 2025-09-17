@@ -221,6 +221,8 @@ class OmniChannelMessageSender:
         media_base64: Optional[str] = None,
         caption: Optional[str] = None,
         media_type: str = "image",
+        mime_type: Optional[str] = None,
+        filename: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -240,7 +242,14 @@ class OmniChannelMessageSender:
         try:
             if self.channel_type == "whatsapp":
                 return await self._send_whatsapp_media(
-                    recipient, media_url, media_base64, caption, media_type, **kwargs
+                    recipient,
+                    media_url,
+                    media_base64,
+                    caption,
+                    media_type,
+                    mime_type,
+                    filename,
+                    **kwargs,
                 )
             elif self.channel_type == "discord":
                 return await self._send_discord_media(
@@ -264,6 +273,8 @@ class OmniChannelMessageSender:
         media_base64: Optional[str],
         caption: Optional[str],
         media_type: str,
+        mime_type: Optional[str] = None,
+        filename: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """Send media message via WhatsApp."""
@@ -273,9 +284,11 @@ class OmniChannelMessageSender:
 
             success = sender.send_media_message(
                 recipient=recipient,
-                media_url=media_source,
-                caption=caption,
                 media_type=media_type,
+                media=media_source,
+                mime_type=mime_type or "application/octet-stream",
+                caption=caption,
+                filename=filename,
             )
             return {"success": success, "channel": "whatsapp"}
         except Exception as e:

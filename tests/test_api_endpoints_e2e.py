@@ -10,7 +10,7 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 from src.db.models import InstanceConfig, Base
 
@@ -113,11 +113,11 @@ class TestAPIEndpoints:
 
     # Note: Removed conflicting setup_test_environment fixture.
     # Using conftest.py fixtures instead: test_client and mention_api_headers
-    
+
     def ensure_test_instance_exists(self, db: "Session") -> InstanceConfig:
         """Helper to ensure test-instance exists in the database."""
         from src.db.models import InstanceConfig
-        
+
         instance = db.query(InstanceConfig).filter_by(name="test-instance").first()
         if not instance:
             instance = InstanceConfig(
@@ -202,7 +202,7 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
-        from src.api.deps import verify_api_key, get_database
+        from src.api.deps import get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
@@ -264,7 +264,7 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
-        from src.api.deps import verify_api_key, get_database
+        from src.api.deps import get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
@@ -320,7 +320,7 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
-        from src.api.deps import verify_api_key, get_database
+        from src.api.deps import get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
@@ -352,7 +352,7 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         """Test that webhook endpoints work without authentication (by design)."""
         # Ensure test instance exists for webhook testing
         self.ensure_test_instance_exists(test_db)
-        
+
         webhook_data = {"event": "messages.upsert", "data": {"test": "webhook"}}
 
         # Mock webhook handler to avoid actual processing
@@ -411,13 +411,15 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         """Test listing instances with data."""
         # Ensure test instance exists
         self.ensure_test_instance_exists(test_db)
-        
+
         response = test_client.get("/api/v1/instances", headers=mention_api_headers)
         assert response.status_code == 200
         instances = response.json()
         assert len(instances) >= 1
         # Find test-instance in the list
-        test_instance = next((i for i in instances if i["name"] == "test-instance"), None)
+        test_instance = next(
+            (i for i in instances if i["name"] == "test-instance"), None
+        )
         assert test_instance is not None
 
     def test_create_instance_success(self, test_client, mention_api_headers):
@@ -473,7 +475,7 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         """Test getting specific instance."""
         # Ensure test instance exists
         self.ensure_test_instance_exists(test_db)
-        
+
         with patch(
             "src.channels.base.ChannelHandlerFactory.get_handler"
         ) as mock_handler:
@@ -500,7 +502,7 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         """Test updating instance configuration."""
         # Ensure test instance exists
         self.ensure_test_instance_exists(test_db)
-        
+
         update_data = {
             "agent_api_url": "https://updated-agent.test.com",
             "webhook_base64": False,
@@ -944,7 +946,7 @@ class TestWebhookEndpoints(TestAPIEndpoints):
         """Test multi-tenant webhook endpoint."""
         # Ensure test instance exists for webhook testing
         self.ensure_test_instance_exists(test_db)
-        
+
         webhook_data = {
             "event": "messages.upsert",
             "data": {
