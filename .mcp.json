@@ -13,7 +13,7 @@
       "args": ["automagik-tools", "tool", "omni"],
       "env": {
         "OMNI_API_KEY": "namastex888",
-        "OMNI_BASE_URL": "http://localhost:28882"
+        "OMNI_BASE_URL": "http://localhost:8882"
       }
     }
   }
