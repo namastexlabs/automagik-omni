@@ -137,6 +137,7 @@ class AgentApiClient:
                 session_id=session_id,
                 user_id=user_id,
                 user=user,
+                media_contents=media_contents,
             )
 
         endpoint = f"{self.api_url}/api/v1/agent/{agent_name}/run"
@@ -592,7 +593,7 @@ class AgentApiClient:
         # Use the instance configuration flag when available
         if self.instance_config:
             # Check the is_hive property or agent_instance_type field
-            is_hive = getattr(self.instance_config, "is_hive", False)
+            is_hive = self.instance_config.is_hive
         else:
             # Fallback to port 8000 detection for backward compatibility when no config
             # Hive API instances run on port 8000, Automagik Core instances run on port 8881
@@ -611,6 +612,7 @@ class AgentApiClient:
         session_id=None,
         user_id=None,
         user=None,
+        media_contents=None,
     ):
         """
         Call the Hive API using the playground endpoint format.
@@ -622,6 +624,7 @@ class AgentApiClient:
             session_id: Session ID (fallback)
             user_id: User ID
             user: User dict
+            media_contents: List of media contents with audio files
 
         Returns:
             The agent's response as a dictionary
@@ -636,13 +639,92 @@ class AgentApiClient:
         logger.info(f"Making Hive API request to {endpoint}")
         logger.info(f"Sending request to Hive API with timeout: {self.timeout}s")
 
+        temp_files_to_cleanup = []
+        
         try:
             # Prepare multipart form data
             files = {
                 "message": (None, message_content),
                 "session_id": (None, session),
                 "stream": (None, "false"),  # Disable streaming for now
+                "monitor": (None, "false"),
             }
+            
+            # Add user_id if provided
+            if user_id:
+                files["user_id"] = (None, str(user_id))
+            
+            # Add audio files if media_contents provided
+            if media_contents:
+                for i, media in enumerate(media_contents):
+                    if media.get("media_type", "").startswith("audio/"):
+                        # If we have base64 data, convert to file
+                        if "base64_data" in media:
+                            import base64
+                            import tempfile
+                            import os
+                            
+                            try:
+                                # Decode base64 audio data
+                                audio_data = base64.b64decode(media["base64_data"])
+                                
+                                # Always convert to WAV for Hive compatibility
+                                original_media_type = media.get("media_type", "audio/wav")
+                                
+                                # Detect original format
+                                if "ogg" in original_media_type:
+                                    original_ext = ".ogg"
+                                elif "mp3" in original_media_type:
+                                    original_ext = ".mp3"
+                                elif "m4a" in original_media_type:
+                                    original_ext = ".m4a"
+                                else:
+                                    original_ext = ".wav"
+                                
+                                # Create temp file with original format first
+                                temp_original = tempfile.NamedTemporaryFile(delete=False, suffix=original_ext)
+                                temp_original.write(audio_data)
+                                temp_original.close()
+                                temp_files_to_cleanup.append(temp_original.name)
+                                
+                                # Convert to WAV using FFmpeg if not already WAV
+                                if original_ext != ".wav":
+                                    import subprocess
+                                    temp_wav = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+                                    temp_wav.close()
+                                    temp_files_to_cleanup.append(temp_wav.name)
+                                    
+                                    try:
+                                        # Convert to WAV using FFmpeg
+                                        subprocess.run([
+                                            "ffmpeg", "-i", temp_original.name, 
+                                            "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
+                                            "-y", temp_wav.name
+                                        ], check=True, capture_output=True)
+                                        
+                                        final_file = temp_wav.name
+                                        final_media_type = "audio/wav"
+                                        logger.info(f"🎵 Converted {original_ext} to WAV: {final_file}")
+                                        
+                                    except subprocess.CalledProcessError as e:
+                                        logger.warning(f"FFmpeg conversion failed, using original: {e}")
+                                        final_file = temp_original.name
+                                        final_media_type = original_media_type
+                                else:
+                                    final_file = temp_original.name
+                                    final_media_type = "audio/wav"
+                                
+                                # Add to files for upload
+                                files[f"files"] = (
+                                    f"audio{i}.wav",
+                                    open(final_file, 'rb'),
+                                    final_media_type
+                                )
+                                
+                                logger.info(f"🎵 Added audio file to Hive request: {final_file} ({len(audio_data)} bytes)")
+                                
+                            except Exception as e:
+                                logger.error(f"Failed to process audio base64: {e}")
 
             # Make the request
             response = requests.post(endpoint, files=files, timeout=self.timeout)
@@ -722,6 +804,24 @@ class AgentApiClient:
                 "usage": {},
                 "error": str(e),
             }
+        finally:
+            # Clean up temporary files
+            import os
+            for temp_file in temp_files_to_cleanup:
+                try:
+                    if os.path.exists(temp_file):
+                        os.unlink(temp_file)
+                        logger.debug(f"🗑️ Cleaned up temp file: {temp_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup temp file {temp_file}: {e}")
+            
+            # Close any open file handles
+            for key, value in files.items():
+                if key == "files" and hasattr(value[1], 'close'):
+                    try:
+                        value[1].close()
+                    except:
+                        pass
 
 
 # Singleton instance

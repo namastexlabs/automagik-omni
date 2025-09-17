@@ -14,6 +14,13 @@ import requests
 import json
 import os
 import base64
+import tempfile
+
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 from src.services.message_router import message_router
 from src.services.user_service import user_service
@@ -303,11 +310,13 @@ class WhatsAppMessageHandler:
                 # The agent API will be the source of truth for user_id
                 # We'll get the actual user_id from the agent response after processing
 
-                # Handle audio messages (transcription disabled)
-                if is_audio_message:
-                    logger.debug("Audio message received (transcription disabled)")
+                # ================= Media Handling (Images, Videos, Documents) =================
+                media_contents_to_send: Optional[List[Dict[str, Any]]] = None
 
-                # Extract message content (will use transcription if available)
+                # Initialize transcription variable
+                transcribed_text = None
+                
+                # Extract message content (will be replaced with transcription if available)
                 message_content = self._extract_message_content(message)
 
                 # Add quoted message context if present
@@ -324,9 +333,6 @@ class WhatsAppMessageHandler:
                     # For media messages without text content
                     message_content = f"[{user_name}]: "
                     logger.info("Added user name prefix for media message")
-
-                # ================= Media Handling (Images, Videos, Documents) =================
-                media_contents_to_send: Optional[List[Dict[str, Any]]] = None
 
                 if is_media_message:
                     # Extract media URL for any media type
@@ -405,6 +411,7 @@ class WhatsAppMessageHandler:
                             )
                         else:
                             logger.debug("DEBUG: No base64_data found anywhere")
+                        
                         media_item = {
                             "alt_text": message_content or message_type,
                             "mime_type": media_meta.get("mimetype", f"{message_type}/"),
@@ -418,11 +425,21 @@ class WhatsAppMessageHandler:
                                 f"Using base64 data for agent API (size: {len(base64_data)} chars)"
                             )
                         else:
-                            # Use standard media URL as fallback
-                            media_item["media_url"] = media_url_to_send
-                            logger.warning(
-                                f"No base64 data available, using media URL: {self._truncate_url_for_logging(media_url_to_send)}"
-                            )
+                            # Download and convert media to base64 for Hive API
+                            logger.info("🔄 No base64 data found, downloading and converting media to base64")
+                            downloaded_base64 = self._download_and_encode_media(media_url_to_send)
+                            
+                            if downloaded_base64:
+                                media_item["data"] = downloaded_base64
+                                logger.info(
+                                    f"✅ Successfully downloaded and converted media to base64 (size: {len(downloaded_base64)} chars)"
+                                )
+                            else:
+                                # Fallback to media URL if download fails
+                                media_item["media_url"] = media_url_to_send
+                                logger.warning(
+                                    f"❌ Failed to download media, using media URL as fallback: {self._truncate_url_for_logging(media_url_to_send)}"
+                                )
 
                         # Add type-specific metadata
                         if (
@@ -442,6 +459,47 @@ class WhatsAppMessageHandler:
                             )
 
                         media_contents_to_send = [media_item]
+                        
+                        # Log audio base64 data if available
+                        if is_audio_message and media_item and 'data' in media_item:
+                            logger.info("🎵 Audio base64 data available for transcription")
+                            # Log the base64 data size for debugging
+                            base64_size = len(media_item['data'])
+                            logger.info(f"🎵 Audio base64 size: {base64_size} characters")
+                            logger.info(f"🎵 Audio base64 preview: {media_item['data'][:50]}...")
+                        
+                        # Log audio information but let the agent handle transcription
+                        if is_audio_message and media_item and 'data' in media_item:
+                            logger.info("🎵 Audio message received - base64 data available")
+                            audio_base64 = media_item['data']
+                            audio_mime_type = media_item.get('mime_type', 'audio/ogg')
+                            
+                            logger.info(f"🎵 Audio details: MIME={audio_mime_type}, Size={len(audio_base64)} chars")
+                            logger.info("🎵 Audio will be sent as base64 to agent for transcription and processing")
+                            
+                            # Optional: Try local transcription if OpenAI key is available
+                            openai_api_key = os.getenv('OPENAI_API_KEY')
+                            if openai_api_key and OPENAI_AVAILABLE:
+                                logger.info("🎵 OpenAI available - attempting local transcription as preview")
+                                try:
+                                    transcribed_text = self._transcribe_audio_from_base64(audio_base64, audio_mime_type)
+                                    if transcribed_text:
+                                        logger.info(f"🎵 LOCAL TRANSCRIPTION PREVIEW: {transcribed_text}")
+                                        # Update message content with transcription
+                                        if "[Audio message - transcription will be handled by agent]" in message_content:
+                                            message_content = message_content.replace("[Audio message - transcription will be handled by agent]", transcribed_text)
+                                        else:
+                                            message_content = f"[{user_name}]: {transcribed_text}" if user_name else transcribed_text
+                                        logger.info(f"🎵 Updated message content with local transcription")
+                                    else:
+                                        logger.info("🎵 Local transcription failed, agent will handle it")
+                                except Exception as transcribe_error:
+                                    logger.warning(f"🎵 Local transcription failed: {transcribe_error}")
+                                    logger.info("🎵 Agent will handle transcription using its tools")
+                            else:
+                                logger.info("🎵 No OpenAI key - agent will handle transcription using its tools")
+                        elif is_audio_message:
+                            logger.warning("🎵 Audio message detected but no base64 data available")
 
                 # ================= End Media Handling =============
 
@@ -589,6 +647,37 @@ class WhatsAppMessageHandler:
                         f"No stored agent user_id for phone {formatted_phone}, will create new user via agent API"
                     )
 
+                # Log detailed payload information for Hive
+                logger.info("=" * 80)
+                logger.info("🚀 HIVE API PAYLOAD DEBUG")
+                logger.info("=" * 80)
+                logger.info(f"📱 User: {user_dict['phone_number']}")
+                logger.info(f"📝 Session: {session_name}")
+                logger.info(f"💬 Message Content: {message_content}")
+                logger.info(f"🏷️ Message Type: {message_type_param}")
+                logger.info(f"🤖 Agent Config: {agent_config}")
+                
+                if media_contents_to_send:
+                    logger.info("📎 Media Contents:")
+                    for i, media_item in enumerate(media_contents_to_send):
+                        logger.info(f"  📎 Media {i+1}:")
+                        logger.info(f"    - Alt Text: {media_item.get('alt_text', 'N/A')}")
+                        logger.info(f"    - MIME Type: {media_item.get('mime_type', 'N/A')}")
+                        if 'data' in media_item:
+                            data_size = len(media_item['data'])
+                            logger.info(f"    - Base64 Data: {data_size} chars")
+                            logger.info(f"    - Base64 Preview: {media_item['data'][:100]}...")
+                        if 'media_url' in media_item:
+                            logger.info(f"    - Media URL: {self._truncate_url_for_logging(media_item['media_url'])}")
+                        if 'duration' in media_item:
+                            logger.info(f"    - Duration: {media_item['duration']} seconds")
+                        if 'size_bytes' in media_item:
+                            logger.info(f"    - Size: {media_item['size_bytes']} bytes")
+                else:
+                    logger.info("📎 No media contents")
+                
+                logger.info("=" * 80)
+
                 logger.info(
                     f"Routing message to API for user {user_dict['phone_number']}, session {session_name}: {message_content}"
                 )
@@ -645,6 +734,32 @@ class WhatsAppMessageHandler:
                 # Calculate elapsed time since processing started
                 elapsed_time = time.time() - processing_start_time
 
+                # Log Hive response details
+                logger.info("=" * 80)
+                logger.info("🤖 HIVE API RESPONSE DEBUG")
+                logger.info("=" * 80)
+                logger.info(f"⏱️ Processing time: {elapsed_time:.2f}s")
+                logger.info(f"📊 Response type: {type(agent_response)}")
+                
+                if isinstance(agent_response, dict):
+                    logger.info("📋 Response structure:")
+                    for key, value in agent_response.items():
+                        if key == 'messages' and isinstance(value, list):
+                            logger.info(f"  📝 {key}: {len(value)} messages")
+                            for i, msg in enumerate(value):
+                                if isinstance(msg, dict) and 'content' in msg:
+                                    content_preview = str(msg['content'])[:100] + "..." if len(str(msg['content'])) > 100 else str(msg['content'])
+                                    logger.info(f"    Message {i+1}: {content_preview}")
+                        elif key == 'content':
+                            content_preview = str(value)[:200] + "..." if len(str(value)) > 200 else str(value)
+                            logger.info(f"  📝 {key}: {content_preview}")
+                        else:
+                            logger.info(f"  🔑 {key}: {value}")
+                else:
+                    logger.info(f"📝 Response content: {str(agent_response)[:200]}...")
+                
+                logger.info("=" * 80)
+
                 # Note: We're not using sleep anymore, just log the time
                 logger.info(f"Processing completed in {elapsed_time:.2f}s")
 
@@ -680,6 +795,9 @@ class WhatsAppMessageHandler:
                             f"Cannot update agent user_id - local user not created for session {session_name}"
                         )
 
+                # Initialize audio_response_url for all cases
+                audio_response_url = None
+                
                 # Extract message text and log additional information from agent response
                 if isinstance(agent_response, dict):
                     # Full agent response structure
@@ -688,6 +806,16 @@ class WhatsAppMessageHandler:
                     success = agent_response.get("success", True)
                     tool_calls = agent_response.get("tool_calls", [])
                     usage = agent_response.get("usage", {})
+                    
+                    # Check for audio response in tool calls
+                    for tool_call in tool_calls:
+                        if tool_call.get("function", {}).get("name") == "generate_audio_response":
+                            # Extract audio URL from tool call result
+                            tool_result = tool_call.get("result", {})
+                            if isinstance(tool_result, dict) and "audio_url" in tool_result:
+                                audio_response_url = tool_result["audio_url"]
+                                logger.info(f"🎵 Audio response detected: {audio_response_url}")
+                            break
 
                     # Update trace with session information
                     if trace_context:
@@ -729,8 +857,17 @@ class WhatsAppMessageHandler:
                         f"Ignoring AUTOMAGIK message for user {user_dict['phone_number']}, session {session_name}: {response_to_send}"
                     )
                 else:
+                    # Check if we have an audio response to send
+                    if audio_response_url:
+                        logger.info(f"🎵 Sending audio response: {audio_response_url}")
+                        self._send_whatsapp_audio_response(
+                            recipient=sender_id,
+                            audio_url=audio_response_url,
+                            quoted_message=message,
+                            trace_context=trace_context,
+                        )
                     # Check if we have streaming chunks to send progressively
-                    if (
+                    elif (
                         isinstance(agent_response, dict)
                         and "streaming_chunks" in agent_response
                     ):
@@ -760,14 +897,61 @@ class WhatsAppMessageHandler:
                                 trace_context=trace_context,
                             )
                     else:
-                        # Send the response immediately while the typing indicator is still active
-                        # Include the original message for quoting (reply)
-                        self._send_whatsapp_response(
-                            recipient=sender_id,
-                            text=response_to_send,
-                            quoted_message=message,
-                            trace_context=trace_context,
-                        )
+                        # Check if original message was audio to respond with audio
+                        if is_audio_message:
+                            # Generate audio response from text
+                            try:
+                                audio_base64 = self._generate_audio_from_text(response_to_send)
+                                if audio_base64:
+                                    # Try to send audio response
+                                    try:
+                                        self._send_whatsapp_audio_base64_response(
+                                            recipient=sender_id,
+                                            audio_base64=audio_base64,
+                                            quoted_message=message,
+                                            trace_context=trace_context,
+                                        )
+                                        logger.info(f"🎵 Sent audio response to {sender_id}")
+                                    except Exception as audio_send_error:
+                                        logger.warning(f"🎵 Audio send failed: {audio_send_error}")
+                                        # Fallback: send text with audio indicator
+                                        audio_response_text = f"🎵 [Audio Response]\n\n{response_to_send}"
+                                        self._send_whatsapp_response(
+                                            recipient=sender_id,
+                                            text=audio_response_text,
+                                            quoted_message=message,
+                                            trace_context=trace_context,
+                                        )
+                                        logger.info(f"🎵 Sent text response with audio indicator to {sender_id}")
+                                else:
+                                    # Fallback to text if audio generation fails
+                                    logger.warning("🎵 Audio generation failed, sending text response")
+                                    audio_response_text = f"🎵 [Audio Response]\n\n{response_to_send}"
+                                    self._send_whatsapp_response(
+                                        recipient=sender_id,
+                                        text=audio_response_text,
+                                        quoted_message=message,
+                                        trace_context=trace_context,
+                                    )
+                            except Exception as e:
+                                logger.error(f"🎵 Error generating audio response: {e}")
+                                # Fallback to text response
+                                audio_response_text = f"🎵 [Audio Response]\n\n{response_to_send}"
+                                self._send_whatsapp_response(
+                                    recipient=sender_id,
+                                    text=audio_response_text,
+                                    quoted_message=message,
+                                    trace_context=trace_context,
+                                )
+                        else:
+                            # Send the response immediately while the typing indicator is still active
+                            # Include the original message for quoting (reply)
+                            self._send_whatsapp_response(
+                                recipient=sender_id,
+                                text=response_to_send,
+                                quoted_message=message,
+                                trace_context=trace_context,
+                            )
 
                     # Mark message as sent but let the typing indicator continue for a short time
                     # This creates a more natural transition
@@ -837,6 +1021,501 @@ class WhatsAppMessageHandler:
             trace_context.log_evolution_send(send_payload, response_code, success)
 
         return response_payload
+
+    def _send_whatsapp_audio_response(
+        self,
+        recipient: str,
+        audio_url: str,
+        quoted_message: Optional[Dict[str, Any]] = None,
+        trace_context=None,
+    ):
+        """Send an audio response back via WhatsApp with optional message quoting."""
+        response_payload = None
+        success = False
+
+        # Prepare payload for tracing
+        send_payload = {
+            "recipient": recipient,
+            "audio_url": audio_url,
+            "has_quoted_message": quoted_message is not None,
+        }
+
+        if self.send_response_callback:
+            try:
+                # Import the Evolution API sender
+                from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
+                
+                # Send audio message via Evolution API
+                success = evolution_api_sender.send_audio_message(recipient, audio_url)
+                response_code = 201 if success else 400  # Simulate HTTP status codes
+
+                if success:
+                    # Extract just the phone number without the suffix for logging
+                    clean_recipient = (
+                        recipient.split("@")[0] if "@" in recipient else recipient
+                    )
+                    logger.info(f"🎵 Sent audio response to {clean_recipient}")
+                else:
+                    logger.error(f"❌ Failed to send audio response to {recipient}")
+
+            except Exception as e:
+                logger.error(f"❌ Error sending audio response: {e}", exc_info=True)
+                response_code = 500
+                success = False
+        else:
+            logger.warning("⚠️ No send response callback set, audio message not sent")
+            response_code = 500
+            success = False
+
+        # Log evolution send attempt to trace
+        if trace_context:
+            trace_context.log_evolution_send(send_payload, response_code, success)
+
+        return response_payload
+
+    def _transcribe_audio_from_base64(self, base64_data: str, mime_type: str = "audio/ogg") -> Optional[str]:
+        """Transcribe audio from base64 data using OpenAI Whisper API.
+        
+        Args:
+            base64_data: Base64 encoded audio data
+            mime_type: MIME type of the audio
+            
+        Returns:
+            Transcribed text or None if failed
+        """
+        try:
+            logger.info(f"🎵 Starting audio transcription from base64 data ({len(base64_data)} chars)")
+            
+            # Try to use OpenAI Whisper API if available
+            if not OPENAI_AVAILABLE:
+                logger.warning("🎵 OpenAI library not available, skipping transcription")
+                return None
+            
+            # Check if OpenAI API key is available
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            if not openai_api_key:
+                logger.warning("🎵 No OpenAI API key found, skipping transcription")
+                logger.info("🎵 To enable audio transcription, set OPENAI_API_KEY environment variable")
+                logger.info("🎵 Audio will be sent as base64 to agent for processing instead")
+                return None
+            
+            # Decode base64 to binary
+            try:
+                audio_content = base64.b64decode(base64_data)
+                logger.info(f"🎵 Decoded base64 to {len(audio_content)} bytes")
+            except Exception as decode_error:
+                logger.error(f"🎵 Failed to decode base64 audio: {decode_error}")
+                return None
+            
+            # Check file signature to determine actual format
+            signature = audio_content[:16] if len(audio_content) >= 16 else audio_content
+            logger.info(f"🎵 Raw audio signature (hex): {signature.hex()}")
+            logger.info(f"🎵 Raw audio signature (ascii): {repr(signature)}")
+            
+            # Check if this is a valid audio file
+            is_valid_ogg = signature.startswith(b'OggS')
+            is_valid_wav = signature.startswith(b'RIFF') and b'WAVE' in signature
+            is_valid_mp3 = signature.startswith(b'ID3') or (len(signature) > 2 and signature[1:3] == b'\xff\xfb')
+            
+            if is_valid_ogg:
+                suffix = '.ogg'
+                logger.info("🎵 Detected valid OGG format")
+            elif is_valid_wav:
+                suffix = '.wav'
+                logger.info("🎵 Detected valid WAV format")
+            elif is_valid_mp3:
+                suffix = '.mp3'
+                logger.info("🎵 Detected valid MP3 format")
+            else:
+                # Invalid or unknown format - create a simple WAV file
+                logger.warning("🎵 Invalid audio format detected, creating simple WAV")
+                return self._transcribe_as_simple_wav(audio_content)
+            
+            # Save to temporary file with detected extension
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
+                temp_file.write(audio_content)
+                temp_path = temp_file.name
+            
+            try:
+                client = openai.OpenAI(api_key=openai_api_key)
+                
+                # Log file info before transcription
+                file_size = os.path.getsize(temp_path)
+                logger.info(f"🎵 Transcribing audio file: {temp_path} ({file_size} bytes, format: {suffix})")
+                
+                # Transcribe using Whisper
+                with open(temp_path, "rb") as audio_file:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        language="pt"  # Portuguese
+                    )
+                
+                transcribed_text = transcript.text
+                logger.info(f"🎵 OpenAI Whisper transcription successful: {transcribed_text}")
+                return transcribed_text
+                    
+            except Exception as openai_error:
+                logger.error(f"🎵 OpenAI Whisper transcription failed: {openai_error}")
+                # Try FFmpeg conversion as fallback
+                logger.info("🎵 Attempting FFmpeg conversion as fallback")
+                return self._transcribe_with_ffmpeg_conversion(audio_content)
+                    
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"🎵 Audio transcription failed: {e}")
+            return None
+
+    def _transcribe_with_ffmpeg_conversion(self, audio_content: bytes) -> Optional[str]:
+        """Convert audio using FFmpeg and transcribe.
+        
+        Args:
+            audio_content: Raw audio bytes
+            
+        Returns:
+            Transcribed text or None if failed
+        """
+        try:
+            import subprocess
+            
+            # Check if FFmpeg is available
+            try:
+                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                logger.warning("🎵 FFmpeg not available, cannot convert audio")
+                return None
+            
+            logger.info("🎵 Using FFmpeg to convert audio to supported format")
+            
+            # Save raw audio to temporary file
+            with tempfile.NamedTemporaryFile(suffix='.raw', delete=False) as raw_file:
+                raw_file.write(audio_content)
+                raw_path = raw_file.name
+            
+            # Convert to WAV using FFmpeg
+            wav_path = raw_path.replace('.raw', '.wav')
+            
+            try:
+                # Use FFmpeg to convert to WAV
+                cmd = [
+                    'ffmpeg', '-y',  # Overwrite output
+                    '-i', raw_path,  # Input file
+                    '-ar', '16000',  # Sample rate
+                    '-ac', '1',      # Mono
+                    '-f', 'wav',     # Output format
+                    wav_path
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    logger.info(f"🎵 FFmpeg conversion successful: {wav_path}")
+                    
+                    # Now transcribe the converted file
+                    if not OPENAI_AVAILABLE:
+                        return None
+                        
+                    openai_api_key = os.getenv('OPENAI_API_KEY')
+                    if not openai_api_key:
+                        return None
+                    
+                    client = openai.OpenAI(api_key=openai_api_key)
+                    
+                    with open(wav_path, "rb") as audio_file:
+                        transcript = client.audio.transcriptions.create(
+                            model="whisper-1",
+                            file=audio_file,
+                            language="pt"
+                        )
+                    
+                    transcribed_text = transcript.text
+                    logger.info(f"🎵 FFmpeg + Whisper transcription successful: {transcribed_text}")
+                    return transcribed_text
+                else:
+                    logger.error(f"🎵 FFmpeg conversion failed: {result.stderr}")
+                    return None
+                    
+            finally:
+                # Clean up files
+                for path in [raw_path, wav_path]:
+                    try:
+                        os.unlink(path)
+                    except:
+                        pass
+                        
+        except Exception as e:
+            logger.error(f"🎵 FFmpeg conversion failed: {e}")
+            return None
+
+    def _transcribe_as_simple_wav(self, audio_content: bytes) -> Optional[str]:
+        """Create a simple WAV file and transcribe it.
+        
+        Args:
+            audio_content: Raw audio bytes
+            
+        Returns:
+            Transcribed text or None if failed
+        """
+        try:
+            logger.info("🎵 Creating simple WAV file for transcription")
+            
+            # Check if OpenAI is available
+            if not OPENAI_AVAILABLE:
+                logger.warning("🎵 OpenAI library not available")
+                return None
+            
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            if not openai_api_key:
+                logger.warning("🎵 No OpenAI API key found")
+                return None
+            
+            # Create a minimal WAV file with proper header
+            # Assume 16kHz, 16-bit, mono for WhatsApp audio
+            sample_rate = 16000
+            bits_per_sample = 16
+            channels = 1
+            
+            # Calculate data size (assume raw PCM data)
+            data_size = len(audio_content)
+            file_size = 36 + data_size
+            
+            # Create WAV header
+            wav_header = bytearray()
+            wav_header.extend(b'RIFF')                              # ChunkID
+            wav_header.extend(file_size.to_bytes(4, 'little'))      # ChunkSize
+            wav_header.extend(b'WAVE')                              # Format
+            wav_header.extend(b'fmt ')                              # Subchunk1ID
+            wav_header.extend((16).to_bytes(4, 'little'))           # Subchunk1Size
+            wav_header.extend((1).to_bytes(2, 'little'))            # AudioFormat (PCM)
+            wav_header.extend(channels.to_bytes(2, 'little'))       # NumChannels
+            wav_header.extend(sample_rate.to_bytes(4, 'little'))    # SampleRate
+            wav_header.extend((sample_rate * channels * bits_per_sample // 8).to_bytes(4, 'little'))  # ByteRate
+            wav_header.extend((channels * bits_per_sample // 8).to_bytes(2, 'little'))  # BlockAlign
+            wav_header.extend(bits_per_sample.to_bytes(2, 'little')) # BitsPerSample
+            wav_header.extend(b'data')                              # Subchunk2ID
+            wav_header.extend(data_size.to_bytes(4, 'little'))      # Subchunk2Size
+            
+            # Create complete WAV file
+            wav_content = wav_header + audio_content
+            
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_file.write(wav_content)
+                temp_path = temp_file.name
+            
+            try:
+                client = openai.OpenAI(api_key=openai_api_key)
+                
+                logger.info(f"🎵 Transcribing simple WAV file: {temp_path} ({len(wav_content)} bytes)")
+                
+                # Transcribe using Whisper
+                with open(temp_path, "rb") as audio_file:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        language="pt"  # Portuguese
+                    )
+                
+                transcribed_text = transcript.text
+                logger.info(f"🎵 Simple WAV transcription successful: {transcribed_text}")
+                return transcribed_text
+                    
+            except Exception as openai_error:
+                logger.error(f"🎵 Simple WAV transcription failed: {openai_error}")
+                return None
+                    
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"🎵 Simple WAV creation failed: {e}")
+            return None
+
+    def _create_wav_from_raw_audio(self, audio_data: bytes, output_path: str):
+        """Create a basic WAV file from raw audio data.
+        
+        Args:
+            audio_data: Raw audio bytes
+            output_path: Path to save the WAV file
+        """
+        try:
+            # Basic WAV header for 16kHz, 16-bit, mono
+            # This is a simple approach - may not work for all audio formats
+            sample_rate = 16000
+            bits_per_sample = 16
+            channels = 1
+            
+            # Calculate sizes
+            data_size = len(audio_data)
+            file_size = 36 + data_size
+            
+            # Create WAV header
+            wav_header = bytearray()
+            wav_header.extend(b'RIFF')                              # ChunkID
+            wav_header.extend(file_size.to_bytes(4, 'little'))      # ChunkSize
+            wav_header.extend(b'WAVE')                              # Format
+            wav_header.extend(b'fmt ')                              # Subchunk1ID
+            wav_header.extend((16).to_bytes(4, 'little'))           # Subchunk1Size
+            wav_header.extend((1).to_bytes(2, 'little'))            # AudioFormat (PCM)
+            wav_header.extend(channels.to_bytes(2, 'little'))       # NumChannels
+            wav_header.extend(sample_rate.to_bytes(4, 'little'))    # SampleRate
+            wav_header.extend((sample_rate * channels * bits_per_sample // 8).to_bytes(4, 'little'))  # ByteRate
+            wav_header.extend((channels * bits_per_sample // 8).to_bytes(2, 'little'))  # BlockAlign
+            wav_header.extend(bits_per_sample.to_bytes(2, 'little')) # BitsPerSample
+            wav_header.extend(b'data')                              # Subchunk2ID
+            wav_header.extend(data_size.to_bytes(4, 'little'))      # Subchunk2Size
+            
+            # Write WAV file
+            with open(output_path, 'wb') as f:
+                f.write(wav_header)
+                f.write(audio_data)
+                
+            logger.info(f"🎵 Created WAV file: {output_path} ({len(wav_header) + data_size} bytes)")
+            
+        except Exception as e:
+            logger.error(f"🎵 Failed to create WAV file: {e}")
+            raise
+
+    def _transcribe_audio_simple(self, audio_url: str, media_key: str = None) -> Optional[str]:
+        """Simple audio transcription using OpenAI Whisper API.
+        
+        Args:
+            audio_url: URL to the audio file
+            media_key: Media key for WhatsApp encrypted files
+            
+        Returns:
+            Transcribed text or None if failed
+        """
+        try:
+            logger.info(f"🎵 Starting simple audio transcription from: {self._truncate_url_for_logging(audio_url)}")
+            logger.warning("🎵 URL-based transcription disabled due to encryption issues")
+            logger.info("🎵 Use _transcribe_audio_from_base64 instead with already downloaded content")
+            return None
+                    
+        except Exception as e:
+            logger.error(f"🎵 Audio transcription failed: {e}")
+            return None
+
+    def _download_and_encode_media(self, media_url: str, save_to_disk: bool = True) -> Optional[str]:
+        """Download media from URL and convert to base64.
+        
+        Args:
+            media_url: URL to download media from
+            save_to_disk: Whether to save the media file to disk for validation
+            
+        Returns:
+            Base64 encoded media content or None if failed
+        """
+        try:
+            logger.info(f"📥 Downloading media from: {self._truncate_url_for_logging(media_url)}")
+            
+            # Download the media file
+            response = requests.get(media_url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            # Read the content
+            content = response.content
+            logger.info(f"📥 Downloaded {len(content)} bytes of media")
+            
+            # Save to disk if requested (for validation)
+            if save_to_disk and content:
+                try:
+                    # Generate filename with timestamp
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    
+                    # Determine file extension from Content-Type or URL
+                    content_type = response.headers.get('Content-Type', '')
+                    logger.info(f"🎵 Content-Type: {content_type}")
+                    
+                    # Check file signature (magic bytes) to determine actual format
+                    file_signature = content[:12] if len(content) >= 12 else content
+                    logger.info(f"🎵 File signature (hex): {file_signature.hex()}")
+                    
+                    # Determine extension based on file signature first, then Content-Type
+                    if file_signature.startswith(b'OggS'):
+                        extension = '.ogg'
+                        logger.info("🎵 Detected OGG format from file signature")
+                    elif file_signature.startswith(b'RIFF') and b'WAVE' in file_signature:
+                        extension = '.wav'
+                        logger.info("🎵 Detected WAV format from file signature")
+                    elif file_signature.startswith(b'ID3') or file_signature[1:3] == b'\xff\xfb':
+                        extension = '.mp3'
+                        logger.info("🎵 Detected MP3 format from file signature")
+                    elif file_signature.startswith(b'\x00\x00\x00') and b'ftyp' in file_signature:
+                        extension = '.m4a'
+                        logger.info("🎵 Detected M4A format from file signature")
+                    elif 'audio/ogg' in content_type or 'application/ogg' in content_type:
+                        extension = '.ogg'
+                        logger.info("🎵 Detected OGG format from Content-Type")
+                    elif 'audio/mpeg' in content_type:
+                        extension = '.mp3'
+                        logger.info("🎵 Detected MP3 format from Content-Type")
+                    elif 'audio/wav' in content_type:
+                        extension = '.wav'
+                        logger.info("🎵 Detected WAV format from Content-Type")
+                    elif 'audio/mp4' in content_type or 'audio/m4a' in content_type:
+                        extension = '.m4a'
+                        logger.info("🎵 Detected M4A format from Content-Type")
+                    else:
+                        # For WhatsApp encrypted files, default to .ogg as it's most common
+                        if '.enc' in media_url or 'whatsapp.net' in media_url:
+                            extension = '.ogg'
+                            logger.info("🎵 WhatsApp encrypted file detected, defaulting to .ogg")
+                        else:
+                            extension = '.audio'  # fallback
+                            logger.info("🎵 Unknown format, using .audio extension")
+                    
+                    filename = f"audio_download_{timestamp}{extension}"
+                    filepath = os.path.join(".", filename)  # Save in project root
+                    
+                    with open(filepath, 'wb') as f:
+                        f.write(content)
+                    
+                    logger.info(f"🎵 Audio saved to disk for validation: {filepath}")
+                    logger.info(f"🎵 File size: {len(content)} bytes, Content-Type: {content_type}")
+                    logger.info(f"🎵 You can now listen to the audio file at: {os.path.abspath(filepath)}")
+                    
+                    # Try to verify the file is playable and provide playback instructions
+                    absolute_path = os.path.abspath(filepath)
+                    logger.info(f"🎵 To play this file, try:")
+                    logger.info(f"🎵   VLC: open -a VLC '{absolute_path}'")
+                    logger.info(f"🎵   Browser: open '{absolute_path}'")
+                    logger.info(f"🎵   FFplay: ffplay '{absolute_path}'")
+                    
+                    # Check if it's an encrypted WhatsApp file
+                    if '.enc' in media_url:
+                        logger.warning(f"⚠️ This appears to be an encrypted WhatsApp file (.enc)")
+                        logger.warning(f"⚠️ The file may need to be decrypted before playback")
+                        logger.warning(f"⚠️ Try renaming to .ogg and playing with VLC: mv '{filepath}' '{filepath.replace('.audio', '.ogg')}'")
+                    
+                    # For debugging: show first few bytes in different formats
+                    if len(content) >= 16:
+                        logger.info(f"🎵 First 16 bytes (hex): {content[:16].hex()}")
+                        logger.info(f"🎵 First 16 bytes (ascii): {repr(content[:16])}")
+                    
+                except Exception as save_error:
+                    logger.warning(f"⚠️ Failed to save audio to disk: {save_error}")
+            
+            # Encode to base64
+            base64_data = base64.b64encode(content).decode('utf-8')
+            logger.info(f"✅ Successfully encoded media to base64 ({len(base64_data)} chars)")
+            
+            return base64_data
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to download and encode media: {e}")
+            return None
 
     def _extract_media_url_from_payload(self, data: dict) -> Optional[str]:
         """Extract media URL from WhatsApp message payload with retry logic for file availability."""
@@ -1143,14 +1822,19 @@ class WhatsAppMessageHandler:
             data = message.get("data", {})
 
             # Check for quoted message in contextInfo
-            context_info = data.get("contextInfo", {})
-            quoted_message = context_info.get("quotedMessage", {})
+            context_info = data.get("contextInfo")
+            quoted_message = {}
+            
+            if context_info and isinstance(context_info, dict):
+                quoted_message = context_info.get("quotedMessage", {})
 
             if not quoted_message:
                 # Also check in message.contextInfo structure
                 message_obj = data.get("message", {})
-                context_info = message_obj.get("contextInfo", {})
-                quoted_message = context_info.get("quotedMessage", {})
+                if isinstance(message_obj, dict):
+                    context_info = message_obj.get("contextInfo")
+                    if context_info and isinstance(context_info, dict):
+                        quoted_message = context_info.get("quotedMessage", {})
 
             if quoted_message:
                 # Extract quoted text content
@@ -1292,6 +1976,192 @@ class WhatsAppMessageHandler:
 
         logger.info(f"Extracted and normalized phone number from {sender_id}: {phone}")
         return phone
+
+    def _generate_audio_from_text(self, text: str) -> Optional[str]:
+        """
+        Generate audio from text using OpenAI TTS and return base64 encoded audio.
+        
+        Args:
+            text: The text to convert to audio
+            
+        Returns:
+            Base64 encoded audio data or None if generation fails
+        """
+        if not OPENAI_AVAILABLE:
+            logger.warning("🎵 OpenAI not available for audio generation")
+            return None
+            
+        try:
+            import io
+            import base64
+            from openai import OpenAI
+            
+            # Initialize OpenAI client
+            client = OpenAI()
+            
+            # Generate audio using OpenAI TTS
+            logger.info(f"🎵 Generating audio for text: {text[:100]}...")
+            
+            response = client.audio.speech.create(
+                model="tts-1",
+                voice="alloy",  # You can change this to other voices: echo, fable, onyx, nova, shimmer
+                input=text,
+                response_format="mp3"
+            )
+            
+            # Get audio data
+            audio_data = response.content
+            
+            # Convert to base64
+            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            
+            logger.info(f"🎵 Audio generated successfully: {len(audio_data)} bytes, base64: {len(audio_base64)} chars")
+            
+            # Log the base64 for debugging (first 100 and last 50 chars)
+            logger.info(f"🎵 AUDIO BASE64 DEBUG:")
+            logger.info(f"🎵 First 100 chars: {audio_base64[:100]}")
+            logger.info(f"🎵 Last 50 chars: {audio_base64[-50:]}")
+            logger.info(f"🎵 Full base64 length: {len(audio_base64)}")
+            
+            # Also log the full base64 in a separate log entry for easy copying
+            logger.info(f"🎵 FULL BASE64 AUDIO: {audio_base64}")
+            
+            return audio_base64
+            
+        except Exception as e:
+            logger.error(f"🎵 Failed to generate audio from text: {e}")
+            return None
+
+    def _send_whatsapp_audio_base64_response(
+        self,
+        recipient: str,
+        audio_base64: str,
+        quoted_message: Optional[Dict[str, Any]] = None,
+        trace_context=None,
+    ):
+        """Send an audio response back via WhatsApp using base64 audio data."""
+        response_payload = None
+        success = False
+
+        # Prepare payload for tracing
+        send_payload = {
+            "recipient": recipient,
+            "audio_base64_length": len(audio_base64),
+            "has_quoted_message": quoted_message is not None,
+        }
+
+        try:
+            # Import the Evolution API sender
+            from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
+            
+            # Send audio message via Evolution API using sendMedia endpoint with pure base64
+            success = self._send_audio_via_evolution_media(recipient, audio_base64)
+            response_code = 201 if success else 400
+
+            if success:
+                # Extract just the phone number without the suffix for logging
+                clean_recipient = (
+                    recipient.split("@")[0] if "@" in recipient else recipient
+                )
+                logger.info(f"🎵 Sent audio response to {clean_recipient}")
+            else:
+                logger.error(f"🎵 Failed to send audio response to {recipient}")
+
+        except Exception as e:
+            logger.error(f"🎵 Error sending audio response: {e}", exc_info=True)
+            response_code = 500
+            success = False
+
+        # Log evolution send attempt to trace
+        if trace_context:
+            trace_context.log_evolution_send(send_payload, response_code, success)
+
+        return response_payload
+
+    def _format_audio_for_evolution(self, audio_base64: str) -> str:
+        """Format base64 audio for Evolution API with proper data URL."""
+        try:
+            import base64
+            
+            # Decode to check format
+            decoded = base64.b64decode(audio_base64[:50])
+            
+            # Detect format from magic bytes
+            if decoded.startswith(b'RIFF') and b'WAVE' in decoded:
+                mime_type = "audio/wav"
+            elif decoded.startswith(b'ID3') or decoded[1:3] == b'\xff\xfb':
+                mime_type = "audio/mp3"
+            elif decoded.startswith(b'OggS'):
+                mime_type = "audio/ogg"
+            else:
+                mime_type = "audio/mp3"  # Default to MP3
+            
+            data_url = f"data:{mime_type};base64,{audio_base64}"
+            logger.info(f"🎵 Formatted audio as {mime_type} data URL")
+            return data_url
+            
+        except Exception as e:
+            logger.warning(f"🎵 Format detection failed: {e}, using MP3 default")
+            return f"data:audio/mp3;base64,{audio_base64}"
+
+    def _send_audio_via_evolution_media(self, recipient: str, audio_base64: str) -> bool:
+        """Send audio via Evolution API sendMedia endpoint using pure base64."""
+        try:
+            from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
+            
+            # Get instance configuration
+            server_url = evolution_api_sender.server_url
+            api_key = evolution_api_sender.api_key
+            instance_name = evolution_api_sender.instance_name
+            
+            if not all([server_url, api_key, instance_name]):
+                logger.error("🎵 Missing Evolution API configuration")
+                return False
+            
+            # Prepare recipient
+            formatted_recipient = recipient.split("@")[0] if "@" in recipient else recipient
+            
+            url = f"{server_url}/message/sendMedia/{instance_name}"
+            headers = {"apikey": api_key, "Content-Type": "application/json"}
+            
+            # Use pure base64 without data URL prefix (as per Evolution API docs)
+            payload = {
+                "number": formatted_recipient,
+                "media": audio_base64,  # Pure base64, no data URL prefix
+                "mediatype": "audio"
+            }
+            
+            logger.info(f"🎵 Sending audio via sendMedia to {formatted_recipient}")
+            logger.info(f"🎵 Base64 length: {len(audio_base64)} chars")
+            logger.info(f"🎵 Payload preview: {audio_base64[:50]}...")
+            
+            # Log complete payload for debugging
+            logger.info(f"🎵 EVOLUTION API PAYLOAD DEBUG:")
+            logger.info(f"🎵 URL: {url}")
+            logger.info(f"🎵 Headers: {headers}")
+            logger.info(f"🎵 Payload structure:")
+            logger.info(f"🎵   number: {payload['number']}")
+            logger.info(f"🎵   mediatype: {payload['mediatype']}")
+            logger.info(f"🎵   media length: {len(payload['media'])}")
+            logger.info(f"🎵   media preview: {payload['media'][:100]}...")
+            
+            # Log full payload (truncated for readability)
+            payload_copy = payload.copy()
+            payload_copy['media'] = f"{payload['media'][:100]}...[TRUNCATED {len(payload['media'])} chars total]"
+            logger.info(f"🎵 FULL PAYLOAD: {payload_copy}")
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code == 201:
+                logger.info(f"🎵 Audio sent successfully via sendMedia")
+                return True
+            else:
+                logger.error(f"🎵 Evolution sendMedia failed: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"🎵 Error in _send_audio_via_evolution_media: {e}")
+            return False
 
 
 # Singleton instance - initialized without a callback

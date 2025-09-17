@@ -499,13 +499,15 @@ async def _handle_evolution_webhook(instance_config, request: Request):
 
         # Start message tracing
         with get_trace_context(data, instance_config.name) as trace:
-            # Update the Evolution API sender with the webhook data
-            # This sets the runtime configuration from the webhook payload
-            evolution_api_sender.update_from_webhook(data)
-
-            # Override instance name with the correct one from our database config
-            # to prevent URL conversion issues like "FlashinhoProTestonho" -> "flashinho-pro-testonho"
+            # Update the Evolution API sender with instance configuration
+            # Use the instance config from database instead of webhook data
+            evolution_api_sender.server_url = instance_config.evolution_url
+            evolution_api_sender.api_key = instance_config.evolution_key
             evolution_api_sender.instance_name = instance_config.whatsapp_instance
+            
+            logger.info(
+                f"Updated Evolution API sender from instance config: server={evolution_api_sender.server_url}, instance={evolution_api_sender.instance_name}"
+            )
 
             # Capture real media messages for testing purposes
             try:

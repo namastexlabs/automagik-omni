@@ -457,6 +457,7 @@ class EvolutionApiSender:
     def send_audio_message(self, recipient: str, audio: str) -> bool:
         """
         Send a WhatsApp audio message via Evolution API.
+        Includes automatic audio conversion to WhatsApp-compatible format.
 
         Args:
             recipient: WhatsApp ID of the recipient
@@ -471,15 +472,32 @@ class EvolutionApiSender:
             )
             return False
 
-        url = f"{self.server_url}/message/sendWhatsAppAudio/{quote(self.instance_name, safe='')}"
+        url = f"{self.server_url}/message/sendMedia/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
 
-        payload = {"number": formatted_recipient, "audio": audio}
+        # Convert audio to WhatsApp-compatible format
+        converted_audio = self._convert_audio_for_whatsapp(audio)
+        if not converted_audio:
+            logger.error("Failed to convert audio for WhatsApp")
+            return False
+
+        payload = {
+            "number": formatted_recipient,
+            "mediatype": "audio",
+            "options": {
+                "delay": 0,
+                "presence": "recording"
+            },
+            "mediaMessage": {
+                "media": converted_audio
+            }
+        }
 
         try:
             logger.info(f"Sending audio message to {formatted_recipient}")
+            logger.info(f"🎵 Audio payload size: {len(converted_audio)} chars")
             response = requests.post(url, headers=headers, json=payload)
 
             response.raise_for_status()
@@ -841,6 +859,63 @@ class PresenceUpdater:
                 logger.error(f"Error updating presence: {e}")
                 # Wait a bit before retrying
                 time.sleep(2)
+
+    def _convert_audio_for_whatsapp(self, audio: str) -> Optional[str]:
+        """
+        Convert audio to WhatsApp-compatible format.
+        Simple implementation that formats base64 correctly for Evolution API.
+        
+        Args:
+            audio: URL or base64 data for the audio
+            
+        Returns:
+            Properly formatted audio data for WhatsApp or None if conversion fails
+        """
+        try:
+            # If it's already a data URL, return as is
+            if audio.startswith("data:audio/"):
+                logger.info("🎵 Audio already in data URL format")
+                return audio
+            
+            # If it's a URL, return as is (Evolution API will handle download)
+            if audio.startswith("http"):
+                logger.info(f"🎵 Using URL for audio: {audio}")
+                return audio
+            
+            # If it's raw base64, format as data URL
+            if audio and len(audio) > 10:  # Basic validation
+                # Detect format from base64 header
+                try:
+                    import base64
+                    decoded = base64.b64decode(audio[:50])  # Check first 50 chars
+                    
+                    # Check magic bytes for format detection
+                    if decoded.startswith(b'RIFF') and b'WAVE' in decoded:
+                        mime_type = "audio/wav"
+                    elif decoded.startswith(b'ID3') or decoded[1:3] == b'\xff\xfb':
+                        mime_type = "audio/mp3"
+                    elif decoded.startswith(b'OggS'):
+                        mime_type = "audio/ogg"
+                    else:
+                        mime_type = "audio/mp3"  # Default to MP3
+                    
+                    data_url = f"data:{mime_type};base64,{audio}"
+                    logger.info(f"🎵 Formatted audio as {mime_type} data URL: {len(data_url)} chars")
+                    return data_url
+                    
+                except Exception as decode_error:
+                    logger.warning(f"🎵 Could not decode audio header: {decode_error}")
+                    # Fallback to MP3
+                    data_url = f"data:audio/mp3;base64,{audio}"
+                    logger.info(f"🎵 Using fallback MP3 format: {len(data_url)} chars")
+                    return data_url
+            
+            logger.error("🎵 Invalid audio data provided")
+            return None
+                    
+        except Exception as e:
+            logger.error(f"🎵 Audio format conversion error: {e}")
+            return None
 
 
 # Create singleton instance

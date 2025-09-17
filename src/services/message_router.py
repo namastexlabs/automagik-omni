@@ -248,12 +248,19 @@ class MessageRouter:
                         agent_api_key,
                         default_agent,
                         agent_timeout,
+                        agent_instance_type="automagik",
                     ):
                         self.name = name
                         self.agent_api_url = agent_api_url
                         self.agent_api_key = agent_api_key
                         self.default_agent = default_agent
                         self.agent_timeout = agent_timeout
+                        self.agent_instance_type = agent_instance_type
+                        
+                    @property
+                    def is_hive(self) -> bool:
+                        """Check if this is a Hive instance."""
+                        return self.agent_instance_type == "hive"
 
                 instance_override = InstanceConfig(
                     name=agent_config.get("name", "unknown"),
@@ -261,6 +268,7 @@ class MessageRouter:
                     agent_api_key=agent_config.get("api_key"),
                     default_agent=agent_config.get("name"),
                     agent_timeout=agent_config.get("timeout", 60),
+                    agent_instance_type=agent_config.get("instance_type", "automagik"),
                 )
                 instance_agent_client = AgentApiClient(
                     config_override=instance_override
