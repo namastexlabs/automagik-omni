@@ -241,17 +241,13 @@ class TestMentionsIntegration:
             first_payload = first_call[1]["json"]
             assert "mentioned" in first_payload
             assert "5511999999999@s.whatsapp.net" in first_payload["mentioned"]
-            assert (
-                first_payload["text"] == "First part with @5511999999999"
-            )
+            assert first_payload["text"] == "First part with @5511999999999"
 
             # Second message should not have mentions
             second_call = mock_http_post.call_args_list[1]
             second_payload = second_call[1]["json"]
             assert "mentioned" not in second_payload
-            assert (
-                second_payload["text"] == "Second part without mentions"
-            )
+            assert second_payload["text"] == "Second part without mentions"
 
     def test_mention_flow_error_handling(
         self, client, test_instance_config, api_headers

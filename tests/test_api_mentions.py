@@ -315,30 +315,31 @@ class TestApiMentions:
         """Test send-text endpoint without API key."""
         # Set up API key requirement
         monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "test-secure-key")
-        
+
         # Force reload config
         import importlib
         import src.config
+
         importlib.reload(src.config)
-        
+
         # Create a clean test client without auth mocking
         from src.api.app import app
         from fastapi.testclient import TestClient
-        
+
         # Store original overrides and clear them
         original_overrides = app.dependency_overrides.copy()
         app.dependency_overrides.clear()
-        
+
         try:
             with TestClient(app) as clean_client:
                 payload = {"phone_number": "+5511777777777", "text": "Test message"}
-                
+
                 response = clean_client.post(
                     "/api/v1/instance/test-instance/send-text",
                     json=payload,
                     headers={"Content-Type": "application/json"},  # No API key header
                 )
-                
+
                 # Without API key, should get 401 if API key is required
                 # However, if no API key is configured (dev mode), will get 404 for missing instance
                 assert response.status_code in [401, 404]

@@ -389,14 +389,16 @@ async def send_media_message(
         media_source = request.media_url if request.media_url else request.media_base64
 
         # Send the media message
-        success = await sender.send_media_message(
+        result = await sender.send_media_message(
             recipient=recipient,
+            media_url=media_source if request.media_url else None,
+            media_base64=media_source if request.media_base64 else None,
             media_type=request.media_type,
-            media=media_source,
-            mime_type=request.mime_type,
             caption=request.caption,
+            mime_type=request.mime_type,
             filename=request.filename,
         )
+        success = result.get("success", False)
 
         return MessageResponse(success=success, status="sent" if success else "failed")
 
