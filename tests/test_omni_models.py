@@ -13,9 +13,7 @@ class TestInstanceConfigOmniFields:
 
     def test_default_omni_fields(self, test_db):
         """Test that omni fields have correct defaults."""
-        instance = InstanceConfig(
-            name="test", agent_api_url="http://test.com", agent_api_key="test-key"
-        )
+        instance = InstanceConfig(name="test", agent_api_url="http://test.com", agent_api_key="test-key")
         test_db.add(instance)
         test_db.commit()
 
@@ -224,9 +222,7 @@ class TestInstanceConfigProperties:
         test_db.add(automagik_stream)
         test_db.commit()
 
-        assert (
-            automagik_stream.streaming_enabled is False
-        )  # Automagik doesn't support streaming
+        assert automagik_stream.streaming_enabled is False  # Automagik doesn't support streaming
 
 
 class TestInstanceConfigMethods:
@@ -427,9 +423,7 @@ class TestInstanceConfigEdgeCases:
 
     def test_invalid_instance_type(self, test_db):
         """Test handling of invalid instance type."""
-        instance = InstanceConfig(
-            name="invalid-type", agent_api_url="https://api.com", agent_api_key="key"
-        )
+        instance = InstanceConfig(name="invalid-type", agent_api_url="https://api.com", agent_api_key="key")
         test_db.add(instance)
         test_db.commit()
 
@@ -467,9 +461,7 @@ class TestInstanceConfigConstraints:
         """Test that required fields are enforced."""
         # Missing name
         with pytest.raises(IntegrityError):
-            instance = InstanceConfig(
-                agent_api_url="https://api.com", agent_api_key="key"
-            )
+            instance = InstanceConfig(agent_api_url="https://api.com", agent_api_key="key")
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
@@ -491,9 +483,7 @@ class TestInstanceConfigConstraints:
     def test_unique_name_constraint(self, test_db):
         """Test that instance names must be unique."""
         # Create first instance
-        instance1 = InstanceConfig(
-            name="unique-test", agent_api_url="https://api.com", agent_api_key="key1"
-        )
+        instance1 = InstanceConfig(name="unique-test", agent_api_url="https://api.com", agent_api_key="key1")
         test_db.add(instance1)
         test_db.commit()
 
@@ -532,9 +522,7 @@ class TestUserModel:
     def test_user_with_instance(self, test_db):
         """Test user associated with an instance."""
         # Create instance
-        instance = InstanceConfig(
-            name="user-instance", agent_api_url="https://api.com", agent_api_key="key"
-        )
+        instance = InstanceConfig(name="user-instance", agent_api_url="https://api.com", agent_api_key="key")
         test_db.add(instance)
         test_db.commit()
 

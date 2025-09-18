@@ -56,9 +56,7 @@ class RunStartedEvent(BaseHiveEvent):
     event: HiveEventType = Field(default=HiveEventType.RUN_STARTED)
     agent_id: Optional[str] = Field(None, description="Agent ID for the run")
     team_id: Optional[str] = Field(None, description="Team ID for the run")
-    message: Optional[str] = Field(
-        None, description="Initial message that started the run"
-    )
+    message: Optional[str] = Field(None, description="Initial message that started the run")
 
 
 class RunResponseContentEvent(BaseHiveEvent):
@@ -93,9 +91,7 @@ class ErrorEvent(BaseHiveEvent):
     event: HiveEventType = Field(default=HiveEventType.ERROR)
     error_code: Optional[str] = Field(None, description="Error code")
     error_message: str = Field(..., description="Error description")
-    error_details: Optional[Dict[str, Any]] = Field(
-        None, description="Additional error details"
-    )
+    error_details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
 
 
 class HeartbeatEvent(BaseHiveEvent):
@@ -184,9 +180,7 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
             try:
                 event_enum = HiveEventType(mapped_type)
             except ValueError:
-                logger.warning(
-                    f"Failed to map event type: {event_type} -> {mapped_type}"
-                )
+                logger.warning(f"Failed to map event type: {event_type} -> {mapped_type}")
                 # Return as generic event
                 return BaseHiveEvent(**event_data)
         else:
@@ -211,6 +205,4 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
         logger.error(f"Failed to parse {event_type} event: {e}")
         logger.debug(f"Event data: {event_data}")
         # Fallback to base event
-        return BaseHiveEvent(
-            event=event_enum, **{k: v for k, v in event_data.items() if k != "event"}
-        )
+        return BaseHiveEvent(event=event_enum, **{k: v for k, v in event_data.items() if k != "event"})

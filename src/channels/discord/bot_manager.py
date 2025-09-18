@@ -63,9 +63,7 @@ class CircuitBreakerState:
 class AutomagikBot(commands.Bot):
     """Custom Discord bot class with automagik integration."""
 
-    def __init__(
-        self, instance_name: str, manager: "DiscordBotManager", *args, **kwargs
-    ):
+    def __init__(self, instance_name: str, manager: "DiscordBotManager", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance_name = instance_name
         self.manager = manager
@@ -114,16 +112,12 @@ class AutomagikBot(commands.Bot):
 
     async def on_guild_join(self, guild):
         """Handle joining a new guild."""
-        logger.info(
-            f"Bot '{self.instance_name}' joined guild: {guild.name} (ID: {guild.id})"
-        )
+        logger.info(f"Bot '{self.instance_name}' joined guild: {guild.name} (ID: {guild.id})")
         await self.manager._handle_guild_join(self.instance_name, guild)
 
     async def on_guild_remove(self, guild):
         """Handle leaving a guild."""
-        logger.info(
-            f"Bot '{self.instance_name}' left guild: {guild.name} (ID: {guild.id})"
-        )
+        logger.info(f"Bot '{self.instance_name}' left guild: {guild.name} (ID: {guild.id})")
         await self.manager._handle_guild_remove(self.instance_name, guild)
 
     async def on_interaction(self, interaction):
@@ -220,9 +214,7 @@ class DiscordBotManager:
         self.instance_configs: Dict[str, InstanceConfig] = {}  # Store instance configs
         self.voice_manager = DiscordVoiceManager()  # Voice management
         self._shutdown_event = asyncio.Event()
-        self.circuit_breakers: Dict[str, CircuitBreakerState] = (
-            {}
-        )  # Circuit breaker tracking
+        self.circuit_breakers: Dict[str, CircuitBreakerState] = {}  # Circuit breaker tracking
 
         logger.info("Discord Bot Manager initialized")
 
@@ -248,9 +240,7 @@ class DiscordBotManager:
 
             # Validate configuration
             if not instance_config.discord_bot_token:
-                raise AutomagikError(
-                    f"No Discord token provided for instance '{instance_name}'"
-                )
+                raise AutomagikError(f"No Discord token provided for instance '{instance_name}'")
 
             # Set up intents
             intents = discord.Intents.default()
@@ -269,14 +259,10 @@ class DiscordBotManager:
             )
 
             # Setup rate limiting
-            self.rate_limiters[instance_name] = RateLimiter(
-                max_requests=5, time_window=60
-            )
+            self.rate_limiters[instance_name] = RateLimiter(max_requests=5, time_window=60)
 
             # Setup health monitoring
-            self.health_monitors[instance_name] = HealthMonitor(
-                instance_name=instance_name, check_interval=30
-            )
+            self.health_monitors[instance_name] = HealthMonitor(instance_name=instance_name, check_interval=30)
 
             # Store bot
             self.bots[instance_name] = bot
@@ -285,9 +271,7 @@ class DiscordBotManager:
             asyncio.create_task(self._start_unix_socket_server(instance_name))
 
             # Start bot in background task
-            self.bot_tasks[instance_name] = asyncio.create_task(
-                self._run_bot(bot, instance_config.discord_bot_token)
-            )
+            self.bot_tasks[instance_name] = asyncio.create_task(self._run_bot(bot, instance_config.discord_bot_token))
 
             logger.info(f"Started Discord bot '{instance_name}'")
             return True
@@ -374,9 +358,7 @@ class DiscordBotManager:
         try:
             channel = bot.get_channel(channel_id)
             if not channel:
-                logger.error(
-                    f"Channel {channel_id} not found for bot '{instance_name}'"
-                )
+                logger.error(f"Channel {channel_id} not found for bot '{instance_name}'")
                 return False
 
             # Prepare message parameters
@@ -390,9 +372,7 @@ class DiscordBotManager:
 
             # Send message
             await channel.send(**kwargs)
-            logger.debug(
-                f"Message sent to channel {channel_id} by bot '{instance_name}'"
-            )
+            logger.debug(f"Message sent to channel {channel_id} by bot '{instance_name}'")
             return True
 
         except discord.errors.Forbidden:
@@ -478,9 +458,7 @@ class DiscordBotManager:
 
         while not self._shutdown_event.is_set() and retry_count < max_retries:
             # Check circuit breaker state
-            if await self._should_skip_connection_attempt(
-                instance_name, circuit_breaker
-            ):
+            if await self._should_skip_connection_attempt(instance_name, circuit_breaker):
                 logger.warning(
                     f"Circuit breaker OPEN for bot '{instance_name}' - skipping connection attempt. "
                     f"Next retry at: {circuit_breaker.next_retry_time}"
@@ -498,9 +476,7 @@ class DiscordBotManager:
 
                 # Connection successful - reset circuit breaker
                 await self._reset_circuit_breaker(instance_name, circuit_breaker)
-                logger.info(
-                    f"Bot '{instance_name}' connected successfully - circuit breaker reset"
-                )
+                logger.info(f"Bot '{instance_name}' connected successfully - circuit breaker reset")
                 break
 
             except discord.LoginFailure as e:
@@ -509,9 +485,7 @@ class DiscordBotManager:
                     f"Error details: {e}"
                 )
                 # LoginFailure is permanent - cleanup resources and exit
-                await self._handle_permanent_failure(
-                    instance_name, "Invalid Discord token", circuit_breaker
-                )
+                await self._handle_permanent_failure(instance_name, "Invalid Discord token", circuit_breaker)
                 break
 
             except discord.ConnectionClosed as e:
@@ -544,9 +518,7 @@ class DiscordBotManager:
 
                 if retry_count < max_retries:
                     wait_time = await self._calculate_jittered_backoff(retry_count)
-                    logger.warning(
-                        f"HTTP error for bot '{instance_name}': {e} - retrying in {wait_time:.2f}s"
-                    )
+                    logger.warning(f"HTTP error for bot '{instance_name}': {e} - retrying in {wait_time:.2f}s")
                     await asyncio.sleep(wait_time)
 
             except Exception as e:
@@ -570,9 +542,7 @@ class DiscordBotManager:
         if retry_count >= max_retries:
             await self._handle_max_retries_exceeded(instance_name, circuit_breaker)
 
-    async def _should_skip_connection_attempt(
-        self, instance_name: str, circuit_breaker: CircuitBreakerState
-    ) -> bool:
+    async def _should_skip_connection_attempt(self, instance_name: str, circuit_breaker: CircuitBreakerState) -> bool:
         """Check if connection attempt should be skipped due to circuit breaker state."""
         if not circuit_breaker.is_open:
             return False
@@ -580,15 +550,10 @@ class DiscordBotManager:
         current_time = datetime.now(timezone.utc)
 
         # Check if recovery timeout has passed
-        if (
-            circuit_breaker.next_retry_time
-            and current_time >= circuit_breaker.next_retry_time
-        ):
+        if circuit_breaker.next_retry_time and current_time >= circuit_breaker.next_retry_time:
             # Move to half-open state
             circuit_breaker.is_open = False
-            logger.info(
-                f"Circuit breaker for '{instance_name}' moved to HALF-OPEN state"
-            )
+            logger.info(f"Circuit breaker for '{instance_name}' moved to HALF-OPEN state")
             return False
 
         return True
@@ -600,13 +565,9 @@ class DiscordBotManager:
         jitter = random.uniform(0, 0.1 * base_delay)
         return base_delay + jitter
 
-    async def _handle_permanent_failure(
-        self, instance_name: str, reason: str, circuit_breaker: CircuitBreakerState
-    ):
+    async def _handle_permanent_failure(self, instance_name: str, reason: str, circuit_breaker: CircuitBreakerState):
         """Handle permanent failures like LoginFailure with proper resource cleanup."""
-        logger.error(
-            f"PERMANENT FAILURE for bot '{instance_name}': {reason} - cleaning up resources"
-        )
+        logger.error(f"PERMANENT FAILURE for bot '{instance_name}': {reason} - cleaning up resources")
 
         # Mark circuit breaker as permanently failed
         circuit_breaker.is_open = True
@@ -616,9 +577,7 @@ class DiscordBotManager:
         # Cleanup resources immediately for permanent failures
         await self._cleanup_bot(instance_name)
 
-        logger.info(
-            f"Resource cleanup completed for bot '{instance_name}' after permanent failure"
-        )
+        logger.info(f"Resource cleanup completed for bot '{instance_name}' after permanent failure")
 
     async def _handle_connection_failure(
         self,
@@ -634,10 +593,7 @@ class DiscordBotManager:
         circuit_breaker.last_failure_time = datetime.now(timezone.utc)
 
         # Check if circuit breaker should open
-        if (
-            circuit_breaker.consecutive_failures >= circuit_breaker.failure_threshold
-            and not circuit_breaker.is_open
-        ):
+        if circuit_breaker.consecutive_failures >= circuit_breaker.failure_threshold and not circuit_breaker.is_open:
             circuit_breaker.is_open = True
             circuit_breaker.next_retry_time = datetime.now(timezone.utc) + timedelta(
                 seconds=circuit_breaker.recovery_timeout
@@ -652,9 +608,7 @@ class DiscordBotManager:
             f"(consecutive failures: {circuit_breaker.consecutive_failures})"
         )
 
-    async def _reset_circuit_breaker(
-        self, instance_name: str, circuit_breaker: CircuitBreakerState
-    ):
+    async def _reset_circuit_breaker(self, instance_name: str, circuit_breaker: CircuitBreakerState):
         """Reset circuit breaker after successful connection."""
         if circuit_breaker.consecutive_failures > 0 or circuit_breaker.is_open:
             logger.info(
@@ -666,9 +620,7 @@ class DiscordBotManager:
         circuit_breaker.is_open = False
         circuit_breaker.next_retry_time = None
 
-    async def _handle_max_retries_exceeded(
-        self, instance_name: str, circuit_breaker: CircuitBreakerState
-    ):
+    async def _handle_max_retries_exceeded(self, instance_name: str, circuit_breaker: CircuitBreakerState):
         """Handle the case when max retries are exceeded."""
         logger.error(
             f"MAX RETRIES EXCEEDED for bot '{instance_name}' - permanent failure. "
@@ -694,9 +646,7 @@ class DiscordBotManager:
         if hasattr(self.message_router, "handle_bot_connected"):
             await self.message_router.handle_bot_connected(bot.instance_name, "discord")
 
-    async def _handle_incoming_message(
-        self, instance_name: str, message: discord.Message
-    ):
+    async def _handle_incoming_message(self, instance_name: str, message: discord.Message):
         """Handle incoming Discord message and route to MessageRouter."""
         try:
             # Get the bot instance
@@ -741,11 +691,7 @@ class DiscordBotManager:
             content = message.content.strip()
             # Remove bot mention from the message
             if bot_mentioned:
-                content = (
-                    content.replace(f"<@{bot.user.id}>", "")
-                    .replace(f"<@!{bot.user.id}>", "")
-                    .strip()
-                )
+                content = content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
 
             logger.info(
                 f"Processing Discord message: '{content}' from user: {message.author.name} in session: {session_name}"
@@ -760,8 +706,7 @@ class DiscordBotManager:
                 # Get agent_id properly from instance config
                 agent_id = (
                     instance_config.agent_id
-                    if instance_config.agent_id
-                    and instance_config.agent_id != "default"
+                    if instance_config.agent_id and instance_config.agent_id != "default"
                     else instance_config.default_agent
                 )
                 if not agent_id:
@@ -812,9 +757,7 @@ class DiscordBotManager:
 
             except TypeError as te:
                 # Fallback for older versions of MessageRouter without some parameters
-                logger.warning(
-                    f"Route_message did not accept some parameters, retrying with basic ones: {te}"
-                )
+                logger.warning(f"Route_message did not accept some parameters, retrying with basic ones: {te}")
                 route_func_fallback = partial(
                     self.message_router.route_message,
                     message_text=content,
@@ -840,9 +783,7 @@ class DiscordBotManager:
         except Exception as e:
             logger.error(f"Error handling incoming message from '{instance_name}': {e}")
             try:
-                await message.channel.send(
-                    "I encountered an error processing your message. Please try again later."
-                )
+                await message.channel.send("I encountered an error processing your message. Please try again later.")
             except Exception as send_error:
                 logger.error(f"Failed to send error message to Discord: {send_error}")
 
@@ -859,9 +800,7 @@ class DiscordBotManager:
 
     async def _handle_guild_join(self, instance_name: str, guild: discord.Guild):
         """Handle bot joining a guild."""
-        logger.info(
-            f"Bot '{instance_name}' joined guild: {guild.name} (ID: {guild.id})"
-        )
+        logger.info(f"Bot '{instance_name}' joined guild: {guild.name} (ID: {guild.id})")
 
         # Could implement guild-specific setup here
         # e.g., register slash commands, send welcome message, etc.
@@ -872,9 +811,7 @@ class DiscordBotManager:
 
         # Could implement cleanup here
 
-    async def _handle_interaction(
-        self, instance_name: str, interaction: discord.Interaction
-    ):
+    async def _handle_interaction(self, instance_name: str, interaction: discord.Interaction):
         """Handle slash command interactions."""
         try:
             # Convert interaction to automagik format
@@ -883,17 +820,11 @@ class DiscordBotManager:
                 "instance_name": instance_name,
                 "type": "interaction",
                 "interaction_id": str(interaction.id),
-                "command_name": (
-                    interaction.data.get("name") if interaction.data else None
-                ),
-                "options": (
-                    interaction.data.get("options", []) if interaction.data else []
-                ),
+                "command_name": (interaction.data.get("name") if interaction.data else None),
+                "options": (interaction.data.get("options", []) if interaction.data else []),
                 "user_id": str(interaction.user.id),
                 "username": interaction.user.display_name,
-                "channel_id": (
-                    str(interaction.channel_id) if interaction.channel_id else None
-                ),
+                "channel_id": (str(interaction.channel_id) if interaction.channel_id else None),
                 "guild_id": str(interaction.guild_id) if interaction.guild_id else None,
                 "timestamp": interaction.created_at.isoformat(),
             }
@@ -910,13 +841,9 @@ class DiscordBotManager:
                     ephemeral=True,
                 )
 
-    async def _handle_bot_error(
-        self, instance_name: str, event: str, args: tuple, kwargs: dict
-    ):
+    async def _handle_bot_error(self, instance_name: str, event: str, args: tuple, kwargs: dict):
         """Handle bot errors."""
-        logger.error(
-            f"Discord error in bot '{instance_name}' for event '{event}': {args}, {kwargs}"
-        )
+        logger.error(f"Discord error in bot '{instance_name}' for event '{event}': {args}, {kwargs}")
 
         # Could implement error recovery logic here
         # e.g., restart bot on certain errors, notify admins, etc.
@@ -936,15 +863,11 @@ class DiscordBotManager:
                 return
 
             # Connect to voice channel
-            success = await self.voice_manager.connect_voice(
-                instance_name, voice_channel.id, bot
-            )
+            success = await self.voice_manager.connect_voice(instance_name, voice_channel.id, bot)
 
             if success:
                 await ctx.send(f"🎤 Joined voice channel: **{voice_channel.name}**")
-                logger.info(
-                    f"Bot {instance_name} joined voice channel {voice_channel.name}"
-                )
+                logger.info(f"Bot {instance_name} joined voice channel {voice_channel.name}")
             else:
                 await ctx.send("❌ Failed to join voice channel!")
 
@@ -955,9 +878,7 @@ class DiscordBotManager:
     async def _handle_voice_leave(self, instance_name: str, ctx):
         """Handle !leave command - leave current voice channel."""
         try:
-            success = await self.voice_manager.disconnect_voice(
-                instance_name, ctx.guild.id
-            )
+            success = await self.voice_manager.disconnect_voice(instance_name, ctx.guild.id)
 
             if success:
                 await ctx.send("👋 Left voice channel!")
@@ -982,16 +903,12 @@ class DiscordBotManager:
             # Add bot info
             bot = self.bots.get(instance_name)
             if bot:
-                embed.set_thumbnail(
-                    url=bot.user.avatar.url if bot.user.avatar else None
-                )
+                embed.set_thumbnail(url=bot.user.avatar.url if bot.user.avatar else None)
 
             # Command categories
             embed.add_field(
                 name="🎤 Voice Commands",
-                value=(
-                    "`!join` - Join your current voice channel\n`!leave` - Leave the current voice channel"
-                ),
+                value=("`!join` - Join your current voice channel\n`!leave` - Leave the current voice channel"),
                 inline=False,
             )
 
@@ -1111,14 +1028,10 @@ class DiscordBotManager:
             # Set socket permissions (owner read/write only for security)
             os.chmod(socket_path, 0o600)
 
-            logger.info(
-                f"Unix socket server started for '{instance_name}' at {socket_path}"
-            )
+            logger.info(f"Unix socket server started for '{instance_name}' at {socket_path}")
 
         except Exception as e:
-            logger.error(
-                f"Failed to start Unix socket server for '{instance_name}': {e}"
-            )
+            logger.error(f"Failed to start Unix socket server for '{instance_name}': {e}")
 
     async def _handle_ipc_send_message(self, request: web.Request) -> web.Response:
         """Handle IPC message send request via Unix socket."""
@@ -1141,14 +1054,10 @@ class DiscordBotManager:
             try:
                 channel_id = int(channel_id)
             except (ValueError, TypeError):
-                return web.json_response(
-                    {"success": False, "error": "Invalid channel_id"}, status=400
-                )
+                return web.json_response({"success": False, "error": "Invalid channel_id"}, status=400)
 
             # Send message through the bot
-            success = await manager.send_message(
-                instance_name=instance_name, channel_id=channel_id, content=text
-            )
+            success = await manager.send_message(instance_name=instance_name, channel_id=channel_id, content=text)
 
             return web.json_response(
                 {
@@ -1159,9 +1068,7 @@ class DiscordBotManager:
             )
 
         except json.JSONDecodeError:
-            return web.json_response(
-                {"success": False, "error": "Invalid JSON"}, status=400
-            )
+            return web.json_response({"success": False, "error": "Invalid JSON"}, status=400)
         except Exception as e:
             logger.error(f"IPC send message error: {e}")
             return web.json_response({"success": False, "error": str(e)}, status=500)
@@ -1173,9 +1080,7 @@ class DiscordBotManager:
 
         bot = manager.bots.get(instance_name)
         if not bot:
-            return web.json_response(
-                {"status": "error", "message": "Bot not found"}, status=404
-            )
+            return web.json_response({"status": "error", "message": "Bot not found"}, status=404)
 
         return web.json_response(
             {
@@ -1193,9 +1098,7 @@ class DiscordBotManager:
 
         status = manager.get_bot_status(instance_name)
         if not status:
-            return web.json_response(
-                {"status": "error", "message": "Bot not found"}, status=404
-            )
+            return web.json_response({"status": "error", "message": "Bot not found"}, status=404)
 
         return web.json_response(
             {

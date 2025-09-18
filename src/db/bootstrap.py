@@ -25,9 +25,7 @@ def ensure_default_instance(db: Session) -> Optional[InstanceConfig]:
     existing_count = db.query(InstanceConfig).count()
 
     if existing_count == 0:
-        logger.info(
-            "No instances found. Use the CLI to create instances: './claude-flow instances create'"
-        )
+        logger.info("No instances found. Use the CLI to create instances: './claude-flow instances create'")
         return None
 
     # Return existing default instance

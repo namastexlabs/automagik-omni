@@ -29,18 +29,14 @@ class TestEvolutionApiSenderMentions:
         return mock_resp
 
     @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
-    def test_send_text_message_with_auto_parsed_mentions(
-        self, mock_post, sender, mock_response
-    ):
+    def test_send_text_message_with_auto_parsed_mentions(self, mock_post, sender, mock_response):
         """Test sending message with auto-parsed mentions."""
         mock_post.return_value = mock_response
 
         text = "Hello @5511999999999 and @5511888888888!"
         recipient = "5511777777777"
 
-        result = sender.send_text_message(
-            recipient=recipient, text=text, auto_parse_mentions=True
-        )
+        result = sender.send_text_message(recipient=recipient, text=text, auto_parse_mentions=True)
 
         assert result is True
         mock_post.assert_called_once()
@@ -57,9 +53,7 @@ class TestEvolutionApiSenderMentions:
         assert "5511888888888@s.whatsapp.net" in payload["mentioned"]
 
     @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
-    def test_send_text_message_with_explicit_mentions(
-        self, mock_post, sender, mock_response
-    ):
+    def test_send_text_message_with_explicit_mentions(self, mock_post, sender, mock_response):
         """Test sending message with explicit mentions."""
         mock_post.return_value = mock_response
 
@@ -89,18 +83,14 @@ class TestEvolutionApiSenderMentions:
         assert payload["mentioned"] == mentioned_jids
 
     @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
-    def test_send_text_message_with_mentions_everyone(
-        self, mock_post, sender, mock_response
-    ):
+    def test_send_text_message_with_mentions_everyone(self, mock_post, sender, mock_response):
         """Test sending message with mentions everyone."""
         mock_post.return_value = mock_response
 
         text = "Important announcement!"
         recipient = "group-id@g.us"
 
-        result = sender.send_text_message(
-            recipient=recipient, text=text, mentions_everyone=True
-        )
+        result = sender.send_text_message(recipient=recipient, text=text, mentions_everyone=True)
 
         assert result is True
         mock_post.assert_called_once()
@@ -121,9 +111,7 @@ class TestEvolutionApiSenderMentions:
         text = "Regular message without mentions"
         recipient = "5511777777777"
 
-        result = sender.send_text_message(
-            recipient=recipient, text=text, auto_parse_mentions=True
-        )
+        result = sender.send_text_message(recipient=recipient, text=text, auto_parse_mentions=True)
 
         assert result is True
         mock_post.assert_called_once()
@@ -138,17 +126,13 @@ class TestEvolutionApiSenderMentions:
         assert "mentionsEveryOne" not in payload
 
     @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
-    def test_send_text_message_explicit_overrides_auto_parse(
-        self, mock_post, sender, mock_response
-    ):
+    def test_send_text_message_explicit_overrides_auto_parse(self, mock_post, sender, mock_response):
         """Test that explicit mentions override auto-parsing."""
         mock_post.return_value = mock_response
 
         text = "Hello @5511999999999!"  # This would be auto-parsed
         recipient = "5511777777777"
-        explicit_mentions = [
-            "5511888888888@s.whatsapp.net"
-        ]  # But we provide explicit mentions
+        explicit_mentions = ["5511888888888@s.whatsapp.net"]  # But we provide explicit mentions
 
         result = sender.send_text_message(
             recipient=recipient,
@@ -251,9 +235,7 @@ class TestEvolutionApiSenderMentions:
             ["5511999999999@s.whatsapp.net"],
         )
 
-        with patch(
-            "src.channels.whatsapp.evolution_api_sender.requests.post"
-        ) as mock_post:
+        with patch("src.channels.whatsapp.evolution_api_sender.requests.post") as mock_post:
             mock_resp = Mock()
             mock_resp.status_code = 200
             mock_post.return_value = mock_resp
@@ -265,9 +247,7 @@ class TestEvolutionApiSenderMentions:
             )
 
             assert result is True
-            mock_parser.extract_mentions.assert_called_once_with(
-                "Hello @5511999999999!"
-            )
+            mock_parser.extract_mentions.assert_called_once_with("Hello @5511999999999!")
 
     @pytest.mark.parametrize(
         "text,mentions,mentions_everyone,expected_mention_count",

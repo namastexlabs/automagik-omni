@@ -49,9 +49,7 @@ class TestWhatsAppTransformer:
 
         # Verify timestamp parsing
         assert contact.last_seen is not None
-        expected_datetime = datetime.fromtimestamp(
-            1640995200
-        )  # Converted from milliseconds
+        expected_datetime = datetime.fromtimestamp(1640995200)  # Converted from milliseconds
         assert contact.last_seen == expected_datetime
 
     def test_contact_to_omni_minimal_data(self):
@@ -245,9 +243,7 @@ class TestWhatsAppTransformer:
 
         instance_config = {"display_name": "WhatsApp Instance"}
 
-        channel_info = WhatsAppTransformer.channel_to_omni(
-            "test-whatsapp", status_data, instance_config
-        )
+        channel_info = WhatsAppTransformer.channel_to_omni("test-whatsapp", status_data, instance_config)
 
         assert isinstance(channel_info, OmniChannelInfo)
         assert channel_info.instance_name == "test-whatsapp"
@@ -262,9 +258,7 @@ class TestWhatsAppTransformer:
 
         instance_config = {}
 
-        channel_info = WhatsAppTransformer.channel_to_omni(
-            "minimal-instance", status_data, instance_config
-        )
+        channel_info = WhatsAppTransformer.channel_to_omni("minimal-instance", status_data, instance_config)
 
         assert channel_info.instance_name == "minimal-instance"
         assert channel_info.status == "connecting"
@@ -497,9 +491,7 @@ class TestDiscordTransformer:
 
         instance_config = {"display_name": "Discord Bot"}
 
-        channel_info = DiscordTransformer.channel_to_omni(
-            "test-discord", status_data, instance_config
-        )
+        channel_info = DiscordTransformer.channel_to_omni("test-discord", status_data, instance_config)
 
         assert isinstance(channel_info, OmniChannelInfo)
         assert channel_info.instance_name == "test-discord"
@@ -562,9 +554,7 @@ class TestDiscordTransformer:
             "display_name": "Display Name",
         }
         contact = DiscordTransformer.contact_to_omni(user_no_global, "test")
-        assert (
-            contact.name == "username_only"
-        )  # Implementation doesn't use display_name
+        assert contact.name == "username_only"  # Implementation doesn't use display_name
 
         # Test with only username
         user_only_username = {"id": 789, "username": "username_only"}

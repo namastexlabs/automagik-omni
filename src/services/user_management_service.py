@@ -52,9 +52,7 @@ class UserManagementService:
 
         try:
             logger.info(f"Checking if user exists: {phone_number}")
-            response = requests.get(
-                endpoint, headers=self._make_headers(), timeout=self.timeout
-            )
+            response = requests.get(endpoint, headers=self._make_headers(), timeout=self.timeout)
 
             if response.status_code == 200:
                 user_data = response.json()
@@ -64,9 +62,7 @@ class UserManagementService:
                 logger.info(f"User does not exist: {phone_number}")
                 return None
             else:
-                logger.warning(
-                    f"Unexpected response when checking user existence: {response.status_code}"
-                )
+                logger.warning(f"Unexpected response when checking user existence: {response.status_code}")
                 return None
 
         except Timeout:
@@ -76,9 +72,7 @@ class UserManagementService:
             logger.error(f"Error checking user existence for {phone_number}: {e}")
             return None
         except Exception as e:
-            logger.error(
-                f"Unexpected error checking user existence for {phone_number}: {e}"
-            )
+            logger.error(f"Unexpected error checking user existence for {phone_number}: {e}")
             return None
 
     def create_user(
@@ -122,14 +116,10 @@ class UserManagementService:
 
             if response.status_code == 200:
                 user_data = response.json()
-                logger.info(
-                    f"User created successfully: {phone_number} -> ID: {user_data.get('id')}"
-                )
+                logger.info(f"User created successfully: {phone_number} -> ID: {user_data.get('id')}")
                 return user_data
             else:
-                logger.error(
-                    f"Failed to create user {phone_number}: {response.status_code} - {response.text}"
-                )
+                logger.error(f"Failed to create user {phone_number}: {response.status_code} - {response.text}")
                 return None
 
         except Timeout:

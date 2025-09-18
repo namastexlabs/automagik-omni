@@ -12,6 +12,8 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy.orm import Session
+
 from src.utils.datetime_utils import utcnow
 
 # Import TYPE_CHECKING to avoid circular import
@@ -88,18 +90,14 @@ class StreamingTraceContext(TraceContext):
         }
         self.log_stage("streaming_start", stream_start_payload, "stream_event")
 
-    def log_first_token(
-        self, first_content: str, event_data: Dict[str, Any] = None
-    ) -> None:
+    def log_first_token(self, first_content: str, event_data: Dict[str, Any] = None) -> None:
         """Log the first token/content received from streaming."""
         if self.streaming_metrics.first_token_time is None:
             self.streaming_metrics.first_token_time = utcnow()
 
             # Calculate first token latency
             if self._request_start_time:
-                first_token_latency_ms = int(
-                    (time.time() - self._request_start_time) * 1000
-                )
+                first_token_latency_ms = int((time.time() - self._request_start_time) * 1000)
             else:
                 first_token_latency_ms = 0
 
@@ -114,9 +112,7 @@ class StreamingTraceContext(TraceContext):
             self.log_stage("first_token", first_token_payload, "stream_event")
             logger.info(f"First token received in {first_token_latency_ms}ms")
 
-    def log_streaming_chunk(
-        self, chunk_content: str, chunk_index: int, event_data: Dict[str, Any] = None
-    ) -> None:
+    def log_streaming_chunk(self, chunk_content: str, chunk_index: int, event_data: Dict[str, Any] = None) -> None:
         """Log a streaming content chunk."""
         self.streaming_metrics.total_chunks += 1
         self.streaming_metrics.accumulated_content += chunk_content
@@ -142,27 +138,20 @@ class StreamingTraceContext(TraceContext):
             }
             self.log_stage("streaming_chunk", chunk_payload, "stream_event")
 
-    def log_streaming_complete(
-        self, final_content: str, completion_data: Dict[str, Any] = None
-    ) -> None:
+    def log_streaming_complete(self, final_content: str, completion_data: Dict[str, Any] = None) -> None:
         """Log the completion of streaming response with full content."""
         self.streaming_metrics.final_token_time = utcnow()
 
         # Calculate total streaming time
         if self._request_start_time:
-            total_streaming_time_ms = int(
-                (time.time() - self._request_start_time) * 1000
-            )
+            total_streaming_time_ms = int((time.time() - self._request_start_time) * 1000)
         else:
             total_streaming_time_ms = 0
 
         # Calculate first-token-to-final timing
         if self.streaming_metrics.first_token_time and self._agent_called_time:
             first_to_final_ms = int(
-                (
-                    self.streaming_metrics.final_token_time
-                    - self.streaming_metrics.first_token_time
-                ).total_seconds()
+                (self.streaming_metrics.final_token_time - self.streaming_metrics.first_token_time).total_seconds()
                 * 1000
             )
         else:
@@ -191,9 +180,7 @@ class StreamingTraceContext(TraceContext):
             "streaming": True,
             "metrics": {
                 "total_streaming_time_ms": total_streaming_time_ms,
-                "first_token_latency_ms": completion_payload.get(
-                    "first_token_latency_ms", 0
-                ),
+                "first_token_latency_ms": completion_payload.get("first_token_latency_ms", 0),
                 "first_to_final_ms": first_to_final_ms,
                 "total_chunks": self.streaming_metrics.total_chunks,
             },
@@ -219,9 +206,7 @@ class StreamingTraceContext(TraceContext):
             f"Streaming completed: {total_streaming_time_ms}ms total, {self.streaming_metrics.total_chunks} chunks"
         )
 
-    def log_streaming_error(
-        self, error: Exception, error_stage: str = "streaming"
-    ) -> None:
+    def log_streaming_error(self, error: Exception, error_stage: str = "streaming") -> None:
         """Log streaming error with context."""
         error_payload = {
             "streaming_error": True,
@@ -230,9 +215,7 @@ class StreamingTraceContext(TraceContext):
             "error_stage": error_stage,
             "timestamp": utcnow().isoformat(),
             "partial_content": (
-                self.streaming_metrics.accumulated_content[:200]
-                if self.streaming_metrics.accumulated_content
-                else None
+                self.streaming_metrics.accumulated_content[:200] if self.streaming_metrics.accumulated_content else None
             ),
             "chunks_received": self.streaming_metrics.total_chunks,
         }
@@ -262,14 +245,9 @@ class StreamingTraceContext(TraceContext):
         }
 
         if self.streaming_metrics.final_token_time:
-            summary["final_token_time"] = (
-                self.streaming_metrics.final_token_time.isoformat()
-            )
+            summary["final_token_time"] = self.streaming_metrics.final_token_time.isoformat()
             summary["total_streaming_duration_ms"] = int(
-                (
-                    self.streaming_metrics.final_token_time
-                    - self.streaming_metrics.first_token_time
-                ).total_seconds()
+                (self.streaming_metrics.final_token_time - self.streaming_metrics.first_token_time).total_seconds()
                 * 1000
             )
             summary["status"] = "completed"
@@ -286,6 +264,7 @@ def create_streaming_trace_context(
     sender_name: str,
     sender_jid: str,
     message_type: str = "text",
+    db_session: Optional[Session] = None,
     **kwargs,
 ) -> Optional[StreamingTraceContext]:
     """
@@ -303,7 +282,7 @@ def create_streaming_trace_context(
     Returns:
         StreamingTraceContext instance or None if tracing disabled
     """
-    from src.db.database import get_db
+    from src.db.database import SessionLocal
     from src.services.trace_service import TraceService
 
     # Create message data structure that TraceService expects
@@ -326,16 +305,20 @@ def create_streaming_trace_context(
     }
 
     # Get database session
-    try:
-        db = next(get_db())
+    session_created = False
 
-        # Create trace using TraceService
-        streaming_trace = TraceService.create_streaming_trace(
-            message_data, instance_name, db
-        )
+    try:
+        if db_session is None:
+            db_session = SessionLocal()
+            session_created = True
+
+        streaming_trace = TraceService.create_streaming_trace(message_data, instance_name, db_session)
 
         return streaming_trace
 
     except Exception as e:
         logger.error(f"Failed to create streaming trace context: {e}")
         return None
+    finally:
+        if session_created and db_session is not None:
+            db_session.close()

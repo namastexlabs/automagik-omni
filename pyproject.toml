@@ -76,6 +76,17 @@ dev = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+include = ["src/**/*.py", "tests/**/*.py"]
+exclude = [
+    "scripts/**",
+    "alembic/**",
+    ".claude/**",
+    "docs/**",
+    "__pycache__/**",
+    ".git/**",
+    ".venv/**",
+    "*.egg-info/**"
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
