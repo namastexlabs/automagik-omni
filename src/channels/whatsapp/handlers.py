@@ -416,6 +416,7 @@ class WhatsAppMessageHandler:
                         # Use unified fields for Hive configuration
                         agent_config = {
                             "name": instance_config.agent_id or instance_config.default_agent,
+                            "agent_id": instance_config.agent_id or instance_config.default_agent,
                             "type": "whatsapp",
                             "api_url": instance_config.agent_api_url,
                             "api_key": instance_config.agent_api_key,
@@ -432,11 +433,13 @@ class WhatsAppMessageHandler:
                         # Use legacy fields for Automagik
                         agent_config = {
                             "name": instance_config.agent_id or instance_config.default_agent,
+                            "agent_id": instance_config.agent_id or instance_config.default_agent,
                             "type": "whatsapp",
                             "api_url": instance_config.agent_api_url,
                             "api_key": instance_config.agent_api_key,
                             "timeout": instance_config.agent_timeout,
                             "instance_type": getattr(instance_config, "agent_instance_type", "automagik"),
+                            "agent_type": getattr(instance_config, "agent_type", "agent"),
                             "instance_config": instance_config,  # Pass the full config for routing decisions
                         }
                         logger.info(

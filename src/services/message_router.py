@@ -104,17 +104,25 @@ class MessageRouter:
             # Check if this is a Hive instance configuration
             is_hive = agent_config and agent_config.get("instance_type") == "hive"
 
-            if is_hive and agent_config.get("instance_config"):
-                # Use AutomagikHive client for Hive instances
+            if is_hive:
+                # Use AutomagikHive client for Hive instances via unified configuration
                 logger.info("Detected Hive instance configuration - using AutomagikHive client")
                 from src.services.automagik_hive_client import AutomagikHiveClient
 
                 instance_config = agent_config.get("instance_config")
-                hive_client = AutomagikHiveClient(config_override=instance_config)
+                config_override = instance_config or {
+                    "api_url": agent_config.get("api_url"),
+                    "api_key": agent_config.get("api_key"),
+                    "agent_id": agent_config.get("agent_id") or agent_config.get("name"),
+                    "agent_type": agent_config.get("agent_type", "agent"),
+                    "timeout": agent_config.get("timeout", 60),
+                    "stream_mode": agent_config.get("stream_mode", False),
+                }
+                hive_client = AutomagikHiveClient(config_override=config_override)
 
                 # Determine if this is a team or agent
                 agent_type = agent_config.get("agent_type", "agent")
-                agent_id = agent_config.get("name")  # This should be the agent_id or team_id
+                agent_id = agent_config.get("agent_id") or agent_config.get("name")
 
                 logger.info(f"Routing to Hive {agent_type}: {agent_id}")
 
@@ -354,51 +362,30 @@ class MessageRouter:
 
             # Determine routing type based on instance configuration
             # First try unified schema
-            if hasattr(instance_config, "is_hive") and instance_config.is_hive:
-                if instance_config.agent_type == "team":
-                    # Route to team streaming with enhanced tracing
-                    logger.info(f"Streaming to AutomagikHive team: {instance_config.agent_id}")
-                    success = await streaming_instance.stream_team_to_whatsapp_with_traces(
-                        recipient=recipient,
-                        team_id=instance_config.agent_id,
-                        message=message_text,
-                        trace_context=streaming_trace_context,
-                        user_id=str(user_id) if user_id else None,
-                    )
-                else:
-                    # Route to agent streaming with enhanced tracing
-                    logger.info(f"Streaming to AutomagikHive agent: {instance_config.agent_id}")
-                    success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
-                        recipient=recipient,
-                        agent_id=instance_config.agent_id,
-                        message=message_text,
-                        trace_context=streaming_trace_context,
-                        user_id=str(user_id) if user_id else None,
-                    )
-            # Backward compatibility with legacy fields
-            elif hasattr(instance_config, "hive_agent_id") and instance_config.hive_agent_id:
-                # Route to agent streaming with enhanced tracing
-                logger.info(f"Streaming to AutomagikHive agent: {instance_config.hive_agent_id}")
-                success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
-                    recipient=recipient,
-                    agent_id=instance_config.hive_agent_id,
-                    message=message_text,
-                    trace_context=streaming_trace_context,
-                    user_id=str(user_id) if user_id else None,
-                )
-            elif hasattr(instance_config, "hive_team_id") and instance_config.hive_team_id:
+        if hasattr(instance_config, "is_hive") and instance_config.is_hive:
+            if instance_config.agent_type == "team":
                 # Route to team streaming with enhanced tracing
-                logger.info(f"Streaming to AutomagikHive team: {instance_config.hive_team_id}")
+                logger.info(f"Streaming to AutomagikHive team: {instance_config.agent_id}")
                 success = await streaming_instance.stream_team_to_whatsapp_with_traces(
                     recipient=recipient,
-                    team_id=instance_config.hive_team_id,
+                    team_id=instance_config.agent_id,
                     message=message_text,
                     trace_context=streaming_trace_context,
                     user_id=str(user_id) if user_id else None,
                 )
             else:
-                logger.error("No AutomagikHive agent_id configured for streaming")
-                return False
+                # Route to agent streaming with enhanced tracing
+                logger.info(f"Streaming to AutomagikHive agent: {instance_config.agent_id}")
+                success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
+                    recipient=recipient,
+                    agent_id=instance_config.agent_id,
+                    message=message_text,
+                    trace_context=streaming_trace_context,
+                    user_id=str(user_id) if user_id else None,
+                )
+        else:
+            logger.error("No AutomagikHive agent_id configured for streaming")
+            return False
 
             if success:
                 logger.info(f"AutomagikHive streaming completed successfully for {recipient}")
@@ -449,19 +436,6 @@ class MessageRouter:
                 return False
             logger.debug("Streaming ENABLED for Hive instance")
             return True
-
-        # Backward compatibility: check legacy hive fields
-        if hasattr(instance_config, "hive_enabled") and instance_config.hive_enabled:
-            if not instance_config.hive_api_url or not instance_config.hive_api_key:
-                logger.debug("Streaming disabled (legacy): Missing Hive API URL or key")
-                return False
-            has_agent = hasattr(instance_config, "hive_agent_id") and instance_config.hive_agent_id
-            has_team = hasattr(instance_config, "hive_team_id") and instance_config.hive_team_id
-            if has_agent or has_team:
-                logger.debug("Streaming ENABLED (legacy Hive fields)")
-                return True
-            logger.debug("Streaming disabled (legacy): No hive_agent_id or hive_team_id")
-            return False
 
         logger.debug("Streaming disabled: Not a Hive instance")
         return False
@@ -520,11 +494,22 @@ class MessageRouter:
             # Convert instance_config to agent_config format for traditional routing
             agent_config = None
             if hasattr(instance_config, "agent_api_url") and instance_config.agent_api_url:
+                agent_identifier = (
+                    instance_config.agent_id
+                    if getattr(instance_config, "agent_id", None)
+                    else instance_config.default_agent
+                ) or "default"
+
                 agent_config = {
-                    "name": instance_config.name,
+                    "name": agent_identifier,
+                    "agent_id": agent_identifier,
                     "api_url": instance_config.agent_api_url,
                     "api_key": instance_config.agent_api_key,
                     "timeout": getattr(instance_config, "agent_timeout", 60),
+                    "instance_type": getattr(instance_config, "agent_instance_type", "automagik"),
+                    "agent_type": getattr(instance_config, "agent_type", "agent"),
+                    "stream_mode": getattr(instance_config, "agent_stream_mode", False),
+                    "instance_config": instance_config,
                 }
 
             return self.route_message(

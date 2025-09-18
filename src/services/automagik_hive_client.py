@@ -66,32 +66,46 @@ class AutomagikHiveClient:
         """
         # Extract configuration from InstanceConfig or dict
         if isinstance(config_override, InstanceConfig):
-            # Try legacy fields first for backward compatibility, then unified fields
-            self.api_url = getattr(config_override, "hive_api_url", None) or getattr(
-                config_override, "agent_api_url", None
-            )
-            self.api_key = getattr(config_override, "hive_api_key", None) or getattr(
-                config_override, "agent_api_key", None
-            )
-            self.default_agent_id = getattr(config_override, "hive_agent_id", None) or getattr(
-                config_override, "agent_id", None
-            )
-            self.default_team_id = getattr(config_override, "hive_team_id", None) or getattr(
-                config_override, "team_id", None
-            )
-            self.timeout = (
-                getattr(config_override, "hive_timeout", None) or getattr(config_override, "agent_timeout", None) or 30
-            )
-            self.stream_mode = (
-                getattr(config_override, "hive_stream_mode", None)
-                or getattr(config_override, "agent_stream_mode", None)
-                or True
-            )
+            # Rely exclusively on unified agent_* fields
+            self.api_url = getattr(config_override, "agent_api_url", None)
+            self.api_key = getattr(config_override, "agent_api_key", None)
+
+            agent_identifier = getattr(config_override, "agent_id", None)
+            if not agent_identifier and hasattr(config_override, "default_agent"):
+                agent_identifier = getattr(config_override, "default_agent")
+            if not agent_identifier:
+                agent_identifier = "default"
+            agent_type = getattr(config_override, "agent_type", "agent")
+
+            if agent_type == "team":
+                self.default_team_id = agent_identifier
+                self.default_agent_id = None
+            else:
+                self.default_agent_id = agent_identifier
+                self.default_team_id = None
+
+            timeout_value = getattr(config_override, "agent_timeout", None)
+            self.timeout = timeout_value or 30
+
+            stream_mode_value = getattr(config_override, "agent_stream_mode", None)
+            self.stream_mode = stream_mode_value if stream_mode_value is not None else True
         elif isinstance(config_override, dict):
             self.api_url = config_override.get("api_url")
             self.api_key = config_override.get("api_key")
-            self.default_agent_id = config_override.get("agent_id")
-            self.default_team_id = config_override.get("team_id")
+            agent_identifier = (
+                config_override.get("agent_id")
+                or config_override.get("name")
+                or config_override.get("default_agent")
+                or "default"
+            )
+            agent_type = config_override.get("agent_type", "agent")
+
+            if agent_type == "team":
+                self.default_team_id = agent_identifier
+                self.default_agent_id = None
+            else:
+                self.default_agent_id = agent_identifier
+                self.default_team_id = None
             self.timeout = config_override.get("timeout", 30)
             self.stream_mode = config_override.get("stream_mode", True)
         else:
