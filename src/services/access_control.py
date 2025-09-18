@@ -154,7 +154,10 @@ class AccessControlService:
         with self._lock:
             self._remove_rule(rule)
         logger.info(
-            "Access rule removed: scope=%s phone=%s type=%s", rule.instance_name or "global", rule.phone_number, rule.rule_type
+            "Access rule removed: scope=%s phone=%s type=%s",
+            rule.instance_name or "global",
+            rule.phone_number,
+            rule.rule_type,
         )
         return True
 

@@ -125,13 +125,9 @@ class MessageRouter:
                     # Special sentinel used by channel handlers to suppress replies
                     return "AUTOMAGIK:ACCESS_DENIED"
                 else:
-                    logger.info(
-                        f"Access ALLOWED: phone={phone_for_acl}, scope={instance_name or 'global'}"
-                    )
+                    logger.info(f"Access ALLOWED: phone={phone_for_acl}, scope={instance_name or 'global'}")
             else:
-                logger.info(
-                    "Access check SKIPPED (no phone number available) - allowing by default"
-                )
+                logger.info("Access check SKIPPED (no phone number available) - allowing by default")
         except Exception as acl_err:
             # Never fail routing due to ACL errors; default to allow and log
             logger.error(f"Access control check failed, allowing by default: {acl_err}")

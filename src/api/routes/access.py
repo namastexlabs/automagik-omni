@@ -29,9 +29,7 @@ class AccessRuleCreate(BaseModel):
 
     phone_number: str = Field(..., description="E164 format, supports prefix wildcard with trailing *")
     rule_type: AccessRuleType | str = Field(..., description="allow | block")
-    instance_name: Optional[str] = Field(
-        default=None, description="Optional scope; omit for global rule"
-    )
+    instance_name: Optional[str] = Field(default=None, description="Optional scope; omit for global rule")
 
 
 class AccessRuleOut(BaseModel):
