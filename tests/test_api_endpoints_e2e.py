@@ -187,6 +187,8 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         """Test that protected endpoints reject requests without authentication."""
         # Configure a real API key for authentication tests
         monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "test-api-key-secure")
+        # CRITICAL: Set environment to production to enable auth checks
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         # Force reload config to pick up the new API key
         import importlib
@@ -247,6 +249,8 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         """Test bearer token validation with various scenarios."""
         # Configure a real API key for authentication tests
         monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "test-api-key-secure")
+        # CRITICAL: Set environment to production to enable auth checks
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         # Force reload config to pick up the new API key
         import importlib
@@ -296,6 +300,8 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         """Test that valid authentication allows access."""
         # Configure the same API key that mention_api_headers uses
         monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "namastex888")  # This matches mention_api_headers
+        # CRITICAL: Set environment to production to enable auth checks
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         # Force reload config to pick up the new API key
         import importlib
