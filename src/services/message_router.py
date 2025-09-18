@@ -92,15 +92,11 @@ class MessageRouter:
             # Clear user dict to avoid confusion - we have a specific user ID
             user = None
         elif user:
-            logger.info(
-                f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}"
-            )
+            logger.info(f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}")
             user_id = None  # Let the API handle user creation
         elif not user_id:
             # No user_id provided and no user dict - let the instance-specific agent handle user creation
-            logger.info(
-                "No user_id provided - letting instance-specific agent API handle user creation"
-            )
+            logger.info("No user_id provided - letting instance-specific agent API handle user creation")
             user_id = None
 
         # Process the message through the Agent API
@@ -110,9 +106,7 @@ class MessageRouter:
 
             if is_hive and agent_config.get("instance_config"):
                 # Use AutomagikHive client for Hive instances
-                logger.info(
-                    "Detected Hive instance configuration - using AutomagikHive client"
-                )
+                logger.info("Detected Hive instance configuration - using AutomagikHive client")
                 from src.services.automagik_hive_client import AutomagikHiveClient
 
                 instance_config = agent_config.get("instance_config")
@@ -120,9 +114,7 @@ class MessageRouter:
 
                 # Determine if this is a team or agent
                 agent_type = agent_config.get("agent_type", "agent")
-                agent_id = agent_config.get(
-                    "name"
-                )  # This should be the agent_id or team_id
+                agent_id = agent_config.get("name")  # This should be the agent_id or team_id
 
                 logger.info(f"Routing to Hive {agent_type}: {agent_id}")
 
@@ -155,9 +147,7 @@ class MessageRouter:
                         # Handle streaming vs non-streaming response
                         if agent_config.get("stream_mode", False):
                             # Stream response with newline-based chunking
-                            logger.info(
-                                "Processing Hive streaming response with real-time delivery..."
-                            )
+                            logger.info("Processing Hive streaming response with real-time delivery...")
                             full_response = ""
                             event_count = 0
                             buffer = ""
@@ -180,18 +170,14 @@ class MessageRouter:
                                         if line.strip():  # Only send non-empty lines
                                             # Add the line to responses (will be sent as a chunk)
                                             responses.append(line)
-                                            logger.info(
-                                                f"Streaming chunk ready: {line[:100]}"
-                                            )
+                                            logger.info(f"Streaming chunk ready: {line[:100]}")
 
                             # Add any remaining buffer content
                             if buffer.strip():
                                 responses.append(buffer)
                                 logger.info(f"Final chunk: {buffer[:100]}")
 
-                            logger.info(
-                                f"Streaming complete - {event_count} events received, {len(responses)} chunks"
-                            )
+                            logger.info(f"Streaming complete - {event_count} events received, {len(responses)} chunks")
                             logger.info(f"Final response length: {len(full_response)}")
 
                             # Return with streaming chunks for progressive sending
@@ -218,9 +204,7 @@ class MessageRouter:
                                 # Handle other response types
                                 content = getattr(response, "content", str(response))
 
-                            logger.info(
-                                f"Extracted content: {content[:200] if content else 'EMPTY'}"
-                            )
+                            logger.info(f"Extracted content: {content[:200] if content else 'EMPTY'}")
                             return {"response": content, "success": True}
                     except Exception as e:
                         logger.error(f"Hive API error: {e}")
@@ -262,12 +246,8 @@ class MessageRouter:
                     default_agent=agent_config.get("name"),
                     agent_timeout=agent_config.get("timeout", 60),
                 )
-                instance_agent_client = AgentApiClient(
-                    config_override=instance_override
-                )
-                logger.info(
-                    f"Using instance-specific Automagik API client: {agent_config.get('api_url')}"
-                )
+                instance_agent_client = AgentApiClient(config_override=instance_override)
+                logger.info(f"Using instance-specific Automagik API client: {agent_config.get('api_url')}")
                 response = instance_agent_client.process_message(
                     message=message_text,
                     user_id=user_id,
@@ -363,17 +343,11 @@ class MessageRouter:
                     sender_jid=trace_context.sender_jid,
                     message_type=trace_context.message_type,
                     has_media=getattr(trace_context, "has_media", False),
-                    has_quoted_message=getattr(
-                        trace_context, "has_quoted_message", False
-                    ),
-                    message_length=getattr(
-                        trace_context, "message_length", len(message_text)
-                    ),
+                    has_quoted_message=getattr(trace_context, "has_quoted_message", False),
+                    message_length=getattr(trace_context, "message_length", len(message_text)),
                     session_name=session_identifier,
                 )
-                logger.info(
-                    "Converted standard trace context to streaming trace context"
-                )
+                logger.info("Converted standard trace context to streaming trace context")
 
             # Get the enhanced streaming instance for this configuration
             streaming_instance = get_enhanced_streaming_instance(instance_config)
@@ -383,41 +357,28 @@ class MessageRouter:
             if hasattr(instance_config, "is_hive") and instance_config.is_hive:
                 if instance_config.agent_type == "team":
                     # Route to team streaming with enhanced tracing
-                    logger.info(
-                        f"Streaming to AutomagikHive team: {instance_config.agent_id}"
-                    )
-                    success = (
-                        await streaming_instance.stream_team_to_whatsapp_with_traces(
-                            recipient=recipient,
-                            team_id=instance_config.agent_id,
-                            message=message_text,
-                            trace_context=streaming_trace_context,
-                            user_id=str(user_id) if user_id else None,
-                        )
+                    logger.info(f"Streaming to AutomagikHive team: {instance_config.agent_id}")
+                    success = await streaming_instance.stream_team_to_whatsapp_with_traces(
+                        recipient=recipient,
+                        team_id=instance_config.agent_id,
+                        message=message_text,
+                        trace_context=streaming_trace_context,
+                        user_id=str(user_id) if user_id else None,
                     )
                 else:
                     # Route to agent streaming with enhanced tracing
-                    logger.info(
-                        f"Streaming to AutomagikHive agent: {instance_config.agent_id}"
-                    )
-                    success = (
-                        await streaming_instance.stream_agent_to_whatsapp_with_traces(
-                            recipient=recipient,
-                            agent_id=instance_config.agent_id,
-                            message=message_text,
-                            trace_context=streaming_trace_context,
-                            user_id=str(user_id) if user_id else None,
-                        )
+                    logger.info(f"Streaming to AutomagikHive agent: {instance_config.agent_id}")
+                    success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
+                        recipient=recipient,
+                        agent_id=instance_config.agent_id,
+                        message=message_text,
+                        trace_context=streaming_trace_context,
+                        user_id=str(user_id) if user_id else None,
                     )
             # Backward compatibility with legacy fields
-            elif (
-                hasattr(instance_config, "hive_agent_id")
-                and instance_config.hive_agent_id
-            ):
+            elif hasattr(instance_config, "hive_agent_id") and instance_config.hive_agent_id:
                 # Route to agent streaming with enhanced tracing
-                logger.info(
-                    f"Streaming to AutomagikHive agent: {instance_config.hive_agent_id}"
-                )
+                logger.info(f"Streaming to AutomagikHive agent: {instance_config.hive_agent_id}")
                 success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
                     recipient=recipient,
                     agent_id=instance_config.hive_agent_id,
@@ -425,14 +386,9 @@ class MessageRouter:
                     trace_context=streaming_trace_context,
                     user_id=str(user_id) if user_id else None,
                 )
-            elif (
-                hasattr(instance_config, "hive_team_id")
-                and instance_config.hive_team_id
-            ):
+            elif hasattr(instance_config, "hive_team_id") and instance_config.hive_team_id:
                 # Route to team streaming with enhanced tracing
-                logger.info(
-                    f"Streaming to AutomagikHive team: {instance_config.hive_team_id}"
-                )
+                logger.info(f"Streaming to AutomagikHive team: {instance_config.hive_team_id}")
                 success = await streaming_instance.stream_team_to_whatsapp_with_traces(
                     recipient=recipient,
                     team_id=instance_config.hive_team_id,
@@ -445,18 +401,14 @@ class MessageRouter:
                 return False
 
             if success:
-                logger.info(
-                    f"AutomagikHive streaming completed successfully for {recipient}"
-                )
+                logger.info(f"AutomagikHive streaming completed successfully for {recipient}")
             else:
                 logger.warning(f"AutomagikHive streaming failed for {recipient}")
 
             return success
 
         except Exception as e:
-            logger.error(
-                f"Error in AutomagikHive streaming for {recipient}: {e}", exc_info=True
-            )
+            logger.error(f"Error in AutomagikHive streaming for {recipient}: {e}", exc_info=True)
             return False
 
     def should_use_streaming(self, instance_config: InstanceConfig) -> bool:
@@ -475,18 +427,10 @@ class MessageRouter:
 
         logger.debug(f"Checking streaming for instance {instance_config.name}:")
         logger.debug(f"  - stream_mode from agent_config: {stream_mode}")
-        logger.debug(
-            f"  - agent_instance_type: {getattr(instance_config, 'agent_instance_type', None)}"
-        )
-        logger.debug(
-            f"  - is_hive property: {getattr(instance_config, 'is_hive', False)}"
-        )
-        logger.debug(
-            f"  - agent_api_url: {bool(getattr(instance_config, 'agent_api_url', None))}"
-        )
-        logger.debug(
-            f"  - agent_api_key: {bool(getattr(instance_config, 'agent_api_key', None))}"
-        )
+        logger.debug(f"  - agent_instance_type: {getattr(instance_config, 'agent_instance_type', None)}")
+        logger.debug(f"  - is_hive property: {getattr(instance_config, 'is_hive', False)}")
+        logger.debug(f"  - agent_api_url: {bool(getattr(instance_config, 'agent_api_url', None))}")
+        logger.debug(f"  - agent_api_key: {bool(getattr(instance_config, 'agent_api_key', None))}")
         logger.debug(f"  - agent_id: {getattr(instance_config, 'agent_id', None)}")
 
         if not stream_mode:
@@ -511,20 +455,12 @@ class MessageRouter:
             if not instance_config.hive_api_url or not instance_config.hive_api_key:
                 logger.debug("Streaming disabled (legacy): Missing Hive API URL or key")
                 return False
-            has_agent = (
-                hasattr(instance_config, "hive_agent_id")
-                and instance_config.hive_agent_id
-            )
-            has_team = (
-                hasattr(instance_config, "hive_team_id")
-                and instance_config.hive_team_id
-            )
+            has_agent = hasattr(instance_config, "hive_agent_id") and instance_config.hive_agent_id
+            has_team = hasattr(instance_config, "hive_team_id") and instance_config.hive_team_id
             if has_agent or has_team:
                 logger.debug("Streaming ENABLED (legacy Hive fields)")
                 return True
-            logger.debug(
-                "Streaming disabled (legacy): No hive_agent_id or hive_team_id"
-            )
+            logger.debug("Streaming disabled (legacy): No hive_agent_id or hive_team_id")
             return False
 
         logger.debug("Streaming disabled: Not a Hive instance")
@@ -583,10 +519,7 @@ class MessageRouter:
             logger.info(f"Using traditional API routing for {recipient}")
             # Convert instance_config to agent_config format for traditional routing
             agent_config = None
-            if (
-                hasattr(instance_config, "agent_api_url")
-                and instance_config.agent_api_url
-            ):
+            if hasattr(instance_config, "agent_api_url") and instance_config.agent_api_url:
                 agent_config = {
                     "name": instance_config.name,
                     "api_url": instance_config.agent_api_url,

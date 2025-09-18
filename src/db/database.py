@@ -3,6 +3,7 @@ Database configuration and session management.
 """
 
 import logging
+import os
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base
@@ -15,6 +16,12 @@ logger = logging.getLogger(__name__)
 
 def get_database_url() -> str:
     """Get database URL from configuration."""
+
+    test_override = os.getenv("TEST_DATABASE_URL")
+    if test_override:
+        logger.info("Using TEST_DATABASE_URL override for database connection")
+        return test_override
+
     from src.config import config
 
     return config.database.database_url
@@ -36,9 +43,7 @@ ensure_sqlite_directory(DATABASE_URL)
 
 # Initialize database (create if needed for PostgreSQL)
 if not initialize_database(DATABASE_URL):
-    logger.error(
-        "Failed to initialize database. Please check your database configuration and permissions."
-    )
+    logger.error("Failed to initialize database. Please check your database configuration and permissions.")
     # Continue anyway - let SQLAlchemy fail with a more specific error if needed
 
 # SQLAlchemy engine

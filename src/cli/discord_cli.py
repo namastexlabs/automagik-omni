@@ -18,18 +18,12 @@ console = Console()
 
 
 @app.command("start")
-def start_bot(
-    instance_name: str = typer.Argument(
-        ..., help="Name of the Discord instance to start"
-    )
-):
+def start_bot(instance_name: str = typer.Argument(..., help="Name of the Discord instance to start")):
     """Start a Discord bot for the specified instance."""
     start_time = time.time()
 
     try:
-        console.print(
-            f"[yellow]Starting Discord bot for instance: {instance_name}[/yellow]"
-        )
+        console.print(f"[yellow]Starting Discord bot for instance: {instance_name}[/yellow]")
 
         # Ensure Discord service is running
         if not discord_service.get_service_status()["service_running"]:
@@ -48,9 +42,7 @@ def start_bot(
         success = discord_service.start_bot(instance_name)
 
         if success:
-            console.print(
-                f"[green]✅ Discord bot '{instance_name}' started successfully![/green]"
-            )
+            console.print(f"[green]✅ Discord bot '{instance_name}' started successfully![/green]")
             console.print("[dim]The bot will continue running in the background.[/dim]")
             track_command(
                 "discord_start",
@@ -59,9 +51,7 @@ def start_bot(
                 duration_ms=(time.time() - start_time) * 1000,
             )
         else:
-            console.print(
-                f"[red]❌ Failed to start Discord bot '{instance_name}'[/red]"
-            )
+            console.print(f"[red]❌ Failed to start Discord bot '{instance_name}'[/red]")
             track_command(
                 "discord_start",
                 success=False,
@@ -82,25 +72,17 @@ def start_bot(
 
 
 @app.command("stop")
-def stop_bot(
-    instance_name: str = typer.Argument(
-        ..., help="Name of the Discord instance to stop"
-    )
-):
+def stop_bot(instance_name: str = typer.Argument(..., help="Name of the Discord instance to stop")):
     """Stop a Discord bot for the specified instance."""
     start_time = time.time()
 
     try:
-        console.print(
-            f"[yellow]Stopping Discord bot for instance: {instance_name}[/yellow]"
-        )
+        console.print(f"[yellow]Stopping Discord bot for instance: {instance_name}[/yellow]")
 
         success = discord_service.stop_bot(instance_name)
 
         if success:
-            console.print(
-                f"[green]✅ Discord bot '{instance_name}' stopped successfully[/green]"
-            )
+            console.print(f"[green]✅ Discord bot '{instance_name}' stopped successfully[/green]")
             track_command(
                 "discord_stop",
                 success=True,
@@ -108,9 +90,7 @@ def stop_bot(
                 duration_ms=(time.time() - start_time) * 1000,
             )
         else:
-            console.print(
-                f"[red]❌ Failed to stop Discord bot '{instance_name}' (may not be running)[/red]"
-            )
+            console.print(f"[red]❌ Failed to stop Discord bot '{instance_name}' (may not be running)[/red]")
             track_command(
                 "discord_stop",
                 success=False,
@@ -131,18 +111,12 @@ def stop_bot(
 
 
 @app.command("restart")
-def restart_bot(
-    instance_name: str = typer.Argument(
-        ..., help="Name of the Discord instance to restart"
-    )
-):
+def restart_bot(instance_name: str = typer.Argument(..., help="Name of the Discord instance to restart")):
     """Restart a Discord bot for the specified instance."""
     start_time = time.time()
 
     try:
-        console.print(
-            f"[yellow]Restarting Discord bot for instance: {instance_name}[/yellow]"
-        )
+        console.print(f"[yellow]Restarting Discord bot for instance: {instance_name}[/yellow]")
 
         # Ensure Discord service is running
         if not discord_service.get_service_status()["service_running"]:
@@ -160,9 +134,7 @@ def restart_bot(
         success = discord_service.restart_bot(instance_name)
 
         if success:
-            console.print(
-                f"[green]✅ Discord bot '{instance_name}' restarted successfully[/green]"
-            )
+            console.print(f"[green]✅ Discord bot '{instance_name}' restarted successfully[/green]")
             track_command(
                 "discord_restart",
                 success=True,
@@ -170,9 +142,7 @@ def restart_bot(
                 duration_ms=(time.time() - start_time) * 1000,
             )
         else:
-            console.print(
-                f"[red]❌ Failed to restart Discord bot '{instance_name}'[/red]"
-            )
+            console.print(f"[red]❌ Failed to restart Discord bot '{instance_name}'[/red]")
             track_command(
                 "discord_restart",
                 success=False,
@@ -194,9 +164,7 @@ def restart_bot(
 
 @app.command("status")
 def status_bot(
-    instance_name: Optional[str] = typer.Argument(
-        None, help="Name of the Discord instance to check (optional)"
-    ),
+    instance_name: Optional[str] = typer.Argument(None, help="Name of the Discord instance to check (optional)"),
 ):
     """Show status of Discord bot(s)."""
     start_time = time.time()
@@ -204,17 +172,13 @@ def status_bot(
     try:
         if instance_name:
             # Show status for specific instance
-            console.print(
-                f"[blue]Checking status for Discord bot: {instance_name}[/blue]"
-            )
+            console.print(f"[blue]Checking status for Discord bot: {instance_name}[/blue]")
 
             bot_status = discord_service.get_bot_status(instance_name)
             if bot_status:
                 _display_bot_status(instance_name, bot_status)
             else:
-                console.print(
-                    f"[red]Discord bot '{instance_name}' is not running or not found[/red]"
-                )
+                console.print(f"[red]Discord bot '{instance_name}' is not running or not found[/red]")
 
         else:
             # Show status for all bots
@@ -319,19 +283,13 @@ def _display_service_status(service_status: dict):
     else:
         status_text.append("🔴 Service Stopped\n", style="red")
 
-    status_text.append(
-        f"Event Loop: {'Active' if service_status['loop_thread_alive'] else 'Inactive'}\n"
-    )
+    status_text.append(f"Event Loop: {'Active' if service_status['loop_thread_alive'] else 'Inactive'}\n")
     status_text.append(f"Running Bots: {service_status['running_bots']}\n")
 
     if service_status["bot_instances"]:
-        status_text.append(
-            f"Bot Instances: {', '.join(service_status['bot_instances'])}"
-        )
+        status_text.append(f"Bot Instances: {', '.join(service_status['bot_instances'])}")
 
-    console.print(
-        Panel(status_text, title="Discord Service Status", border_style="blue")
-    )
+    console.print(Panel(status_text, title="Discord Service Status", border_style="blue"))
 
 
 def _display_bot_status(instance_name: str, bot_status: dict, compact: bool = False):
@@ -369,13 +327,9 @@ def _display_bot_status(instance_name: str, bot_status: dict, compact: bool = Fa
 
     # Connection info
     if status == "connected":
-        status_text.append(
-            f"Guilds: {bot_status.get('guild_count', 0)}\n", style="blue"
-        )
+        status_text.append(f"Guilds: {bot_status.get('guild_count', 0)}\n", style="blue")
         status_text.append(f"Users: {bot_status.get('user_count', 0)}\n", style="blue")
-        status_text.append(
-            f"Latency: {bot_status.get('latency', 0):.2f}ms\n", style="dim"
-        )
+        status_text.append(f"Latency: {bot_status.get('latency', 0):.2f}ms\n", style="dim")
 
     # Timestamps
     if bot_status.get("started_at"):

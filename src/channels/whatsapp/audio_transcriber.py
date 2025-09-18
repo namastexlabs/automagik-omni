@@ -34,9 +34,7 @@ class AudioTranscriptionService:
         # Always return False since transcription is disabled
         return False
 
-    def transcribe_encrypted_audio(
-        self, encrypted_url: str, media_key_b64: str
-    ) -> Optional[str]:
+    def transcribe_encrypted_audio(self, encrypted_url: str, media_key_b64: str) -> Optional[str]:
         """
         Transcribe encrypted WhatsApp audio by first decrypting it.
 
@@ -62,17 +60,13 @@ class AudioTranscriptionService:
                 return None
 
             try:
-                logger.info(
-                    f"✅ Successfully decrypted audio to: {decrypted_temp_path}"
-                )
+                logger.info(f"✅ Successfully decrypted audio to: {decrypted_temp_path}")
 
                 # Now transcribe the decrypted audio file using multipart upload
                 transcription = self._transcribe_multipart_upload(decrypted_temp_path)
 
                 if transcription:
-                    logger.info(
-                        f"🎯 Successfully transcribed decrypted WhatsApp audio: {transcription}"
-                    )
+                    logger.info(f"🎯 Successfully transcribed decrypted WhatsApp audio: {transcription}")
                     return transcription
                 else:
                     logger.error("❌ Failed to transcribe decrypted audio")
@@ -83,16 +77,12 @@ class AudioTranscriptionService:
                 try:
                     if os.path.exists(decrypted_temp_path):
                         os.unlink(decrypted_temp_path)
-                        logger.info(
-                            f"🗑️ Cleaned up temporary decrypted file: {decrypted_temp_path}"
-                        )
+                        logger.info(f"🗑️ Cleaned up temporary decrypted file: {decrypted_temp_path}")
                 except Exception as cleanup_error:
                     logger.warning(f"⚠️ Failed to clean up temp file: {cleanup_error}")
 
         except Exception as e:
-            logger.error(
-                f"❌ Error during encrypted audio transcription: {e}", exc_info=True
-            )
+            logger.error(f"❌ Error during encrypted audio transcription: {e}", exc_info=True)
             return None
 
     def _truncate_url_for_logging(self, url: str, max_length: int = 60) -> str:
@@ -179,9 +169,7 @@ class AudioTranscriptionService:
 
         return audio_url
 
-    def transcribe_audio(
-        self, audio_url: str, language: Optional[str] = None
-    ) -> Optional[str]:
+    def transcribe_audio(self, audio_url: str, language: Optional[str] = None) -> Optional[str]:
         """
         Transcribe audio from URL using Evolution Transcript API.
 
@@ -205,9 +193,7 @@ class AudioTranscriptionService:
             url = f"{self.api_url.rstrip('/')}/transcribe"
             api_key = self.api_key
 
-            logger.info(
-                f"Using configured transcription API: {self._truncate_url_for_logging(url)}"
-            )
+            logger.info(f"Using configured transcription API: {self._truncate_url_for_logging(url)}")
 
             # Prepare headers with API key
             headers = {
@@ -227,9 +213,7 @@ class AudioTranscriptionService:
                 "headers": {"apikey": "***hidden***"},
                 "payload": {"url": self._truncate_url_for_logging(payload["url"])},
             }
-            logger.info(
-                f"\033[94mMaking transcription request: {json.dumps(request_info)}\033[0m"
-            )
+            logger.info(f"\033[94mMaking transcription request: {json.dumps(request_info)}\033[0m")
 
             # Make API request with form data payload
             response = requests.post(
@@ -239,9 +223,7 @@ class AudioTranscriptionService:
                 timeout=30,
             )
 
-            logger.info(
-                f"\033[94mTranscription response status code: {response.status_code}\033[0m"
-            )
+            logger.info(f"\033[94mTranscription response status code: {response.status_code}\033[0m")
 
             # Try to log response content for debugging
             try:
@@ -255,11 +237,7 @@ class AudioTranscriptionService:
                     result = response.json()
                     # Look for text in the response
                     if isinstance(result, dict):
-                        text = (
-                            result.get("text")
-                            or result.get("transcription")
-                            or result.get("result")
-                        )
+                        text = result.get("text") or result.get("transcription") or result.get("result")
                         if text:
                             logger.info(
                                 f"\033[92mTranscription successful: {text[:100]}{'...' if len(text) > 100 else ''}\033[0m"
@@ -347,9 +325,7 @@ class AudioTranscriptionService:
         try:
             # Check content type to ensure it's audio
             content_type = response.headers.get("Content-Type", "")
-            logger.info(
-                f"\033[94mDownloaded file with Content-Type: {content_type}\033[0m"
-            )
+            logger.info(f"\033[94mDownloaded file with Content-Type: {content_type}\033[0m")
 
             # Log file size for debugging
             file_size = len(response.content)
@@ -363,17 +339,13 @@ class AudioTranscriptionService:
             audio_data = response.content
             base64_data = base64.b64encode(audio_data).decode("utf-8")
 
-            logger.info(
-                f"\033[92mSuccessfully downloaded and encoded audio file ({len(audio_data)} bytes)\033[0m"
-            )
+            logger.info(f"\033[92mSuccessfully downloaded and encoded audio file ({len(audio_data)} bytes)\033[0m")
             return base64_data
         except Exception as e:
             logger.error(f"\033[91mError processing download response: {str(e)}\033[0m")
             return None
 
-    def transcribe_with_fallback(
-        self, audio_url: str, language: Optional[str] = None
-    ) -> Optional[str]:
+    def transcribe_with_fallback(self, audio_url: str, language: Optional[str] = None) -> Optional[str]:
         """
         Try to transcribe using URL first, then fallback to downloading and base64 encoding if that fails.
 
@@ -391,9 +363,7 @@ class AudioTranscriptionService:
         result = self.transcribe_audio(audio_url, language)
 
         if result:
-            logger.info(
-                "\033[92mSuccessfully transcribed audio using URL method\033[0m"
-            )
+            logger.info("\033[92mSuccessfully transcribed audio using URL method\033[0m")
             return result
 
         # If URL approach fails, try downloading and sending base64
@@ -403,13 +373,9 @@ class AudioTranscriptionService:
             audio_data_response = self.download_and_encode_audio(audio_url)
             if audio_data_response:
                 base64_data = audio_data_response
-                audio_data = base64.b64decode(
-                    base64_data
-                )  # Save the raw data for multipart fallback
+                audio_data = base64.b64decode(base64_data)  # Save the raw data for multipart fallback
             else:
-                logger.error(
-                    "\033[91mFailed to download audio file for base64 encoding\033[0m"
-                )
+                logger.error("\033[91mFailed to download audio file for base64 encoding\033[0m")
                 return None
         except Exception as e:
             logger.error(f"\033[91mError decoding base64 data: {str(e)}\033[0m")
@@ -423,9 +389,7 @@ class AudioTranscriptionService:
 
         # If base64 approach fails, try multipart file upload
         if audio_data:
-            logger.info(
-                "\033[94mBase64 approach failed, trying multipart file upload\033[0m"
-            )
+            logger.info("\033[94mBase64 approach failed, trying multipart file upload\033[0m")
             result = self._try_multipart_transcription(audio_data, language)
             if result:
                 return result
@@ -434,22 +398,16 @@ class AudioTranscriptionService:
         logger.error("\033[91mAll transcription approaches failed\033[0m")
         return None
 
-    def _try_base64_transcription(
-        self, base64_data: str, language: Optional[str] = None
-    ) -> Optional[str]:
+    def _try_base64_transcription(self, base64_data: str, language: Optional[str] = None) -> Optional[str]:
         """Try transcription using base64 approach"""
         try:
-            logger.info(
-                f"\033[94mAttempting transcription with base64 data (length: {len(base64_data)} chars)\033[0m"
-            )
+            logger.info(f"\033[94mAttempting transcription with base64 data (length: {len(base64_data)} chars)\033[0m")
 
             # Use the configured API URL and key from environment variables
             url = f"{self.api_url.rstrip('/')}/transcribe"
             api_key = self.api_key
 
-            logger.info(
-                f"Using configured transcription API for base64: {self._truncate_url_for_logging(url)}"
-            )
+            logger.info(f"Using configured transcription API for base64: {self._truncate_url_for_logging(url)}")
 
             # Create payload with "base64" parameter instead of "url"
             payload = {"base64": base64_data}
@@ -474,9 +432,7 @@ class AudioTranscriptionService:
             )
 
             # Log response status
-            logger.info(
-                f"\033[94mBase64 transcription response status: {response.status_code}\033[0m"
-            )
+            logger.info(f"\033[94mBase64 transcription response status: {response.status_code}\033[0m")
 
             # Try to log response content for debugging
             try:
@@ -489,11 +445,7 @@ class AudioTranscriptionService:
                 try:
                     result = response.json()
                     # Look for text in various possible fields
-                    text = (
-                        result.get("text")
-                        or result.get("transcription")
-                        or result.get("result")
-                    )
+                    text = result.get("text") or result.get("transcription") or result.get("result")
                     if text:
                         logger.info(
                             f"\033[92mBase64 transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m"
@@ -513,25 +465,19 @@ class AudioTranscriptionService:
                         return text
             else:
                 # Log error details
-                logger.error(
-                    f"\033[91mBase64 transcription failed with status {response.status_code}\033[0m"
-                )
+                logger.error(f"\033[91mBase64 transcription failed with status {response.status_code}\033[0m")
                 try:
                     error_content = response.json()
                     logger.error(f"\033[91mError response: {error_content}\033[0m")
                 except Exception:
-                    logger.error(
-                        f"\033[91mError response content: {response.text[:200]}\033[0m"
-                    )
+                    logger.error(f"\033[91mError response content: {response.text[:200]}\033[0m")
 
             return None
         except Exception as e:
             logger.error(f"\033[91mError during base64 transcription: {str(e)}\033[0m")
             return None
 
-    def _try_multipart_transcription(
-        self, audio_data: bytes, language: Optional[str] = None
-    ) -> Optional[str]:
+    def _try_multipart_transcription(self, audio_data: bytes, language: Optional[str] = None) -> Optional[str]:
         """Try transcription using multipart file upload approach"""
         try:
             logger.info(
@@ -542,9 +488,7 @@ class AudioTranscriptionService:
             url = f"{self.api_url.rstrip('/')}/transcribe"
             api_key = self.api_key
 
-            logger.info(
-                f"Using configured transcription API for multipart: {self._truncate_url_for_logging(url)}"
-            )
+            logger.info(f"Using configured transcription API for multipart: {self._truncate_url_for_logging(url)}")
 
             # Create a temporary file to hold the audio data
             with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_file:
@@ -570,14 +514,10 @@ class AudioTranscriptionService:
                 )
 
                 # Make API call
-                response = requests.post(
-                    url, files=files, data=data, headers=headers, timeout=60
-                )
+                response = requests.post(url, files=files, data=data, headers=headers, timeout=60)
 
                 # Log response status
-                logger.info(
-                    f"\033[94mMultipart transcription response status: {response.status_code}\033[0m"
-                )
+                logger.info(f"\033[94mMultipart transcription response status: {response.status_code}\033[0m")
 
                 # Try to log response content for debugging
                 try:
@@ -590,11 +530,7 @@ class AudioTranscriptionService:
                     try:
                         result = response.json()
                         # Look for text in various possible fields
-                        text = (
-                            result.get("text")
-                            or result.get("transcription")
-                            or result.get("result")
-                        )
+                        text = result.get("text") or result.get("transcription") or result.get("result")
                         if text:
                             logger.info(
                                 f"\033[92mMultipart transcription successful: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m"
@@ -614,16 +550,12 @@ class AudioTranscriptionService:
                             return text
                 else:
                     # Log error details
-                    logger.error(
-                        f"\033[91mMultipart transcription failed with status {response.status_code}\033[0m"
-                    )
+                    logger.error(f"\033[91mMultipart transcription failed with status {response.status_code}\033[0m")
                     try:
                         error_content = response.json()
                         logger.error(f"\033[91mError response: {error_content}\033[0m")
                     except Exception:
-                        logger.error(
-                            f"\033[91mError response content: {response.text[:200]}\033[0m"
-                        )
+                        logger.error(f"\033[91mError response content: {response.text[:200]}\033[0m")
 
                 return None
             finally:
@@ -646,7 +578,5 @@ class AudioTranscriptionService:
                     logger.debug(f"Error closing file handle: {e}")
 
         except Exception as e:
-            logger.error(
-                f"\033[91mError during multipart transcription: {str(e)}\033[0m"
-            )
+            logger.error(f"\033[91mError during multipart transcription: {str(e)}\033[0m")
             return None

@@ -33,9 +33,7 @@ class WhatsAppClient:
     def __init__(self):
         """Initialize the WhatsApp client."""
         logger.warning("WhatsAppClient is deprecated. Use HTTP webhooks instead.")
-        raise RuntimeError(
-            "WhatsAppClient is deprecated and no longer functional. Use HTTP webhooks instead."
-        )
+        raise RuntimeError("WhatsAppClient is deprecated and no longer functional. Use HTTP webhooks instead.")
         self.evolution_config = RabbitMQConfig(
             uri=config.rabbitmq.uri,
             exchange_name=config.rabbitmq.exchange_name,
@@ -147,9 +145,7 @@ class WhatsAppClient:
         if "instance" in webhook_data and webhook_data["instance"]:
             # Update the instance name in the config
             config.whatsapp.instance = webhook_data["instance"]
-            logger.info(
-                f"Updated instance name from webhook: {config.whatsapp.instance}"
-            )
+            logger.info(f"Updated instance name from webhook: {config.whatsapp.instance}")
 
     def _handle_message(self, message: Dict[str, Any]):
         """Handle incoming WhatsApp messages from RabbitMQ."""
@@ -178,17 +174,11 @@ class WhatsAppClient:
             try:
                 # Check if the connection is still open
                 if not self.client.connection or not self.client.connection.is_open:
-                    logger.warning(
-                        "RabbitMQ connection lost. Attempting to reconnect..."
-                    )
+                    logger.warning("RabbitMQ connection lost. Attempting to reconnect...")
                     if self.client.reconnect():
                         # Re-subscribe to messages after reconnecting
-                        self.client.subscribe(
-                            EventType.MESSAGES_UPSERT, self._handle_message
-                        )
-                        logger.info(
-                            "Successfully reconnected and resubscribed to WhatsApp messages"
-                        )
+                        self.client.subscribe(EventType.MESSAGES_UPSERT, self._handle_message)
+                        logger.info("Successfully reconnected and resubscribed to WhatsApp messages")
                     else:
                         logger.error("Failed to reconnect to RabbitMQ")
 
@@ -214,9 +204,7 @@ class WhatsAppClient:
         if self.connect():
             # Start connection monitor
             self._should_monitor = True
-            self._connection_monitor_thread = threading.Thread(
-                target=self._monitor_connection
-            )
+            self._connection_monitor_thread = threading.Thread(target=self._monitor_connection)
             self._connection_monitor_thread.daemon = True
             self._connection_monitor_thread.start()
 
@@ -263,9 +251,7 @@ class WhatsAppClient:
             for queue_name in expected_queues:
                 try:
                     # Use passive=True to only check if queue exists, not create it
-                    queue_info = self.client.channel.queue_declare(
-                        queue=queue_name, passive=True
-                    )
+                    queue_info = self.client.channel.queue_declare(queue=queue_name, passive=True)
                     message_count = queue_info.method.message_count
                     consumer_count = queue_info.method.consumer_count
 
@@ -273,9 +259,7 @@ class WhatsAppClient:
                         f"Queue '{queue_name}' exists with {message_count} messages and {consumer_count} consumers"
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"Queue '{queue_name}' does not exist or cannot be accessed: {e}"
-                    )
+                    logger.warning(f"Queue '{queue_name}' does not exist or cannot be accessed: {e}")
 
         except Exception as e:
             logger.error(f"Error checking queue status: {e}", exc_info=True)
@@ -284,10 +268,7 @@ class WhatsAppClient:
         """Stop the WhatsApp client."""
         # Stop connection monitoring
         self._should_monitor = False
-        if (
-            self._connection_monitor_thread
-            and self._connection_monitor_thread.is_alive()
-        ):
+        if self._connection_monitor_thread and self._connection_monitor_thread.is_alive():
             self._connection_monitor_thread.join(timeout=5.0)
 
         # Import here to avoid circular imports
@@ -336,9 +317,7 @@ class WhatsAppClient:
         try:
             # Log the request details (without sensitive data)
             logger.info(f"Sending message to {formatted_recipient} using URL: {url}")
-            logger.info(
-                f"Headers: {{'apikey': '*****', 'Content-Type': '{headers['Content-Type']}'}}"
-            )
+            logger.info(f"Headers: {{'apikey': '*****', 'Content-Type': '{headers['Content-Type']}'}}")
             logger.info(
                 f"Payload: {{'number': '{formatted_recipient}', 'text': '{text[:30]}...' if len(text) > 30 else text}}"
             )
@@ -351,11 +330,7 @@ class WhatsAppClient:
 
             # Log response content for debugging
             try:
-                response_text = (
-                    response.text[:200] + "..."
-                    if len(response.text) > 200
-                    else response.text
-                )
+                response_text = response.text[:200] + "..." if len(response.text) > 200 else response.text
                 logger.info(f"Response content: {response_text}")
             except Exception as e:
                 logger.info(f"Could not log response content: {str(e)}")
@@ -413,10 +388,7 @@ class WhatsAppClient:
             return data.get("messageType")
 
         # Check for specific message types in the message structure
-        if (
-            "conversation" in message_content
-            or "extendedTextMessage" in message_content
-        ):
+        if "conversation" in message_content or "extendedTextMessage" in message_content:
             return "text"
         elif "imageMessage" in message_content:
             logger.info("Detected image message from message structure")
@@ -445,9 +417,7 @@ class WhatsAppClient:
                 return "document"
             else:
                 # If URL exists but can't determine type, default to image
-                logger.info(
-                    f"Unknown media type but URL exists, defaulting to image: {media_url}"
-                )
+                logger.info(f"Unknown media type but URL exists, defaulting to image: {media_url}")
                 return "image"
 
         # Default to unknown
@@ -481,25 +451,13 @@ class WhatsAppClient:
                 return url
 
         # Check message content for URLs
-        if (
-            "imageMessage" in message_content
-            and "url" in message_content["imageMessage"]
-        ):
+        if "imageMessage" in message_content and "url" in message_content["imageMessage"]:
             return message_content["imageMessage"]["url"]
-        elif (
-            "audioMessage" in message_content
-            and "url" in message_content["audioMessage"]
-        ):
+        elif "audioMessage" in message_content and "url" in message_content["audioMessage"]:
             return message_content["audioMessage"]["url"]
-        elif (
-            "videoMessage" in message_content
-            and "url" in message_content["videoMessage"]
-        ):
+        elif "videoMessage" in message_content and "url" in message_content["videoMessage"]:
             return message_content["videoMessage"]["url"]
-        elif (
-            "documentMessage" in message_content
-            and "url" in message_content["documentMessage"]
-        ):
+        elif "documentMessage" in message_content and "url" in message_content["documentMessage"]:
             return message_content["documentMessage"]["url"]
 
         return None
@@ -566,9 +524,7 @@ class WhatsAppClient:
             logger.error(f"Failed to send {media_type}: {e}")
             return False, None
 
-    def download_and_save_media(
-        self, message: Dict[str, Any], base64_encode: bool = False
-    ) -> Optional[str]:
+    def download_and_save_media(self, message: Dict[str, Any], base64_encode: bool = False) -> Optional[str]:
         """Download and save media (stickers, images, etc.) from WhatsApp messages.
 
         Args:
@@ -651,9 +607,7 @@ class WhatsAppClient:
 
         try:
             # For WhatsApp URLs, use requests to download the content
-            if media_url.startswith("https://mmg.whatsapp.net") or media_url.startswith(
-                "https://web.whatsapp.net"
-            ):
+            if media_url.startswith("https://mmg.whatsapp.net") or media_url.startswith("https://web.whatsapp.net"):
                 response = requests.get(media_url, stream=True, timeout=30)
                 response.raise_for_status()
 
@@ -675,9 +629,7 @@ class WhatsAppClient:
             logger.error(f"Failed to download and encode media: {str(e)}")
             return None
 
-    def get_media_as_base64(
-        self, message_or_url: Union[Dict[str, Any], str]
-    ) -> Optional[str]:
+    def get_media_as_base64(self, message_or_url: Union[Dict[str, Any], str]) -> Optional[str]:
         """Retrieve base64 encoded media from a message or media URL.
 
         Args:
@@ -687,11 +639,7 @@ class WhatsAppClient:
             Optional[str]: Base64 encoded media or None if failed
         """
         # Check if we already have base64 encoded data in the message
-        if (
-            isinstance(message_or_url, dict)
-            and "data" in message_or_url
-            and "media_base64" in message_or_url["data"]
-        ):
+        if isinstance(message_or_url, dict) and "data" in message_or_url and "media_base64" in message_or_url["data"]:
             return message_or_url["data"]["media_base64"]
 
         # Get the media URL
@@ -798,13 +746,9 @@ class WhatsAppClient:
                     return "image/jpeg"
                 elif header.startswith(b"\x89PNG\r\n\x1a\n"):  # PNG signature
                     return "image/png"
-                elif header.startswith(b"GIF87a") or header.startswith(
-                    b"GIF89a"
-                ):  # GIF signature
+                elif header.startswith(b"GIF87a") or header.startswith(b"GIF89a"):  # GIF signature
                     return "image/gif"
-                elif (
-                    header.startswith(b"RIFF") and header[8:12] == b"WEBP"
-                ):  # WEBP signature
+                elif header.startswith(b"RIFF") and header[8:12] == b"WEBP":  # WEBP signature
                     return "image/webp"
                 elif header.startswith(b"\x42\x4d"):  # BMP signature
                     return "image/bmp"
@@ -889,9 +833,7 @@ class WhatsAppClient:
             if success:
                 logger.info(f"Presence update sent to {formatted_recipient}")
             else:
-                logger.warning(
-                    f"Failed to send presence update: {response.status_code} {response.text}"
-                )
+                logger.warning(f"Failed to send presence update: {response.status_code} {response.text}")
 
             return success
         except Exception as e:
@@ -970,12 +912,8 @@ class PresenceUpdater:
                     message_sent_time = time.time()
 
                 # Check if we've reached the post-send cooldown time
-                if message_sent_time and (
-                    time.time() - message_sent_time > post_send_cooldown
-                ):
-                    logger.info(
-                        "Typing indicator cooldown completed after message sent"
-                    )
+                if message_sent_time and (time.time() - message_sent_time > post_send_cooldown):
+                    logger.info("Typing indicator cooldown completed after message sent")
                     self.should_update = False
                     break
 

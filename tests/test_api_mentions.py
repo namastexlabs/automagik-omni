@@ -154,9 +154,7 @@ class TestApiMentions:
         assert data["success"] is True
 
         # Verify mention parsing was called
-        mock_parse_mentions.assert_called_once_with(
-            ["+5511999999999", "+5511888888888"]
-        )
+        mock_parse_mentions.assert_called_once_with(["+5511999999999", "+5511888888888"])
 
         # Verify Evolution API HTTP request was made
         assert mock_requests_post.called, "HTTP request should have been made"
@@ -264,12 +262,8 @@ class TestApiMentions:
 
         # Check payload does not contain mentions (clean message)
         request_payload = call_args[1]["json"]
-        assert "mentioned" not in request_payload or not request_payload.get(
-            "mentioned"
-        )
-        assert "mentionsEveryOne" not in request_payload or not request_payload.get(
-            "mentionsEveryOne"
-        )
+        assert "mentioned" not in request_payload or not request_payload.get("mentioned")
+        assert "mentionsEveryOne" not in request_payload or not request_payload.get("mentionsEveryOne")
 
     @patch("src.api.routes.messages.get_instance_by_name")
     @patch("requests.post")
@@ -514,9 +508,7 @@ class TestApiMentions:
             # Should not have mentioned field or should be empty
             call_args = mock_requests_post.call_args
             request_payload = call_args[1]["json"]
-            assert "mentioned" not in request_payload or not request_payload.get(
-                "mentioned"
-            )
+            assert "mentioned" not in request_payload or not request_payload.get("mentioned")
 
 
 if __name__ == "__main__":
