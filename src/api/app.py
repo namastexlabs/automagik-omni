@@ -177,6 +177,18 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Database migration error: {e}")
             logger.warning("Application starting despite migration issues - manual intervention may be required")
+
+        # Load access control rules into cache
+        try:
+            from src.services.access_control import access_control_service
+            from src.db.database import SessionLocal
+
+            with SessionLocal() as db:
+                access_control_service.load_rules(db)
+            logger.info("✅ Access control rules loaded into cache")
+        except Exception as e:
+            logger.error(f"❌ Failed to load access control rules: {e}")
+            # Continue without access control cache - will be loaded on first use
     else:
         logger.info("Skipping database setup in test environment")
 
