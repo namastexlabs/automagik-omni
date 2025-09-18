@@ -60,9 +60,7 @@ class DiscordEmbed(BaseModel):
             self.footer["icon_url"] = icon_url
         return self
 
-    def set_author(
-        self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None
-    ) -> "DiscordEmbed":
+    def set_author(self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> "DiscordEmbed":
         """Set the author of the embed."""
         self.author = {"name": name}
         if url:
@@ -157,9 +155,7 @@ class DiscordWebhookNotifier:
 
             # Convert embeds to dict format
             if payload.get("embeds"):
-                payload["embeds"] = [
-                    embed.model_dump(exclude_none=True) for embed in message.embeds
-                ]
+                payload["embeds"] = [embed.model_dump(exclude_none=True) for embed in message.embeds]
 
             # Send the message
             response = await self.client.post(
@@ -172,9 +168,7 @@ class DiscordWebhookNotifier:
                 logger.info("Successfully sent Discord webhook message")
                 return True
             else:
-                logger.error(
-                    f"Failed to send Discord webhook: {response.status_code} - {response.text}"
-                )
+                logger.error(f"Failed to send Discord webhook: {response.status_code} - {response.text}")
                 return False
 
         except Exception as e:
@@ -195,9 +189,7 @@ class DiscordWebhookNotifier:
         message = WebhookMessage(content=content, username=username)
         return await self.send_message(message)
 
-    async def send_embed(
-        self, embed: DiscordEmbed, content: Optional[str] = None
-    ) -> bool:
+    async def send_embed(self, embed: DiscordEmbed, content: Optional[str] = None) -> bool:
         """
         Send an embed message.
 
@@ -244,9 +236,7 @@ class DiscordWebhookNotifier:
 
         if stack_trace:
             # Truncate long stack traces
-            truncated_trace = (
-                stack_trace[:1000] + "..." if len(stack_trace) > 1000 else stack_trace
-            )
+            truncated_trace = stack_trace[:1000] + "..." if len(stack_trace) > 1000 else stack_trace
             embed.add_field("Stack Trace", f"```\n{truncated_trace}\n```", inline=False)
 
         embed.set_timestamp()
@@ -254,9 +244,7 @@ class DiscordWebhookNotifier:
 
         return await self.send_embed(embed)
 
-    async def send_system_status(
-        self, status: str, details: Dict[str, Any], status_type: str = "info"
-    ) -> bool:
+    async def send_system_status(self, status: str, details: Dict[str, Any], status_type: str = "info") -> bool:
         """
         Send a system status update.
 
@@ -292,18 +280,14 @@ class DiscordWebhookNotifier:
 
         # Add detail fields
         for key, value in details.items():
-            embed.add_field(
-                key.replace("_", " ").title(), str(value), inline=len(str(value)) < 50
-            )
+            embed.add_field(key.replace("_", " ").title(), str(value), inline=len(str(value)) < 50)
 
         embed.set_timestamp()
         embed.set_footer("Automagik Omni System Monitor")
 
         return await self.send_embed(embed)
 
-    async def send_user_activity(
-        self, user_id: str, action: str, details: Optional[Dict[str, Any]] = None
-    ) -> bool:
+    async def send_user_activity(self, user_id: str, action: str, details: Optional[Dict[str, Any]] = None) -> bool:
         """
         Send user activity notification.
 
@@ -349,9 +333,7 @@ class DiscordWebhookNotifier:
         Returns:
             True if successful, False otherwise
         """
-        embed = DiscordEmbed(
-            title=title, description=message, color=color or EmbedColor.INFO.value
-        )
+        embed = DiscordEmbed(title=title, description=message, color=color or EmbedColor.INFO.value)
 
         if fields:
             for field in fields:
@@ -399,9 +381,7 @@ async def send_quick_notification(
     """
     async with DiscordWebhookNotifier(webhook_url) as notifier:
         if title:
-            embed = DiscordEmbed(
-                title=title, description=message, color=color or EmbedColor.INFO.value
-            )
+            embed = DiscordEmbed(title=title, description=message, color=color or EmbedColor.INFO.value)
             embed.set_timestamp()
             return await notifier.send_embed(embed)
         else:
@@ -427,6 +407,4 @@ async def send_error_alert(
         True if successful, False otherwise
     """
     async with DiscordWebhookNotifier(webhook_url) as notifier:
-        return await notifier.send_error_notification(
-            error_title, error_message, instance_id=instance_id
-        )
+        return await notifier.send_error_notification(error_title, error_message, instance_id=instance_id)

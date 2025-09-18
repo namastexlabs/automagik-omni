@@ -24,9 +24,7 @@ class OmniChannelMessageSender:
         self.instance_config = instance_config
         self.channel_type = instance_config.channel_type
 
-    async def send_text_message(
-        self, recipient: str, text: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def send_text_message(self, recipient: str, text: str, **kwargs) -> Dict[str, Any]:
         """
         Send a text message through the appropriate channel.
 
@@ -39,15 +37,11 @@ class OmniChannelMessageSender:
             Dict with success status and message_id if available
         """
         try:
-            logger.info(
-                f"OmniChannelMessageSender: Sending text via {self.channel_type} to {recipient}"
-            )
+            logger.info(f"OmniChannelMessageSender: Sending text via {self.channel_type} to {recipient}")
             if self.channel_type == "whatsapp":
                 return await self._send_whatsapp_text(recipient, text, **kwargs)
             elif self.channel_type == "discord":
-                logger.info(
-                    f"Calling _send_discord_text for instance '{self.instance_config.name}'"
-                )
+                logger.info(f"Calling _send_discord_text for instance '{self.instance_config.name}'")
                 return await self._send_discord_text(recipient, text, **kwargs)
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
@@ -60,9 +54,7 @@ class OmniChannelMessageSender:
             logger.error(f"Failed to send message via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _send_whatsapp_text(
-        self, recipient: str, text: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def _send_whatsapp_text(self, recipient: str, text: str, **kwargs) -> Dict[str, Any]:
         """Send text message via WhatsApp."""
         try:
             sender = EvolutionApiSender(config_override=self.instance_config)
@@ -79,13 +71,9 @@ class OmniChannelMessageSender:
             logger.error(f"WhatsApp send failed: {e}")
             return {"success": False, "error": str(e), "channel": "whatsapp"}
 
-    async def _send_discord_text(
-        self, recipient: str, text: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def _send_discord_text(self, recipient: str, text: str, **kwargs) -> Dict[str, Any]:
         """Send text message via Discord using Unix domain socket IPC."""
-        logger.info(
-            f"_send_discord_text called: recipient={recipient}, text_length={len(text)}"
-        )
+        logger.info(f"_send_discord_text called: recipient={recipient}, text_length={len(text)}")
         import aiohttp
         import os
         from src.ipc_config import IPCConfig
@@ -110,9 +98,7 @@ class OmniChannelMessageSender:
                     }
 
             # Get socket path using centralized configuration
-            socket_path = IPCConfig.get_socket_path(
-                "discord", self.instance_config.name
-            )
+            socket_path = IPCConfig.get_socket_path("discord", self.instance_config.name)
 
             # Check if socket exists (bot is running)
             if not os.path.exists(socket_path):
@@ -129,9 +115,7 @@ class OmniChannelMessageSender:
             connector = aiohttp.UnixConnector(path=socket_path)
             timeout = aiohttp.ClientTimeout(total=5)  # 5 second timeout
 
-            async with aiohttp.ClientSession(
-                connector=connector, timeout=timeout
-            ) as session:
+            async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
                 try:
                     # Send request to bot's Unix socket server
                     async with session.post(
@@ -139,9 +123,7 @@ class OmniChannelMessageSender:
                         json={"channel_id": str(channel_id), "text": text},
                     ) as response:
                         result = await response.json()
-                        logger.info(
-                            f"Discord IPC response: status={response.status}, result={result}"
-                        )
+                        logger.info(f"Discord IPC response: status={response.status}, result={result}")
 
                         if response.status == 200:
                             logger.info(
@@ -163,9 +145,7 @@ class OmniChannelMessageSender:
                             }
 
                 except asyncio.TimeoutError:
-                    logger.error(
-                        f"Timeout connecting to Discord bot '{self.instance_config.name}' via Unix socket"
-                    )
+                    logger.error(f"Timeout connecting to Discord bot '{self.instance_config.name}' via Unix socket")
                     return {
                         "success": False,
                         "error": "Bot not responding (timeout)",
@@ -202,9 +182,7 @@ class OmniChannelMessageSender:
 
         # For now, just log if we find username mentions that might need lookup
         # Discord will handle @userid mentions automatically
-        username_pattern = (
-            r"@([a-zA-Z][a-zA-Z0-9_\.]{0,31})(?!\d)"  # Discord username pattern
-        )
+        username_pattern = r"@([a-zA-Z][a-zA-Z0-9_\.]{0,31})(?!\d)"  # Discord username pattern
         usernames = re.findall(username_pattern, text)
         if usernames:
             logger.info(f"Found username mentions that would need lookup: {usernames}")
@@ -252,9 +230,7 @@ class OmniChannelMessageSender:
                     **kwargs,
                 )
             elif self.channel_type == "discord":
-                return await self._send_discord_media(
-                    recipient, media_url, media_base64, caption, media_type, **kwargs
-                )
+                return await self._send_discord_media(recipient, media_url, media_base64, caption, media_type, **kwargs)
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
                 return {
@@ -373,14 +349,10 @@ class OmniChannelMessageSender:
             logger.error(f"Discord media send failed: {e}")
             return {"success": False, "error": str(e), "channel": "discord"}
 
-    async def send_audio_message(
-        self, recipient: str, audio: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def send_audio_message(self, recipient: str, audio: str, **kwargs) -> Dict[str, Any]:
         """Send an audio message through the appropriate channel."""
         try:
-            logger.info(
-                f"OmniChannelMessageSender: Sending audio via {self.channel_type} to {recipient}"
-            )
+            logger.info(f"OmniChannelMessageSender: Sending audio via {self.channel_type} to {recipient}")
             if self.channel_type == "whatsapp":
                 sender = EvolutionApiSender(config_override=self.instance_config)
                 success = sender.send_audio_message(recipient=recipient, audio=audio)
@@ -404,19 +376,13 @@ class OmniChannelMessageSender:
             logger.error(f"Failed to send audio message via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def send_sticker_message(
-        self, recipient: str, sticker: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def send_sticker_message(self, recipient: str, sticker: str, **kwargs) -> Dict[str, Any]:
         """Send a sticker message through the appropriate channel."""
         try:
-            logger.info(
-                f"OmniChannelMessageSender: Sending sticker via {self.channel_type} to {recipient}"
-            )
+            logger.info(f"OmniChannelMessageSender: Sending sticker via {self.channel_type} to {recipient}")
             if self.channel_type == "whatsapp":
                 sender = EvolutionApiSender(config_override=self.instance_config)
-                success = sender.send_sticker_message(
-                    recipient=recipient, sticker=sticker
-                )
+                success = sender.send_sticker_message(recipient=recipient, sticker=sticker)
                 return {"success": success, "channel": "whatsapp"}
             elif self.channel_type == "discord":
                 logger.warning(
@@ -437,19 +403,13 @@ class OmniChannelMessageSender:
             logger.error(f"Failed to send sticker message via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def send_contact_message(
-        self, recipient: str, contacts: list, **kwargs
-    ) -> Dict[str, Any]:
+    async def send_contact_message(self, recipient: str, contacts: list, **kwargs) -> Dict[str, Any]:
         """Send a contact message through the appropriate channel."""
         try:
-            logger.info(
-                f"OmniChannelMessageSender: Sending contacts via {self.channel_type} to {recipient}"
-            )
+            logger.info(f"OmniChannelMessageSender: Sending contacts via {self.channel_type} to {recipient}")
             if self.channel_type == "whatsapp":
                 sender = EvolutionApiSender(config_override=self.instance_config)
-                success = sender.send_contact_message(
-                    recipient=recipient, contacts=contacts
-                )
+                success = sender.send_contact_message(recipient=recipient, contacts=contacts)
                 return {"success": success, "channel": "whatsapp"}
             elif self.channel_type == "discord":
                 logger.warning(
@@ -470,19 +430,13 @@ class OmniChannelMessageSender:
             logger.error(f"Failed to send contact message via {self.channel_type}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def send_reaction_message(
-        self, recipient: str, message_id: str, emoji: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def send_reaction_message(self, recipient: str, message_id: str, emoji: str, **kwargs) -> Dict[str, Any]:
         """Send a reaction to a message through the appropriate channel."""
         try:
-            logger.info(
-                f"OmniChannelMessageSender: Sending reaction via {self.channel_type} to {recipient}"
-            )
+            logger.info(f"OmniChannelMessageSender: Sending reaction via {self.channel_type} to {recipient}")
             if self.channel_type == "whatsapp":
                 sender = EvolutionApiSender(config_override=self.instance_config)
-                success = sender.send_reaction_message(
-                    recipient=recipient, message_id=message_id, emoji=emoji
-                )
+                success = sender.send_reaction_message(recipient=recipient, message_id=message_id, emoji=emoji)
                 return {"success": success, "channel": "whatsapp"}
             elif self.channel_type == "discord":
                 logger.warning(
@@ -506,16 +460,12 @@ class OmniChannelMessageSender:
     def fetch_profile(self, recipient: str) -> Optional[Dict[str, Any]]:
         """Fetch user profile information through the appropriate channel."""
         try:
-            logger.info(
-                f"OmniChannelMessageSender: Fetching profile via {self.channel_type} for {recipient}"
-            )
+            logger.info(f"OmniChannelMessageSender: Fetching profile via {self.channel_type} for {recipient}")
             if self.channel_type == "whatsapp":
                 sender = EvolutionApiSender(config_override=self.instance_config)
                 return sender.fetch_profile(phone_number=recipient)
             elif self.channel_type == "discord":
-                logger.warning(
-                    f"Profile fetching not supported on Discord for instance '{self.instance_config.name}'"
-                )
+                logger.warning(f"Profile fetching not supported on Discord for instance '{self.instance_config.name}'")
                 return None
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
@@ -527,9 +477,7 @@ class OmniChannelMessageSender:
     def update_profile_picture(self, picture_url: str) -> bool:
         """Update profile picture through the appropriate channel."""
         try:
-            logger.info(
-                f"OmniChannelMessageSender: Updating profile picture via {self.channel_type}"
-            )
+            logger.info(f"OmniChannelMessageSender: Updating profile picture via {self.channel_type}")
             if self.channel_type == "whatsapp":
                 sender = EvolutionApiSender(config_override=self.instance_config)
                 return sender.update_profile_picture(picture_url=picture_url)
@@ -542,7 +490,5 @@ class OmniChannelMessageSender:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
                 return False
         except Exception as e:
-            logger.error(
-                f"Failed to update profile picture via {self.channel_type}: {e}"
-            )
+            logger.error(f"Failed to update profile picture via {self.channel_type}: {e}")
             return False

@@ -70,9 +70,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                         json_body = json.loads(body.decode())
                         # Mask sensitive fields
                         masked_body = self._mask_sensitive_data(json_body)
-                        logger.debug(
-                            f"Request body: {json.dumps(masked_body, indent=2)}"
-                        )
+                        logger.debug(f"Request body: {json.dumps(masked_body, indent=2)}")
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         logger.debug(f"Request body (non-JSON): {len(body)} bytes")
 
@@ -129,9 +127,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     masked[key] = "***"
             elif any(field in key.lower() for field in large_data_fields):
                 if isinstance(value, str) and len(value) > 100:
-                    masked[key] = (
-                        f"<large_string:{len(value)}_chars:{value[:20]}...{value[-20:]}>"
-                    )
+                    masked[key] = f"<large_string:{len(value)}_chars:{value[:20]}...{value[-20:]}>"
                 elif isinstance(value, list) and len(value) > 0:
                     masked[key] = f"<array:{len(value)}_items>"
                 elif isinstance(value, dict):
@@ -176,14 +172,10 @@ async def lifespan(app: FastAPI):
             else:
                 logger.error("❌ Database migrations failed")
                 # Don't stop the application, but log the error
-                logger.warning(
-                    "Application starting despite migration issues - manual intervention may be required"
-                )
+                logger.warning("Application starting despite migration issues - manual intervention may be required")
         except Exception as e:
             logger.error(f"❌ Database migration error: {e}")
-            logger.warning(
-                "Application starting despite migration issues - manual intervention may be required"
-            )
+            logger.warning("Application starting despite migration issues - manual intervention may be required")
     else:
         logger.info("Skipping database setup in test environment")
 
@@ -196,25 +188,17 @@ async def lifespan(app: FastAPI):
             from src.db.database import SessionLocal
 
             with SessionLocal() as db:
-                discovered_instances = (
-                    await discovery_service.discover_evolution_instances(db)
-                )
+                discovered_instances = await discovery_service.discover_evolution_instances(db)
                 if discovered_instances:
-                    logger.info(
-                        f"Auto-discovered {len(discovered_instances)} Evolution instances:"
-                    )
+                    logger.info(f"Auto-discovered {len(discovered_instances)} Evolution instances:")
                     for instance in discovered_instances:
-                        logger.info(
-                            f"  - {instance.name} (active: {instance.is_active})"
-                        )
+                        logger.info(f"  - {instance.name} (active: {instance.is_active})")
                 else:
                     logger.info("No new Evolution instances discovered")
         except Exception as e:
             logger.warning(f"Evolution instance auto-discovery failed: {e}")
             logger.debug(f"Auto-discovery error details: {str(e)}")
-            logger.info(
-                "Continuing without auto-discovery - instances can be created manually"
-            )
+            logger.info("Continuing without auto-discovery - instances can be created manually")
     else:
         logger.info("Skipping Evolution instance auto-discovery in test environment")
 
@@ -222,15 +206,9 @@ async def lifespan(app: FastAPI):
     from src.core.telemetry import telemetry_client
 
     if telemetry_client.is_enabled():
-        logger.info(
-            "📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni"
-        )
-        logger.info(
-            "   • Collected: CLI usage, API performance, system info (no personal data)"
-        )
-        logger.info(
-            "   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true"
-        )
+        logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni")
+        logger.info("   • Collected: CLI usage, API performance, system info (no personal data)")
+        logger.info("   • Disable: 'automagik-omni telemetry disable' or AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true")
     else:
         logger.info("📊 Telemetry disabled")
 
@@ -305,15 +283,9 @@ from src.api.routes.traces import router as traces_router
 app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
 
 # Include message sending routes
-try:
-    from src.api.routes.messages import router as messages_router
+from src.api.routes.messages import router as messages_router
 
-    app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
-except Exception as e:
-    logger.error(f"❌ Failed to include messages router: {e}")
-    import traceback
-
-    logger.error(traceback.format_exc())
+app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
@@ -448,14 +420,8 @@ async def health_check():
                     bot_statuses[instance_name] = {
                         "status": bot_status.status,
                         "guild_count": bot_status.guild_count,
-                        "uptime": (
-                            bot_status.uptime.isoformat() if bot_status.uptime else None
-                        ),
-                        "latency": (
-                            round(bot_status.latency * 1000, 2)
-                            if bot_status.latency
-                            else None
-                        ),  # ms
+                        "uptime": (bot_status.uptime.isoformat() if bot_status.uptime else None),
+                        "latency": (round(bot_status.latency * 1000, 2) if bot_status.latency else None),  # ms
                     }
 
             health_status["services"]["discord"] = {
@@ -475,7 +441,7 @@ async def health_check():
     return health_status
 
 
-async def _handle_evolution_webhook(instance_config, request: Request):
+async def _handle_evolution_webhook(instance_config, request: Request, db: Session):
     """
     Core webhook handling logic shared between default and tenant endpoints.
 
@@ -489,28 +455,22 @@ async def _handle_evolution_webhook(instance_config, request: Request):
     payload_size = 0
 
     try:
-        logger.info(
-            f"🔄 WEBHOOK ENTRY: Starting webhook processing for instance '{instance_config.name}'"
-        )
+        logger.info(f"🔄 WEBHOOK ENTRY: Starting webhook processing for instance '{instance_config.name}'")
 
         # Get the JSON data from the request
         data = await request.json()
         payload_size = len(json.dumps(data).encode("utf-8"))
-        logger.info(
-            f"✅ WEBHOOK JSON PARSED: Received webhook for instance '{instance_config.name}'"
-        )
+        logger.info(f"✅ WEBHOOK JSON PARSED: Received webhook for instance '{instance_config.name}'")
 
         # Enhanced logging for audio message debugging
         message_obj = data.get("data", {}).get("message", {})
         if "audioMessage" in message_obj:
-            logger.info(
-                f"🎵 AUDIO MESSAGE DETECTED: {json.dumps(message_obj, indent=2)[:1000]}"
-            )
+            logger.info(f"🎵 AUDIO MESSAGE DETECTED: {json.dumps(message_obj, indent=2)[:1000]}")
 
         logger.debug(f"Webhook data: {data}")
 
         # Start message tracing
-        with get_trace_context(data, instance_config.name) as trace:
+        with get_trace_context(data, instance_config.name, db) as trace:
             # Update the Evolution API sender with the webhook data
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
@@ -574,9 +534,7 @@ async def _handle_evolution_webhook(instance_config, request: Request):
 
 
 @app.post("/webhook/evolution/{instance_name}", tags=["webhooks"])
-async def evolution_webhook_tenant(
-    instance_name: str, request: Request, db: Session = Depends(get_database)
-):
+async def evolution_webhook_tenant(instance_name: str, request: Request, db: Session = Depends(get_database)):
     """
     Multi-tenant webhook endpoint for Evolution API.
 
@@ -587,23 +545,15 @@ async def evolution_webhook_tenant(
     instance_config = get_instance_by_name(instance_name, db)
 
     # Handle using shared logic
-    return await _handle_evolution_webhook(instance_config, request)
+    return await _handle_evolution_webhook(instance_config, request, db)
 
 
 def start_api():
     """Start the FastAPI server using uvicorn."""
     import uvicorn
 
-    host = (
-        config.api.host
-        if hasattr(config, "api") and hasattr(config.api, "host")
-        else "0.0.0.0"
-    )
-    port = (
-        config.api.port
-        if hasattr(config, "api") and hasattr(config.api, "port")
-        else 8000
-    )
+    host = config.api.host if hasattr(config, "api") and hasattr(config.api, "host") else "0.0.0.0"
+    port = config.api.port if hasattr(config, "api") and hasattr(config.api, "port") else 8000
 
     logger.info(f"Starting FastAPI server on {host}:{port}")
 
@@ -651,6 +601,4 @@ def start_api():
         },
     }
 
-    uvicorn.run(
-        "src.api.app:app", host=host, port=port, reload=False, log_config=log_config
-    )
+    uvicorn.run("src.api.app:app", host=host, port=port, reload=False, log_config=log_config)

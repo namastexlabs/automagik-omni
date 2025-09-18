@@ -129,9 +129,7 @@ class TestBootstrapFunctions:
         count = test_db.query(InstanceConfig).count()
         assert count == 0
 
-    def test_ensure_default_instance_returns_existing(
-        self, test_db, default_instance_config
-    ):
+    def test_ensure_default_instance_returns_existing(self, test_db, default_instance_config):
         """Test that ensure_default_instance returns existing default instance."""
         # Call ensure_default_instance when one already exists
         instance = ensure_default_instance(test_db)
@@ -220,9 +218,7 @@ class TestDatabaseQueries:
         test_db.commit()
 
         # Verify deletion
-        deleted_instance = (
-            test_db.query(InstanceConfig).filter_by(id=instance_id).first()
-        )
+        deleted_instance = test_db.query(InstanceConfig).filter_by(id=instance_id).first()
         assert deleted_instance is None
 
     def test_list_all_instances(self, test_db, default_instance_config):

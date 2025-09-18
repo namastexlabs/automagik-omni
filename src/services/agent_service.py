@@ -33,9 +33,7 @@ class AgentService:
             # whatsapp_client.start()
 
             # Global API client disabled - using instance-specific configurations
-            logger.debug(
-                "Global API health check skipped - using instance-specific configurations"
-            )
+            logger.debug("Global API health check skipped - using instance-specific configurations")
 
             return True
         except Exception as e:
@@ -52,9 +50,7 @@ class AgentService:
         # No explicit cleanup needed for FastAPI-based service
         pass
 
-    def process_whatsapp_message(
-        self, data: Dict[str, Any], instance_config=None, trace_context=None
-    ) -> Optional[str]:
+    def process_whatsapp_message(self, data: Dict[str, Any], instance_config=None, trace_context=None) -> Optional[str]:
         """Process a WhatsApp message and generate a response.
 
         Args:
