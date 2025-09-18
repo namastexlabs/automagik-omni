@@ -10,11 +10,11 @@ Tests all 5 omni API endpoints with complete coverage:
 - Multi-tenant security
 
 Unified API endpoints tested:
-1. GET /api/v1/instances/{instance_name}/contacts - Retrieve contacts from any channel
-2. GET /api/v1/instances/{instance_name}/chats - Retrieve chats from any channel
-3. GET /api/v1/instances - List all channel instances
-4. GET /api/v1/instances/{instance_name}/contacts/{contact_id} - Get specific contact
-5. GET /api/v1/instances/{instance_name}/chats/{chat_id} - Get specific chat
+1. GET /api/v1/omni/{instance_name}/contacts - Retrieve contacts from any channel
+2. GET /api/v1/omni/{instance_name}/chats - Retrieve chats from any channel
+3. GET /api/v1/omni - List all channel instances
+4. GET /api/v1/omni/{instance_name}/contacts/{contact_id} - Get specific contact
+5. GET /api/v1/omni/{instance_name}/chats/{chat_id} - Get specific chat
 """
 
 import pytest
@@ -81,7 +81,7 @@ class TestOmniEndpointsAuthentication:
         mock_get_instance.return_value = mock_instance_config
         mock_get_handler.return_value = mock_handler
 
-        response = test_client.get("/api/v1/instances/test-instance/contacts")
+        response = test_client.get("/api/v1/omni/test-instance/contacts")
         # In development mode, endpoints work without authentication
         assert response.status_code == 200  # Should succeed with mocked handler
 
@@ -103,7 +103,7 @@ class TestOmniEndpointsAuthentication:
         mock_get_instance.return_value = mock_instance_config
         mock_get_handler.return_value = mock_handler
 
-        response = test_client.get("/api/v1/instances/test-instance/chats")
+        response = test_client.get("/api/v1/omni/test-instance/chats")
         # In development mode, endpoints work without authentication
         assert response.status_code == 200  # Should succeed with mocked handler
 
@@ -154,7 +154,7 @@ class TestOmniEndpointsAuthentication:
         )
         mock_get_handler.return_value = handler
 
-        response = test_client.get("/api/v1/instances")
+        response = test_client.get("/api/v1/omni")
         # In development mode, endpoints work without authentication
         assert response.status_code == 200
 
@@ -177,7 +177,7 @@ class TestOmniEndpointsAuthentication:
         mock_get_handler.return_value = mock_handler
 
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts/contact123"
+            "/api/v1/omni/test-instance/contacts/contact123"
         )
         # In development mode, endpoints work without authentication, but contact not found
         assert response.status_code == 404  # Contact not found (mocked to return None)
@@ -200,7 +200,7 @@ class TestOmniEndpointsAuthentication:
         mock_get_instance.return_value = mock_instance_config
         mock_get_handler.return_value = mock_handler
 
-        response = test_client.get("/api/v1/instances/test-instance/chats/chat123")
+        response = test_client.get("/api/v1/omni/test-instance/chats/chat123")
         # In development mode, endpoints work without authentication, but chat not found
         assert response.status_code == 404  # Chat not found (mocked to return None)
 
@@ -224,7 +224,7 @@ class TestOmniEndpointsAuthentication:
 
         headers = {"x-api-key": "invalid-key"}
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts", headers=headers
+            "/api/v1/omni/test-instance/contacts", headers=headers
         )
         # In development mode with mocked auth, this will succeed with proper mocking
         # In production with real auth, this would return 401
@@ -252,7 +252,7 @@ class TestOmniEndpointsAuthentication:
 
         headers = {"X-Custom-Header": "value"}
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts", headers=headers
+            "/api/v1/omni/test-instance/contacts", headers=headers
         )
         # In development mode, endpoints work without authorization header
         assert response.status_code == 200  # Should succeed with mocked handler
@@ -277,14 +277,14 @@ class TestOmniEndpointsAuthentication:
 
         headers = {"Authorization": "InvalidFormat token"}
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts", headers=headers
+            "/api/v1/omni/test-instance/contacts", headers=headers
         )
         # In development mode, endpoints work even with malformed authorization
         assert response.status_code == 200  # Should succeed with mocked handler
 
 
 class TestOmniContactsEndpoint:
-    """Comprehensive tests for GET /api/v1/instances/{instance_name}/contacts"""
+    """Comprehensive tests for GET /api/v1/omni/{instance_name}/contacts"""
 
     @pytest.fixture
     def mock_whatsapp_handler(self):
@@ -330,7 +330,7 @@ class TestOmniContactsEndpoint:
 
         start_time = time.time()
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts", headers=mention_api_headers
+            "/api/v1/omni/test-instance/contacts", headers=mention_api_headers
         )
         response_time = (time.time() - start_time) * 1000
 
@@ -394,7 +394,7 @@ class TestOmniContactsEndpoint:
 
         # Test valid pagination
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts?page=2&page_size=25",
+            "/api/v1/omni/test-instance/contacts?page=2&page_size=25",
             headers=mention_api_headers,
         )
         assert response.status_code == 200
@@ -404,7 +404,7 @@ class TestOmniContactsEndpoint:
 
         # Test page size limits
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts?page_size=600",
+            "/api/v1/omni/test-instance/contacts?page_size=600",
             headers=mention_api_headers,
         )
         assert response.status_code == 422  # Should reject oversized page_size
@@ -439,7 +439,7 @@ class TestOmniContactsEndpoint:
         mock_get_handler.return_value = handler
 
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts?search_query=Search",
+            "/api/v1/omni/test-instance/contacts?search_query=Search",
             headers=mention_api_headers,
         )
 
@@ -476,7 +476,7 @@ class TestOmniContactsEndpoint:
         mock_get_handler.return_value = handler
 
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts", headers=mention_api_headers
+            "/api/v1/omni/test-instance/contacts", headers=mention_api_headers
         )
 
         assert response.status_code == 200
@@ -496,7 +496,7 @@ class TestOmniContactsEndpoint:
         )
 
         response = test_client.get(
-            "/api/v1/instances/nonexistent/contacts", headers=mention_api_headers
+            "/api/v1/omni/nonexistent/contacts", headers=mention_api_headers
         )
 
         assert response.status_code == 404
@@ -520,14 +520,14 @@ class TestOmniContactsEndpoint:
         mock_get_handler.return_value = handler
 
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts", headers=mention_api_headers
+            "/api/v1/omni/test-instance/contacts", headers=mention_api_headers
         )
 
         assert response.status_code == 500
 
 
 class TestOmniChatsEndpoint:
-    """Comprehensive tests for GET /api/v1/instances/{instance_name}/chats"""
+    """Comprehensive tests for GET /api/v1/omni/{instance_name}/chats"""
 
     @pytest.fixture
     def mock_discord_handler(self):
@@ -574,7 +574,7 @@ class TestOmniChatsEndpoint:
 
         start_time = time.time()
         response = test_client.get(
-            "/api/v1/instances/test-discord/chats", headers=mention_api_headers
+            "/api/v1/omni/test-discord/chats", headers=mention_api_headers
         )
         response_time = (time.time() - start_time) * 1000
 
@@ -645,7 +645,7 @@ class TestOmniChatsEndpoint:
         mock_get_handler.return_value = whatsapp_handler
 
         response = test_client.get(
-            "/api/v1/instances/whatsapp-test/chats", headers=mention_api_headers
+            "/api/v1/omni/whatsapp-test/chats", headers=mention_api_headers
         )
 
         assert response.status_code == 200
@@ -655,7 +655,7 @@ class TestOmniChatsEndpoint:
 
 
 class TestOmniChannelsEndpoint:
-    """Comprehensive tests for GET /api/v1/instances"""
+    """Comprehensive tests for GET /api/v1/omni"""
 
     @patch("src.api.routes.omni.get_omni_handler")
     def test_successful_channels_retrieval(
@@ -701,7 +701,7 @@ class TestOmniChannelsEndpoint:
         mock_get_handler.return_value = handler
 
         start_time = time.time()
-        response = test_client.get("/api/v1/instances", headers=mention_api_headers)
+        response = test_client.get("/api/v1/omni", headers=mention_api_headers)
         response_time = (time.time() - start_time) * 1000
 
         # Performance requirement: sub-1000ms
@@ -738,7 +738,7 @@ class TestOmniChannelsEndpoint:
         )
         mock_get_handler.return_value = handler
 
-        response = test_client.get("/api/v1/instances", headers=mention_api_headers)
+        response = test_client.get("/api/v1/omni", headers=mention_api_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -748,7 +748,7 @@ class TestOmniChannelsEndpoint:
 
 
 class TestOmniContactByIdEndpoint:
-    """Comprehensive tests for GET /api/v1/instances/{instance_name}/contacts/{contact_id}"""
+    """Comprehensive tests for GET /api/v1/omni/{instance_name}/contacts/{contact_id}"""
 
     @pytest.fixture
     def mock_handler_with_contact(self):
@@ -788,7 +788,7 @@ class TestOmniContactByIdEndpoint:
 
         start_time = time.time()
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts/contact-123",
+            "/api/v1/omni/test-instance/contacts/contact-123",
             headers=mention_api_headers,
         )
         response_time = (time.time() - start_time) * 1000
@@ -830,7 +830,7 @@ class TestOmniContactByIdEndpoint:
         mock_get_handler.return_value = handler
 
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts/nonexistent",
+            "/api/v1/omni/test-instance/contacts/nonexistent",
             headers=mention_api_headers,
         )
 
@@ -840,7 +840,7 @@ class TestOmniContactByIdEndpoint:
 
 
 class TestOmniChatByIdEndpoint:
-    """Comprehensive tests for GET /api/v1/instances/{instance_name}/chats/{chat_id}"""
+    """Comprehensive tests for GET /api/v1/omni/{instance_name}/chats/{chat_id}"""
 
     @pytest.fixture
     def mock_handler_with_chat(self):
@@ -880,7 +880,7 @@ class TestOmniChatByIdEndpoint:
 
         start_time = time.time()
         response = test_client.get(
-            "/api/v1/instances/test-discord/chats/chat-123", headers=mention_api_headers
+            "/api/v1/omni/test-discord/chats/chat-123", headers=mention_api_headers
         )
         response_time = (time.time() - start_time) * 1000
 
@@ -922,7 +922,7 @@ class TestOmniChatByIdEndpoint:
         mock_get_handler.return_value = handler
 
         response = test_client.get(
-            "/api/v1/instances/test-discord/chats/nonexistent",
+            "/api/v1/omni/test-discord/chats/nonexistent",
             headers=mention_api_headers,
         )
 
@@ -954,7 +954,7 @@ class TestOmniChatByIdEndpoint:
         mock_get_handler.return_value = whatsapp_handler
 
         response = test_client.get(
-            "/api/v1/instances/whatsapp-test/chats/5511999999999@c.us",
+            "/api/v1/omni/whatsapp-test/chats/5511999999999@c.us",
             headers=mention_api_headers,
         )
 
@@ -987,10 +987,10 @@ class TestOmniEndpointsPerformance:
         mock_get_handler.return_value = handler
 
         endpoints = [
-            "/api/v1/instances/perf-test/contacts",
-            "/api/v1/instances/perf-test/chats",
-            "/api/v1/instances/perf-test/contacts/test-contact",
-            "/api/v1/instances/perf-test/chats/test-chat",
+            "/api/v1/omni/perf-test/contacts",
+            "/api/v1/omni/perf-test/chats",
+            "/api/v1/omni/perf-test/contacts/test-contact",
+            "/api/v1/omni/perf-test/chats/test-chat",
         ]
 
         for endpoint in endpoints:
@@ -1036,7 +1036,7 @@ class TestOmniEndpointsErrorHandling:
             mock_get_handler.return_value = handler
 
             response = test_client.get(
-                "/api/v1/instances/test-instance/contacts", headers=mention_api_headers
+                "/api/v1/omni/test-instance/contacts", headers=mention_api_headers
             )
 
             # Should return 500 for unhandled exceptions
@@ -1054,7 +1054,7 @@ class TestOmniEndpointsErrorHandling:
         mock_get_handler.return_value = handler
 
         # Even if there are DB issues, the endpoint should return a proper HTTP response
-        response = test_client.get("/api/v1/instances", headers=mention_api_headers)
+        response = test_client.get("/api/v1/omni", headers=mention_api_headers)
 
         # Should either succeed or return a proper error status
         assert response.status_code in [200, 500, 503]
@@ -1095,7 +1095,7 @@ class TestOmniEndpointsDataValidation:
         mock_get_handler.return_value = handler
 
         response = test_client.get(
-            "/api/v1/instances/test-instance/contacts", headers=mention_api_headers
+            "/api/v1/omni/test-instance/contacts", headers=mention_api_headers
         )
 
         assert response.status_code == 200

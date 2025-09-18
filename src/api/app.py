@@ -254,8 +254,12 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json",
     openapi_tags=[
         {
-            "name": "instances",
-            "description": "Instance Management",
+            "name": "Instance Management",
+            "description": "Create, configure, and monitor messaging channel instances.",
+        },
+        {
+            "name": "Omni Channel Abstraction",
+            "description": "Unified channel access to contacts and chats across providers.",
         },
         {
             "name": "messages",
@@ -280,11 +284,19 @@ app = FastAPI(
     ],
 )
 
-# Include omni communication routes (register first to take precedence)
-app.include_router(omni_router, prefix="/api/v1", tags=["instances"])
+# Include omni communication routes under dedicated omni namespace
+app.include_router(
+    omni_router,
+    prefix="/api/v1/omni",
+    tags=["Omni Channel Abstraction"],
+)
 
 # Include instance management routes
-app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
+app.include_router(
+    instances_router,
+    prefix="/api/v1",
+    tags=["Instance Management"],
+)
 
 
 # Include trace management routes
