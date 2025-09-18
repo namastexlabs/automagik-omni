@@ -119,22 +119,6 @@ class AgentApiClient:
         Returns:
             The agent's response as a dictionary
         """
-        # Check if this is a Hive API call - the instance config determines the endpoint type
-        # Hive API uses the playground endpoint format
-        # We detect it by checking if we would use the playground endpoint
-        is_hive_api = agent_name and self._is_hive_api_mode()
-
-        if is_hive_api:
-            logger.info("Using Hive API direct path - bypassing all session processing")
-            return self._call_hive_api(
-                agent_name=agent_name,
-                message_content=message_content,
-                session_name=session_name,
-                session_id=session_id,
-                user_id=user_id,
-                user=user,
-            )
-
         endpoint = f"{self.api_url}/api/v1/agent/{agent_name}/run"
 
         # Prepare headers
@@ -470,9 +454,8 @@ class AgentApiClient:
 
         # Fetch current session info to get the authoritative user_id
         # Make this optional and non-blocking to prevent response delays
-        # Skip session processing for Hive API calls
         current_user_id = None
-        if session_name and not self._is_hive_api_mode():
+        if session_name:
             try:
                 session_info = self.get_session_info(session_name)
                 if session_info and "user_id" in session_info:
@@ -482,8 +465,6 @@ class AgentApiClient:
                 logger.warning(f"Failed to fetch session info for {session_name}: {e}")
                 # Don't let session info failure affect the main response
                 current_user_id = None
-        elif self._is_hive_api_mode():
-            logger.info("Skipping session info fetch for Hive API call")
 
         # Return the full response structure
         if isinstance(result, dict):
@@ -517,164 +498,6 @@ class AgentApiClient:
             response["current_user_id"] = current_user_id
 
         return response
-
-    def _is_hive_api_mode(self):
-        """
-        Detect if we're using Hive API mode.
-        Hive API uses playground endpoints.
-        Since we're constructing playground URLs for agents,
-        we should check if this client would use playground endpoints.
-        """
-        # The presence of an agent_name indicates we might use playground endpoints
-        # We check if calling an agent would result in using the playground endpoint
-        # This is true when the API is configured to use Hive-style endpoints
-
-        # For now, we detect Hive API mode by checking if we have a default agent
-        # and if the URL structure suggests it's a Hive API instance
-        # The actual detection should be based on instance configuration
-
-        # Since we're always using playground endpoints for Hive API,
-        # we can check if this is being called in a context where we'd use playground
-        # The key indicator is that we're about to construct a playground URL
-
-        # Simple heuristic: if we have an API URL and a default agent,
-        # and we're not using the traditional /api/v1/agent/ path,
-        # then we're in Hive API mode
-
-        # Actually, let's check if run_agent would construct a playground URL
-        # by seeing if the traditional endpoint would fail
-        # For now, return True to always use Hive API path when we have the URL
-
-        if not self.api_url:
-            return False
-
-        # Check if we're configured to use Hive API
-        # Use the instance configuration flag when available
-        if self.instance_config:
-            # Check the is_hive property or agent_instance_type field
-            is_hive = getattr(self.instance_config, "is_hive", False)
-        else:
-            # Fallback to port 8000 detection for backward compatibility when no config
-            # Hive API instances run on port 8000, Automagik Core instances run on port 8881
-            is_hive = ":8000" in self.api_url or "localhost:8000" in self.api_url
-
-        if is_hive:
-            logger.debug(f"Using Hive API mode for URL: {self.api_url}")
-
-        return is_hive
-
-    def _call_hive_api(
-        self,
-        agent_name,
-        message_content,
-        session_name=None,
-        session_id=None,
-        user_id=None,
-        user=None,
-    ):
-        """
-        Call the Hive API using the playground endpoint format.
-
-        Args:
-            agent_name: Name of the agent to run
-            message_content: The message content
-            session_name: Session name (preferred)
-            session_id: Session ID (fallback)
-            user_id: User ID
-            user: User dict
-
-        Returns:
-            The agent's response as a dictionary
-        """
-        endpoint = f"{self.api_url}/playground/agents/{agent_name}/runs"
-
-        # Determine session ID
-        session = session_name or session_id or f"discord_session_{user_id or 'anonymous'}"
-
-        logger.info(f"Making Hive API request to {endpoint}")
-        logger.info(f"Sending request to Hive API with timeout: {self.timeout}s")
-
-        try:
-            # Prepare multipart form data
-            files = {
-                "message": (None, message_content),
-                "session_id": (None, session),
-                "stream": (None, "false"),  # Disable streaming for now
-            }
-
-            # Make the request
-            response = requests.post(endpoint, files=files, timeout=self.timeout)
-
-            logger.info(f"Hive API response status: {response.status_code}")
-
-            if response.status_code == 200:
-                try:
-                    response_data = response.json()
-                    logger.debug(f"Raw Hive API response: {response_data}")
-
-                    # Extract the content from Hive response
-                    content = response_data.get("content", "No response content")
-                    logger.info(f"Extracted content from Hive API: '{content}' (length: {len(content)})")
-
-                    # Return in expected format
-                    return {
-                        "message": content,
-                        "success": True,
-                        "session_id": session,
-                        "tool_calls": [],
-                        "tool_outputs": [],
-                        "usage": response_data.get("metrics", {}),
-                        "error": "",
-                    }
-
-                except json.JSONDecodeError:
-                    # Not a JSON response, use raw text
-                    text_response = response.text
-                    logger.warning(f"Hive response was not valid JSON, using raw text: {text_response[:100]}...")
-                    return {
-                        "message": text_response,
-                        "success": True,
-                        "session_id": session,
-                        "tool_calls": [],
-                        "tool_outputs": [],
-                        "usage": {},
-                        "error": "",
-                    }
-            else:
-                logger.error(f"Error from Hive API: {response.status_code} (response: {len(response.text)} chars)")
-                return {
-                    "message": "Desculpe, encontrei um erro ao me comunicar com meu cérebro. Por favor, tente novamente.",
-                    "success": False,
-                    "session_id": session,
-                    "tool_calls": [],
-                    "tool_outputs": [],
-                    "usage": {},
-                    "error": f"HTTP {response.status_code}",
-                }
-
-        except Timeout:
-            logger.error(f"Timeout calling Hive API after {self.timeout}s")
-            return {
-                "message": "Desculpe, minha resposta demorou muito. Por favor, tente novamente.",
-                "success": False,
-                "session_id": session,
-                "tool_calls": [],
-                "tool_outputs": [],
-                "usage": {},
-                "error": "timeout",
-            }
-        except RequestException as e:
-            logger.error(f"Error calling Hive API: {e}")
-            return {
-                "message": "Desculpe, encontrei um erro ao me comunicar com meu cérebro. Por favor, tente novamente.",
-                "success": False,
-                "session_id": session,
-                "tool_calls": [],
-                "tool_outputs": [],
-                "usage": {},
-                "error": str(e),
-            }
-
 
 # Singleton instance
 agent_api_client = AgentApiClient()
