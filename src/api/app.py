@@ -275,10 +275,10 @@ app = FastAPI(
     ],
 )
 
-# Include omni communication routes under dedicated omni namespace
+# Include omni communication routes under instances namespace (for unified API)
 app.include_router(
     omni_router,
-    prefix="/api/v1/omni",
+    prefix="/api/v1/instances",
     tags=["Omni Channel Abstraction"],
 )
 
