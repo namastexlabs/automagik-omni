@@ -3,11 +3,11 @@
 **Status:** APPROVED
 
 ## Executive Summary
-Enable WhatsApp audio messages to be processed end-to-end through Hive for ASR, answer generation, and TTS, then return synthesized audio back to WhatsApp.
+Enable WhatsApp audio messages to be processed end-to-end through Hive integration
 
 ## Current State Analysis
 **What exists:** WhatsApp handlers manage text workflows; Hive integrations exist for text-based agent runs; no audio extraction/upload pipeline.  
-**Gap identified:** Audio messages are not transformed into Hive-compatible files, nor are Hive audio artifacts routed back to WhatsApp.  
+**Gap identified:** Audio messages are not transformed into compatible files, nor are audio artifacts routed back to WhatsApp.  
 **Solution approach:** Build an always-on audio bridge that extracts WhatsApp audio, posts it to Hive as a multipart run, retrieves Hive responses (audio bytes, audio URLs, or plain text), and forwards them through existing Evolution senders with robust validation and docs.
 
 ## Fork Compatibility Strategy
