@@ -200,9 +200,7 @@ class TestTelemetryClient:
         assert len(event_attrs) == len(data)
 
         # Check truncation of long strings
-        long_string_attr = next(
-            attr for attr in event_attrs if attr["key"] == "event.long_string"
-        )
+        long_string_attr = next(attr for attr in event_attrs if attr["key"] == "event.long_string")
         assert len(long_string_attr["value"]["stringValue"]) == 500
 
     @patch("src.core.telemetry.urlopen")

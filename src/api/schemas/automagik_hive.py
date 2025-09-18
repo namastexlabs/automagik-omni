@@ -10,19 +10,13 @@ import re
 class AutomagikHiveConfigCreate(BaseModel):
     """Schema for creating AutomagikHive configuration."""
 
-    hive_enabled: bool = Field(
-        default=False, description="Enable AutomagikHive intelligent routing"
-    )
+    hive_enabled: bool = Field(default=False, description="Enable AutomagikHive intelligent routing")
     hive_api_url: Optional[str] = Field(None, description="AutomagikHive API URL")
     hive_api_key: Optional[str] = Field(None, description="AutomagikHive API key")
     hive_agent_id: Optional[str] = Field(None, description="AutomagikHive agent ID")
     hive_team_id: Optional[str] = Field(None, description="AutomagikHive team ID")
-    hive_timeout: int = Field(
-        default=30, ge=5, le=300, description="AutomagikHive request timeout in seconds"
-    )
-    hive_stream_mode: bool = Field(
-        default=True, description="Enable streaming responses from AutomagikHive"
-    )
+    hive_timeout: int = Field(default=30, ge=5, le=300, description="AutomagikHive request timeout in seconds")
+    hive_stream_mode: bool = Field(default=True, description="Enable streaming responses from AutomagikHive")
 
     @field_validator("hive_api_url")
     @classmethod
@@ -30,9 +24,7 @@ class AutomagikHiveConfigCreate(BaseModel):
         """Validate AutomagikHive API URL format."""
         if v is not None:
             if not v.startswith(("http://", "https://")):
-                raise ValueError(
-                    "AutomagikHive API URL must start with http:// or https://"
-                )
+                raise ValueError("AutomagikHive API URL must start with http:// or https://")
             if not re.match(r"^https?://[^\s/$.?#].[^\s]*$", v):
                 raise ValueError("Invalid AutomagikHive API URL format")
         return v
@@ -82,9 +74,7 @@ class AutomagikHiveConfigCreate(BaseModel):
                 missing_fields.append("hive_agent_id")
 
             if missing_fields:
-                raise ValueError(
-                    f"When hive_enabled is True, these fields are required: {', '.join(missing_fields)}"
-                )
+                raise ValueError(f"When hive_enabled is True, these fields are required: {', '.join(missing_fields)}")
 
 
 class AutomagikHiveConfigUpdate(BaseModel):
@@ -133,9 +123,7 @@ class AutomagikHiveConfigResponse(BaseModel):
 
     hive_enabled: bool
     hive_api_url: Optional[str]
-    hive_api_key: Optional[str] = Field(
-        None, description="API key (masked for security)"
-    )
+    hive_api_key: Optional[str] = Field(None, description="API key (masked for security)")
     hive_agent_id: Optional[str]
     hive_team_id: Optional[str]
     hive_timeout: int
@@ -145,7 +133,5 @@ class AutomagikHiveConfigResponse(BaseModel):
         """Mask sensitive fields for logging/response."""
         if self.hive_api_key:
             self.hive_api_key = (
-                f"{self.hive_api_key[:4]}***{self.hive_api_key[-4:]}"
-                if len(self.hive_api_key) > 8
-                else "***"
+                f"{self.hive_api_key[:4]}***{self.hive_api_key[-4:]}" if len(self.hive_api_key) > 8 else "***"
             )

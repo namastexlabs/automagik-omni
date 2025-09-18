@@ -25,9 +25,7 @@ class TestMentionsIntegration:
         """Create a test instance configuration."""
         config = Mock(spec=InstanceConfig)
         config.name = "test-instance"
-        config.channel_type = (
-            "whatsapp"  # CRITICAL: Required for OmniChannelMessageSender routing
-        )
+        config.channel_type = "whatsapp"  # CRITICAL: Required for OmniChannelMessageSender routing
         config.evolution_url = "https://test-evolution.com"
         config.evolution_key = "test-evolution-key"
         config.whatsapp_instance = "test-whatsapp-instance"
@@ -44,9 +42,7 @@ class TestMentionsIntegration:
             "x-api-key": "namastex888",
         }
 
-    def test_complete_mention_flow_auto_parse(
-        self, client, test_instance_config, api_headers
-    ):
+    def test_complete_mention_flow_auto_parse(self, client, test_instance_config, api_headers):
         """Test complete flow from API request to Evolution API call with auto-parsed mentions."""
 
         # Mock the entire flow
@@ -114,9 +110,7 @@ class TestMentionsIntegration:
             assert "5511999999999@s.whatsapp.net" in mentions
             assert "5511888888888@s.whatsapp.net" in mentions
 
-    def test_complete_mention_flow_explicit_mentions(
-        self, client, test_instance_config, api_headers
-    ):
+    def test_complete_mention_flow_explicit_mentions(self, client, test_instance_config, api_headers):
         """Test complete flow with explicit mentions."""
 
         with (
@@ -163,9 +157,7 @@ class TestMentionsIntegration:
             assert "5511888888888@s.whatsapp.net" in mentions
             assert "5511777777777@s.whatsapp.net" in mentions
 
-    def test_complete_mention_flow_everyone(
-        self, client, test_instance_config, api_headers
-    ):
+    def test_complete_mention_flow_everyone(self, client, test_instance_config, api_headers):
         """Test complete flow with mention everyone."""
 
         with (
@@ -201,9 +193,7 @@ class TestMentionsIntegration:
             assert request_payload["mentionsEveryOne"] is True
             assert request_payload["text"] == payload["text"]
 
-    def test_mention_flow_with_split_messages(
-        self, client, test_instance_config, api_headers
-    ):
+    def test_mention_flow_with_split_messages(self, client, test_instance_config, api_headers):
         """Test mention flow when message gets split."""
 
         with (
@@ -249,9 +239,7 @@ class TestMentionsIntegration:
             assert "mentioned" not in second_payload
             assert second_payload["text"] == "Second part without mentions"
 
-    def test_mention_flow_error_handling(
-        self, client, test_instance_config, api_headers
-    ):
+    def test_mention_flow_error_handling(self, client, test_instance_config, api_headers):
         """Test mention flow with various error conditions."""
 
         with (
@@ -282,9 +270,7 @@ class TestMentionsIntegration:
                 assert data["success"] is False
                 assert data["status"] == "failed"
 
-    def test_mention_flow_400_error_handling(
-        self, client, test_instance_config, api_headers
-    ):
+    def test_mention_flow_400_error_handling(self, client, test_instance_config, api_headers):
         """Test mention flow with Evolution API 400 error (known issue)."""
 
         with (
@@ -318,9 +304,7 @@ class TestMentionsIntegration:
             data = response.json()
             assert data["success"] is True
 
-    def test_real_world_mention_scenarios(
-        self, client, test_instance_config, api_headers
-    ):
+    def test_real_world_mention_scenarios(self, client, test_instance_config, api_headers):
         """Test realistic mention scenarios."""
 
         scenarios = [
@@ -356,9 +340,7 @@ class TestMentionsIntegration:
 
         for scenario in scenarios:
             with (
-                patch(
-                    "src.api.routes.messages.get_instance_by_name"
-                ) as mock_get_instance,
+                patch("src.api.routes.messages.get_instance_by_name") as mock_get_instance,
                 patch("src.api.routes.messages._resolve_recipient") as mock_resolve,
                 patch("requests.post") as mock_http_post,
             ):
@@ -375,17 +357,12 @@ class TestMentionsIntegration:
                     headers=api_headers,
                 )
 
-                assert (
-                    response.status_code == 200
-                ), f"Failed scenario: {scenario['name']}"
+                assert response.status_code == 200, f"Failed scenario: {scenario['name']}"
 
                 if scenario["expected_mentions"] > 0:
                     call_args = mock_http_post.call_args
                     request_payload = call_args[1]["json"]
-                    assert (
-                        len(request_payload.get("mentioned", []))
-                        == scenario["expected_mentions"]
-                    )
+                    assert len(request_payload.get("mentioned", [])) == scenario["expected_mentions"]
 
                 if scenario.get("expect_everyone"):
                     call_args = mock_http_post.call_args
@@ -470,11 +447,7 @@ class TestMentionsIntegration:
             # Prepare payload
             payload = {
                 "phone_number": "+5511777777777",
-                "text": (
-                    "Test @5511999999999\n\nSecond part"
-                    if expected_api_calls == 2
-                    else "Test @5511999999999"
-                ),
+                "text": ("Test @5511999999999\n\nSecond part" if expected_api_calls == 2 else "Test @5511999999999"),
                 "auto_parse_mentions": auto_parse,
                 "mentions_everyone": mentions_everyone,
             }

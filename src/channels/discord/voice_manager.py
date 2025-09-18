@@ -257,9 +257,7 @@ class VoiceSession:
             file_size = os.path.getsize(self.recording_file_path)
             duration = len(self.recording_data) * 0.02  # Each chunk is ~20ms
 
-            logger.info(
-                f"Saved recording: {self.recording_file_path} ({file_size} bytes, {duration:.2f}s)"
-            )
+            logger.info(f"Saved recording: {self.recording_file_path} ({file_size} bytes, {duration:.2f}s)")
 
             # Clear recording data after save
             self.recording_data = []
@@ -290,12 +288,8 @@ class VoiceSession:
                     for i in range(0, len(chunk), 4):
                         # Generate subtle audio pattern (not just silence)
                         sample = int(random.gauss(0, 100))  # Small amplitude noise
-                        chunk[i : i + 2] = sample.to_bytes(
-                            2, byteorder="little", signed=True
-                        )
-                        chunk[i + 2 : i + 4] = sample.to_bytes(
-                            2, byteorder="little", signed=True
-                        )
+                        chunk[i : i + 2] = sample.to_bytes(2, byteorder="little", signed=True)
+                        chunk[i + 2 : i + 4] = sample.to_bytes(2, byteorder="little", signed=True)
                     self.recording_data.append(bytes(chunk))
                 else:
                     # Add silence chunk
@@ -380,17 +374,13 @@ class DiscordVoiceManager:
                 except Exception as e:
                     logger.error(f"Event handler error for {event}: {e}")
 
-    async def connect_voice(
-        self, instance_name: str, voice_channel_id: int, bot_client: discord.Client
-    ) -> bool:
+    async def connect_voice(self, instance_name: str, voice_channel_id: int, bot_client: discord.Client) -> bool:
         """Connect to a voice channel."""
         try:
             # Get voice channel
             channel = bot_client.get_channel(voice_channel_id)
             if not channel or not isinstance(channel, discord.VoiceChannel):
-                raise AutomagikError(
-                    f"Voice channel {voice_channel_id} not found or invalid"
-                )
+                raise AutomagikError(f"Voice channel {voice_channel_id} not found or invalid")
 
             guild_id = channel.guild.id
 
@@ -423,13 +413,9 @@ class DiscordVoiceManager:
             if not self._cleanup_task or self._cleanup_task.done():
                 self._cleanup_task = asyncio.create_task(self._session_cleanup_loop())
 
-            await self._emit_event(
-                "on_connect", instance_name, guild_id, voice_channel_id
-            )
+            await self._emit_event("on_connect", instance_name, guild_id, voice_channel_id)
 
-            logger.info(
-                f"Voice connected: {instance_name} -> {channel.name} ({channel.guild.name})"
-            )
+            logger.info(f"Voice connected: {instance_name} -> {channel.name} ({channel.guild.name})")
             return True
 
         except Exception as e:
@@ -439,9 +425,7 @@ class DiscordVoiceManager:
             await self._emit_event("on_error", instance_name, str(e))
             return False
 
-    async def disconnect_voice(
-        self, instance_name: str, guild_id: Optional[int] = None
-    ) -> bool:
+    async def disconnect_voice(self, instance_name: str, guild_id: Optional[int] = None) -> bool:
         """Disconnect from voice channel."""
         try:
             session = None
@@ -457,9 +441,7 @@ class DiscordVoiceManager:
                     instance_name = session_instance
 
             if not session:
-                logger.warning(
-                    f"No voice session found for {instance_name} (guild: {guild_id})"
-                )
+                logger.warning(f"No voice session found for {instance_name} (guild: {guild_id})")
                 return False
 
             session.state = VoiceSessionState.DISCONNECTING
@@ -488,9 +470,7 @@ class DiscordVoiceManager:
             await self._emit_event("on_error", instance_name, str(e))
             return False
 
-    async def stream_audio(
-        self, instance_name: str, guild_id: int, audio_data: bytes
-    ) -> bool:
+    async def stream_audio(self, instance_name: str, guild_id: int, audio_data: bytes) -> bool:
         """Stream audio data to voice channel."""
         try:
             session = self._get_session(instance_name, guild_id)
@@ -518,16 +498,12 @@ class DiscordVoiceManager:
             await self._emit_event("on_error", instance_name, str(e))
             return False
 
-    async def process_voice_input(
-        self, audio_data: bytes, instance_name: str = None
-    ) -> str:
+    async def process_voice_input(self, audio_data: bytes, instance_name: str = None) -> str:
         """Process voice input and convert to text."""
         try:
             text = await self.stt_provider.transcribe(audio_data)
             if text and instance_name:
-                await self._emit_event(
-                    "on_voice_receive", instance_name, text, audio_data
-                )
+                await self._emit_event("on_voice_receive", instance_name, text, audio_data)
             return text
 
         except Exception as e:
@@ -597,9 +573,7 @@ class DiscordVoiceManager:
                 return "❌ No voice session found."
 
             result = session.save_recording()
-            await self._emit_event(
-                "on_recording_save", instance_name, session.recording_file_path
-            )
+            await self._emit_event("on_recording_save", instance_name, session.recording_file_path)
             return result
 
         except Exception as e:
@@ -712,9 +686,7 @@ class DiscordVoiceManager:
         except Exception as e:
             logger.error(f"Speaking event handling failed: {e}")
 
-    async def handle_voice_receive(
-        self, audio_data: bytes, user_id: int, guild_id: int
-    ):
+    async def handle_voice_receive(self, audio_data: bytes, user_id: int, guild_id: int):
         """Handle received voice data."""
         try:
             if guild_id not in self.guild_sessions:
@@ -734,18 +706,14 @@ class DiscordVoiceManager:
                 session.add_audio_data(audio_data)
 
             # Process voice input in background
-            asyncio.create_task(
-                self._process_voice_background(audio_data, instance_name, user_id)
-            )
+            asyncio.create_task(self._process_voice_background(audio_data, instance_name, user_id))
 
             session.update_activity()
 
         except Exception as e:
             logger.error(f"Voice receive handling failed: {e}")
 
-    async def _process_voice_background(
-        self, audio_data: bytes, instance_name: str, user_id: int
-    ):
+    async def _process_voice_background(self, audio_data: bytes, instance_name: str, user_id: int):
         """Process voice input in background."""
         try:
             text = await self.process_voice_input(audio_data, instance_name)
