@@ -95,12 +95,13 @@ jobs:
             --cov-report=term-missing:skip-covered \
             --cov-report=xml \
             --cov-report=html \
+            --cov-report=term > pytest-coverage.txt \
             --junitxml=test-results.xml \
             --maxfail=5 \
             --disable-warnings \
             -k "not test_bearer_token_validation and not test_add_command_help" \
             || TEST_FAILED=$?
-          
+
           # Store test result
           if [ "${TEST_FAILED}" != "" ]; then
             echo "test_failed=true" >> $GITHUB_OUTPUT
@@ -117,7 +118,222 @@ jobs:
           path: |
             test-results.xml
             htmlcov/
+            pytest-coverage.txt
+            coverage.xml
           retention-days: 7
+
+      - name: Get target branch coverage for comparison
+        if: github.event_name == 'pull_request' && always()
+        id: target-coverage
+        run: |
+          # Get the target branch name (usually 'main' or 'dev')
+          TARGET_BRANCH="${{ github.base_ref }}"
+          echo "TARGET_BRANCH=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+
+          # Try to get coverage from target branch from artifacts or create baseline
+          echo "Attempting to get coverage from target branch: $TARGET_BRANCH"
+
+          # Store current branch
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+          # Fetch target branch
+          git fetch origin $TARGET_BRANCH:$TARGET_BRANCH || echo "Could not fetch target branch"
+
+          # Try to get target branch coverage by checking out and running tests
+          if git checkout $TARGET_BRANCH 2>/dev/null; then
+            echo "Successfully checked out target branch $TARGET_BRANCH"
+
+            # Quick coverage check on target branch (only if deps are already installed)
+            if pytest tests/ --cov=src --cov-report=term --maxfail=1 -q -x &>/dev/null; then
+              TARGET_COVERAGE=$(pytest tests/ --cov=src --cov-report=term 2>/dev/null | grep -oP 'TOTAL.*?(\d+)%' | grep -oP '\d+%' | head -1 || echo "0%")
+              echo "TARGET_COVERAGE=$TARGET_COVERAGE" >> $GITHUB_OUTPUT
+              echo "Target branch coverage: $TARGET_COVERAGE"
+            else
+              echo "TARGET_COVERAGE=unknown" >> $GITHUB_OUTPUT
+              echo "Could not determine target branch coverage"
+            fi
+
+            # Return to current branch
+            git checkout $CURRENT_BRANCH
+          else
+            echo "TARGET_COVERAGE=unknown" >> $GITHUB_OUTPUT
+            echo "Could not checkout target branch for coverage comparison"
+          fi
+
+      - name: Beautiful Coverage Comment
+        if: github.event_name == 'pull_request' && always()
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          junitxml-path: ./test-results.xml
+          unique-id-for-comment: coverage-${{ matrix.python-version }}
+          title: "📊 Coverage Report (Python ${{ matrix.python-version }}) vs ${{ steps.target-coverage.outputs.TARGET_BRANCH }}"
+          badge-title: "Coverage"
+          hide-badge: false
+          hide-report: false
+          create-new-comment: false
+          hide-comment: false
+          report-only-changed-files: false
+          remove-link-from-badge: false
+
+      - name: Coverage Comparison Summary
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Get current coverage from pytest output
+            let currentCoverage = 'unknown';
+            let coverageDetails = '';
+
+            try {
+              if (fs.existsSync('pytest-coverage.txt')) {
+                const coverageContent = fs.readFileSync('pytest-coverage.txt', 'utf8');
+                const coverageMatch = coverageContent.match(/TOTAL.*?(\d+)%/);
+                if (coverageMatch) {
+                  currentCoverage = coverageMatch[1];
+                }
+
+                // Get file-level coverage for significant changes
+                const lines = coverageContent.split('\n');
+                const fileLines = lines.filter(line =>
+                  line.includes('.py') &&
+                  !line.startsWith('Name') &&
+                  !line.startsWith('TOTAL') &&
+                  line.trim().length > 0
+                );
+
+                if (fileLines.length > 0) {
+                  const significantFiles = fileLines
+                    .map(line => {
+                      const parts = line.trim().split(/\s+/);
+                      if (parts.length >= 4) {
+                        const fileName = parts[0];
+                        const coverage = parts[parts.length - 1];
+                        return { fileName, coverage };
+                      }
+                      return null;
+                    })
+                    .filter(file => file && !file.coverage.includes('%'))
+                    .slice(0, 5); // Show top 5 files
+
+                  if (significantFiles.length > 0) {
+                    coverageDetails = '\n### 📁 Key Files Coverage:\n' +
+                      significantFiles.map(file =>
+                        `- \`${file.fileName}\`: ${file.coverage}`
+                      ).join('\n');
+                  }
+                }
+              }
+            } catch (e) {
+              console.log('Could not parse coverage details:', e);
+            }
+
+            const targetCoverage = '${{ steps.target-coverage.outputs.TARGET_COVERAGE }}';
+            const targetBranch = '${{ steps.target-coverage.outputs.TARGET_BRANCH }}';
+
+            let comparisonMessage = '';
+            let changeEmoji = '📊';
+
+            if (targetCoverage && targetCoverage !== 'unknown' && currentCoverage !== 'unknown') {
+              const targetPercent = parseInt(targetCoverage.replace('%', ''));
+              const currentPercent = parseInt(currentCoverage);
+              const difference = currentPercent - targetPercent;
+
+              if (difference > 0) {
+                changeEmoji = '📈';
+                comparisonMessage = `
+            ## ${changeEmoji} Coverage Improved!
+
+            | Branch | Coverage | Change |
+            |--------|----------|--------|
+            | **${targetBranch}** (target) | **${targetCoverage}** | baseline |
+            | **Current PR** | **${currentCoverage}%** | **+${difference}%** ✅ |
+
+            🎉 **Great job!** This PR increases code coverage by **${difference} percentage point${difference !== 1 ? 's' : ''}**.`;
+
+              } else if (difference < 0) {
+                changeEmoji = '📉';
+                comparisonMessage = `
+            ## ${changeEmoji} Coverage Decreased
+
+            | Branch | Coverage | Change |
+            |--------|----------|--------|
+            | **${targetBranch}** (target) | **${targetCoverage}** | baseline |
+            | **Current PR** | **${currentCoverage}%** | **${difference}%** ⚠️ |
+
+            ⚠️ **Attention:** This PR decreases code coverage by **${Math.abs(difference)} percentage point${Math.abs(difference) !== 1 ? 's' : ''}**.
+            Consider adding more tests to maintain or improve coverage.`;
+
+              } else {
+                changeEmoji = '🔄';
+                comparisonMessage = `
+            ## ${changeEmoji} Coverage Maintained
+
+            | Branch | Coverage | Change |
+            |--------|----------|--------|
+            | **${targetBranch}** (target) | **${targetCoverage}** | baseline |
+            | **Current PR** | **${currentCoverage}%** | **no change** ✅ |
+
+            ✅ **Perfect!** This PR maintains the same coverage level as the target branch.`;
+              }
+            } else {
+              comparisonMessage = `
+            ## 📊 Coverage Report
+
+            **Current PR Coverage:** ${currentCoverage}%
+
+            > 💡 **Note:** Could not compare with ${targetBranch} branch coverage.
+            This might be the first run or target branch is not accessible.`;
+            }
+
+            const body = `${comparisonMessage}
+
+            ${coverageDetails}
+
+            ---
+
+            📋 **Coverage Target Guidelines:**
+            - 🎯 **Target:** Maintain or improve coverage
+            - ✅ **Good:** Above 80% coverage
+            - ⚠️ **Acceptable:** 70-80% coverage
+            - ❌ **Needs Work:** Below 70% coverage
+
+            > 🔗 View detailed coverage report in the main coverage comment above`;
+
+            // Find existing coverage comparison comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const comparisonComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              (comment.body.includes('Coverage Improved') ||
+               comment.body.includes('Coverage Decreased') ||
+               comment.body.includes('Coverage Maintained') ||
+               comment.body.includes('Coverage Report'))
+            );
+
+            if (comparisonComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: comparisonComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
 
       - name: Upload coverage to Codecov
         if: always()
@@ -140,36 +356,26 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
-      - name: Comment PR with results
+      - name: Enhanced Test Results Comment
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const { execSync } = require('child_process');
-            
+
             // Get test summary
             let testSummary = '✅ All tests passed!';
             let statusEmoji = '✅';
-            
+
             if ('${{ steps.test.outputs.test_failed }}' === 'true') {
               testSummary = '❌ Some tests failed';
               statusEmoji = '❌';
             }
-            
-            // Try to get coverage percentage
-            let coverageInfo = '';
-            try {
-              const coverageOutput = execSync('grep -oP "TOTAL.*?\\K\\d+%" coverage.xml || echo "N/A"', { encoding: 'utf8' }).trim();
-              if (coverageInfo !== 'N/A') {
-                coverageInfo = `📊 **Coverage:** ${coverageOutput}`;
-              }
-            } catch (e) {
-              coverageInfo = '';
-            }
-            
-            // Count test results from pytest output if available
-            let testCount = '';
+
+            // Parse test results with enhanced details
+            let testDetails = '';
+            let executionTime = '';
+
             try {
               if (fs.existsSync('test-results.xml')) {
                 const xmlContent = fs.readFileSync('test-results.xml', 'utf8');
@@ -177,63 +383,77 @@ jobs:
                 const failuresMatch = xmlContent.match(/failures="(\d+)"/);
                 const errorsMatch = xmlContent.match(/errors="(\d+)"/);
                 const skippedMatch = xmlContent.match(/skipped="(\d+)"/);
-                
+                const timeMatch = xmlContent.match(/time="([^"]+)"/);
+
                 if (testsMatch) {
                   const tests = parseInt(testsMatch[1]);
                   const failures = failuresMatch ? parseInt(failuresMatch[1]) : 0;
                   const errors = errorsMatch ? parseInt(errorsMatch[1]) : 0;
                   const skipped = skippedMatch ? parseInt(skippedMatch[1]) : 0;
                   const passed = tests - failures - errors - skipped;
-                  
-                  testCount = `
-            📈 **Test Results:**
-            - ✅ Passed: ${passed}
-            - ❌ Failed: ${failures}
-            - 🔥 Errors: ${errors}
-            - ⏭️ Skipped: ${skipped}
-            - 📝 Total: ${tests}`;
+
+                  if (timeMatch) {
+                    const timeSeconds = parseFloat(timeMatch[1]);
+                    executionTime = timeSeconds > 60
+                      ? `⏱️ **Execution Time:** ${Math.floor(timeSeconds/60)}m ${Math.round(timeSeconds%60)}s`
+                      : `⏱️ **Execution Time:** ${timeSeconds.toFixed(2)}s`;
+                  }
+
+                  const passRate = ((passed / tests) * 100).toFixed(1);
+
+                  testDetails = `
+            ## 🧪 Test Execution Summary
+
+            | Status | Count | Percentage |
+            |--------|-------|------------|
+            | ✅ **Passed** | **${passed}** | **${passRate}%** |
+            | ❌ Failed | ${failures} | ${((failures/tests)*100).toFixed(1)}% |
+            | 🔥 Errors | ${errors} | ${((errors/tests)*100).toFixed(1)}% |
+            | ⏭️ Skipped | ${skipped} | ${((skipped/tests)*100).toFixed(1)}% |
+            | 📝 **Total** | **${tests}** | **100%** |
+
+            ${executionTime}`;
                 }
               }
             } catch (e) {
               console.log('Could not parse test results:', e);
+              testDetails = '\n🔍 Test details could not be parsed from XML output.';
             }
-            
-            const body = `## ${statusEmoji} Test Results for Python ${{ matrix.python-version }}
-            
-            ${testSummary}
-            ${testCount}
-            ${coverageInfo}
-            
-            🔗 [View detailed test report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            
-            <details>
-            <summary>Environment Details</summary>
-            
-            - **Python Version:** ${{ matrix.python-version }}
-            - **Runner OS:** ${{ runner.os }}
-            - **Commit:** ${{ github.sha }}
-            - **Workflow Run:** ${{ github.run_id }}
-            
-            </details>`;
-            
-            // Find existing comment
+
+            const body = `## ${statusEmoji} Test Execution Report
+
+            ### Python ${{ matrix.python-version }} • ${testSummary}
+
+            ${testDetails}
+
+            ---
+
+            📋 **Workflow Details:**
+            - 🐍 **Python Version:** ${{ matrix.python-version }}
+            - 🖥️ **Runner OS:** ${{ runner.os }}
+            - 📝 **Commit:** \`${{ github.sha }}\`
+            - 🔗 [**View Full Logs**](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            > 💡 **Note:** Detailed coverage report available in separate comment below`;
+
+            // Find existing test comment
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('Test Results for Python')
+
+            const testComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Test Execution Report')
             );
-            
-            if (botComment) {
+
+            if (testComment) {
               // Update existing comment
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                comment_id: botComment.id,
+                comment_id: testComment.id,
                 body: body
               });
             } else {
