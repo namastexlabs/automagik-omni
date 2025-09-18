@@ -30,6 +30,7 @@ from src.api.deps import get_database, get_instance_by_name
 from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
 from src.api.routes.omni import router as omni_router
+from src.api.routes.access import router as access_router
 from src.db.database import create_tables
 
 # Configure logging
@@ -286,6 +287,9 @@ app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
 from src.api.routes.messages import router as messages_router
 
 app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
+
+# Include access control management routes
+app.include_router(access_router, prefix="/api/v1", tags=["access"])
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
