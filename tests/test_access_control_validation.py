@@ -461,8 +461,8 @@ class TestAccessControlEdgeCases:
         service = AccessControlService()
 
         # Should not crash with empty phone numbers
-        assert service.check_access("") is True
-        assert service.check_access("   ") is True
+        assert service.check_access("", db=test_db) is True
+        assert service.check_access("   ", db=test_db) is True
 
     def test_rule_type_string_conversion(self, test_db: Session):
         """Test rule type string conversion."""
