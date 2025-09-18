@@ -16,9 +16,7 @@ from src.services.discord_service import discord_service
 from core.telemetry import track_command
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -39,21 +37,15 @@ def start_discord_bot(instance_name: str) -> bool:
 
         if success:
             logger.info(f"✅ Discord bot '{instance_name}' started successfully!")
-            track_command(
-                "discord_start_wrapper", success=True, instance_name=instance_name
-            )
+            track_command("discord_start_wrapper", success=True, instance_name=instance_name)
             return True
         else:
             logger.error(f"❌ Failed to start Discord bot '{instance_name}'")
-            track_command(
-                "discord_start_wrapper", success=False, instance_name=instance_name
-            )
+            track_command("discord_start_wrapper", success=False, instance_name=instance_name)
             return False
 
     except Exception as e:
-        logger.error(
-            f"Error starting Discord bot '{instance_name}': {e}", exc_info=True
-        )
+        logger.error(f"Error starting Discord bot '{instance_name}': {e}", exc_info=True)
         track_command("discord_start_wrapper", success=False, error=str(e))
         return False
 
@@ -95,9 +87,7 @@ def main():
             if success:
                 print(f"Discord bot '{instance_name}' stopped successfully!")
             else:
-                print(
-                    f"Failed to stop Discord bot '{instance_name}' (may not be running)"
-                )
+                print(f"Failed to stop Discord bot '{instance_name}' (may not be running)")
                 sys.exit(1)
 
         elif command == "restart":

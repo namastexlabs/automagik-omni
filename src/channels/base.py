@@ -33,9 +33,7 @@ class ChannelHandler(ABC):
     """Abstract base class for channel handlers."""
 
     @abstractmethod
-    async def create_instance(
-        self, instance: InstanceConfig, **kwargs
-    ) -> Dict[str, Any]:
+    async def create_instance(self, instance: InstanceConfig, **kwargs) -> Dict[str, Any]:
         """Create a new instance in the external service."""
         pass
 
