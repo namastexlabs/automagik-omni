@@ -85,11 +85,7 @@ def get_local_ipv4() -> str:
                                 if "/" in part and not part.startswith("inet"):
                                     ip = part.split("/")[0]
                                     # Use WSL2 IP if it's accessible and not localhost
-                                    if (
-                                        ip
-                                        and ip != "127.0.0.1"
-                                        and not ip.startswith("169.254.")
-                                    ):
+                                    if ip and ip != "127.0.0.1" and not ip.startswith("169.254."):
                                         return ip
             except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
@@ -112,11 +108,7 @@ def get_local_ipv4() -> str:
                     lines = result.stdout.strip().split("\n")
                     for line in lines:
                         ip = line.strip()
-                        if (
-                            ip
-                            and is_local_network_ip(ip)
-                            and not is_docker_wsl_internal_ip(ip)
-                        ):
+                        if ip and is_local_network_ip(ip) and not is_docker_wsl_internal_ip(ip):
                             return ip
             except (
                 subprocess.CalledProcessError,
@@ -156,9 +148,7 @@ def get_local_ipv4() -> str:
         try:
             if platform.system() == "Windows":
                 # Windows ipconfig
-                result = subprocess.run(
-                    ["ipconfig"], capture_output=True, text=True, timeout=5
-                )
+                result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     lines = result.stdout.split("\n")
                     for line in lines:
@@ -191,9 +181,7 @@ def get_local_ipv4() -> str:
                 except (subprocess.CalledProcessError, FileNotFoundError):
                     # Fallback to ifconfig
                     try:
-                        result = subprocess.run(
-                            ["ifconfig"], capture_output=True, text=True, timeout=5
-                        )
+                        result = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=5)
                         if result.returncode == 0:
                             lines = result.stdout.split("\n")
                             for line in lines:

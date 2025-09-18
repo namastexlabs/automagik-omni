@@ -25,16 +25,10 @@ class WhatsAppInstanceCreate(BaseModel):
     """Schema for creating WhatsApp instance."""
 
     name: str = Field(description="Instance name (will be used as instanceName)")
-    phone_number: Optional[str] = Field(
-        None, description="Phone number with country code (e.g., 5511999999999)"
-    )
-    integration: str = Field(
-        "WHATSAPP-BAILEYS", description="WhatsApp integration type"
-    )
+    phone_number: Optional[str] = Field(None, description="Phone number with country code (e.g., 5511999999999)")
+    integration: str = Field("WHATSAPP-BAILEYS", description="WhatsApp integration type")
     auto_qr: bool = Field(True, description="Generate QR code automatically")
-    settings: Optional[Dict[str, Any]] = Field(
-        None, description="Additional instance settings"
-    )
+    settings: Optional[Dict[str, Any]] = Field(None, description="Additional instance settings")
 
     # Agent configuration
     agent_api_url: str = Field(description="Agent API URL")
@@ -160,9 +154,7 @@ async def create_whatsapp_instance(
 
 
 @router.get("/instances", response_model=List[WhatsAppInstanceResponse])
-async def list_whatsapp_instances(
-    db: Session = Depends(get_database), api_key: str = Depends(verify_api_key)
-):
+async def list_whatsapp_instances(db: Session = Depends(get_database), api_key: str = Depends(verify_api_key)):
     """List all WhatsApp instances with Evolution API status."""
 
     # Get instances from our database

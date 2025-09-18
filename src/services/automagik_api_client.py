@@ -54,9 +54,7 @@ class AutomagikAPIClient:
         """Get user by ID, email, or phone number."""
         try:
             url = f"{self.api_url}/api/v1/users/{user_identifier}"
-            response = requests.get(
-                url, headers=self._make_headers(), timeout=self.timeout
-            )
+            response = requests.get(url, headers=self._make_headers(), timeout=self.timeout)
 
             if response.status_code == 200:
                 return response.json()
@@ -64,32 +62,24 @@ class AutomagikAPIClient:
                 logger.info(f"User not found: {user_identifier}")
                 return None
             else:
-                logger.error(
-                    f"Error getting user: {response.status_code} (response: {len(response.text)} chars)"
-                )
+                logger.error(f"Error getting user: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error getting user: {e}")
             return None
 
-    def list_users(
-        self, page: int = 1, page_size: int = 50, sort_desc: bool = True
-    ) -> Optional[Dict[str, Any]]:
+    def list_users(self, page: int = 1, page_size: int = 50, sort_desc: bool = True) -> Optional[Dict[str, Any]]:
         """List users with pagination."""
         try:
             url = f"{self.api_url}/api/v1/users"
             params = {"page": page, "page_size": page_size, "sort_desc": sort_desc}
 
-            response = requests.get(
-                url, headers=self._make_headers(), params=params, timeout=self.timeout
-            )
+            response = requests.get(url, headers=self._make_headers(), params=params, timeout=self.timeout)
 
             if response.status_code == 200:
                 return response.json()
             else:
-                logger.error(
-                    f"Error listing users: {response.status_code} (response: {len(response.text)} chars)"
-                )
+                logger.error(f"Error listing users: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error listing users: {e}")
@@ -113,16 +103,12 @@ class AutomagikAPIClient:
             if user_data:
                 payload["user_data"] = user_data
 
-            response = requests.post(
-                url, headers=self._make_headers(), json=payload, timeout=self.timeout
-            )
+            response = requests.post(url, headers=self._make_headers(), json=payload, timeout=self.timeout)
 
             if response.status_code == 200:
                 return response.json()
             else:
-                logger.error(
-                    f"Error creating user: {response.status_code} (response: {len(response.text)} chars)"
-                )
+                logger.error(f"Error creating user: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error creating user: {e}")
@@ -135,9 +121,7 @@ class AutomagikAPIClient:
         # First, try to find the user directly by phone number
         user = self.get_user(phone_number)
         if user:
-            logger.info(
-                f"Found existing user with phone {phone_number}: {user.get('id')}"
-            )
+            logger.info(f"Found existing user with phone {phone_number}: {user.get('id')}")
             return user
 
         # If not found directly, try getting all users and search by phone_number
@@ -148,13 +132,9 @@ class AutomagikAPIClient:
             clean_phone = self._clean_phone_number(phone_number)
             for existing_user in all_users["users"]:
                 if existing_user.get("phone_number"):
-                    existing_clean = self._clean_phone_number(
-                        existing_user["phone_number"]
-                    )
+                    existing_clean = self._clean_phone_number(existing_user["phone_number"])
                     if existing_clean == clean_phone:
-                        logger.info(
-                            f"Found user with matching phone after cleaning: {existing_user.get('id')}"
-                        )
+                        logger.info(f"Found user with matching phone after cleaning: {existing_user.get('id')}")
                         return existing_user
 
         # If still not found, try to create a new user
@@ -167,9 +147,7 @@ class AutomagikAPIClient:
 
         # If user creation failed due to conflict (already exists but we couldn't find it),
         # make one more attempt to find the user
-        logger.info(
-            "User creation failed, trying to search by phone again after conflict"
-        )
+        logger.info("User creation failed, trying to search by phone again after conflict")
         time.sleep(0.5)  # Small delay before retrying
 
         # Try direct lookup one more time
@@ -179,9 +157,7 @@ class AutomagikAPIClient:
             return user
 
         # If all else fails, use user ID 1
-        logger.warning(
-            f"Failed to get or create user for {phone_number}, using default user"
-        )
+        logger.warning(f"Failed to get or create user for {phone_number}, using default user")
         return {"id": 1}
 
     def _clean_phone_number(self, phone: str) -> str:
@@ -209,9 +185,7 @@ class AutomagikAPIClient:
                 "hide_tools": hide_tools,
             }
 
-            response = requests.get(
-                url, headers=self._make_headers(), params=params, timeout=self.timeout
-            )
+            response = requests.get(url, headers=self._make_headers(), params=params, timeout=self.timeout)
 
             if response.status_code == 200:
                 return response.json()
@@ -219,9 +193,7 @@ class AutomagikAPIClient:
                 logger.info(f"Session not found: {session_id}")
                 return None
             else:
-                logger.error(
-                    f"Error getting session: {response.status_code} (response: {len(response.text)} chars)"
-                )
+                logger.error(f"Error getting session: {response.status_code} (response: {len(response.text)} chars)")
                 return None
         except Exception as e:
             logger.error(f"Error getting session: {e}")
@@ -238,12 +210,8 @@ def get_automagik_api_client() -> AutomagikAPIClient:
 
     if automagik_api_client is None:
         # Global agent API configuration no longer available
-        logger.info(
-            "Automagik API client not initialized - no global configuration available"
-        )
-        raise RuntimeError(
-            "Automagik API client not configured. Use instance-specific configuration instead."
-        )
+        logger.info("Automagik API client not initialized - no global configuration available")
+        raise RuntimeError("Automagik API client not configured. Use instance-specific configuration instead.")
 
     return automagik_api_client
 
