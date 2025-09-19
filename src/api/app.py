@@ -30,6 +30,7 @@ from src.api.deps import get_database, get_instance_by_name
 from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
 from src.api.routes.omni import router as omni_router
+from src.api.routes.access import router as access_router
 from src.db.database import create_tables
 
 # Configure logging
@@ -176,6 +177,18 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Database migration error: {e}")
             logger.warning("Application starting despite migration issues - manual intervention may be required")
+
+        # Load access control rules into cache
+        try:
+            from src.services.access_control import access_control_service
+            from src.db.database import SessionLocal
+
+            with SessionLocal() as db:
+                access_control_service.load_rules(db)
+            logger.info("✅ Access control rules loaded into cache")
+        except Exception as e:
+            logger.error(f"❌ Failed to load access control rules: {e}")
+            # Continue without access control cache - will be loaded on first use
     else:
         logger.info("Skipping database setup in test environment")
 
@@ -262,10 +275,10 @@ app = FastAPI(
     ],
 )
 
-# Include omni communication routes under dedicated omni namespace
+# Include omni communication routes under instances namespace (for unified API)
 app.include_router(
     omni_router,
-    prefix="/api/v1/omni",
+    prefix="/api/v1/instances",
     tags=["Omni Channel Abstraction"],
 )
 
@@ -286,6 +299,9 @@ app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
 from src.api.routes.messages import router as messages_router
 
 app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
+
+# Include access control management routes
+app.include_router(access_router, prefix="/api/v1", tags=["access"])
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)

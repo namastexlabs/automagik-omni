@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Dict, Any, Optional, Union, List
 from src.services.agent_api_client import agent_api_client
 from src.db.models import InstanceConfig
+from src.services.access_control import access_control_service
 
 # Configure logging
 logger = logging.getLogger("src.services.message_router")
@@ -74,6 +75,62 @@ class MessageRouter:
         )
         logger.info(f"Message text: {message_text}")
         logger.info(f"Session origin: {session_origin}")
+
+        # ------------------------------------------------------------------
+        # Access control integration (runs before any downstream processing)
+        # Maintains backward compatibility: if no rules/phone -> allow.
+        # ------------------------------------------------------------------
+        try:
+            # Determine instance scope if available
+            instance_name: Optional[str] = None
+            if isinstance(agent_config, dict) and agent_config.get("instance_config") is not None:
+                try:
+                    instance_obj = agent_config.get("instance_config")
+                    instance_name = getattr(instance_obj, "name", None)
+                except Exception:
+                    instance_name = None
+
+            # Extract phone number for ACL checks
+            phone_for_acl: Optional[str] = None
+            if isinstance(user, dict):
+                pn = user.get("phone_number")
+                if isinstance(pn, str) and pn.strip():
+                    phone_for_acl = pn.strip()
+            if not phone_for_acl and isinstance(whatsapp_raw_payload, dict):
+                # Try to extract WhatsApp JID and normalize to +<digits>
+                try:
+                    data = whatsapp_raw_payload.get("data", {}) if isinstance(whatsapp_raw_payload, dict) else {}
+                    remote_jid = None
+                    if isinstance(data, dict):
+                        key_obj = data.get("key", {}) if isinstance(data.get("key"), dict) else {}
+                        remote_jid = key_obj.get("remoteJid") or data.get("sender")
+                    # Fallbacks on top-level
+                    if not remote_jid:
+                        remote_jid = whatsapp_raw_payload.get("sender")
+                    if isinstance(remote_jid, str) and remote_jid:
+                        # Strip domain and keep digits, then add +
+                        raw_phone = remote_jid.split("@")[0]
+                        digits_only = "".join(ch for ch in raw_phone if ch.isdigit())
+                        if digits_only:
+                            phone_for_acl = f"+{digits_only}"
+                except Exception:
+                    phone_for_acl = None
+
+            if phone_for_acl:
+                allowed = access_control_service.check_access(phone_for_acl, instance_name)
+                if not allowed:
+                    logger.warning(
+                        f"Access BLOCKED by policy: phone={phone_for_acl}, scope={instance_name or 'global'}"
+                    )
+                    # Special sentinel used by channel handlers to suppress replies
+                    return "AUTOMAGIK:ACCESS_DENIED"
+                else:
+                    logger.info(f"Access ALLOWED: phone={phone_for_acl}, scope={instance_name or 'global'}")
+            else:
+                logger.info("Access check SKIPPED (no phone number available) - allowing by default")
+        except Exception as acl_err:
+            # Never fail routing due to ACL errors; default to allow and log
+            logger.error(f"Access control check failed, allowing by default: {acl_err}")
 
         # Determine the agent name to use
         agent_name = None

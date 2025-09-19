@@ -18,6 +18,7 @@ setup_logging()
 # Import other modules after logging is configured
 from src.services.agent_service import agent_service
 from src.services.agent_api_client import agent_api_client
+from src.services.access_control import access_control_service
 
 # Import WhatsApp components initialization to set up HTTP webhook processing
 
@@ -69,6 +70,13 @@ def run():
 
         # Check API availability (warn but continue if not available)
         check_api_availability()
+
+        # Warm up access control cache after DB init
+        try:
+            access_control_service.load_rules()
+            logger.info("Access control cache loaded at startup")
+        except Exception as e:
+            logger.warning(f"Failed to load access control cache at startup: {e}")
 
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, handle_shutdown)

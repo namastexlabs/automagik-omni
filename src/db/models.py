@@ -3,7 +3,17 @@ SQLAlchemy models for multi-tenant instance configuration and user management.
 """
 
 import uuid
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from enum import Enum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    UniqueConstraint,
+    CheckConstraint,
+)
 from sqlalchemy.orm import relationship
 from .database import Base
 from src.utils.datetime_utils import datetime_utcnow
@@ -82,6 +92,12 @@ class InstanceConfig(Base):
 
     # Relationships
     users = relationship("User", back_populates="instance")
+    access_rules = relationship(
+        "AccessRule",
+        back_populates="instance",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self):
         return f"<InstanceConfig(name='{self.name}', is_default={self.is_default})>"
@@ -177,3 +193,56 @@ class User(Base):
 
 
 # Import trace models to ensure they're registered with SQLAlchemy
+
+
+class AccessRuleType(str, Enum):
+    """Enumeration of supported access rule types."""
+
+    ALLOW = "allow"
+    BLOCK = "block"
+
+
+class AccessRule(Base):
+    """Allow/block phone number rules optionally scoped to an instance."""
+
+    __tablename__ = "access_rules"
+    __table_args__ = (
+        UniqueConstraint(
+            "instance_name",
+            "phone_number",
+            "rule_type",
+            name="uq_access_rules_scope_phone_rule",
+        ),
+        CheckConstraint(
+            "rule_type IN ('allow', 'block')",
+            name="ck_access_rules_rule_type",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    instance_name = Column(
+        String,
+        ForeignKey("instance_configs.name", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    phone_number = Column(String, nullable=False, index=True)
+    rule_type = Column(String(10), nullable=False)
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    instance = relationship("InstanceConfig", back_populates="access_rules")
+
+    def __repr__(self) -> str:
+        scope = self.instance_name or "global"
+        return f"<AccessRule(scope='{scope}', phone='{self.phone_number}', type='{self.rule_type}')>"
+
+    @property
+    def rule_enum(self) -> AccessRuleType:
+        """Return the rule type as an enum instance."""
+        return AccessRuleType(self.rule_type)
+
+    @property
+    def is_allow(self) -> bool:
+        """Convenience flag for allow rules."""
+        return self.rule_enum is AccessRuleType.ALLOW
