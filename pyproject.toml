@@ -1,6 +1,6 @@
 [project]
 name = "automagik-omni"
-version = "0.5.0"
+version = "0.5.1"
 description = "Automagik Omni: Multi-tenant omnichannel messaging hub"
 readme = "README.md"
 authors = [
@@ -76,6 +76,17 @@ dev = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+include = ["src/**/*.py", "tests/**/*.py"]
+exclude = [
+    "scripts/**",
+    "alembic/**",
+    ".claude/**",
+    "docs/**",
+    "__pycache__/**",
+    ".git/**",
+    ".venv/**",
+    "*.egg-info/**"
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]

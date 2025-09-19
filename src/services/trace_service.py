@@ -12,7 +12,6 @@ from contextlib import contextmanager
 from sqlalchemy.orm import Session
 
 from src.config import config
-from src.db.database import get_db
 from src.db.trace_models import MessageTrace, TracePayload
 from src.utils.datetime_utils import utcnow
 
@@ -382,10 +381,8 @@ class TraceService:
             return None
 
     @staticmethod
-    def get_traces_by_phone(phone: str, limit: int = 50, db_session: Session = None) -> List[MessageTrace]:
+    def get_traces_by_phone(phone: str, db_session: Session, limit: int = 50) -> List[MessageTrace]:
         """Get recent traces for a phone number."""
-        if not db_session:
-            db_session = next(get_db())
 
         try:
             return (
@@ -414,19 +411,19 @@ class TraceService:
             return []
 
     @staticmethod
-    def cleanup_old_traces(days_old: int = 30, db_session: Session = None) -> int:
+    def cleanup_old_traces(db_session: Session, days_old: int = 30) -> int:
         """
         Clean up traces older than specified days.
 
         Args:
-            days_old: Delete traces older than this many days
             db_session: Database session
+            days_old: Delete traces older than this many days
 
         Returns:
             Number of traces deleted
         """
-        if not db_session:
-            db_session = next(get_db())
+        if db_session is None:
+            raise ValueError("db_session is required for cleanup_old_traces")
 
         try:
             from datetime import timedelta
@@ -482,22 +479,21 @@ class TraceService:
 
 
 @contextmanager
-def get_trace_context(message_data: Dict[str, Any], instance_name: str) -> Optional[TraceContext]:
+def get_trace_context(message_data: Dict[str, Any], instance_name: str, db_session: Session) -> Optional[TraceContext]:
     """
     Context manager for message tracing.
 
     Usage:
-        with get_trace_context(webhook_data, instance_name) as trace:
+        with get_trace_context(webhook_data, instance_name, db_session) as trace:
             if trace:
                 trace.log_agent_request(agent_payload)
                 # ... processing ...
                 trace.log_agent_response(agent_response, timing)
     """
-    db = next(get_db())
     trace_context = None
 
     try:
-        trace_context = TraceService.create_trace(message_data, instance_name, db)
+        trace_context = TraceService.create_trace(message_data, instance_name, db_session)
         if trace_context:
             trace_context.update_trace_status("processing", processing_started_at=utcnow())
         else:
@@ -509,4 +505,5 @@ def get_trace_context(message_data: Dict[str, Any], instance_name: str) -> Optio
         logger.error(f"Error in trace context: {e}")
         yield trace_context
     finally:
-        db.close()
+        # The request-scoped session lifecycle is managed by FastAPI; do not close here.
+        pass

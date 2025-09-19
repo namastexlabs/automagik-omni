@@ -12,6 +12,8 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy.orm import Session
+
 from src.utils.datetime_utils import utcnow
 
 # Import TYPE_CHECKING to avoid circular import
@@ -262,6 +264,7 @@ def create_streaming_trace_context(
     sender_name: str,
     sender_jid: str,
     message_type: str = "text",
+    db_session: Optional[Session] = None,
     **kwargs,
 ) -> Optional[StreamingTraceContext]:
     """
@@ -279,7 +282,7 @@ def create_streaming_trace_context(
     Returns:
         StreamingTraceContext instance or None if tracing disabled
     """
-    from src.db.database import get_db
+    from src.db.database import SessionLocal
     from src.services.trace_service import TraceService
 
     # Create message data structure that TraceService expects
@@ -302,14 +305,20 @@ def create_streaming_trace_context(
     }
 
     # Get database session
-    try:
-        db = next(get_db())
+    session_created = False
 
-        # Create trace using TraceService
-        streaming_trace = TraceService.create_streaming_trace(message_data, instance_name, db)
+    try:
+        if db_session is None:
+            db_session = SessionLocal()
+            session_created = True
+
+        streaming_trace = TraceService.create_streaming_trace(message_data, instance_name, db_session)
 
         return streaming_trace
 
     except Exception as e:
         logger.error(f"Failed to create streaming trace context: {e}")
         return None
+    finally:
+        if session_created and db_session is not None:
+            db_session.close()

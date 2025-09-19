@@ -26,6 +26,7 @@ os.environ["LOG_LEVEL"] = "ERROR"  # Reduce log noise in tests
 os.environ["AUTOMAGIK_OMNI_API_KEY"] = ""  # Disable API key for tests
 os.environ["EVOLUTION_API_URL"] = "http://test-evolution-api"
 os.environ["EVOLUTION_API_KEY"] = "test-evolution-key"
+os.environ["SKIP_EVOLUTION_STATUS"] = "true"
 
 # Override config for tests
 import sys
@@ -38,7 +39,7 @@ if "src.config" in sys.modules:
 
 # Import after setting environment
 from src.db.database import Base
-from src.db.models import InstanceConfig  # Import models to register with Base
+from src.db.models import InstanceConfig, AccessRule  # Import models to register with Base
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 
@@ -60,7 +61,10 @@ def _create_postgresql_test_database():
 
     # Connect to PostgreSQL server to create test database
     server_url = f"postgresql://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_db}"
-    server_engine = create_engine(server_url, isolation_level="AUTOCOMMIT")
+
+    # Add CI-specific connection parameters for better stability
+    connect_args = {"connect_timeout": 30} if os.environ.get("CI") else {}
+    server_engine = create_engine(server_url, isolation_level="AUTOCOMMIT", connect_args=connect_args)
 
     try:
         # Create test database
@@ -73,7 +77,10 @@ def _create_postgresql_test_database():
 
     except Exception as e:
         server_engine.dispose()
-        raise Exception(f"Failed to create PostgreSQL test database: {e}")
+        error_msg = f"Failed to create PostgreSQL test database: {e}"
+        if os.environ.get("CI"):
+            error_msg += " (CI environment)"
+        raise Exception(error_msg)
 
 
 def _cleanup_postgresql_test_database(test_db_name: str, server_engine):
@@ -94,9 +101,17 @@ def _cleanup_postgresql_test_database(test_db_name: str, server_engine):
             # Drop the test database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db_name}"'))
     except Exception as e:
-        print(f"Warning: Failed to cleanup PostgreSQL test database {test_db_name}: {e}")
+        # In CI, database cleanup issues are non-fatal
+        if os.environ.get("CI"):
+            print(f"CI: Database cleanup warning for {test_db_name}: {e}")
+        else:
+            print(f"Warning: Failed to cleanup PostgreSQL test database {test_db_name}: {e}")
     finally:
-        server_engine.dispose()
+        try:
+            server_engine.dispose()
+        except Exception as e:
+            if not os.environ.get("CI"):
+                print(f"Warning: Failed to dispose server engine: {e}")
 
 
 @pytest.fixture(scope="function")
@@ -561,4 +576,4 @@ def expected_mention_jids():
 @pytest.fixture
 def mention_api_headers():
     """Standard headers for mention API testing."""
-    return {"Content-Type": "application/json", "Authorization": "Bearer namastex888"}
+    return {"Content-Type": "application/json", "x-api-key": "namastex888"}
