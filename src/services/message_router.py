@@ -362,30 +362,30 @@ class MessageRouter:
 
             # Determine routing type based on instance configuration
             # First try unified schema
-        if hasattr(instance_config, "is_hive") and instance_config.is_hive:
-            if instance_config.agent_type == "team":
-                # Route to team streaming with enhanced tracing
-                logger.info(f"Streaming to AutomagikHive team: {instance_config.agent_id}")
-                success = await streaming_instance.stream_team_to_whatsapp_with_traces(
-                    recipient=recipient,
-                    team_id=instance_config.agent_id,
-                    message=message_text,
-                    trace_context=streaming_trace_context,
-                    user_id=str(user_id) if user_id else None,
-                )
+            if hasattr(instance_config, "is_hive") and instance_config.is_hive:
+                if instance_config.agent_type == "team":
+                    # Route to team streaming with enhanced tracing
+                    logger.info(f"Streaming to AutomagikHive team: {instance_config.agent_id}")
+                    success = await streaming_instance.stream_team_to_whatsapp_with_traces(
+                        recipient=recipient,
+                        team_id=instance_config.agent_id,
+                        message=message_text,
+                        trace_context=streaming_trace_context,
+                        user_id=str(user_id) if user_id else None,
+                    )
+                else:
+                    # Route to agent streaming with enhanced tracing
+                    logger.info(f"Streaming to AutomagikHive agent: {instance_config.agent_id}")
+                    success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
+                        recipient=recipient,
+                        agent_id=instance_config.agent_id,
+                        message=message_text,
+                        trace_context=streaming_trace_context,
+                        user_id=str(user_id) if user_id else None,
+                    )
             else:
-                # Route to agent streaming with enhanced tracing
-                logger.info(f"Streaming to AutomagikHive agent: {instance_config.agent_id}")
-                success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
-                    recipient=recipient,
-                    agent_id=instance_config.agent_id,
-                    message=message_text,
-                    trace_context=streaming_trace_context,
-                    user_id=str(user_id) if user_id else None,
-                )
-        else:
-            logger.error("No AutomagikHive agent_id configured for streaming")
-            return False
+                logger.error("No AutomagikHive agent_id configured for streaming")
+                return False
 
             if success:
                 logger.info(f"AutomagikHive streaming completed successfully for {recipient}")
