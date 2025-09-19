@@ -714,6 +714,7 @@ class DiscordBotManager:
 
                 agent_config = {
                     "name": agent_id,
+                    "agent_id": agent_id,
                     "api_url": instance_config.agent_api_url,
                     "api_key": instance_config.agent_api_key,
                     "timeout": instance_config.agent_timeout or 60,
