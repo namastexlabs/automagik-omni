@@ -49,7 +49,33 @@ def get_current_revision() -> str | None:
     try:
         with engine.connect() as connection:
             context = MigrationContext.configure(connection)
-            return context.get_current_revision()
+
+            # Try to get single revision first
+            try:
+                return context.get_current_revision()
+            except Exception as e:
+                if "more than one head present" in str(e):
+                    # Multiple heads in the version table - get all heads
+                    heads = context.get_current_heads()
+                    logger.warning(f"Multiple heads in version table: {heads}")
+
+                    # Check if we have a merge migration that resolves these
+                    config = get_alembic_config()
+                    script_dir = ScriptDirectory.from_config(config)
+
+                    # Look for a migration that has these heads as down_revisions
+                    for revision in script_dir.iterate_revisions("heads"):
+                        if revision.down_revision and isinstance(revision.down_revision, tuple):
+                            if set(revision.down_revision) == set(heads):
+                                logger.info(f"Found merge migration {revision.revision} for current heads")
+                                # Return None to trigger migration to the merge
+                                return None
+
+                    # If no merge found, return the first head
+                    return heads[0] if heads else None
+                else:
+                    raise
+
     except Exception as e:
         logger.error(f"Error getting current revision: {e}")
         return None
@@ -60,7 +86,32 @@ def get_head_revision() -> str | None:
     try:
         config = get_alembic_config()
         script_dir = ScriptDirectory.from_config(config)
-        return script_dir.get_current_head()
+
+        # Check if there are multiple heads (branching)
+        heads = script_dir.get_heads()
+
+        if len(heads) == 1:
+            # Single head - normal case
+            return script_dir.get_current_head()
+        elif len(heads) > 1:
+            # Multiple heads detected - check if merge migration exists
+            logger.warning(f"Multiple migration heads detected: {heads}")
+
+            # Look for a merge migration that has all heads as dependencies
+            for revision in script_dir.iterate_revisions("heads"):
+                if revision.down_revision and isinstance(revision.down_revision, tuple):
+                    # This is a merge migration
+                    if set(revision.down_revision) == set(heads):
+                        logger.info(f"Found merge migration: {revision.revision}")
+                        return revision.revision
+
+            # No merge migration found - return None to trigger migration
+            logger.warning("No merge migration found for multiple heads")
+            return None
+        else:
+            # No heads
+            return None
+
     except Exception as e:
         logger.error(f"Error getting head revision: {e}")
         return None
@@ -89,12 +140,17 @@ def needs_migration() -> bool:
 def run_migrations() -> bool:
     """
     Run database migrations.
+    Handles multiple heads automatically by upgrading to all heads.
 
     Returns:
         bool: True if migrations ran successfully, False otherwise
     """
     try:
         config = get_alembic_config()
+        script_dir = ScriptDirectory.from_config(config)
+
+        # Check for multiple heads
+        heads = script_dir.get_heads()
 
         # Check if database exists
         if not check_database_exists():
@@ -103,19 +159,33 @@ def run_migrations() -> bool:
             current = get_current_revision()
             head = get_head_revision()
 
-            if current == head:
+            if current == head and len(heads) == 1:
                 logger.info("Database is up to date, no migrations needed")
                 return True
 
-            logger.info(f"Migrating database from {current} to {head}")
+            if len(heads) > 1:
+                logger.info(f"Multiple heads detected: {heads}")
+                logger.info("Will upgrade to all heads to resolve branches")
 
-        # Run migrations
+            logger.info(f"Migrating database from {current} to {head or 'heads'}")
+
+        # Run migrations - 'head' will upgrade to all heads if multiple exist
         command.upgrade(config, "head")
         logger.info("Database migrations completed successfully")
+
+        # After upgrading, check if we now have a single head
+        new_heads = script_dir.get_heads()
+        if len(new_heads) == 1:
+            logger.info(f"Successfully resolved to single head: {new_heads[0]}")
+        elif len(new_heads) > 1:
+            logger.warning(f"Still have multiple heads after migration: {new_heads}")
+            logger.warning("You may need to create a merge migration manually")
+
         return True
 
     except Exception as e:
         logger.error(f"Error running migrations: {e}")
+        logger.error("If you see multiple heads error, run: uv run alembic merge -m 'Merge branches' <head1> <head2>")
         return False
 
 
