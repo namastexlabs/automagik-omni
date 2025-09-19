@@ -107,7 +107,7 @@ class TestRealWorldScenarios:
     def api_headers(self):
         """Realistic API headers using real environment API key."""
         return {
-            "Authorization": "Bearer namastex888",
+            "x-api-key": "namastex888",
             "Content-Type": "application/json",
             "User-Agent": "AutomagikOmni-Test/1.0",
         }

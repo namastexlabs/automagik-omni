@@ -30,6 +30,7 @@ from src.api.deps import get_database, get_instance_by_name
 from fastapi.openapi.utils import get_openapi
 from src.api.routes.instances import router as instances_router
 from src.api.routes.omni import router as omni_router
+from src.api.routes.access import router as access_router
 from src.db.database import create_tables
 
 # Configure logging
@@ -176,6 +177,18 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Database migration error: {e}")
             logger.warning("Application starting despite migration issues - manual intervention may be required")
+
+        # Load access control rules into cache
+        try:
+            from src.services.access_control import access_control_service
+            from src.db.database import SessionLocal
+
+            with SessionLocal() as db:
+                access_control_service.load_rules(db)
+            logger.info("✅ Access control rules loaded into cache")
+        except Exception as e:
+            logger.error(f"❌ Failed to load access control rules: {e}")
+            # Continue without access control cache - will be loaded on first use
     else:
         logger.info("Skipping database setup in test environment")
 
@@ -232,8 +245,12 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json",
     openapi_tags=[
         {
-            "name": "instances",
-            "description": "Instance Management",
+            "name": "Instance Management",
+            "description": "Create, configure, and monitor messaging channel instances.",
+        },
+        {
+            "name": "Omni Channel Abstraction",
+            "description": "Unified channel access to contacts and chats across providers.",
         },
         {
             "name": "messages",
@@ -258,11 +275,19 @@ app = FastAPI(
     ],
 )
 
-# Include omni communication routes (register first to take precedence)
-app.include_router(omni_router, prefix="/api/v1", tags=["instances"])
+# Include omni communication routes under instances namespace (for unified API)
+app.include_router(
+    omni_router,
+    prefix="/api/v1/instances",
+    tags=["Omni Channel Abstraction"],
+)
 
 # Include instance management routes
-app.include_router(instances_router, prefix="/api/v1", tags=["instances"])
+app.include_router(
+    instances_router,
+    prefix="/api/v1",
+    tags=["Instance Management"],
+)
 
 
 # Include trace management routes
@@ -271,15 +296,12 @@ from src.api.routes.traces import router as traces_router
 app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
 
 # Include message sending routes
-try:
-    from src.api.routes.messages import router as messages_router
+from src.api.routes.messages import router as messages_router
 
-    app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
-except Exception as e:
-    logger.error(f"❌ Failed to include messages router: {e}")
-    import traceback
+app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"])
 
-    logger.error(traceback.format_exc())
+# Include access control management routes
+app.include_router(access_router, prefix="/api/v1", tags=["access"])
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
@@ -308,11 +330,11 @@ def custom_openapi():
 - Multi-tenant architecture with isolated instances
 - Universal messaging across WhatsApp, Discord, and Slack
 - Message tracing and analytics
-- Bearer token authentication
+- API key authentication via x-api-key header
 
 ## Quick Start
 
-1. Include API key in `Authorization: Bearer <token>` header
+1. Include API key in `x-api-key` header
 2. Create an instance for your channel
 3. Send messages using the omni endpoints
 4. Monitor activity via traces and health endpoints
@@ -325,25 +347,50 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # Add server information with both production and local servers
-    openapi_schema["servers"] = [
-        {
-            "url": "https://omni-mctech.namastex.ai",
-            "description": "Production Server",
-        },
-        {
-            "url": "http://localhost:8882",
-            "description": "Local Development Server",
-        },
-    ]
+    # Add server information dynamically from configuration
+    servers = []
 
-    # Update the existing HTTPBearer security scheme with better description
-    if "components" in openapi_schema and "securitySchemes" in openapi_schema["components"]:
-        if "HTTPBearer" in openapi_schema["components"]["securitySchemes"]:
-            openapi_schema["components"]["securitySchemes"]["HTTPBearer"]["description"] = (
-                "Enter your API key as a Bearer token (e.g., 'namastex888')"
-            )
-            openapi_schema["components"]["securitySchemes"]["HTTPBearer"]["bearerFormat"] = "API Key"
+    # Add production server if configured
+    if config.api.prod_server_url:
+        servers.append(
+            {
+                "url": config.api.prod_server_url,
+                "description": "Production Server",
+            }
+        )
+
+    # Always add local development server with actual configured port
+    servers.append(
+        {
+            "url": f"http://localhost:{config.api.port}",
+            "description": "Local Development Server",
+        }
+    )
+
+    openapi_schema["servers"] = servers
+
+    # Add ApiKeyAuth security scheme
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    if "securitySchemes" not in openapi_schema["components"]:
+        openapi_schema["components"]["securitySchemes"] = {}
+
+    # Replace any existing security scheme with ApiKeyAuth
+    openapi_schema["components"]["securitySchemes"] = {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "x-api-key",
+            "description": "API key for authentication (e.g., 'namastex888')",
+        }
+    }
+
+    # Update security requirement for all operations
+    for path in openapi_schema.get("paths", {}).values():
+        for operation in path.values():
+            if isinstance(operation, dict) and "security" in operation:
+                # Update existing security to use ApiKeyAuth
+                operation["security"] = [{"ApiKeyAuth": []}]
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
@@ -376,13 +423,15 @@ async def health_check():
 
     # Check Discord service status if available
     try:
-        # Get Discord bot manager instance (if running)
-        from src.services.discord_service import discord_bot_manager
+        # Access Discord bot manager via the exported discord_service
+        from src.services.discord_service import discord_service
 
-        if discord_bot_manager:
+        bot_manager = getattr(discord_service, "bot_manager", None)
+
+        if bot_manager:
             bot_statuses = {}
-            for instance_name in discord_bot_manager.bots.keys():
-                bot_status = discord_bot_manager.get_bot_status(instance_name)
+            for instance_name in bot_manager.bots.keys():
+                bot_status = bot_manager.get_bot_status(instance_name)
                 if bot_status:
                     bot_statuses[instance_name] = {
                         "status": bot_status.status,
@@ -394,7 +443,7 @@ async def health_check():
             health_status["services"]["discord"] = {
                 "status": "up" if bot_statuses else "down",
                 "instances": bot_statuses,
-                "voice_sessions": len(discord_bot_manager.voice_manager.get_voice_sessions()),
+                "voice_sessions": len(bot_manager.voice_manager.get_voice_sessions()),
             }
         else:
             health_status["services"]["discord"] = {
@@ -408,7 +457,7 @@ async def health_check():
     return health_status
 
 
-async def _handle_evolution_webhook(instance_config, request: Request):
+async def _handle_evolution_webhook(instance_config, request: Request, db: Session):
     """
     Core webhook handling logic shared between default and tenant endpoints.
 
@@ -437,7 +486,7 @@ async def _handle_evolution_webhook(instance_config, request: Request):
         logger.debug(f"Webhook data: {data}")
 
         # Start message tracing
-        with get_trace_context(data, instance_config.name) as trace:
+        with get_trace_context(data, instance_config.name, db) as trace:
             # Update the Evolution API sender with the webhook data
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
@@ -512,7 +561,7 @@ async def evolution_webhook_tenant(instance_name: str, request: Request, db: Ses
     instance_config = get_instance_by_name(instance_name, db)
 
     # Handle using shared logic
-    return await _handle_evolution_webhook(instance_config, request)
+    return await _handle_evolution_webhook(instance_config, request, db)
 
 
 def start_api():

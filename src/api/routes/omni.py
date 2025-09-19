@@ -22,7 +22,7 @@ from src.channels.base import ChannelHandlerFactory
 from src.channels.handlers.whatsapp_chat_handler import WhatsAppChatHandler
 from src.channels.omni_base import OmniChannelHandler
 
-router = APIRouter(prefix="/instances", tags=["omni-instances"])
+router = APIRouter(tags=["Omni Channel Abstraction"])
 logger = logging.getLogger(__name__)
 
 # Register omni handlers

@@ -703,26 +703,48 @@ class DiscordBotManager:
             # Create agent config from instance config
             agent_config = None
             if instance_config:
+                # Get agent_id properly from instance config
+                agent_id = (
+                    instance_config.agent_id
+                    if instance_config.agent_id and instance_config.agent_id != "default"
+                    else instance_config.default_agent
+                )
+                if not agent_id:
+                    agent_id = "default"
+
                 agent_config = {
-                    "name": instance_config.default_agent or "master-genie",
+                    "name": agent_id,
+                    "agent_id": agent_id,
                     "api_url": instance_config.agent_api_url,
                     "api_key": instance_config.agent_api_key,
                     "timeout": instance_config.agent_timeout or 60,
+                    "instance_type": instance_config.agent_instance_type,  # Add instance type for proper routing
+                    "agent_type": instance_config.agent_type,  # Add agent type (agent or team)
+                    "instance_config": instance_config,  # Pass the full config for hive client
                 }
 
-            # Route message to MessageRouter (synchronous call, no await)
+            # Route message to MessageRouter (synchronous call from async context)
+            # Since we're in an async context and route_message is sync, use executor
+            import asyncio
+            from functools import partial
+
             try:
-                agent_response = self.message_router.route_message(
+                loop = asyncio.get_event_loop()
+                # Use partial to ensure correct parameter mapping
+                route_func = partial(
+                    self.message_router.route_message,
+                    message_text=content,  # CRITICAL: message_text comes first in the signature
                     user_id=None,  # Let the agent API manage user creation and ID assignment
                     user=user_dict,  # Pass user dict for creation/lookup
                     session_name=session_name,
-                    message_text=content,
                     message_type="text",
-                    session_origin="discord",
                     whatsapp_raw_payload=None,  # Discord doesn't use WhatsApp payload
-                    media_contents=None,  # TODO: Handle Discord attachments if needed
+                    session_origin="discord",
                     agent_config=agent_config,  # Pass agent configuration
+                    media_contents=None,  # TODO: Handle Discord attachments if needed
+                    trace_context=None,
                 )
+                agent_response = await loop.run_in_executor(None, route_func)
 
                 # Send response back to Discord if we got one
                 if agent_response:
@@ -737,16 +759,18 @@ class DiscordBotManager:
             except TypeError as te:
                 # Fallback for older versions of MessageRouter without some parameters
                 logger.warning(f"Route_message did not accept some parameters, retrying with basic ones: {te}")
-                agent_response = self.message_router.route_message(
+                route_func_fallback = partial(
+                    self.message_router.route_message,
+                    message_text=content,
                     user_id=None,
                     user=user_dict,
                     session_name=session_name,
-                    message_text=content,
                     message_type="text",
-                    session_origin="discord",
                     whatsapp_raw_payload=None,
+                    session_origin="discord",
                     agent_config=agent_config,
                 )
+                agent_response = await loop.run_in_executor(None, route_func_fallback)
 
                 if agent_response:
                     # Use unified response extraction

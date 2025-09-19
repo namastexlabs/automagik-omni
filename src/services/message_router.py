@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Dict, Any, Optional, Union, List
 from src.services.agent_api_client import agent_api_client
 from src.db.models import InstanceConfig
+from src.services.access_control import access_control_service
 
 # Configure logging
 logger = logging.getLogger("src.services.message_router")
@@ -75,6 +76,62 @@ class MessageRouter:
         logger.info(f"Message text: {message_text}")
         logger.info(f"Session origin: {session_origin}")
 
+        # ------------------------------------------------------------------
+        # Access control integration (runs before any downstream processing)
+        # Maintains backward compatibility: if no rules/phone -> allow.
+        # ------------------------------------------------------------------
+        try:
+            # Determine instance scope if available
+            instance_name: Optional[str] = None
+            if isinstance(agent_config, dict) and agent_config.get("instance_config") is not None:
+                try:
+                    instance_obj = agent_config.get("instance_config")
+                    instance_name = getattr(instance_obj, "name", None)
+                except Exception:
+                    instance_name = None
+
+            # Extract phone number for ACL checks
+            phone_for_acl: Optional[str] = None
+            if isinstance(user, dict):
+                pn = user.get("phone_number")
+                if isinstance(pn, str) and pn.strip():
+                    phone_for_acl = pn.strip()
+            if not phone_for_acl and isinstance(whatsapp_raw_payload, dict):
+                # Try to extract WhatsApp JID and normalize to +<digits>
+                try:
+                    data = whatsapp_raw_payload.get("data", {}) if isinstance(whatsapp_raw_payload, dict) else {}
+                    remote_jid = None
+                    if isinstance(data, dict):
+                        key_obj = data.get("key", {}) if isinstance(data.get("key"), dict) else {}
+                        remote_jid = key_obj.get("remoteJid") or data.get("sender")
+                    # Fallbacks on top-level
+                    if not remote_jid:
+                        remote_jid = whatsapp_raw_payload.get("sender")
+                    if isinstance(remote_jid, str) and remote_jid:
+                        # Strip domain and keep digits, then add +
+                        raw_phone = remote_jid.split("@")[0]
+                        digits_only = "".join(ch for ch in raw_phone if ch.isdigit())
+                        if digits_only:
+                            phone_for_acl = f"+{digits_only}"
+                except Exception:
+                    phone_for_acl = None
+
+            if phone_for_acl:
+                allowed = access_control_service.check_access(phone_for_acl, instance_name)
+                if not allowed:
+                    logger.warning(
+                        f"Access BLOCKED by policy: phone={phone_for_acl}, scope={instance_name or 'global'}"
+                    )
+                    # Special sentinel used by channel handlers to suppress replies
+                    return "AUTOMAGIK:ACCESS_DENIED"
+                else:
+                    logger.info(f"Access ALLOWED: phone={phone_for_acl}, scope={instance_name or 'global'}")
+            else:
+                logger.info("Access check SKIPPED (no phone number available) - allowing by default")
+        except Exception as acl_err:
+            # Never fail routing due to ACL errors; default to allow and log
+            logger.error(f"Access control check failed, allowing by default: {acl_err}")
+
         # Determine the agent name to use
         agent_name = None
         if agent_config and "name" in agent_config:
@@ -104,17 +161,25 @@ class MessageRouter:
             # Check if this is a Hive instance configuration
             is_hive = agent_config and agent_config.get("instance_type") == "hive"
 
-            if is_hive and agent_config.get("instance_config"):
-                # Use AutomagikHive client for Hive instances
+            if is_hive:
+                # Use AutomagikHive client for Hive instances via unified configuration
                 logger.info("Detected Hive instance configuration - using AutomagikHive client")
                 from src.services.automagik_hive_client import AutomagikHiveClient
 
                 instance_config = agent_config.get("instance_config")
-                hive_client = AutomagikHiveClient(config_override=instance_config)
+                config_override = instance_config or {
+                    "api_url": agent_config.get("api_url"),
+                    "api_key": agent_config.get("api_key"),
+                    "agent_id": agent_config.get("agent_id") or agent_config.get("name"),
+                    "agent_type": agent_config.get("agent_type", "agent"),
+                    "timeout": agent_config.get("timeout", 60),
+                    "stream_mode": agent_config.get("stream_mode", False),
+                }
+                hive_client = AutomagikHiveClient(config_override=config_override)
 
                 # Determine if this is a team or agent
                 agent_type = agent_config.get("agent_type", "agent")
-                agent_id = agent_config.get("name")  # This should be the agent_id or team_id
+                agent_id = agent_config.get("agent_id") or agent_config.get("name")
 
                 logger.info(f"Routing to Hive {agent_type}: {agent_id}")
 
@@ -375,27 +440,6 @@ class MessageRouter:
                         trace_context=streaming_trace_context,
                         user_id=str(user_id) if user_id else None,
                     )
-            # Backward compatibility with legacy fields
-            elif hasattr(instance_config, "hive_agent_id") and instance_config.hive_agent_id:
-                # Route to agent streaming with enhanced tracing
-                logger.info(f"Streaming to AutomagikHive agent: {instance_config.hive_agent_id}")
-                success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
-                    recipient=recipient,
-                    agent_id=instance_config.hive_agent_id,
-                    message=message_text,
-                    trace_context=streaming_trace_context,
-                    user_id=str(user_id) if user_id else None,
-                )
-            elif hasattr(instance_config, "hive_team_id") and instance_config.hive_team_id:
-                # Route to team streaming with enhanced tracing
-                logger.info(f"Streaming to AutomagikHive team: {instance_config.hive_team_id}")
-                success = await streaming_instance.stream_team_to_whatsapp_with_traces(
-                    recipient=recipient,
-                    team_id=instance_config.hive_team_id,
-                    message=message_text,
-                    trace_context=streaming_trace_context,
-                    user_id=str(user_id) if user_id else None,
-                )
             else:
                 logger.error("No AutomagikHive agent_id configured for streaming")
                 return False
@@ -449,19 +493,6 @@ class MessageRouter:
                 return False
             logger.debug("Streaming ENABLED for Hive instance")
             return True
-
-        # Backward compatibility: check legacy hive fields
-        if hasattr(instance_config, "hive_enabled") and instance_config.hive_enabled:
-            if not instance_config.hive_api_url or not instance_config.hive_api_key:
-                logger.debug("Streaming disabled (legacy): Missing Hive API URL or key")
-                return False
-            has_agent = hasattr(instance_config, "hive_agent_id") and instance_config.hive_agent_id
-            has_team = hasattr(instance_config, "hive_team_id") and instance_config.hive_team_id
-            if has_agent or has_team:
-                logger.debug("Streaming ENABLED (legacy Hive fields)")
-                return True
-            logger.debug("Streaming disabled (legacy): No hive_agent_id or hive_team_id")
-            return False
 
         logger.debug("Streaming disabled: Not a Hive instance")
         return False
@@ -520,11 +551,22 @@ class MessageRouter:
             # Convert instance_config to agent_config format for traditional routing
             agent_config = None
             if hasattr(instance_config, "agent_api_url") and instance_config.agent_api_url:
+                agent_identifier = (
+                    instance_config.agent_id
+                    if getattr(instance_config, "agent_id", None)
+                    else instance_config.default_agent
+                ) or "default"
+
                 agent_config = {
-                    "name": instance_config.name,
+                    "name": agent_identifier,
+                    "agent_id": agent_identifier,
                     "api_url": instance_config.agent_api_url,
                     "api_key": instance_config.agent_api_key,
                     "timeout": getattr(instance_config, "agent_timeout", 60),
+                    "instance_type": getattr(instance_config, "agent_instance_type", "automagik"),
+                    "agent_type": getattr(instance_config, "agent_type", "agent"),
+                    "stream_mode": getattr(instance_config, "agent_stream_mode", False),
+                    "instance_config": instance_config,
                 }
 
             return self.route_message(

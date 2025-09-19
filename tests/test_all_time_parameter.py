@@ -26,7 +26,7 @@ class TestAllTimeParameter:
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers using real environment API key."""
-        return {"Authorization": "Bearer namastex888"}
+        return {"x-api-key": "namastex888"}
 
     @pytest.fixture
     def sample_traces(self):

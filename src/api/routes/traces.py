@@ -338,7 +338,7 @@ async def get_traces_by_phone(
     """Get recent traces for a specific phone number."""
 
     try:
-        traces = TraceService.get_traces_by_phone(phone_number, limit, db)
+        traces = TraceService.get_traces_by_phone(phone_number, db, limit)
         return [TraceResponse(**trace.to_dict()) for trace in traces]
 
     except Exception as e:
@@ -374,7 +374,7 @@ async def cleanup_old_traces(
             }
         else:
             # Actually delete traces
-            deleted_count = TraceService.cleanup_old_traces(days_old, db)
+            deleted_count = TraceService.cleanup_old_traces(db, days_old)
 
             return {
                 "status": "completed",

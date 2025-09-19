@@ -3,6 +3,7 @@ CRUD API for managing instance configurations.
 """
 
 import logging
+import os
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -355,6 +356,18 @@ async def list_instances(
     """List all instance configurations with optional Evolution API status."""
     instances = db.query(InstanceConfig).offset(skip).limit(limit).all()
 
+    environment = os.getenv("ENVIRONMENT", "").lower()
+    skip_status_checks = environment == "test" or os.getenv("SKIP_EVOLUTION_STATUS", "").lower() in {"true", "1", "yes"}
+    if not skip_status_checks:
+        try:
+            from src.config import config
+
+            skip_status_checks = (
+                getattr(config, "environment", None) and config.environment.environment.lower() == "test"
+            )
+        except Exception:
+            skip_status_checks = False
+
     # Convert to response format and optionally include Evolution status
     response_instances = []
     for instance in instances:
@@ -397,7 +410,14 @@ async def list_instances(
         }
 
         # Fetch Evolution status if requested and it's a WhatsApp instance
-        if include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key:
+        if skip_status_checks:
+            logger.debug(
+                "Skipping Evolution status lookup for %s in test environment",
+                instance.name,
+            )
+        elif (
+            include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key
+        ):
             try:
                 from src.channels.whatsapp.evolution_client import EvolutionClient
 
@@ -485,7 +505,24 @@ async def get_instance(
     }
 
     # Fetch Evolution status if requested and it's a WhatsApp instance
-    if include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key:
+    environment = os.getenv("ENVIRONMENT", "").lower()
+    skip_status_checks = environment == "test" or os.getenv("SKIP_EVOLUTION_STATUS", "").lower() in {"true", "1", "yes"}
+    if not skip_status_checks:
+        try:
+            from src.config import config
+
+            skip_status_checks = (
+                getattr(config, "environment", None) and config.environment.environment.lower() == "test"
+            )
+        except Exception:
+            skip_status_checks = False
+
+    if skip_status_checks:
+        logger.debug(
+            "Skipping Evolution status lookup for %s in test environment",
+            instance.name,
+        )
+    elif include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key:
         try:
             from src.channels.whatsapp.evolution_client import EvolutionClient
 

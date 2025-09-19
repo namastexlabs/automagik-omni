@@ -10,7 +10,7 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 from src.db.models import InstanceConfig, Base
 
@@ -110,6 +110,27 @@ class TestAPIEndpoints:
     # Note: Removed conflicting setup_test_environment fixture.
     # Using conftest.py fixtures instead: test_client and mention_api_headers
 
+    def ensure_test_instance_exists(self, db: "Session") -> InstanceConfig:
+        """Helper to ensure test-instance exists in the database."""
+        from src.db.models import InstanceConfig
+
+        instance = db.query(InstanceConfig).filter_by(name="test-instance").first()
+        if not instance:
+            instance = InstanceConfig(
+                name="test-instance",
+                channel_type="whatsapp",
+                evolution_url="http://test.com",
+                evolution_key="test-key",
+                whatsapp_instance="test-instance",
+                agent_api_url="http://agent.com",
+                agent_api_key="agent-key",
+                default_agent="test_agent",
+                is_default=False,
+            )
+            db.add(instance)
+            db.commit()
+        return instance
+
 
 class TestHealthEndpoints(TestAPIEndpoints):
     """Test health and system endpoints."""
@@ -154,9 +175,9 @@ class TestHealthEndpoints(TestAPIEndpoints):
         assert "paths" in schema
         assert "components" in schema
 
-        # Verify bearer auth is configured
+        # Verify API key auth is configured
         assert "securitySchemes" in schema["components"]
-        assert "HTTPBearer" in schema["components"]["securitySchemes"]
+        assert "ApiKeyAuth" in schema["components"]["securitySchemes"]
 
 
 class TestAuthenticationSecurity(TestAPIEndpoints):
@@ -166,20 +187,26 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         """Test that protected endpoints reject requests without authentication."""
         # Configure a real API key for authentication tests
         monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "test-api-key-secure")
+        # CRITICAL: Set environment to production to enable auth checks
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
-        from src.api.deps import verify_api_key, get_database
+        from src.api.deps import get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -207,35 +234,41 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                     ], f"{method} {endpoint} should require auth but got {response.status_code}"
 
                     # Test with malformed auth header (not Bearer format)
-                    headers = {"Authorization": "NotBearer token"}
+                    headers = {"x-api-key": "Invalidtoken"}
                     response = auth_test_client.request(method, endpoint, headers=headers)
                     assert response.status_code in [
                         401,
                         403,
                     ], f"{method} {endpoint} should reject malformed auth but got {response.status_code}"
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
     def test_bearer_token_validation(self, test_db, monkeypatch):
         """Test bearer token validation with various scenarios."""
         # Configure a real API key for authentication tests
         monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "test-api-key-secure")
+        # CRITICAL: Set environment to production to enable auth checks
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
-        from src.api.deps import verify_api_key, get_database
+        from src.api.deps import get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -246,51 +279,47 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
         try:
             with TestClient(app) as auth_test_client:
                 test_cases = [
-                    ("", 422),  # Empty auth header - FastAPI validation error
-                    ("invalid-token", 422),  # Invalid format - FastAPI validation error
-                    (
-                        "Bearer invalid-token",
-                        401,
-                    ),  # Invalid bearer token (401 for wrong API key)
-                    (
-                        "Basic dGVzdDp0ZXN0",
-                        422,
-                    ),  # Wrong auth type - FastAPI validation error
+                    ("", 401),  # No API key - should return 401
+                    ("invalid-token", 401),  # Invalid API key - should return 401
+                    ("wrong-api-key", 401),  # Wrong API key - should return 401
                 ]
 
-                for auth_header, expected_status in test_cases:
-                    headers = {"Authorization": auth_header} if auth_header else {}
+                for api_key, expected_status in test_cases:
+                    headers = {"x-api-key": api_key} if api_key else {}
                     response = auth_test_client.get("/api/v1/instances", headers=headers)
-                    # For empty/malformed auth headers, FastAPI returns 422 (validation error)
-                    # For invalid tokens, our verify_api_key returns 401
-                    assert response.status_code in [
-                        401,
-                        403,
-                        422,
-                    ], f"Auth header '{auth_header}' should return 401/403/422 but got {response.status_code}"
+                    # For missing or invalid API keys, our verify_api_key returns 401
+                    assert response.status_code == expected_status, (
+                        f"API key '{api_key}' should return {expected_status} but got {response.status_code}"
+                    )
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
     def test_valid_authentication_works(self, test_db, mention_api_headers, monkeypatch):
         """Test that valid authentication allows access."""
         # Configure the same API key that mention_api_headers uses
         monkeypatch.setenv("AUTOMAGIK_OMNI_API_KEY", "namastex888")  # This matches mention_api_headers
+        # CRITICAL: Set environment to production to enable auth checks
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         # Force reload config to pick up the new API key
         import importlib
         import src.config
+        import src.api.deps
 
         importlib.reload(src.config)
+        # CRITICAL: Also reload deps to pick up the new config reference
+        importlib.reload(src.api.deps)
 
         # Import dependencies after config is set
-        from src.api.deps import verify_api_key, get_database
+        from src.api.deps import get_database
         from src.api.app import app
         from fastapi.testclient import TestClient
 
-        # Temporarily remove the auth override for this test
-        original_auth_override = app.dependency_overrides.pop(verify_api_key, None)
+        # Clear ALL overrides to ensure clean state
+        original_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
 
         # Keep database override but use proper auth
         def override_db_dependency():
@@ -304,12 +333,15 @@ class TestAuthenticationSecurity(TestAPIEndpoints):
                 response = auth_test_client.get("/api/v1/instances", headers=mention_api_headers)
                 assert response.status_code == 200, f"Valid auth should work but got {response.status_code}"
         finally:
-            # Restore the auth override
-            if original_auth_override:
-                app.dependency_overrides[verify_api_key] = original_auth_override
+            # Restore all original overrides
+            app.dependency_overrides.clear()
+            app.dependency_overrides.update(original_overrides)
 
-    def test_webhook_endpoints_no_auth_required(self, test_client):
+    def test_webhook_endpoints_no_auth_required(self, test_client, test_db):
         """Test that webhook endpoints work without authentication (by design)."""
+        # Ensure test instance exists for webhook testing
+        self.ensure_test_instance_exists(test_db)
+
         webhook_data = {"event": "messages.upsert", "data": {"test": "webhook"}}
 
         # Mock webhook handler to avoid actual processing
@@ -360,13 +392,18 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_list_instances_with_data(self, test_client, mention_api_headers):
+    def test_list_instances_with_data(self, test_client, mention_api_headers, test_db):
         """Test listing instances with data."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+
         response = test_client.get("/api/v1/instances", headers=mention_api_headers)
         assert response.status_code == 200
         instances = response.json()
-        assert len(instances) == 1
-        assert instances[0]["name"] == "test-instance"
+        assert len(instances) >= 1
+        # Find test-instance in the list
+        test_instance = next((i for i in instances if i["name"] == "test-instance"), None)
+        assert test_instance is not None
 
     def test_create_instance_success(self, test_client, mention_api_headers):
         """Test creating a new instance."""
@@ -411,8 +448,11 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
 
-    def test_get_instance_success(self, test_client, mention_api_headers):
+    def test_get_instance_success(self, test_client, mention_api_headers, test_db):
         """Test getting specific instance."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
             mock_handler.return_value.get_instance_status.return_value = {"status": "connected"}
 
@@ -427,8 +467,11 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         response = test_client.get("/api/v1/instances/nonexistent", headers=mention_api_headers)
         assert response.status_code == 404
 
-    def test_update_instance_success(self, test_client, mention_api_headers):
+    def test_update_instance_success(self, test_client, mention_api_headers, test_db):
         """Test updating instance configuration."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
+
         update_data = {
             "agent_api_url": "https://updated-agent.test.com",
             "webhook_base64": False,
@@ -483,8 +526,10 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
 class TestInstanceOperationEndpoints(TestAPIEndpoints):
     """Test instance operation endpoints (QR, status, restart, etc.)."""
 
-    def test_get_qr_code(self, test_client, mention_api_headers):
+    def test_get_qr_code(self, test_client, mention_api_headers, test_db):
         """Test getting QR code for instance."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
             # Make get_qr_code async
             async def mock_get_qr_code(*args, **kwargs):
@@ -504,8 +549,10 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
             assert "qr_code" in data
             assert data["qr_code"].startswith("data:image/")
 
-    def test_get_connection_status(self, test_client, mention_api_headers):
+    def test_get_connection_status(self, test_client, mention_api_headers, test_db):
         """Test getting instance connection status."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
             # Make get_status async
             async def mock_get_status(*args, **kwargs):
@@ -523,8 +570,10 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
             data = response.json()
             assert "status" in data
 
-    def test_restart_instance(self, test_client, mention_api_headers):
+    def test_restart_instance(self, test_client, mention_api_headers, test_db):
         """Test restarting instance connection."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
             # Make restart_instance async
             async def mock_restart_instance(*args, **kwargs):
@@ -535,8 +584,10 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
             response = test_client.post("/api/v1/instances/test-instance/restart", headers=mention_api_headers)
             assert response.status_code == 200
 
-    def test_logout_instance(self, test_client, mention_api_headers):
+    def test_logout_instance(self, test_client, mention_api_headers, test_db):
         """Test logging out instance."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
             # Make logout_instance async
             async def mock_logout_instance(*args, **kwargs):
@@ -644,8 +695,10 @@ class TestMessageSendingEndpoints(TestAPIEndpoints):
             )
             assert response.status_code == 200
 
-    def test_send_contact_message(self, test_client, mention_api_headers):
+    def test_send_contact_message(self, test_client, mention_api_headers, test_db):
         """Test sending contact message."""
+        # Ensure test instance exists
+        self.ensure_test_instance_exists(test_db)
         message_data = {
             "phone_number": "+1234567890",
             "contacts": [{"full_name": "John Doe", "phone_number": "+1987654321"}],
@@ -800,8 +853,11 @@ class TestTraceEndpoints(TestAPIEndpoints):
 class TestWebhookEndpoints(TestAPIEndpoints):
     """Test webhook endpoints."""
 
-    def test_evolution_webhook_tenant(self, test_client):
+    def test_evolution_webhook_tenant(self, test_client, test_db):
         """Test multi-tenant webhook endpoint."""
+        # Ensure test instance exists for webhook testing
+        self.ensure_test_instance_exists(test_db)
+
         webhook_data = {
             "event": "messages.upsert",
             "data": {

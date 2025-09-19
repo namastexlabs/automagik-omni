@@ -416,6 +416,7 @@ class WhatsAppMessageHandler:
                         # Use unified fields for Hive configuration
                         agent_config = {
                             "name": instance_config.agent_id or instance_config.default_agent,
+                            "agent_id": instance_config.agent_id or instance_config.default_agent,
                             "type": "whatsapp",
                             "api_url": instance_config.agent_api_url,
                             "api_key": instance_config.agent_api_key,
@@ -432,11 +433,13 @@ class WhatsAppMessageHandler:
                         # Use legacy fields for Automagik
                         agent_config = {
                             "name": instance_config.agent_id or instance_config.default_agent,
+                            "agent_id": instance_config.agent_id or instance_config.default_agent,
                             "type": "whatsapp",
                             "api_url": instance_config.agent_api_url,
                             "api_key": instance_config.agent_api_key,
                             "timeout": instance_config.agent_timeout,
                             "instance_type": getattr(instance_config, "agent_instance_type", "automagik"),
+                            "agent_type": getattr(instance_config, "agent_type", "agent"),
                             "instance_config": instance_config,  # Pass the full config for routing decisions
                         }
                         logger.info(
@@ -460,9 +463,9 @@ class WhatsAppMessageHandler:
                 # Create or update user in our local database for stable identity
                 local_user = None  # Initialize outside try block so it's accessible later
                 try:
-                    from src.db.database import get_db
+                    from src.db.database import SessionLocal
 
-                    db_session = next(get_db())
+                    db_session = SessionLocal()
                     try:
                         # Get instance name for user creation
                         instance_name = instance_config.name if instance_config else "default"
@@ -593,9 +596,9 @@ class WhatsAppMessageHandler:
                     # Update our local user with the agent's user_id for future lookups
                     if local_user:
                         try:
-                            from src.db.database import get_db
+                            from src.db.database import SessionLocal
 
-                            db_session = next(get_db())
+                            db_session = SessionLocal()
                             try:
                                 user_service.update_user_agent_id(local_user.id, current_user_id, db_session)
                                 logger.info(f"Updated local user {local_user.id} with agent user_id: {current_user_id}")

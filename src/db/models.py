@@ -3,7 +3,17 @@ SQLAlchemy models for multi-tenant instance configuration and user management.
 """
 
 import uuid
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from enum import Enum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    UniqueConstraint,
+    CheckConstraint,
+)
 from sqlalchemy.orm import relationship
 from .database import Base
 from src.utils.datetime_utils import datetime_utcnow
@@ -47,7 +57,7 @@ class InstanceConfig(Base):
     # slack_bot_token = Column(String, nullable=True)
     # slack_workspace = Column(String, nullable=True)
 
-    # Unified Agent API configuration (works for both Automagik and Hive)
+    # Unified Agent API configuration (supports Automagik and Hive via agent_* fields)
     agent_instance_type = Column(String, default="automagik", nullable=False)  # "automagik" or "hive"
     agent_api_url = Column(String, nullable=False)
     agent_api_key = Column(String, nullable=False)
@@ -60,15 +70,6 @@ class InstanceConfig(Base):
 
     # Legacy field for backward compatibility (will be migrated to agent_id)
     default_agent = Column(String, nullable=True)  # Deprecated - use agent_id instead
-
-    # Legacy AutomagikHive fields (deprecated - kept for migration)
-    hive_enabled = Column(Boolean, default=False, nullable=True)  # Deprecated - use agent_instance_type
-    hive_api_url = Column(String, nullable=True)  # Deprecated - use agent_api_url
-    hive_api_key = Column(String, nullable=True)  # Deprecated - use agent_api_key
-    hive_agent_id = Column(String, nullable=True)  # Deprecated - use agent_id with agent_type="agent"
-    hive_team_id = Column(String, nullable=True)  # Deprecated - use agent_id with agent_type="team"
-    hive_timeout = Column(Integer, nullable=True)  # Deprecated - use agent_timeout
-    hive_stream_mode = Column(Boolean, nullable=True)  # Deprecated - use agent_stream_mode
 
     # Automagik instance identification (for UI display)
     automagik_instance_id = Column(String, nullable=True)
@@ -91,6 +92,12 @@ class InstanceConfig(Base):
 
     # Relationships
     users = relationship("User", back_populates="instance")
+    access_rules = relationship(
+        "AccessRule",
+        back_populates="instance",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self):
         return f"<InstanceConfig(name='{self.name}', is_default={self.is_default})>"
@@ -132,40 +139,12 @@ class InstanceConfig(Base):
             "api_url": self.agent_api_url,
             "api_key": self.agent_api_key,
             "agent_id": agent_identifier,
+            "name": agent_identifier,
             "agent_type": self.agent_type or "agent",
             "timeout": self.agent_timeout or 60,
             "stream_mode": self.agent_stream_mode or False,
         }
         return config
-
-    # Backward compatibility methods
-    def has_hive_config(self) -> bool:
-        """Legacy: Check if instance has complete AutomagikHive configuration."""
-        # Check new unified fields
-        if self.is_hive:
-            return bool(self.agent_api_url) and bool(self.agent_api_key) and bool(self.agent_id)
-        # Fall back to legacy fields if they exist
-        return (
-            self.hive_enabled
-            and bool(self.hive_api_url)
-            and bool(self.hive_api_key)
-            and (bool(self.hive_agent_id) or bool(self.hive_team_id))
-        )
-
-    def get_hive_config(self) -> dict:
-        """Legacy: Get AutomagikHive configuration as dictionary."""
-        # Use new unified fields if this is a hive instance
-        if self.is_hive:
-            return self.get_agent_config()
-        # Fall back to legacy fields
-        return {
-            "api_url": self.hive_api_url,
-            "api_key": self.hive_api_key,
-            "agent_id": self.hive_agent_id,
-            "team_id": self.hive_team_id,
-            "timeout": self.hive_timeout,
-            "stream_mode": self.hive_stream_mode,
-        }
 
 
 class User(Base):
@@ -214,3 +193,56 @@ class User(Base):
 
 
 # Import trace models to ensure they're registered with SQLAlchemy
+
+
+class AccessRuleType(str, Enum):
+    """Enumeration of supported access rule types."""
+
+    ALLOW = "allow"
+    BLOCK = "block"
+
+
+class AccessRule(Base):
+    """Allow/block phone number rules optionally scoped to an instance."""
+
+    __tablename__ = "access_rules"
+    __table_args__ = (
+        UniqueConstraint(
+            "instance_name",
+            "phone_number",
+            "rule_type",
+            name="uq_access_rules_scope_phone_rule",
+        ),
+        CheckConstraint(
+            "rule_type IN ('allow', 'block')",
+            name="ck_access_rules_rule_type",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    instance_name = Column(
+        String,
+        ForeignKey("instance_configs.name", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    phone_number = Column(String, nullable=False, index=True)
+    rule_type = Column(String(10), nullable=False)
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    instance = relationship("InstanceConfig", back_populates="access_rules")
+
+    def __repr__(self) -> str:
+        scope = self.instance_name or "global"
+        return f"<AccessRule(scope='{scope}', phone='{self.phone_number}', type='{self.rule_type}')>"
+
+    @property
+    def rule_enum(self) -> AccessRuleType:
+        """Return the rule type as an enum instance."""
+        return AccessRuleType(self.rule_type)
+
+    @property
+    def is_allow(self) -> bool:
+        """Convenience flag for allow rules."""
+        return self.rule_enum is AccessRuleType.ALLOW

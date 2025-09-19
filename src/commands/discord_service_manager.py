@@ -15,7 +15,7 @@ import os
 import sys
 import logging
 import signal
-import time
+import threading
 from pathlib import Path
 from typing import Set
 
@@ -56,6 +56,7 @@ class DiscordServiceManager:
         self.active_bots: Set[str] = set()
         self.check_interval = 30  # Check for new bots every 30 seconds
         self.feature_config = DiscordFeatureConfig()
+        self.shutdown_event = threading.Event()
 
     def get_discord_instances(self):
         """Get all active Discord instances from database."""
@@ -88,6 +89,8 @@ class DiscordServiceManager:
 
     def start_missing_bots(self):
         """Start any Discord bots that aren't currently running."""
+        logger.info("🔍 Checking for Discord bots to start...")
+
         if not self.feature_config.enabled:
             if self.active_bots:
                 logger.info("Discord is disabled, stopping all active bots")
@@ -98,6 +101,13 @@ class DiscordServiceManager:
 
         try:
             discord_instances = self.get_discord_instances()
+            logger.info(f"📋 Found {len(discord_instances)} Discord instances in database")
+
+            if len(discord_instances) == 0:
+                logger.warning(
+                    "⚠️ No Discord instances found in database. Make sure to create one using the API or CLI."
+                )
+                return
 
             if len(discord_instances) > self.feature_config.max_instances:
                 logger.warning(
@@ -143,8 +153,10 @@ class DiscordServiceManager:
             logger.info("Set DISCORD_ENABLED=true to enable Discord functionality.")
             # Still run the loop to monitor for configuration changes
             try:
-                while True:
-                    time.sleep(60)  # Check every minute for config changes
+                while not self.shutdown_event.is_set():
+                    # Use wait with timeout for better signal handling
+                    if self.shutdown_event.wait(timeout=60):  # Check every minute for config changes
+                        break
                     # Reload config to check for changes
                     new_config = DiscordFeatureConfig()
                     if new_config.enabled != self.feature_config.enabled:
@@ -160,9 +172,14 @@ class DiscordServiceManager:
         import requests
 
         api_healthy = False
-        api_url = "http://localhost:8882/health"
+        api_port = int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882"))
+        api_url = f"http://localhost:{api_port}/health"
+        logger.info(f"Checking API health at {api_url}")
 
         for _ in range(60):  # Try for 60 seconds
+            if self.shutdown_event.is_set():
+                logger.info("Shutdown requested during API health check")
+                return False
             try:
                 response = requests.get(api_url, timeout=2)
                 if response.status_code == 200:
@@ -171,7 +188,10 @@ class DiscordServiceManager:
                     break
             except Exception:
                 pass
-            time.sleep(1)
+            # Use wait instead of sleep for better signal handling
+            if self.shutdown_event.wait(timeout=1):
+                logger.info("Shutdown requested during API health check")
+                return False
 
         if not api_healthy:
             logger.error("API health check failed after 60 seconds")
@@ -190,11 +210,9 @@ class DiscordServiceManager:
                 # Start any new bots
                 self.start_missing_bots()
 
-                # Sleep before next check
-                for _ in range(self.check_interval):
-                    if not self.running:
-                        break
-                    time.sleep(1)
+                # Use wait with timeout instead of sleep for better signal handling
+                if self.shutdown_event.wait(timeout=self.check_interval):
+                    break
 
         except KeyboardInterrupt:
             logger.info("Received interrupt signal")
@@ -205,6 +223,7 @@ class DiscordServiceManager:
         """Shutdown the service manager."""
         logger.info("Discord Service Manager shutting down...")
         self.running = False
+        self.shutdown_event.set()  # Signal shutdown to break wait
 
         # Stop all bots
         for bot_name in list(self.active_bots):
@@ -224,6 +243,7 @@ def main():
     def signal_handler(signum, frame):
         logger.info(f"Received signal {signum}")
         manager.running = False
+        manager.shutdown_event.set()  # Trigger immediate shutdown
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
