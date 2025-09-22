@@ -499,5 +499,6 @@ class AgentApiClient:
 
         return response
 
+
 # Singleton instance
 agent_api_client = AgentApiClient()
