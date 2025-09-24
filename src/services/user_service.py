@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
-from src.db.models import User
+from src.db.models import User, UserExternalId
 from src.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -96,6 +96,12 @@ class UserService:
             db.commit()
             db.refresh(user)
 
+            # Ensure WhatsApp external ID link exists
+            try:
+                self.link_external_id(user.id, "whatsapp", whatsapp_jid, instance_name, db)
+            except Exception:
+                logger.exception("Failed to ensure WhatsApp external ID link for existing user")
+
             logger.info(f"Updated existing user {user.id} for phone {phone_number}")
             return user
 
@@ -113,8 +119,73 @@ class UserService:
         db.commit()
         db.refresh(user)
 
+        # Create WhatsApp external ID link
+        try:
+            self.link_external_id(user.id, "whatsapp", whatsapp_jid, instance_name, db)
+        except Exception:
+            logger.exception("Failed to create WhatsApp external ID link for new user")
+
         logger.info(f"Created new user {user.id} for phone {phone_number} in instance {instance_name}")
         return user
+
+    def link_external_id(
+        self,
+        user_id: str,
+        provider: str,
+        external_id: str,
+        instance_name: Optional[str],
+        db: Session,
+    ) -> bool:
+        """Ensure a link exists between a local user and an external provider ID.
+
+        Unique per (provider, external_id). If link exists and points to another user,
+        it will be reassigned to the provided user_id to enforce unification.
+        """
+        if not (user_id and provider and external_id):
+            raise ValueError("user_id, provider and external_id are required")
+
+        link = (
+            db.query(UserExternalId)
+            .filter(UserExternalId.provider == provider, UserExternalId.external_id == external_id)
+            .first()
+        )
+
+        if link:
+            if link.user_id != user_id:
+                logger.warning(
+                    f"Reassigning external link {provider}:{external_id} from {link.user_id} to {user_id}"
+                )
+                link.user_id = user_id
+                link.instance_name = instance_name
+                link.updated_at = utcnow()
+                db.commit()
+            return True
+
+        # Create new link
+        new_link = UserExternalId(
+            user_id=user_id,
+            provider=provider,
+            external_id=external_id,
+            instance_name=instance_name,
+        )
+        db.add(new_link)
+        db.commit()
+        return True
+
+    def resolve_user_by_external(
+        self, provider: str, external_id: str, db: Session
+    ) -> Optional[User]:
+        """Resolve a User by provider/external_id mapping."""
+        if not (provider and external_id):
+            return None
+        link = (
+            db.query(UserExternalId)
+            .filter(UserExternalId.provider == provider, UserExternalId.external_id == external_id)
+            .first()
+        )
+        if not link:
+            return None
+        return db.query(User).filter_by(id=link.user_id).first()
 
     def get_user_by_id(self, user_id: str, db: Session) -> Optional[User]:
         """
