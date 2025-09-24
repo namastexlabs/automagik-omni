@@ -7,6 +7,7 @@ import logging
 from typing import Optional, Dict, Any
 from src.db.models import InstanceConfig
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
+from src.services.trace_service import TraceService
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,45 @@ class OmniChannelMessageSender:
                 return await self._send_whatsapp_text(recipient, text, **kwargs)
             elif self.channel_type == "discord":
                 logger.info(f"Calling _send_discord_text for instance '{self.instance_config.name}'")
-                return await self._send_discord_text(recipient, text, **kwargs)
+                send_kwargs = dict(kwargs)
+                trace_context = send_kwargs.pop("trace_context", None)
+                session_name = send_kwargs.get("session_name")
+                result: Optional[Dict[str, Any]] = None
+                error_details: Optional[str] = None
+
+                try:
+                    result = await self._send_discord_text(recipient, text, **send_kwargs)
+                    return result
+                except Exception as exc:
+                    error_details = str(exc)
+                    raise
+                finally:
+                    try:
+                        payload_metadata = {
+                            "session_name": session_name,
+                            "kwargs": {k: send_kwargs.get(k) for k in sorted(send_kwargs.keys()) if k not in {"quoted_message"}},
+                        }
+                        TraceService.record_outbound_message(
+                            instance_name=self.instance_config.name,
+                            channel_type="discord",
+                            payload={
+                                "recipient": str(recipient),
+                                "message_text": text,
+                                "metadata": payload_metadata,
+                            },
+                            response=result,
+                            success=bool(result and result.get("success")),
+                            trace_context=trace_context,
+                            session_name=session_name,
+                            message_id=result.get("message_id") if isinstance(result, dict) else None,
+                            error=(
+                                error_details
+                                if error_details
+                                else (result.get("error") if isinstance(result, dict) else None)
+                            ),
+                        )
+                    except Exception:
+                        logger.warning("Failed to persist outbound Discord trace from sender", exc_info=True)
             else:
                 logger.error(f"Unsupported channel type: {self.channel_type}")
                 return {
