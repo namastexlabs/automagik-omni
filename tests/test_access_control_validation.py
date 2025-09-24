@@ -7,8 +7,7 @@ Validates message filtering works correctly with existing WhatsApp instance.
 
 import pytest
 import requests
-from typing import Dict, Any, Optional
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from sqlalchemy.orm import Session
 
 from src.db.models import AccessRule, AccessRuleType, InstanceConfig
