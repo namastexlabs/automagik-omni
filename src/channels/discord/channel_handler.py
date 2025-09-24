@@ -11,6 +11,9 @@ from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
 from src.db.models import InstanceConfig
 from src.utils.dependency_guard import requires_feature, LazyImport, DependencyError
 from src.services.message_router import message_router
+from src.services.trace_service import TraceService
+from src.db.database import SessionLocal
+from src.utils.datetime_utils import utcnow
 
 # Lazy imports with dependency guards
 discord = LazyImport("discord", "discord")
@@ -41,6 +44,8 @@ class DiscordChannelHandler(ChannelHandler):
     def __init__(self):
         """Initialize Discord channel handler."""
         self._bot_instances: Dict[str, DiscordBotInstance] = {}
+        # Cache agent user_id returned by downstream routers keyed by instance+discord user
+        self._agent_user_cache: Dict[str, Dict[str, str]] = {}
 
     def _chunk_message(self, message: str, max_length: int = 2000) -> list[str]:
         """Split message into chunks that respect Discord's character limit."""
@@ -77,28 +82,141 @@ class DiscordChannelHandler(ChannelHandler):
 
         return chunks
 
-    async def _send_response_to_discord(self, channel, response: str) -> None:
-        """Send response to Discord channel, handling message chunking."""
+    def _get_cached_agent_user_id(self, instance_name: str, discord_user_id: str) -> Optional[str]:
+        """Return cached agent user id for an instance/user combination."""
+        return self._agent_user_cache.get(instance_name, {}).get(discord_user_id)
+
+    def _store_agent_user_id(self, instance_name: str, discord_user_id: str, agent_user_id: str) -> None:
+        """Persist agent user id for reuse on subsequent messages."""
+        if not agent_user_id:
+            return
+        cache = self._agent_user_cache.setdefault(instance_name, {})
+        cache[discord_user_id] = agent_user_id
+
+    def _serialize_message_for_trace(self, message) -> Dict[str, Any]:
+        """Normalize discord.Message attributes into a trace-friendly payload."""
+
+        author = getattr(message, "author", None)
+        guild = getattr(message, "guild", None)
+        channel = getattr(message, "channel", None)
+
+        attachments = []
+        for attachment in getattr(message, "attachments", []) or []:
+            try:
+                attachments.append(
+                    {
+                        "id": str(getattr(attachment, "id", "")),
+                        "filename": getattr(attachment, "filename", None),
+                        "content_type": getattr(attachment, "content_type", None),
+                        "size": getattr(attachment, "size", None),
+                        "url": getattr(attachment, "url", None),
+                    }
+                )
+            except Exception:
+                # Capture best-effort metadata without breaking tracing
+                attachments.append({"error": "failed_to_serialize_attachment"})
+
+        serialized = {
+            "id": getattr(message, "id", None),
+            "content": getattr(message, "content", None),
+            "author": {
+                "id": getattr(author, "id", None),
+                "username": getattr(author, "name", None),
+                "display_name": getattr(author, "display_name", None),
+                "discriminator": getattr(author, "discriminator", None),
+                "bot": getattr(author, "bot", None),
+            }
+            if author
+            else None,
+            "guild": {
+                "id": getattr(guild, "id", None),
+                "name": getattr(guild, "name", None),
+            }
+            if guild
+            else None,
+            "channel": {
+                "id": getattr(channel, "id", None),
+                "name": getattr(channel, "name", None),
+            }
+            if channel
+            else None,
+            "mentions": [getattr(m, "id", None) for m in getattr(message, "mentions", []) or []],
+            "attachments": attachments,
+        }
+
+        return serialized
+
+    async def _send_response_to_discord(
+        self,
+        channel,
+        response: str,
+        *,
+        trace_context=None,
+        instance: Optional[InstanceConfig] = None,
+        session_name: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        agent_response: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Send response to Discord channel, handling message chunking + trace logging."""
+
+        if not response:
+            return
+
+        metadata = metadata or {}
+        channel_id = metadata.get("channel_id") or getattr(channel, "id", None)
+        channel_name = metadata.get("channel_name") or getattr(channel, "name", None)
+
+        chunks = self._chunk_message(response)
+        send_payload = {
+            "recipient": str(channel_id) if channel_id is not None else None,
+            "channel_name": channel_name,
+            "message_text": response,
+            "chunk_count": len(chunks),
+            "metadata": metadata,
+        }
+
+        success = True
+        error_details = None
+
         try:
-            if not response:
-                return
-
-            # Split response into chunks if needed
-            chunks = self._chunk_message(response)
-
-            # Send each chunk
             for chunk in chunks:
                 await channel.send(chunk)
-                # Small delay between chunks to avoid rate limits
                 if len(chunks) > 1:
                     await asyncio.sleep(0.5)
 
         except Exception as e:
+            success = False
+            error_details = str(e)
             logger.error(f"Failed to send Discord response: {e}")
             try:
                 await channel.send("Sorry, I encountered an error while processing your message.")
-            except:
-                pass  # If we can't even send an error message, just log and continue
+            except Exception:
+                logger.warning("Discord fallback error message could not be delivered", exc_info=True)
+
+        finally:
+            trace_instance_name = instance.name if instance else metadata.get("instance_name")
+            response_payload: Optional[Dict[str, Any]]
+            if agent_response is None:
+                response_payload = {"success": success}
+            elif isinstance(agent_response, dict):
+                response_payload = agent_response
+            else:
+                response_payload = {"agent_response": agent_response}
+
+            try:
+                TraceService.record_outbound_message(
+                    instance_name=trace_instance_name,
+                    channel_type="discord",
+                    payload=send_payload,
+                    response=response_payload,
+                    success=success,
+                    trace_context=trace_context,
+                    session_name=session_name,
+                    message_id=metadata.get("message_id"),
+                    error=error_details,
+                )
+            except Exception:
+                logger.warning("Failed to persist Discord outbound trace", exc_info=True)
 
     async def _handle_message(self, message, instance: InstanceConfig, client) -> None:
         """Handle incoming Discord message with @mention detection."""
@@ -159,53 +277,109 @@ class DiscordChannelHandler(ChannelHandler):
                 f"Processing Discord message: '{content}' from user: {message.author.name} in session: {session_name}"
             )
 
+            db_session = None
+            trace_context = None
+            serialized_event = self._serialize_message_for_trace(message)
+
+            try:
+                db_session = SessionLocal()
+                trace_payload = {
+                    "channel_type": "discord",
+                    "direction": "inbound",
+                    "session_name": session_name,
+                    "event": serialized_event,
+                    "metadata": {
+                        "instance_name": instance.name,
+                        "guild_id": getattr(message.guild, "id", None),
+                        "guild_name": getattr(message.guild, "name", None),
+                        "channel_id": getattr(message.channel, "id", None),
+                        "channel_name": getattr(message.channel, "name", None),
+                        "author_name": user_dict["user_data"].get("name"),
+                    },
+                }
+
+                trace_context = TraceService.create_trace(trace_payload, instance.name, db_session)
+                if trace_context:
+                    initial_logged = getattr(trace_context, "initial_stage_logged", False)
+                    if not isinstance(initial_logged, bool) or not initial_logged:
+                        trace_context.log_stage("webhook_received", trace_payload, "webhook")
+                        trace_context.initial_stage_logged = True
+                    trace_context.update_trace_status("processing", processing_started_at=utcnow())
+                    logger.info(
+                        "Discord trace started trace_id=%s message_id=%s instance=%s",
+                        trace_context.trace_id,
+                        serialized_event.get("id"),
+                        instance.name,
+                    )
+            except Exception:
+                logger.warning("Unable to initialize Discord trace context", exc_info=True)
+                if db_session:
+                    db_session.close()
+                    db_session = None
+
+            cached_agent_user_id = self._get_cached_agent_user_id(instance.name, str(message.author.id))
+
             # Send typing indicator
             async with message.channel.typing():
                 # Route message to MessageRouter (same as WhatsApp)
                 try:
                     agent_response = message_router.route_message(
-                        user_id=None,  # Let the agent API manage user creation and ID assignment
-                        user=user_dict,  # Pass user dict for creation/lookup
+                        user_id=cached_agent_user_id,
+                        user=user_dict if not cached_agent_user_id else None,
                         session_name=session_name,
                         message_text=content,
                         message_type="text",
                         session_origin="discord",
                         whatsapp_raw_payload=None,  # Discord doesn't use WhatsApp payload
                         media_contents=None,  # TODO: Handle Discord attachments if needed
+                        trace_context=trace_context,
                     )
 
                     logger.info(
                         f"Got agent response for Discord user {message.author.name}: {len(str(agent_response))} characters"
                     )
 
-                    # Send response back to Discord
-                    if agent_response:
-                        response_text = extract_response_text(agent_response)
-                        await self._send_response_to_discord(message.channel, response_text)
-                    else:
-                        await message.channel.send(
-                            "I'm sorry, I couldn't process your message right now. Please try again later."
-                        )
-
                 except TypeError as te:
                     # Fallback for older versions of MessageRouter without media parameters
                     logger.warning(f"Route_message did not accept media_contents parameter, retrying without it: {te}")
                     agent_response = message_router.route_message(
-                        user_id=None,
-                        user=user_dict,
+                        user_id=cached_agent_user_id,
+                        user=user_dict if not cached_agent_user_id else None,
                         session_name=session_name,
                         message_text=content,
                         message_type="text",
                         session_origin="discord",
                         whatsapp_raw_payload=None,
+                        trace_context=trace_context,
                     )
 
                     if agent_response:
                         response_text = extract_response_text(agent_response)
-                        await self._send_response_to_discord(message.channel, response_text)
+                        await self._send_response_to_discord(
+                            message.channel,
+                            response_text,
+                            trace_context=trace_context,
+                            instance=instance,
+                            session_name=session_name,
+                            metadata={
+                                "instance_name": instance.name,
+                                "channel_id": getattr(message.channel, "id", None),
+                                "channel_name": getattr(message.channel, "name", None),
+                                "guild_id": getattr(message.guild, "id", None),
+                                "guild_name": getattr(message.guild, "name", None),
+                            },
+                            agent_response=agent_response,
+                        )
                     else:
                         await message.channel.send(
                             "I'm sorry, I couldn't process your message right now. Please try again later."
+                        )
+
+                    if isinstance(agent_response, dict) and agent_response.get("user_id"):
+                        self._store_agent_user_id(
+                            instance.name,
+                            str(message.author.id),
+                            agent_response.get("user_id"),
                         )
 
                 except Exception as e:
@@ -214,8 +388,51 @@ class DiscordChannelHandler(ChannelHandler):
                         "I encountered an error while processing your message. Please try again later."
                     )
 
+                else:
+                    if agent_response:
+                        response_text = extract_response_text(agent_response)
+                        await self._send_response_to_discord(
+                            message.channel,
+                            response_text,
+                            trace_context=trace_context,
+                            instance=instance,
+                            session_name=session_name,
+                            metadata={
+                                "instance_name": instance.name,
+                                "channel_id": getattr(message.channel, "id", None),
+                                "channel_name": getattr(message.channel, "name", None),
+                                "guild_id": getattr(message.guild, "id", None),
+                                "guild_name": getattr(message.guild, "name", None),
+                            },
+                            agent_response=agent_response,
+                        )
+                    else:
+                        await message.channel.send(
+                            "I'm sorry, I couldn't process your message right now. Please try again later."
+                        )
+
+                    # Cache agent user id when provided
+                    if isinstance(agent_response, dict) and agent_response.get("user_id"):
+                        agent_user_id = agent_response.get("user_id")
+                        self._store_agent_user_id(
+                            instance.name,
+                            str(message.author.id),
+                            agent_user_id,
+                        )
+
         except Exception as e:
             logger.error(f"Error in Discord message handler: {e}", exc_info=True)
+        finally:
+            if trace_context:
+                try:
+                    trace_context.db_session.close()
+                except Exception:
+                    logger.debug("Trace context session already closed", exc_info=True)
+            elif db_session:
+                try:
+                    db_session.close()
+                except Exception:
+                    logger.debug("Discord handler session close failed", exc_info=True)
 
     def _validate_bot_config(self, instance: InstanceConfig) -> Dict[str, str]:
         """Validate and extract Discord bot configuration."""
