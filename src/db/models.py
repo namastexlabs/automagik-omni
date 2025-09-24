@@ -212,7 +212,12 @@ class UserExternalId(Base):
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("provider", "external_id", name="uq_user_external_ids_provider_external"),
+        UniqueConstraint(
+            "provider",
+            "external_id",
+            "instance_name",
+            name="uq_user_external_provider_instance",
+        ),
     )
 
     user = relationship("User", backref="external_ids")
