@@ -314,10 +314,10 @@ lint-fix: ## Fix auto-fixable linting issues
 	$(call print_success,Auto-fixable issues resolved)
 
 .PHONY: format
-format: ## Format code with black
+format: ## Format code with ruff
 	$(call check_prerequisites)
-	$(call print_status,Formatting code with black)
-	@$(UV) run black src/ tests/
+	$(call print_status,Formatting code with ruff)
+	@$(UV) run ruff format src/ tests/
 	$(call print_success,Code formatted)
 
 .PHONY: typecheck
