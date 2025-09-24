@@ -1,82 +1,278 @@
 # CLAUDE.md
 
-This guide keeps Claude Code aligned with the Automagik Omni codebase. Use it as the source of truth when planning work, choosing commands, or understanding how the system is stitched together.
+Guidance for Claude Code (claude.ai/code) when working with the Automagik Omni repository.
 
-## Essential Commands
+## Context & Scope
 
-### Environment Setup
-- `make install` — wraps `uv sync`, ensures `.env` exists, and prints a status banner.
+[CONTEXT]
+- Root playbook for Automagik Omni. Review this before touching code, then consult topic-specific docs under `docs/` or within `genie/` wishes.
+- Automagik Omni is a multi-tenant messaging hub orchestrating WhatsApp, Discord, and future channels through a FastAPI service, background services, and channel-specific handlers.
+- Code spans API routes (`src/api`), channel adapters (`src/channels`), orchestration services (`src/services`), CLI entry points (`src/cli`), and SQLAlchemy models (`src/db`).
 
-### Development Servers
-- `make dev` — run FastAPI (`src.api.app:app`) with uvicorn reload, honouring `.env` overrides for host/port/log level.
-- `make start-local` / `make stop-local` — manage the PM2 process group defined in `ecosystem.config.js` (API ➜ health wait ➜ Discord service manager).
-- `make logs` — tail combined PM2 output under `logs/`.
+[SUCCESS CRITERIA]
+✅ Behavioral learnings applied before execution; deviations escalated through `automagik-omni-self-learn`.
+✅ Changes keep Omni’s multi-tenant channels functional (WhatsApp + Discord today, guardrails for future channels).
+✅ Tooling, tests, and documentation reflect Automagik Omni realities—no Hive-era residues in new work.
+✅ Evidence (commands, logs, screenshots) captured in wish/Forge artefacts and referenced in Death Testaments.
 
-## Architecture Overview
+[NEVER DO]
+❌ Assume behavior from the former Hive codebase—validate against Omni modules instead.
+❌ Touch documentation or wish files unless explicitly tasked.
+❌ Run tooling outside `uv` wrappers or bypass sandbox/approval requirements.
+❌ Declare completion without RED→GREEN proof and recorded validation.
 
-### Tech Stack
-- **Language & Runtime**: Python ≥ 3.12, Typer CLI entry points, asyncio-friendly FastAPI.
-- **Web**: FastAPI + uvicorn, Starlette middleware, custom telemetry decorators (`src.core.telemetry`).
-- **Database**: SQLAlchemy ORM + Alembic migrations; default SQLite with optional PostgreSQL (async not required).
-- **Messaging Channels**: WhatsApp via Evolution API + AMQP (`pika`), Discord bot integration via `discord.py` IPC bridge.
-- **Agent Integrations**: Automagik and Hive agent APIs via synchronous + async HTTPX clients.
-- **Tooling**: `uv` package manager, Ruff, Black, mypy, pytest (asyncio mode auto), PM2 for process orchestration.
+## Task Decomposition
 
-### Project Layout Essentials
 ```
-src/
-├── api/                # FastAPI app, dependencies, and route modules (instances, omni, access, traces)
-├── channels/           # Channel adapters (whatsapp, discord) + shared helpers
-├── cli/                # Typer command surface (start server, telemetry, instance + Discord management)
-├── commands/           # Legacy orchestration scripts (Discord service manager, etc.)
-├── core/               # Cross-cutting utilities (telemetry, exceptions)
-├── db/                 # SQLAlchemy models, session wiring, bootstrap helpers
-├── services/           # Business logic (message router, agent clients, access control, tracing, user services)
-└── utils/              # Date utilities, normalisation helpers, etc.
+<task_breakdown>
+1. [Discovery]
+   - Load the current wish/Forge task plus supporting docs listed above.
+   - Inspect relevant Omni modules (`src/api`, `src/channels`, `src/services`, `src/db`, `tests`).
+   - Confirm sandbox + approval requirements, active env vars, and MCP availability.
+
+2. [Implementation]
+   - Make smallest-possible changes in existing files; keep changes Omni-focused.
+   - Follow TDD: tests first via `automagik-omni-tests`, implementation via `automagik-omni-coder`.
+   - Propagate configuration/env/schema updates consistently (code + docs + migrations as needed).
+
+3. [Verification]
+   - Run targeted `uv run pytest ...` suites, lint/type checks, and channel API smoke tests.
+   - Capture outputs, screenshots, or SQL results as evidence.
+   - Summarize in the wish Death Testament before handing back to humans.
+</task_breakdown>
 ```
-Supporting assets include `alembic/` migrations, `scripts/` automation, `docs/` marketing material, and `genie/` context files.
 
-### Runtime Components
-- **API server (`src/api/app.py`)** — configures CORS, request logging middleware, telemetry tracking, and registers routers for health, instance CRUD, omni abstractions, and access control.
-- **Channel handlers (`src/channels/*`)** — encapsulate provider-specific logic (Evolution API sender/receiver, Discord bot orchestration, media handling, streaming support). Factory registration happens at import time (`ChannelHandlerFactory`).
-- **Service layer (`src/services/*`)** — houses agent API clients, message routing, access control, tracing, Discord management, and Automagik/Hive integrations. The router mediates between inbound channel payloads and agent APIs.
-- **Database layer (`src/db`)** — SQLAlchemy models for instances, users, access policies, trace records. `SessionLocal` is the sync factory used across API, CLI, and tests.
-- **Telemetry & logging** — `src/core/telemetry.TelemetryClient` emits OTLP-compatible spans (auto-disabled in dev/test); `src/logger.setup_logging` normalises log format across services.
-- **Process orchestration** — `ecosystem.config.js` defines the PM2 trio: uvicorn API, readiness wait script, and Discord service manager.
+## Behavioral Learnings
 
-## Messaging & Channel Flow
-1. Inbound events reach FastAPI routes (see `src/api/routes/messages.py` and channel-specific webhook endpoints) or arrive via Discord IPC bridges; middleware logs and masks sensitive fields before handing off to business logic.
-2. Payloads are normalised by channel handlers (`src/channels/whatsapp/handlers.py`, `src/channels/discord/channel_handler.py`).
-3. `MessageRouter` consults `access_control_service`, resolves agent routing (`agent_api_client`, Hive streaming), and pushes responses back through channel-specific senders (`evolution_api_sender`, Discord service).
-4. Traces are recorded through `trace_service` when `AUTOMAGIK_OMNI_ENABLE_TRACING=true` (default).
+[CONTEXT]
+- `automagik-omni-self-learn` owns violation records and overrides inconsistent instructions.
+- Read latest entries before work; treat them as highest-priority guardrails.
 
-## API Surface
-- `src/api/routes/instances.py` — REST CRUD for tenant configs, QR provisioning, channel capability introspection.
-- `src/api/routes/omni.py` — unified contacts/chats endpoints that wrap channel-specific handlers and return consistent schemas.
-- `src/api/routes/access.py` — manage ACL rules, SMS/phone allow lists, and policy evaluation.
-- `src/api/routes/messages.py` — outbound message dispatch & template sending helpers.
-- `src/api/routes/traces.py` — expose stored trace metadata for debugging.
-All routes enforce API-key auth via `verify_api_key` (pulls from config).
+[SUCCESS CRITERIA]
+✅ Most recent entry acknowledged explicitly in planning.
+✅ Violations against learnings trigger immediate self-learn escalation with evidence.
+✅ Corrections validated via observable behavior (tests, logs, approvals).
 
-## Testing Strategy
-- Test suite lives under `tests/` with granular module coverage (router integration, channel mentions, ACL policies, CLI behaviour, telemetry).
-- `pytest.ini` enables coverage (`--cov=src`), HTML output at `htmlcov/`, strict markers (`asyncio`, `integration`, `slow`), and auto asyncio mode.
-- Async tests rely on FastAPI `TestClient` or HTTPX clients; database fixtures respect `TEST_DATABASE_URL` when set.
-- Use `make test-postgres` before shipping migrations touching SQL dialect specifics.
+[ENTRY FIELDS]
+- `date` (YYYY-MM-DD) • `violation_type` • `severity`
+- `trigger` • `correction` • `validation`
+
+## Global Guardrails
+
+### Fundamental Rules *(CRITICAL)*
+- Do exactly what the wish/Forge task requests—no scope creep.
+- Edit existing files when possible; create new files only with explicit approval.
+- `.claude/commands/prompt.md` defines interaction style; follow it rigorously.
+- Respect naming constraints from `AGENTS.md` (no “fixed”, “v2”, etc.).
+
+### Code Quality Standards
+- Favor clear, minimal solutions (KISS/YAGNI/DRY); stick to Pythonic patterns used in `src/`.
+- Deliver complete implementations—no TODOs, placeholders, or half-finished code paths.
+- Prefer built-in or well-known libs already referenced in `pyproject.toml`.
+- Compose behavior via functions/modules; avoid unnecessary inheritance.
+
+### File Organization Principles
+- Keep modules under 350 LOC when feasible; factor helpers into `src/utils` only if reused.
+- Separate API schemas (`src/api/schemas`), services (`src/services`), and models (`src/db`).
+- Keep channel-specific logic inside respective handler modules.
+- Maintain import hygiene; no circular dependencies or deep relative imports.
+
+## Critical Behavioral Overrides
+
+### Time Estimation Ban *(CRITICAL)*
+- Use phase language (“Phase 1”, “Phase 2”)—never human timelines.
+- Time estimates trigger `automagik-omni-self-learn` escalation.
+
+### UV Compliance *(CRITICAL)*
+- All Python invocations go through `uv`: `uv run python`, `uv run pytest`, `uv run ruff`, etc.
+- Never call `python`, `pytest`, `pip`, or `coverage` directly.
+- Enforce UV-first tooling across subagents; escalate violations immediately.
+
+### `pyproject.toml` Protection *(CRITICAL)*
+- Treat `pyproject.toml` as read-only; dependency changes use `uv add` commands.
+- Any manual edit constitutes a critical violation.
+
+## Workspace & Wish System
+
+[CONTEXT]
+- `/genie/` houses wishes, reports, and knowledge; it is the single source of orchestration truth.
+- Wishes evolve in place; Death Testaments close the loop with evidence.
+
+[SUCCESS CRITERIA]
+✅ Active work captured in `genie/wishes/<slug>.md` with strategy, phases, agents, and evidence log.
+✅ `/wish` command drives planning; no duplicate wish docs.
+✅ Every wish closure references Death Testament files in `genie/reports/`.
+
+[NEVER DO]
+❌ Create `wish-v2` docs or duplicate wish folders.
+❌ Start implementation without an approved orchestration strategy.
+❌ Skip Death Testament when reporting success or failure.
+
+## Strategic Orchestration
+
+### Genie → Domain → Execution
+- Master Genie coordinates specialists; implementation lives with subagents.
+- Domain orchestrators delegate via `.claude/agents/` prompts using claude-mcp.
+- If automation is unavailable, manually open the `@<agent>` prompt in `.claude/agents/` and follow it verbatim.
+
+### TDD Pipeline *(Always)*
+1. RED – `automagik-omni-tests` authors failing tests that describe desired behavior.
+2. GREEN – `automagik-omni-coder` implements minimal code to pass.
+3. REFACTOR – Clean up once tests are green; keep coverage intact.
+
+### Forge Workflow *(Delegated Execution)*
+- Break approved wishes into forge tasks with complete context (`@` references, evidence requirements).
+- Secure explicit human approval before calling `forge-master`.
+- Each task runs in its own worktree/branch; no commits unless humans ask for them.
+
+## Project Architecture
+
+### Exploration Command
+```bash
+# Inspect structure without noise
+tree src -L 2 -I '__pycache__'
+```
+
+### Architecture Map (Automagik Omni)
+```
+ROOT
+├── AGENTS.md                # Orchestration rules (sync with this playbook)
+├── CLAUDE.md                # You are here
+├── Makefile                 # Common uv/dev shortcuts
+├── README.md                # Product overview & setup
+├── docs/                    # Architecture, deployment, QA references
+├── genie/                   # Wishes, reports, knowledge base (no duplicates)
+├── scripts/                 # Operational helpers (migrations, waiters)
+├── update-automagik-omni.sh # Environment bootstrap script
+└── src/                     # Application source
+    ├── api/                 # FastAPI app + routes (`app.py`, `routes/omni.py`, `routes/instances.py`)
+    ├── channels/            # Channel handlers & Omni abstractions (WhatsApp, Discord)
+    ├── cli/                 # CLI entrypoint (`cli/main.py`) + commands
+    ├── commands/            # CLI sub-commands & utilities
+    ├── core/                # Telemetry, tracing, instrumentation
+    ├── db/                  # SQLAlchemy setup + models (InstanceConfig, User, AccessRule)
+    ├── middleware/          # FastAPI middlewares (auth, logging, request context)
+    ├── services/            # Business logic (message routing, hive client, transformers)
+    ├── utils/               # Shared helpers (datetime, streaming context)
+    └── version.py           # Application versioning metadata
+
+Supporting directories:
+- `alembic/`               # Database migrations (keep branch history intact)
+- `tests/`                 # Pytest suites (API, channels, services, db models)
+- `ecosystem.config.js`    # PM2 process manager configuration
+- `logs/`                  # Runtime log captures (respect privacy)
+- `data/`                  # Local SQLite storage (dev/testing)
+```
+
+## Development Methodology
+
+[CONTEXT]
+- Automagik Omni changes must maintain multi-tenant stability and channel parity.
+- RED→GREEN→REFACTOR is non-negotiable for features and bug fixes.
+
+[SUCCESS CRITERIA]
+✅ New tests fail before implementation; they validate Omni-specific behavior.
+✅ Implementations satisfy tests with minimal code; refactors keep tests green.
+✅ Acceptance criteria mapped to evidence in the wish.
+
+[NEVER DO]
+❌ Spawn `automagik-omni-coder` before failing tests exist.
+❌ Skip refactor when design smells remain.
+❌ Leave orchestration strategy undocumented.
+
+## Tooling & Commands
+
+### UV Workflow
+```bash
+uv sync                            # Install/sync dependencies
+uv run pytest                      # Entire test suite
+uv run pytest tests/test_omni_endpoints.py -k contacts  # Focused API tests
+uv run pytest tests/test_omni_models.py                # InstanceConfig & model coverage
+uv run pytest tests/test_telemetry.py                  # Telemetry toggles
+uv run ruff check src tests --fix                     # Lint + auto-fix
+uv run mypy src                                        # Type checking
+```
+
+### Makefile Shortcuts
+- `make dev`      – Launch FastAPI + background services (uvicorn, Discord bot when configured).
+- `make stop`     – Graceful shutdown of dev services.
+- `make format`   – Ruff format wrapper.
+- `make lint`     – Ruff check wrapper.
+- `make test`     – Pytest wrapper (uses uv under the hood).
+
+### Evidence Checklist
+- Record command output (pytest, curl, scripts) in wish/Forge artefacts.
+- Capture screenshots/log excerpts for Omni channel QA when relevant.
+- Keep `git status` clean aside from intentional edits before handing off.
 
 ## Configuration & Environment
-- `.env.example` enumerates all knobs: API host/port/key, logging, tracing, database URLs (SQLite + Postgres), channel credentials, rate limits, and telemetry toggles.
-- Key flags:
-  - `AUTOMAGIK_OMNI_API_HOST` / `AUTOMAGIK_OMNI_API_PORT` — bind address used by uvicorn and PM2.
-  - `AUTOMAGIK_OMNI_DATABASE_URL` — Postgres connection string; leave blank to default to SQLite path `AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH`.
-  - `AUTOMAGIK_OMNI_API_KEY` — required header for all `/api/v1/*` endpoints (`x-api-key`).
-  - `AUTOMAGIK_OMNI_DISABLE_TELEMETRY=true` — hard-disable remote telemetry collection.
-  - `ENVIRONMENT=test` + `TEST_DATABASE_URL` — used by pytest fixtures for isolation.
-- Logging configuration supports rotation via `AUTOMAGIK_OMNI_LOG_ROTATION` etc.; see `src/logger.py` for sink wiring.
 
-## Working Tips
-- Always create/update tenant wish context under `genie/wishes/` when a task targets a specific feature area.
-- When touching channel handlers, rerun `tests/test_omni_handlers.py`, `tests/test_mentions_integration.py`, and the relevant CLI tests to avoid regressions.
-- For PM2 or Discord bot changes, keep `ecosystem.config.js` and `scripts/wait_for_api.py` in sync with any new env requirements.
+Key environment variables (`src/config.py` + `Makefile`):
+- `AUTOMAGIK_OMNI_API_HOST` / `AUTOMAGIK_OMNI_API_PORT` – FastAPI bind host/port.
+- `AUTOMAGIK_OMNI_API_KEY` – Required header for `/api/v1/*` endpoints (`x-api-key`).
+- `AUTOMAGIK_OMNI_DATABASE_URL` / `AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH` – Database connection; defaults to local SQLite.
+- `AUTOMAGIK_OMNI_ENABLE_TRACING` + related `AUTOMAGIK_OMNI_TRACE_*` vars – Telemetry toggles.
+- `AUTOMAGIK_OMNI_DISABLE_TELEMETRY` – Explicit opt-out for analytics (honor in CLI logs).
+- `LOG_LEVEL`, `LOG_FOLDER` – Logging configuration.
+- Channel-specific settings (see `InstanceConfig` fields) set per tenant via DB/API.
 
-Automagik Omni is multi-tenant and multi-channel—always think about tenant isolation, message tracing, and agent routing whenever you modify APIs or services.
+Use `update-automagik-omni.sh` or `make dev` to bootstrap `.env`; never hardcode secrets.
+
+## Database & Migrations
+
+- SQLAlchemy models live in `src/db/models.py`; key tables: `instance_configs`, `users`, `access_rules`.
+- `alembic/versions/` tracks schema history. Add migrations with Alembic if models change; keep naming consistent.
+- Default dev DB is SQLite (`data/automagik-omni.db`). Tests often override via `TEST_DATABASE_URL`.
+- When inspecting data, use read-only SQL first (`uv run python - <<'PY' ... PY` or MCP `postgres`).
+
+## Channels & Integrations
+
+- WhatsApp: `src/channels/handlers/whatsapp_chat_handler.py` + Evolution API client.
+- Discord: `src/channels/handlers/discord_chat_handler.py` + `src/channels/discord/bot_manager.py`.
+- Omni abstractions: `src/channels/omni_base.py` unify pagination/filtering; ensure new channels conform.
+- API endpoints: `src/api/routes/omni.py` (contacts, chats) and `src/api/routes/instances.py` (instance CRUD + telemetry).
+- Message routing: `src/services/message_router.py` orchestrates Automagik Omni vs legacy Hive API calls.
+
+## Legacy Hive Compatibility
+
+- `src/services/automagik_hive_client.py` and related models preserve backward compatibility. Touch only when required; document risks and ensure Omni paths remain default.
+- When removing Hive-era logic, confirm tests and migrations still cover legacy data paths. Coordinate via wish/Forge tasks.
+
+## Logging & Telemetry
+
+- Logging configured via `src/logger.py`; CLI announces telemetry status at startup.
+- Tracing managed by `src/core/telemetry.py` with opt-in/out env vars.
+- Respect privacy—scrub PII from logs and Death Testaments.
+
+## Testing Playbook
+
+Priority suites:
+- `tests/test_omni_endpoints.py` – REST API contract.
+- `tests/test_omni_models.py` – InstanceConfig + streaming behaviour.
+- `tests/test_omni_handlers.py` – Channel adapters.
+- `tests/test_telemetry.py` – Telemetry toggles + CI defaults.
+- `tests/test_agent_api_client_hive_detection.py` – Legacy interface.
+
+Run focused tests plus regression suites tied to touched modules. Capture before/after output for TDD traceability.
+
+## Forge Integration Patterns
+
+- Document orchestration plans in `genie/reports/forge-plan-<wish>-<timestamp>.md`.
+- One forge task per approved group; include full context, agent assignments, success criteria.
+- Complexity ≥7 requires zen tool consultations (`mcp__zen__planner`, `mcp__zen__thinkdeep`, etc.).
+- Reference resulting Forge task IDs and Death Testament paths in final responses.
+
+## Verification & Reporting
+
+[SUCCESS CRITERIA]
+✅ Every change linked to a wish/Forge plan with evidence.
+✅ Tests/commands executed through UV and recorded in Death Testaments.
+✅ Behavioral learnings acknowledged; no conflicting guidance remains.
+✅ Domain docs updated when root policies shift (and only when asked).
+
+[NEVER DO]
+❌ Hand off work without evidence (tests, logs, screenshots).
+❌ Modify domain guides without ensuring root + sub-doc alignment.
+❌ Ignore failing tests or unresolved warnings—document and escalate.
+
+Stay aligned with this playbook, the active wish strategy, and AGENTS.md. When in doubt, pause, investigate, and ask humans before acting.

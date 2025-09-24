@@ -210,89 +210,66 @@ Dependencies: Complete integration
 
 ## Implementation Examples
 
-### Utility Pattern
+### Instance Configuration Pattern
 ```python
-# lib/utils/ai_root.py
-from pathlib import Path
-from typing import Optional
+# src/services/message_router.py
+from src.db.models import InstanceConfig
 
-from lib.config.settings import Settings
-
-REQUIRED_SUBDIRS = ("agents", "teams", "workflows")
-
-
-def resolve_ai_root(explicit: Optional[str], settings: Settings) -> Path:
-    candidate = Path(explicit or settings.hive_ai_root).expanduser().resolve()
-    if not candidate.exists():
-        raise FileNotFoundError(f"AI root not found: {candidate}")
-    for subdir in REQUIRED_SUBDIRS:
-        if not (candidate / subdir).is_dir():
-            raise ValueError(f"Missing '{subdir}/' under AI root {candidate}")
-    return candidate
+def _build_agent_payload(instance_config: InstanceConfig) -> dict[str, str | bool]:
+    config = instance_config.get_agent_config()
+    return {
+        "agent_id": config["agent_id"],
+        "instance_type": config["instance_type"],
+        "stream_mode": config["stream_mode"],
+    }
 ```
 
-### CLI Integration Pattern
+### Omni API Route Pattern
 ```python
-# cli/main.py
-import os
-
-from cli.commands.service import ServiceManager
-from lib.config.settings import Settings
-from lib.utils.ai_root import resolve_ai_root
-
-parser.add_argument("ai_root", nargs="?", help="Optional external ai/ directory")
-args = parser.parse_args()
-settings = Settings()
-resolved_ai_root = resolve_ai_root(args.ai_root, settings)
-
-os.environ["HIVE_AI_ROOT"] = str(resolved_ai_root)
-return 0 if ServiceManager().serve_local(args.host, args.port, reload=True) else 1
+# src/api/routes/omni.py
+@router.get("/{instance_name}/contacts", response_model=OmniContactsResponse)
+async def get_omni_contacts(...):
+    instance = get_instance_by_name(instance_name, db)
+    handler = get_omni_handler(instance.channel_type)
+    contacts, total_count = await handler.get_contacts(...)
+    return OmniContactsResponse(
+        contacts=contacts,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_more=(page * page_size) < total_count,
+        instance_name=instance_name,
+        channel_type=ChannelType(instance.channel_type),
+        partial_errors=[],
+    )
 ```
 
-### Registry Pattern
+### Telemetry Toggle Pattern
 ```python
-# ai/agents/registry.py
-import yaml
+# src/cli/main.py
+from src.core.telemetry import telemetry_client
 
-from lib.config.settings import Settings
-from lib.utils.ai_root import resolve_ai_root
-
-class AgentRegistry:
-    @classmethod
-    def _discover_agents(cls, explicit_ai_root: str | None = None) -> list[str]:
-        settings = Settings()
-        ai_root = resolve_ai_root(explicit_ai_root, settings)
-        agent_ids: list[str] = []
-        for config_path in (ai_root / "agents").glob("*/config.yaml"):
-            with config_path.open() as handle:
-                config = yaml.safe_load(handle)
-            agent_ids.append(config["agent"]["agent_id"])
-        return sorted(agent_ids)
+if telemetry_client.is_enabled():
+    logger.info("📊 Telemetry enabled - Anonymous usage analytics help improve Automagik Omni")
+else:
+    logger.info("📊 Telemetry disabled")
 ```
 
-### Test Pattern
-```python
-# tests/cli/test_ai_root_resolution.py
-def test_resolve_ai_root_supports_external_folder(tmp_path, cli_runner):
-    custom_ai = tmp_path / "custom-ai"
-    for sub in ("agents", "teams", "workflows"):
-        (custom_ai / sub).mkdir(parents=True)
-    result = cli_runner([str(custom_ai)])
-    assert result.exit_code == 0
-```
 ## Testing Protocol
 ```bash
-# Resolver + CLI behaviour
-tests_to_run=(tests/cli/test_external_ai_root.py tests/lib/test_ai_root_resolver.py)  # created in Group E
-uv run pytest "${tests_to_run[@]}" -q
+# Omni API surface
+uv run pytest tests/test_api_endpoints_e2e.py::test_get_omni_contacts
+uv run pytest tests/test_api_endpoints_e2e.py::test_get_omni_chats
 
-# Registry and service integration
-tests_to_run=(tests/ai/test_registry_external_ai.py tests/integration/cli/test_external_ai_cli.py)  # created in Group E
-uv run pytest "${tests_to_run[@]}"
+# Instance configuration + models
+uv run pytest tests/test_omni_models.py
 
-# Static analysis
-uv run ruff check cli/main.py lib/utils/ai_root.py ai/agents/registry.py
-uv run mypy lib/utils/ai_root.py cli/main.py
+# Telemetry safeguards
+uv run pytest tests/test_telemetry.py
+
+# Static analysis for touched modules
+uv run ruff check src/api/routes/omni.py src/services/message_router.py
+uv run mypy src/services/message_router.py
 ```
 ## Validation Checklist
 - [ ] All files follow naming conventions
@@ -413,84 +390,76 @@ This workflow incorporates:
 
 ## 📖 REAL WISH EXAMPLES
 
-### Example 1: External AI Folder Support
+### Example 1: Omni Archived Filter Alignment
 
 **User Input (Vague):**
 ```
-"I want Automagik Hive to run against my own ai/ folder without cloning this repo."
+"Discord chats ignore the archived flag—Omni responses need to match WhatsApp."
 ```
 
 **Transformed into Structured Wish:**
 
 #### Executive Summary
-Let operators point Automagik Hive at any external AI definition folder while keeping bundled defaults working.
+Align archived chat filtering across Omni channel handlers so `/api/v1/instances/{instance}/chats` returns consistent results regardless of channel type.
 
 #### Current State Analysis
-**What exists:** `cli/workspace.py` scaffolds entire projects and `cli/main.py` expects repo-relative paths.  
-**Gap identified:** Hardcoded `ai/` path prevents external usage and drags along obsolete workspace scaffolding.  
-**Solution approach:** Remove workspace code, add an AI root resolver, and thread it through CLI + registry paths.
+**What exists:** `src/channels/handlers/whatsapp_chat_handler.py` honours the `archived` flag; `src/channels/handlers/discord_chat_handler.py` currently returns all chats.  
+**Gap identified:** Omni responses show archived WhatsApp chats correctly but Discord ignores the query parameter, creating inconsistent dashboards.  
+**Solution approach:** Extend the Discord handler to respect the archived flag, update shared handler utilities, and verify the FastAPI route logic plus response schema.
 
 #### Change Isolation Strategy
-- **Isolation:** New resolver lives in `lib/utils/ai_root.py`, referenced from CLI/registry only.  
-- **Extension:** Existing services consume the resolved path via settings/env overrides, not broad rewrites.  
-- **Stability assurance:** Default invocation (no path provided) still uses the repo `ai/` directory.
+- **Isolation:** Confine archived logic changes to Discord handler helpers and shared Omni abstractions.  
+- **Extension:** Update `src/api/routes/omni.py` only where filtering interacts with the handler return values.  
+- **Stability assurance:** Maintain existing behaviour when `archived` is `None`; regression tests cover WhatsApp + Discord flows.
 
 #### Success Criteria
-✅ `uv run automagik-hive /tmp/demo-ai` boots using external definitions.  
-✅ `HIVE_AI_ROOT=/tmp/demo-ai uv run automagik-hive --dev` respects the environment override.  
-✅ Default `uv run automagik-hive --dev` behaviour unchanged.  
-✅ No workspace scaffolding files or docs remain.  
-✅ Registries load agents/teams/workflows via the resolver.
+✅ `uv run pytest tests/test_omni_endpoints.py::TestOmniChats::test_discord_archived_filter` fails before changes and passes after.  
+✅ `uv run pytest tests/test_omni_handlers.py::TestDiscordHandler::test_get_chats_respects_archived` documents handler behaviour.  
+✅ Manual smoke: launch `uv run automagik-omni` locally, hit `/api/v1/instances/test-discord/chats?archived=true`, and confirm archived chats excluded or included as expected.  
+✅ README Omni API docs note archived behaviour across channels.
 
 #### Never Do
-❌ Reintroduce workspace scaffolding or hidden project copies.  
-❌ Launch servers with `python -m api.main`.  
-❌ Hardcode `ai/` in registries or services after the refactor.  
-❌ Skip documentation updates describing the new CLI usage.
+❌ Fork channel filtering logic into separate code paths per handler.  
+❌ Remove archived support for WhatsApp while adding Discord coverage.  
+❌ Skip FastAPI schema updates when adding new response fields.  
+❌ Ship without explicit handler unit tests.
 
 #### Task Decomposition Example
-**Group A: Cleanup Gate (parallel)**  
-- **A1-remove-workspace**: `@cli/workspace.py` — delete legacy scaffolding helpers.  
-- **A2-cli-flags**: `@cli/main.py` — drop `--init` help text and positional workspace handling.  
-- **A3-tests**: `@tests/cli/test_workspace.py` — retire workspace fixtures/tests.
+**Group A: Handler Foundations (parallel)**  
+- **A1-discord-models**: `@src/channels/handlers/discord_chat_handler.py` — add archived filtering helper.  
+- **A2-shared-utils**: `@src/channels/omni_base.py` — expose shared filter utility (optional).  
+- **A3-tests**: `@tests/test_omni_handlers.py` — cover Discord handler archived flag permutations.
 
-**Group B: Resolver Foundation (after A)**  
-- **B1-helper**: `@lib/utils/` — add `ai_root.py` helper with validation.  
-- **B2-settings**: `@lib/config/settings.py` — expose `hive_ai_root` + property returning a validated path.
+**Group B: API Wiring (after A)**  
+- **B1-route-filter**: `@src/api/routes/omni.py` — ensure archived parameter forwarded consistently.  
+- **B2-endpoint-tests**: `@tests/test_omni_endpoints.py` — extend chats endpoint tests (success + mismatch cases).  
+- **B3-telemetry-note**: `@src/core/telemetry.py` — confirm archived flag surfaced in traces if applicable.
 
-**Group C: CLI Wiring (after B)**  
-- **C1-args**: `@cli/main.py` — accept optional `ai_root` positional argument.  
-- **C2-service-manager**: `@cli/commands/service.py` & `@cli/core/main_service.py` — thread resolved path into runtime start-up.
-
-**Group D: Runtime Consumers (after C)**  
-- **D1-registries**: `@ai/agents/registry.py`, `@ai/teams/registry.py`, `@ai/workflows/registry.py` — swap hardcoded paths for resolver output.  
-- **D2-utilities**: `@lib/utils/version_factory.py`, `@lib/utils/yaml_cache.py`, etc. — ensure all helpers derive from the new path.  
-- **D3-hooks**: `@scripts/pre-commit-hook.sh` and docs — drop baked-in repo assumptions.
-
-**Group E: Validation & Docs (after D)**  
-- **E1-tests**: `@tests/cli/` + `@tests/integration/cli/` — add regression suites for positional argument/env overrides.  
-- **E2-docs**: `@README.md` — document new usage patterns and remove workspace references.  
-- **E3-wish-update**: `@genie/wishes/external-ai-folder-wish.md` — mark status + include evidence in death testament.
+**Group C: Docs & Smoke (after B)**  
+- **C1-readme**: `@README.md` — update Omni API usage table.  
+- **C2-postman**: `@docs/` — add archived filter example (optional).  
+- **C3-wish-update**: `@genie/wishes/omni-archived-alignment.md` — log validation evidence + remaining risks.
 
 ### Example 2: Validation Workflow
 ```bash
-# Unit + CLI coverage (created during Group E)
-uv run pytest tests/lib/test_ai_root_resolver.py tests/cli/test_external_ai_root.py -q
+# Handler unit coverage
+uv run pytest tests/test_omni_handlers.py::TestDiscordHandler::test_get_chats_respects_archived
 
-# Integration check
-uv run pytest tests/integration/cli/test_external_ai_folder.py
+# Omni route behaviour
+uv run pytest tests/test_omni_endpoints.py::TestOmniChats::test_discord_archived_filter
 
 # Manual smoke
-mkdir -p /tmp/custom-ai/{agents,teams,workflows}
-uv run automagik-hive /tmp/custom-ai --check-config
+curl -H "x-api-key: $AUTOMAGIK_OMNI_API_KEY" \
+  "http://localhost:8882/api/v1/instances/test-discord/chats?archived=true"
 ```
 
 ### Example 3: Regression Guardrails
 ```markdown
-- README usage section updated with external ai/ instructions
-- Makefile targets referencing workspace removed
-- genie/wishes/external-ai-folder-wish.md status -> COMPLETED with validation evidence
+- README Omni API section documents `archived` behaviour for each channel
+- tests/test_omni_handlers.py and tests/test_omni_endpoints.py contain archived assertions
+- genie/wishes/omni-archived-alignment.md status -> COMPLETED with telemetry + API outputs attached
 ```
+
 ## 🚀 Execution Command
 
 After wish approval, provide:
