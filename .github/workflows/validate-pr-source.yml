@@ -3,6 +3,7 @@ name: Validate PR Source Branch
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions:
   statuses: write
@@ -12,7 +13,10 @@ permissions:
 jobs:
   validate-source:
     runs-on: ubuntu-latest
-    if: github.base_ref == 'main'
+    # Always run this check, even if commit message has [skip ci]
+    if: |
+      github.base_ref == 'main' &&
+      !contains(github.event.head_commit.message, '[skip validate]')
     steps:
       - name: Set pending status
         uses: actions/github-script@v7

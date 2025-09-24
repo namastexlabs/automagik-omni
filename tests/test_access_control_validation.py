@@ -36,10 +36,7 @@ class TestAccessControlService:
         service = AccessControlService()
 
         rule = service.add_rule(
-            phone_number="+1234567890",
-            rule_type=AccessRuleType.ALLOW,
-            instance_name=None,
-            db=test_db
+            phone_number="+1234567890", rule_type=AccessRuleType.ALLOW, instance_name=None, db=test_db
         )
 
         assert rule.id is not None
@@ -59,7 +56,7 @@ class TestAccessControlService:
             agent_api_url="http://agent.com",
             agent_api_key="key",
             default_agent="agent",
-            is_default=False
+            is_default=False,
         )
         test_db.add(instance)
         test_db.commit()
@@ -67,10 +64,7 @@ class TestAccessControlService:
         service = AccessControlService()
 
         rule = service.add_rule(
-            phone_number="+1234567890",
-            rule_type=AccessRuleType.BLOCK,
-            instance_name="test-instance",
-            db=test_db
+            phone_number="+1234567890", rule_type=AccessRuleType.BLOCK, instance_name="test-instance", db=test_db
         )
 
         assert rule.id is not None
@@ -82,12 +76,7 @@ class TestAccessControlService:
         """Test adding wildcard pattern rules."""
         service = AccessControlService()
 
-        rule = service.add_rule(
-            phone_number="+1234*",
-            rule_type=AccessRuleType.BLOCK,
-            instance_name=None,
-            db=test_db
-        )
+        rule = service.add_rule(phone_number="+1234*", rule_type=AccessRuleType.BLOCK, instance_name=None, db=test_db)
 
         assert rule.phone_number == "+1234*"
         assert rule.rule_type == "block"
@@ -169,7 +158,7 @@ class TestAccessControlService:
             agent_api_url="http://agent.com",
             agent_api_key="key",
             default_agent="agent",
-            is_default=False
+            is_default=False,
         )
         test_db.add(instance)
         test_db.commit()
@@ -248,17 +237,9 @@ class TestAccessControlAPI:
         """Test creating and listing access rules via API."""
         try:
             # Create a rule
-            rule_data = {
-                "phone_number": "+1234567890",
-                "rule_type": "block",
-                "instance_name": None
-            }
+            rule_data = {"phone_number": "+1234567890", "rule_type": "block", "instance_name": None}
 
-            response = requests.post(
-                f"{self.API_BASE}/access/rules",
-                headers=self.API_HEADERS,
-                json=rule_data
-            )
+            response = requests.post(f"{self.API_BASE}/access/rules", headers=self.API_HEADERS, json=rule_data)
 
             if response.status_code == 404:
                 pytest.skip("Access API endpoints not available")
@@ -285,16 +266,9 @@ class TestAccessControlAPI:
         """Test deleting access rules via API."""
         try:
             # First create a rule
-            rule_data = {
-                "phone_number": "+9999999999",
-                "rule_type": "allow"
-            }
+            rule_data = {"phone_number": "+9999999999", "rule_type": "allow"}
 
-            response = requests.post(
-                f"{self.API_BASE}/access/rules",
-                headers=self.API_HEADERS,
-                json=rule_data
-            )
+            response = requests.post(f"{self.API_BASE}/access/rules", headers=self.API_HEADERS, json=rule_data)
 
             if response.status_code == 404:
                 pytest.skip("Access API endpoints not available")
@@ -304,10 +278,7 @@ class TestAccessControlAPI:
             rule_id = created_rule["id"]
 
             # Delete the rule
-            response = requests.delete(
-                f"{self.API_BASE}/access/rules/{rule_id}",
-                headers=self.API_HEADERS
-            )
+            response = requests.delete(f"{self.API_BASE}/access/rules/{rule_id}", headers=self.API_HEADERS)
             assert response.status_code == 204
 
             # Verify it's gone by listing rules
@@ -331,14 +302,12 @@ class TestMessageRouterIntegration:
         router = MessageRouter()
 
         # Mock the access control service to always allow
-        with patch.object(access_control_service, 'check_access', return_value=True):
-            with patch('src.services.message_router.agent_api_client') as mock_client:
+        with patch.object(access_control_service, "check_access", return_value=True):
+            with patch("src.services.message_router.agent_api_client") as mock_client:
                 mock_client.process_message.return_value = "Response from agent"
 
                 response = router.route_message(
-                    message_text="Hello",
-                    user={"phone_number": "+1234567890"},
-                    session_name="test-session"
+                    message_text="Hello", user={"phone_number": "+1234567890"}, session_name="test-session"
                 )
 
                 # Should not be blocked
@@ -349,11 +318,9 @@ class TestMessageRouterIntegration:
         router = MessageRouter()
 
         # Mock the access control service to block
-        with patch.object(access_control_service, 'check_access', return_value=False):
+        with patch.object(access_control_service, "check_access", return_value=False):
             response = router.route_message(
-                message_text="Hello",
-                user={"phone_number": "+1234567890"},
-                session_name="test-session"
+                message_text="Hello", user={"phone_number": "+1234567890"}, session_name="test-session"
             )
 
             # Should be blocked with special sentinel
@@ -364,24 +331,16 @@ class TestMessageRouterIntegration:
         router = MessageRouter()
 
         # Mock WhatsApp payload with remoteJid
-        whatsapp_payload = {
-            "data": {
-                "key": {
-                    "remoteJid": "5511999999999@s.whatsapp.net"
-                }
-            }
-        }
+        whatsapp_payload = {"data": {"key": {"remoteJid": "5511999999999@s.whatsapp.net"}}}
 
-        with patch.object(access_control_service, 'check_access') as mock_check:
+        with patch.object(access_control_service, "check_access") as mock_check:
             mock_check.return_value = True
 
-            with patch('src.services.message_router.agent_api_client') as mock_client:
+            with patch("src.services.message_router.agent_api_client") as mock_client:
                 mock_client.process_message.return_value = "Response"
 
                 router.route_message(
-                    message_text="Hello",
-                    whatsapp_raw_payload=whatsapp_payload,
-                    session_name="test-session"
+                    message_text="Hello", whatsapp_raw_payload=whatsapp_payload, session_name="test-session"
                 )
 
                 # Verify check_access was called with normalized phone number
@@ -393,14 +352,11 @@ class TestMessageRouterIntegration:
         """Test message router allows when no phone number is available."""
         router = MessageRouter()
 
-        with patch.object(access_control_service, 'check_access') as mock_check:
-            with patch('src.services.message_router.agent_api_client') as mock_client:
+        with patch.object(access_control_service, "check_access") as mock_check:
+            with patch("src.services.message_router.agent_api_client") as mock_client:
                 mock_client.process_message.return_value = "Response"
 
-                response = router.route_message(
-                    message_text="Hello",
-                    session_name="test-session"
-                )
+                response = router.route_message(message_text="Hello", session_name="test-session")
 
                 # Should not call access control when no phone available
                 mock_check.assert_not_called()
@@ -413,14 +369,12 @@ class TestMessageRouterIntegration:
         router = MessageRouter()
 
         # Mock the access control service to throw an error
-        with patch.object(access_control_service, 'check_access', side_effect=Exception("Database error")):
-            with patch('src.services.message_router.agent_api_client') as mock_client:
+        with patch.object(access_control_service, "check_access", side_effect=Exception("Database error")):
+            with patch("src.services.message_router.agent_api_client") as mock_client:
                 mock_client.process_message.return_value = "Response"
 
                 response = router.route_message(
-                    message_text="Hello",
-                    user={"phone_number": "+1234567890"},
-                    session_name="test-session"
+                    message_text="Hello", user={"phone_number": "+1234567890"}, session_name="test-session"
                 )
 
                 # Should not be blocked (fail open)
@@ -441,7 +395,7 @@ class TestAccessControlEdgeCases:
 
         # Most specific should win
         assert service.check_access("+1234567890") is False  # Exact block wins
-        assert service.check_access("+1234567891") is True   # +123* allow wins over +1* block
+        assert service.check_access("+1234567891") is True  # +123* allow wins over +1* block
         assert service.check_access("+1999999999") is False  # +1* block wins
 
     def test_phone_number_normalization(self, test_db: Session):
@@ -497,7 +451,7 @@ class TestAccessControlEdgeCases:
         rules = test_db.query(AccessRule).filter(AccessRule.phone_number == "+1234567890").all()
         service.remove_rule(rules[0].id, db=test_db)
 
-        assert service.check_access("+1234567890") is True   # Now allowed
+        assert service.check_access("+1234567890") is True  # Now allowed
         assert service.check_access("+1234567891") is False  # Still blocked
 
 
@@ -515,8 +469,8 @@ class TestRealWorldScenarios:
 
         # Test scenarios
         assert service.check_access("+19999999999") is False  # Random US number blocked
-        assert service.check_access("+12345123456") is True   # Support team allowed
-        assert service.check_access("+1234567890") is True    # Manager allowed
+        assert service.check_access("+12345123456") is True  # Support team allowed
+        assert service.check_access("+1234567890") is True  # Manager allowed
         assert service.check_access("+447123456789") is True  # International allowed (no rule)
 
     def test_spam_protection_blacklist(self, test_db: Session):
@@ -534,9 +488,9 @@ class TestRealWorldScenarios:
         # Test scenarios
         assert service.check_access("+18001234567") is False  # Toll-free spam blocked
         assert service.check_access("+19001234567") is False  # Premium rate blocked
-        assert service.check_access("+18005551212") is True   # Legitimate toll-free allowed
+        assert service.check_access("+18005551212") is True  # Legitimate toll-free allowed
         assert service.check_access("+15551234567") is False  # Specific spammer blocked
-        assert service.check_access("+15551234568") is True   # Similar but not blocked
+        assert service.check_access("+15551234568") is True  # Similar but not blocked
 
     def test_instance_isolation(self, test_db: Session):
         """Test scenario: different rules for different instances."""
@@ -550,7 +504,7 @@ class TestRealWorldScenarios:
             agent_api_url="http://agent.com",
             agent_api_key="key",
             default_agent="agent",
-            is_default=False
+            is_default=False,
         )
         test_instance = InstanceConfig(
             name="testing",
@@ -561,7 +515,7 @@ class TestRealWorldScenarios:
             agent_api_url="http://agent.com",
             agent_api_key="key",
             default_agent="agent",
-            is_default=False
+            is_default=False,
         )
         test_db.add(prod_instance)
         test_db.add(test_instance)
