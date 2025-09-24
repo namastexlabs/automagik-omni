@@ -1,0 +1,5 @@
+Manual flow executed with route calls:
+Call 1: origin=discord user_id=None session_name=discord_88112233_555001777
+Call 2: origin=discord user_id=qa-shared-user-4242 session_name=discord_dm_555001777
+Guild send await count: 1
+DM send await count: 1

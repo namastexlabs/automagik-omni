@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.4.1, pluggy-1.6.0
+rootdir: /home/namastex/workspace/automagik-omni
+configfile: pytest.ini
+plugins: asyncio-1.0.0, anyio-4.9.0, cov-6.2.1
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 8 items
+
+tests/test_omni_handlers.py ........                                     [100%]
+
+============================== 8 passed in 0.16s ===============================
