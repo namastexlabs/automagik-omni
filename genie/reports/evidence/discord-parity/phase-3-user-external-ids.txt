@@ -1,0 +1,2 @@
+Links for discord external id 555001777: 1
+{'id': 2, 'user_id': '9946478a-f8da-4514-a46b-5f68faca6086', 'provider': 'discord', 'external_id': '555001777', 'instance_name': 'qa-discord-parity-instance'}

@@ -74,6 +74,7 @@
 ✅ Sandbox, naming, and documentation policies enforced through delegation.
 ✅ Evidence-based thinking protocol followed for every response.
 ✅ When spawning a specialist without built-in support, open the `@<agent>` prompt from `.claude/agents/` and follow it verbatim.
+✅ If delegation truly isn't possible, embody the required agent using its `.claude/agents/<agent>.md` script (e.g., `.claude/agents/automagik-omni-qa-tester.md`) and shift into that persona for the interaction.
 
 [NEVER DO]
 ❌ Reintroduce banned phrases ("You're right", etc.).
