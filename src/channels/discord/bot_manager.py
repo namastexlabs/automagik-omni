@@ -723,6 +723,27 @@ class DiscordBotManager:
                     "instance_config": instance_config,  # Pass the full config for hive client
                 }
 
+            # Attempt to resolve existing local user via shared identity linking
+            resolved_user_id = None
+            try:
+                from src.db.database import SessionLocal
+                from src.services.user_service import user_service
+
+                db_session = SessionLocal()
+                try:
+                    resolved = user_service.resolve_user_by_external(
+                        provider="discord", external_id=str(message.author.id), db=db_session
+                    )
+                    if resolved:
+                        resolved_user_id = resolved.id
+                        logger.info(
+                            f"Resolved Discord user {message.author.id} to local user {resolved_user_id} via external link"
+                        )
+                finally:
+                    db_session.close()
+            except Exception as e:
+                logger.error(f"Failed during Discord identity resolution: {e}")
+
             # Route message to MessageRouter (synchronous call from async context)
             # Since we're in an async context and route_message is sync, use executor
             import asyncio
@@ -734,8 +755,8 @@ class DiscordBotManager:
                 route_func = partial(
                     self.message_router.route_message,
                     message_text=content,  # CRITICAL: message_text comes first in the signature
-                    user_id=None,  # Let the agent API manage user creation and ID assignment
-                    user=user_dict,  # Pass user dict for creation/lookup
+                    user_id=resolved_user_id,  # If resolved, prefer stable local user_id
+                    user=None if resolved_user_id else user_dict,  # Fallback to user dict if not resolved
                     session_name=session_name,
                     message_type="text",
                     whatsapp_raw_payload=None,  # Discord doesn't use WhatsApp payload
@@ -762,8 +783,8 @@ class DiscordBotManager:
                 route_func_fallback = partial(
                     self.message_router.route_message,
                     message_text=content,
-                    user_id=None,
-                    user=user_dict,
+                    user_id=resolved_user_id,
+                    user=None if resolved_user_id else user_dict,
                     session_name=session_name,
                     message_type="text",
                     whatsapp_raw_payload=None,
