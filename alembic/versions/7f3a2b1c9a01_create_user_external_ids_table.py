@@ -27,12 +27,17 @@ def upgrade() -> None:
         sa.Column("provider", sa.String(), nullable=False, index=True),
         sa.Column("external_id", sa.String(), nullable=False, index=True),
         sa.Column("instance_name", sa.String(), sa.ForeignKey("instance_configs.name"), nullable=True, index=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(),
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
         sa.UniqueConstraint("provider", "external_id", name="uq_user_external_ids_provider_external"),
     )
 
 
 def downgrade() -> None:
     op.drop_table("user_external_ids")
-
