@@ -40,7 +40,7 @@ description: Analyze an approved wish, propose task groups, gather human approva
 - For each proposed group capture:
   - Name/slug (short kebab-case)
   - Scope of work
-  - Primary agent (e.g., `hive-coder`, `hive-tests`)
+  - Primary agent (e.g., `automagik-omni-coder`, `automagik-omni-tests`)
   - Expected evidence (Death Testament references, tests, QA)
   - Dependencies
 - Store the draft plan in `genie/reports/forge-plan-<wish-slug>-<timestamp>.md` under a “Planning” section.
@@ -66,14 +66,14 @@ Reply in chat with:
 ## Helpful Planning Template
 ```markdown
 ## Planning Summary (example)
-- Group A – Resolver foundation (agent: hive-coder)
+- Group A – Resolver foundation (agent: automagik-omni-coder)
   - Tasks: build resolver helper, wire config
-  - Evidence: Death Testament from hive-coder + tests from hive-tests
+  - Evidence: Death Testament from automagik-omni-coder + tests from automagik-omni-tests
   - Dependencies: none
-- Group B – CLI integration (agent: hive-coder)
+- Group B – CLI integration (agent: automagik-omni-coder)
   - Depends on Group A
   - Evidence: CLI tests, README updates
-- Group C – Regression testing (agent: hive-tests)
+- Group C – Regression testing (agent: automagik-omni-tests)
   - Depends on A and B
   - Evidence: pytest suite, QA checklist
 ```
