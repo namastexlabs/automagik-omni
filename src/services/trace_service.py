@@ -7,9 +7,11 @@ import time
 import logging
 import uuid
 import json
+from functools import wraps
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from contextlib import contextmanager
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 
 from src.config import config
 from src.db.trace_models import MessageTrace, TracePayload
@@ -19,6 +21,33 @@ if TYPE_CHECKING:
     from src.services.streaming_trace_context import StreamingTraceContext
 
 logger = logging.getLogger(__name__)
+
+
+def retry_on_db_error(max_attempts: int = 3, backoff_factor: int = 2):
+    """Retry decorator for transient SQLAlchemy operational errors."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except OperationalError as exc:
+                    if attempt == max_attempts - 1:
+                        raise
+                    sleep_seconds = backoff_factor**attempt
+                    logger.warning(
+                        "Retrying %s after OperationalError (attempt %s/%s): %s",
+                        func.__name__,
+                        attempt + 1,
+                        max_attempts,
+                        exc,
+                    )
+                    time.sleep(sleep_seconds)
+
+        return wrapper
+
+    return decorator
 
 
 class TraceContext:
@@ -215,6 +244,7 @@ class TraceService:
     """
 
     @staticmethod
+    @retry_on_db_error()
     def create_trace(message_data: Dict[str, Any], instance_name: str, db_session: Session) -> Optional[TraceContext]:
         """
         Create a new message trace and return a context object.
@@ -230,34 +260,43 @@ class TraceService:
         if not config.tracing.enabled:
             return None
 
+        channel_type = None
+        if isinstance(message_data, dict):
+            channel_type = message_data.get("channel_type") or message_data.get("platform")
+
+        if channel_type == "discord":
+            return TraceService._create_discord_trace(message_data, instance_name, db_session)
+
+        return TraceService._create_whatsapp_trace(message_data, instance_name, db_session)
+
+    @staticmethod
+    def _create_whatsapp_trace(
+        message_data: Dict[str, Any], instance_name: str, db_session: Session
+    ) -> Optional[TraceContext]:
+        """Create a WhatsApp flavoured trace record (existing behaviour)."""
+
         try:
-            # Extract message metadata
             data = message_data.get("data", {})
             key = data.get("key", {})
             message_obj = data.get("message", {})
 
-            # Generate trace ID
             trace_id = str(uuid.uuid4())
 
-            # Determine message type and metadata
             message_type = TraceService._determine_message_type(message_obj)
             has_media = TraceService._has_media(message_obj)
             context_info = data.get("contextInfo", {})
             has_quoted = "contextInfo" in data and context_info is not None and "quotedMessage" in context_info
 
-            # Enhanced logging for audio debugging
             if message_type == "audio":
                 logger.info(f"🎵 TRACE: Creating trace for audio message, type={message_type}, has_media={has_media}")
             logger.info(f"📝 TRACE: Creating trace for message type={message_type}, instance={instance_name}")
 
-            # Extract message content length
             message_length = 0
             if "conversation" in message_obj:
                 message_length = len(message_obj["conversation"])
             elif "extendedTextMessage" in message_obj:
                 message_length = len(message_obj["extendedTextMessage"].get("text", ""))
 
-            # Create trace record
             trace = MessageTrace(
                 trace_id=trace_id,
                 instance_name=instance_name,
@@ -272,15 +311,26 @@ class TraceService:
                 status="received",
             )
 
-            # Save to database
             db_session.add(trace)
             db_session.commit()
 
-            # Create context object
             context = TraceContext(trace_id, db_session)
+            # Enrich context with commonly accessed attributes for downstream helpers
+            context.instance_name = instance_name
+            context.whatsapp_message_id = trace.whatsapp_message_id
+            context.sender_phone = trace.sender_phone
+            context.sender_name = trace.sender_name
+            context.sender_jid = trace.sender_jid
+            context.message_type = message_type
+            context.has_media = has_media
+            context.has_quoted_message = has_quoted
+            context.message_length = message_length
+            context.session_name = None
+            context.channel_type = "whatsapp"
+            context.direction = "inbound"
 
-            # Log the initial webhook payload
             context.log_stage("webhook_received", message_data, "webhook")
+            context.initial_stage_logged = True
 
             logger.info(f"Created message trace {trace_id} for message {key.get('id')} from {trace.sender_phone}")
 
@@ -289,6 +339,86 @@ class TraceService:
         except Exception as e:
             logger.error(f"Failed to create message trace: {e}", exc_info=True)
             logger.error(f"Message data that failed: {json.dumps(message_data, indent=2)[:500]}")
+            return None
+
+    @staticmethod
+    def _create_discord_trace(
+        message_data: Dict[str, Any], instance_name: str, db_session: Session
+    ) -> Optional[TraceContext]:
+        """Create a Discord trace record mirroring WhatsApp semantics."""
+
+        try:
+            event_payload = message_data.get("event", {}) if isinstance(message_data, dict) else {}
+            metadata = message_data.get("metadata", {}) if isinstance(message_data, dict) else {}
+
+            trace_id = str(uuid.uuid4())
+            discord_message_id = str(event_payload.get("id")) if event_payload.get("id") is not None else None
+            author = event_payload.get("author", {})
+            content = event_payload.get("content") or ""
+            attachments = event_payload.get("attachments", []) or []
+
+            message_type = "text"
+            has_media = bool(attachments)
+            if has_media:
+                message_type = "media"
+
+            session_name = message_data.get("session_name") or metadata.get("session_name")
+
+            trace = MessageTrace(
+                trace_id=trace_id,
+                instance_name=instance_name,
+                whatsapp_message_id=discord_message_id,
+                sender_phone=str(author.get("id")) if author.get("id") is not None else None,
+                sender_name=author.get("display_name") or author.get("username") or metadata.get("author_name"),
+                sender_jid=str(author.get("id")) if author.get("id") is not None else None,
+                message_type=message_type,
+                has_media=has_media,
+                has_quoted_message=event_payload.get("has_quoted_message", False),
+                message_length=len(content),
+                session_name=session_name,
+                status="received",
+            )
+
+            db_session.add(trace)
+            db_session.commit()
+
+            context = TraceContext(trace_id, db_session)
+            context.instance_name = instance_name
+            context.session_name = session_name
+            context.sender_name = trace.sender_name
+            context.sender_phone = trace.sender_phone
+            context.sender_jid = trace.sender_jid
+            context.message_type = message_type
+            context.has_media = has_media
+            context.has_quoted_message = trace.has_quoted_message
+            context.message_length = trace.message_length
+            context.channel_type = "discord"
+            context.direction = message_data.get("direction", "inbound")
+            context.discord_message_id = discord_message_id
+
+            payload_for_stage = {
+                "channel_type": "discord",
+                "direction": message_data.get("direction", "inbound"),
+                "event": event_payload,
+                "metadata": metadata,
+            }
+
+            context.log_stage("webhook_received", payload_for_stage, "webhook")
+            context.initial_stage_logged = True
+
+            logger.info(
+                "Created Discord message trace %s (instance=%s, message_id=%s, user_id=%s)",
+                trace_id,
+                instance_name,
+                discord_message_id,
+                trace.sender_phone,
+            )
+
+            return context
+
+        except Exception as e:
+            logger.error(f"Failed to create Discord message trace: {e}", exc_info=True)
+            logger.error(f"Discord message data that failed: {json.dumps(message_data, indent=2, default=str)[:500]}")
             return None
 
     @staticmethod
@@ -476,6 +606,133 @@ class TraceService:
         if "@" in jid:
             return jid.split("@")[0]
         return jid
+
+    @staticmethod
+    @retry_on_db_error()
+    def record_outbound_message(
+        instance_name: str,
+        channel_type: str,
+        payload: Dict[str, Any],
+        response: Optional[Dict[str, Any]],
+        success: bool,
+        *,
+        trace_context: Optional[TraceContext] = None,
+        session_name: Optional[str] = None,
+        message_id: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> Optional[str]:
+        """Persist outbound trace + payload details for channel responses.
+
+        Args:
+            instance_name: Name of the instance emitting the message
+            channel_type: Logical channel (discord, whatsapp, etc.)
+            payload: Request payload metadata to persist
+            response: Downstream response/result payload (optional)
+            success: Whether the send operation succeeded
+            trace_context: Existing trace context to append to (optional)
+            session_name: Optional session identifier to store on the trace
+            message_id: Optional outbound message identifier
+            error: Error string if the send failed
+        Returns:
+            Trace ID for the persisted record, or None if tracing disabled/failed
+        """
+
+        if not config.tracing.enabled:
+            return None
+
+        db_session: Optional[Session] = None
+        managed_session = False
+        context = trace_context
+        trace_id: Optional[str] = None
+
+        try:
+            if context:
+                db_session = context.db_session
+                trace_id = context.trace_id
+            else:
+                from src.db.database import SessionLocal
+
+                db_session = SessionLocal()
+                managed_session = True
+                trace_id = str(uuid.uuid4())
+
+                trace = MessageTrace(
+                    trace_id=trace_id,
+                    instance_name=instance_name,
+                    whatsapp_message_id=message_id,
+                    sender_phone=str(payload.get("recipient")) if payload.get("recipient") is not None else None,
+                    sender_name=payload.get("sender_name"),
+                    sender_jid=str(payload.get("recipient")) if payload.get("recipient") is not None else None,
+                    message_type=payload.get("message_type", "text"),
+                    has_media=payload.get("has_media", False),
+                    has_quoted_message=payload.get("has_quoted_message", False),
+                    message_length=len(payload.get("message_text", "") or ""),
+                    session_name=session_name,
+                    status="processing",
+                )
+
+                db_session.add(trace)
+                db_session.commit()
+
+                context = TraceContext(trace_id, db_session)
+                context.instance_name = instance_name
+                context.session_name = session_name
+                context.channel_type = channel_type
+                context.direction = "outbound"
+                context.message_type = trace.message_type
+                context.has_media = trace.has_media
+                context.has_quoted_message = trace.has_quoted_message
+                context.message_length = trace.message_length
+
+            payload_record = {
+                "channel_type": channel_type,
+                "direction": "outbound",
+                **payload,
+            }
+
+            stage_name = f"{channel_type}_send" if channel_type else "channel_send"
+            response_stage = f"{channel_type}_send_response" if channel_type else "channel_send_response"
+
+            context.log_stage(stage_name, payload_record, "request")
+
+            if response is not None:
+                status_code = response.get("status_code") if isinstance(response, dict) else None
+                context.log_stage(response_stage, response, "response", status_code=status_code, error_details=error)
+            elif error:
+                # Still capture the error even if we lack a structured response
+                context.log_stage(response_stage, {"error": error}, "response", status_code=None, error_details=error)
+
+            final_status = "completed" if success else "failed"
+            error_stage = stage_name if not success else None
+
+            context.update_trace_status(
+                final_status,
+                error_message=error if not success else None,
+                error_stage=error_stage,
+                session_name=session_name,
+            )
+
+            # When we generated the context locally ensure message id persists
+            if not trace_context and message_id:
+                try:
+                    trace = db_session.query(MessageTrace).filter(MessageTrace.trace_id == trace_id).first()
+                    if trace:
+                        trace.whatsapp_message_id = message_id
+                        db_session.commit()
+                except Exception:
+                    logger.warning("Failed to update outbound trace message_id", exc_info=True)
+
+            return trace_id
+
+        except Exception as e:
+            logger.error(f"Failed to record outbound message trace: {e}", exc_info=True)
+            if db_session is not None:
+                db_session.rollback()
+            return None
+
+        finally:
+            if managed_session and db_session is not None:
+                db_session.close()
 
 
 @contextmanager
