@@ -5,8 +5,7 @@ on:
     branches: [main, dev]
     types: [opened, synchronize, reopened]
   push:
-    branches:
-      - '**'
+    branches: [dev]
 
 permissions:
   contents: read
@@ -530,6 +529,7 @@ jobs:
     name: All Checks Passed
     needs: [test, lint]
     runs-on: ubuntu-latest
+    if: always()
     
     steps:
       - name: Check results
