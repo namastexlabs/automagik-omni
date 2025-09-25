@@ -12,32 +12,56 @@ from sqlalchemy.orm import Session
 import json
 import time
 
-# Import telemetry
-from src.core.telemetry import track_api_request, track_webhook_processed
-
-# Import configuration first to ensure environment variables are loaded
-from src.config import config
-
 # Import and set up logging
+from fastapi.openapi.utils import get_openapi
+
 from src.logger import setup_logging
 
 # Set up logging with defaults from config
 setup_logging()
 
-from src.services.agent_service import agent_service
-from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
-from src.api.deps import get_database, get_instance_by_name
-from fastapi.openapi.utils import get_openapi
-from src.api.routes.instances import router as instances_router
-from src.api.routes.omni import router as omni_router
-from src.api.routes.access import router as access_router
-from src.db.database import create_tables
-
 # Configure logging
 logger = logging.getLogger("src.api.app")
 
-# Initialize channel handlers
-# Note: Streaming functionality is now integrated directly into the handlers
+_MIGRATIONS_READY = False
+
+
+def _ensure_database_ready() -> None:
+    """Run database migrations before importing modules with side effects."""
+
+    global _MIGRATIONS_READY
+
+    if _MIGRATIONS_READY:
+        return
+
+    environment = os.environ.get("ENVIRONMENT")
+
+    if environment == "test":
+        _MIGRATIONS_READY = True
+        return
+
+    from src.db.migrations import auto_migrate
+
+    logger.info("Checking database migrations...")
+    if not auto_migrate():
+        logger.error("❌ Database migrations failed during module initialization")
+        raise RuntimeError("Database migrations must succeed before startup")
+
+    logger.info("✅ Database migrations completed successfully")
+    _MIGRATIONS_READY = True
+
+
+_ensure_database_ready()
+
+from src.core.telemetry import track_api_request, track_webhook_processed
+from src.config import config
+from src.services.agent_service import agent_service
+from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
+from src.api.deps import get_database, get_instance_by_name
+from src.api.routes.instances import router as instances_router
+from src.api.routes.omni import router as omni_router
+from src.api.routes.access import router as access_router
+from src.db.database import create_tables, SessionLocal
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -148,14 +172,14 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI application."""
     # Startup
     logger.info("Initializing application...")
-    logger.info(f"Log level set to: {config.logging.level}")
-    logger.info(f"API Host: {config.api.host}")
-    logger.info(f"API Port: {config.api.port}")
-    logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
-
     # Skip database setup in test environment (handled by test fixtures)
-    if os.environ.get("ENVIRONMENT") != "test":
-        # Create database tables
+    environment = os.environ.get("ENVIRONMENT")
+
+    if environment != "test":
+        if not _MIGRATIONS_READY:
+            _ensure_database_ready()
+
+        # After migrations succeed, ensure tables exist for runtime checks
         try:
             create_tables()
             logger.info("✅ Database tables created/verified")
@@ -163,25 +187,9 @@ async def lifespan(app: FastAPI):
             logger.error(f"❌ Failed to create database tables: {e}")
             # Let the app continue - tables might already exist
 
-        # Run database migrations
-        try:
-            logger.info("Checking database migrations...")
-            from src.db.migrations import auto_migrate
-
-            if auto_migrate():
-                logger.info("✅ Database migrations completed successfully")
-            else:
-                logger.error("❌ Database migrations failed")
-                # Don't stop the application, but log the error
-                logger.warning("Application starting despite migration issues - manual intervention may be required")
-        except Exception as e:
-            logger.error(f"❌ Database migration error: {e}")
-            logger.warning("Application starting despite migration issues - manual intervention may be required")
-
         # Load access control rules into cache
         try:
             from src.services.access_control import access_control_service
-            from src.db.database import SessionLocal
 
             with SessionLocal() as db:
                 access_control_service.load_rules(db)
@@ -192,13 +200,17 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Skipping database setup in test environment")
 
+    logger.info(f"Log level set to: {config.logging.level}")
+    logger.info(f"API Host: {config.api.host}")
+    logger.info(f"API Port: {config.api.port}")
+    logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
+
     # Auto-discover existing Evolution instances (non-intrusive)
     # Skip auto-discovery in test environment to prevent database conflicts
-    if os.environ.get("ENVIRONMENT") != "test":
+    if environment != "test":
         try:
             logger.info("Starting Evolution instance auto-discovery...")
             from src.services.discovery_service import discovery_service
-            from src.db.database import SessionLocal
 
             with SessionLocal() as db:
                 discovered_instances = await discovery_service.discover_evolution_instances(db)
