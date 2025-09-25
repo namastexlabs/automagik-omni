@@ -126,7 +126,9 @@ help: ## Show this help message
 	@echo -e "$(FONT_PURPLE)$(HUB) Omni-Hub Development & Deployment Commands$(FONT_RESET)"
 	@echo ""
 	@echo -e "$(FONT_BOLD)Development:$(FONT_RESET)"
-	@echo -e "  $(FONT_CYAN)install        $(FONT_RESET) Install project dependencies"
+	@echo -e "  $(FONT_CYAN)install        $(FONT_RESET) Install Omni core deps (WhatsApp/Evolution) with optional Discord prompt"
+	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install only Omni core dependencies"
+	@echo -e "  $(FONT_CYAN)install-discord $(FONT_RESET) Install optional Discord extras"
 	@echo -e "  $(FONT_CYAN)dev            $(FONT_RESET) Start development server with auto-reload"
 	@echo -e "  $(FONT_CYAN)test           $(FONT_RESET) Run the test suite"
 	@echo -e "  $(FONT_CYAN)test-coverage  $(FONT_RESET) Run tests with coverage report"
@@ -221,17 +223,34 @@ discord-list: ## List all Discord instances
 # ===========================================
 # 🏗️ Development Commands
 # ===========================================
-.PHONY: install
-install: ## Install project dependencies
+.PHONY: install install-omni install-discord
+install: ## Install Omni core dependencies with optional Discord extras
+	$(MAKE) install-omni
+	@read -r -p "Install optional Discord extras? [y/N] " choice; \
+	if [ "$$choice" = "y" ] || [ "$$choice" = "Y" ]; then \
+		$(MAKE) install-discord; \
+	else \
+		echo "$(FONT_YELLOW)$(WARNING) Skipping Discord optional extras$(FONT_RESET)"; \
+	fi
+	$(call print_success_with_logo,Dependencies installed successfully)
+
+install-omni: ## Install Omni core dependencies (WhatsApp/Evolution stack)
 	$(call check_prerequisites)
 	$(call ensure_env_file)
-	$(call print_status,Installing dependencies with uv)
+	$(call print_status,Installing Omni core dependencies with uv)
 	@if ! $(UV) sync 2>/dev/null; then \
 		echo -e "$(FONT_YELLOW)$(WARNING) Installation failed - clearing UV cache and retrying...$(FONT_RESET)"; \
 		$(UV) cache clean; \
 		$(UV) sync; \
 	fi
-	$(call print_success_with_logo,Dependencies installed successfully)
+	$(call print_success,Omni core dependencies installed)
+
+install-discord: ## Install optional Discord extras
+	$(call check_prerequisites)
+	$(call ensure_env_file)
+	$(call print_status,Installing optional Discord dependencies)
+	@$(UV) pip install -e '.[discord]'
+	$(call print_success,Discord dependencies installed)
 
 .PHONY: dev
 dev: ## Start development server with auto-reload
@@ -240,9 +259,9 @@ dev: ## Start development server with auto-reload
 	$(call print_status,Starting development server with auto-reload)
 	@if [ -f .env ]; then \
 		export $$(cat .env | grep -v '^#' | xargs) && \
-		$(UV) run python -m uvicorn src.api.app:app --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload --workers 1 --log-level $$(echo "$${LOG_LEVEL:-INFO}" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run automagik-omni start --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload --log-level $$(echo "$${LOG_LEVEL:-INFO}" | tr '[:upper:]' '[:lower:]'); \
 	else \
-		$(UV) run python -m uvicorn src.api.app:app --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload --workers 1 --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run automagik-omni start --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
 	fi
 
 .PHONY: test
