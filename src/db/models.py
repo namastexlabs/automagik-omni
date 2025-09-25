@@ -192,6 +192,41 @@ class User(Base):
         return f"{self.instance_name}:{self.phone_number}"
 
 
+class UserExternalId(Base):
+    """External identity linking for users across channels/platforms.
+
+    Stores provider-specific identifiers (e.g., WhatsApp JID, Discord user ID)
+    and links them to a stable local User.
+    """
+
+    __tablename__ = "user_external_ids"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False, index=True)  # e.g., 'whatsapp', 'discord'
+    external_id = Column(String, nullable=False, index=True)
+    instance_name = Column(String, ForeignKey("instance_configs.name"), nullable=True, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "external_id",
+            "instance_name",
+            name="uq_user_external_provider_instance",
+        ),
+    )
+
+    user = relationship("User", backref="external_ids")
+
+    def __repr__(self) -> str:
+        scope = f"@{self.instance_name}" if self.instance_name else ""
+        return f"<UserExternalId(provider='{self.provider}', external_id='{self.external_id}'{scope})>"
+
+
 # Import trace models to ensure they're registered with SQLAlchemy
 
 
