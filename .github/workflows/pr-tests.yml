@@ -22,21 +22,11 @@ jobs:
       matrix:
         python-version: ["3.12"]
     
-    services:
-      # PostgreSQL service for tests that need a database
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: automagik_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+    # Removed PostgreSQL service - using SQLite for CI tests to avoid Docker Hub issues
+    # services:
+    #   postgres:
+    #     image: postgres:15-alpine
+    #     ...
 
     steps:
       - name: Checkout code
@@ -66,7 +56,9 @@ jobs:
 
       - name: Set up environment variables
         run: |
-          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/automagik_test" >> $GITHUB_ENV
+          # Use SQLite for CI tests to avoid Docker Hub authentication issues
+          mkdir -p data
+          echo "DATABASE_URL=sqlite:///data/test.db" >> $GITHUB_ENV
           echo "AUTOMAGIK_OMNI_API_KEY=${{ secrets.TEST_API_KEY || 'dummy-key' }}" >> $GITHUB_ENV
           echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
           echo "CI=true" >> $GITHUB_ENV
@@ -77,9 +69,10 @@ jobs:
           from sqlalchemy import create_engine
           from src.db.models import Base
           import os
+          # Create SQLite database
           engine = create_engine(os.environ['DATABASE_URL'])
           Base.metadata.create_all(engine)
-          print('Database initialized successfully')
+          print('SQLite database initialized successfully')
           "
 
       - name: Run tests with coverage
