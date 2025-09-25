@@ -15,6 +15,8 @@ import json
 import os
 from aiohttp import web
 
+from sqlalchemy.exc import DatabaseError
+
 import discord
 from discord.ext import commands
 
@@ -739,10 +741,14 @@ class DiscordBotManager:
                         logger.info(
                             f"Resolved Discord user {message.author.id} to local user {resolved_user_id} via external link"
                         )
+                except DatabaseError as db_err:
+                    logger.error(f"Failed to resolve Discord user {message.author.id}: {db_err}")
+                except Exception as e:
+                    logger.error(f"Failed during Discord identity resolution: {e}", exc_info=True)
                 finally:
                     db_session.close()
             except Exception as e:
-                logger.error(f"Failed during Discord identity resolution: {e}")
+                logger.error(f"Failed to initialise Discord identity resolution session: {e}", exc_info=True)
 
             # Route message to MessageRouter (synchronous call from async context)
             # Since we're in an async context and route_message is sync, use executor

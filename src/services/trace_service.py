@@ -7,9 +7,11 @@ import time
 import logging
 import uuid
 import json
+from functools import wraps
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from contextlib import contextmanager
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 
 from src.config import config
 from src.db.trace_models import MessageTrace, TracePayload
@@ -19,6 +21,33 @@ if TYPE_CHECKING:
     from src.services.streaming_trace_context import StreamingTraceContext
 
 logger = logging.getLogger(__name__)
+
+
+def retry_on_db_error(max_attempts: int = 3, backoff_factor: int = 2):
+    """Retry decorator for transient SQLAlchemy operational errors."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except OperationalError as exc:
+                    if attempt == max_attempts - 1:
+                        raise
+                    sleep_seconds = backoff_factor**attempt
+                    logger.warning(
+                        "Retrying %s after OperationalError (attempt %s/%s): %s",
+                        func.__name__,
+                        attempt + 1,
+                        max_attempts,
+                        exc,
+                    )
+                    time.sleep(sleep_seconds)
+
+        return wrapper
+
+    return decorator
 
 
 class TraceContext:
@@ -215,6 +244,7 @@ class TraceService:
     """
 
     @staticmethod
+    @retry_on_db_error()
     def create_trace(message_data: Dict[str, Any], instance_name: str, db_session: Session) -> Optional[TraceContext]:
         """
         Create a new message trace and return a context object.
@@ -582,6 +612,7 @@ class TraceService:
         return jid
 
     @staticmethod
+    @retry_on_db_error()
     def record_outbound_message(
         instance_name: str,
         channel_type: str,
