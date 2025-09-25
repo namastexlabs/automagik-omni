@@ -182,32 +182,32 @@ def run_migrations() -> bool:
 
         # Check if database exists
         if not check_database_exists():
-            logger.info("Database is empty, running initial migration...")
+            logger.debug("Database is empty, running initial migration...")
         else:
             current = get_current_revision()
             head = get_head_revision()
 
             if current == head and len(heads) == 1:
-                logger.info("Database is up to date, no migrations needed")
+                logger.debug("Database is up to date, no migrations needed")
                 return True
 
             if len(heads) > 1:
-                logger.info(f"Multiple heads detected: {heads}")
-                logger.info("Will upgrade to all heads to resolve branches")
+                logger.debug(f"Multiple heads detected: {heads}")
+                logger.debug("Will upgrade to all heads to resolve branches")
 
-            logger.info(f"Migrating database from {current} to {head or 'heads'}")
+            logger.debug(f"Migrating database from {current} to {head or 'heads'}")
 
         # Run migrations - 'head' will upgrade to all heads if multiple exist
         try:
             command.upgrade(config, "head")
-            logger.info("Database migrations completed successfully")
+            logger.debug("Database migrations completed successfully")
         except OperationalError as op_err:
             if _is_idempotent_schema_error(op_err):
                 logger.warning(
                     "Migration DDL reported already-applied schema changes; stamping database to head instead"
                 )
                 if stamp_database("head"):
-                    logger.info("Database stamped to head after detecting pre-applied schema")
+                    logger.debug("Database stamped to head after detecting pre-applied schema")
                     return True
                 logger.error("Stamping database to head failed after idempotent schema error")
             raise
@@ -215,7 +215,7 @@ def run_migrations() -> bool:
         # After upgrading, check if we now have a single head
         new_heads = script_dir.get_heads()
         if len(new_heads) == 1:
-            logger.info(f"Successfully resolved to single head: {new_heads[0]}")
+            logger.debug(f"Successfully resolved to single head: {new_heads[0]}")
         elif len(new_heads) > 1:
             logger.warning(f"Still have multiple heads after migration: {new_heads}")
             logger.warning("You may need to create a merge migration manually")
@@ -268,7 +268,7 @@ def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
             raise exception[0]
 
         if result[0]:
-            logger.info(f"Database stamped with revision: {revision}")
+            logger.debug(f"Database stamped with revision: {revision}")
 
         return result[0]
 
@@ -291,25 +291,30 @@ def auto_migrate() -> bool:
         bool: True if migration handling was successful, False otherwise
     """
     try:
-        logger.info("Starting automatic database migration check...")
+        logger.debug("Starting automatic database migration check...")
 
         current_revision = get_current_revision()
         head_revision = get_head_revision()
         has_tables = check_database_exists()
 
-        logger.info(f"Database state: current={current_revision}, head={head_revision}, has_tables={has_tables}")
+        logger.debug(
+            "Database state: current=%s, head=%s, has_tables=%s",
+            current_revision,
+            head_revision,
+            has_tables,
+        )
 
         if not has_tables:
             # Empty database - run all migrations
-            logger.info("Empty database detected, running all migrations...")
+            logger.debug("Empty database detected, running all migrations...")
             return run_migrations()
 
         elif current_revision is None and has_tables:
             # Existing database without revision tracking - stamp it as current
-            logger.info("Existing database without revision tracking detected, stamping as current...")
+            logger.debug("Existing database without revision tracking detected, stamping as current...")
             success = stamp_database(head_revision)
             if success:
-                logger.info("Database successfully stamped with current revision")
+                logger.debug("Database successfully stamped with current revision")
             else:
                 logger.warning("Failed to stamp database, but continuing anyway (database is functional)")
                 # Return True to allow the application to continue
@@ -319,12 +324,12 @@ def auto_migrate() -> bool:
 
         elif current_revision != head_revision:
             # Database needs updating
-            logger.info("Database needs updating, running migrations...")
+            logger.debug("Database needs updating, running migrations...")
             return run_migrations()
 
         else:
             # Database is up to date
-            logger.info("Database is up to date")
+            logger.debug("Database is up to date")
             return True
 
     except Exception as e:
