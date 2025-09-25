@@ -181,21 +181,31 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-
-            // Get current coverage from pytest output
-            let currentCoverage = 'unknown';
-            let coverageDetails = '';
-
             try {
-              if (fs.existsSync('pytest-coverage.txt')) {
-                const coverageContent = fs.readFileSync('pytest-coverage.txt', 'utf8');
-                const coverageMatch = coverageContent.match(/TOTAL.*?(\d+)%/);
+              const fs = require('fs');
+              const path = require('path');
+
+              if (!context.issue || !context.issue.number) {
+                console.log('Not in a pull request context, skipping coverage comment');
+                return;
+              }
+
+              let currentCoverage = 'unknown';
+              let coverageDetails = '';
+
+              const coverageFile = path.join(process.env.GITHUB_WORKSPACE || '.', 'pytest-coverage.txt');
+              console.log('Looking for coverage file at:', coverageFile);
+
+              if (fs.existsSync(coverageFile)) {
+                const coverageContent = fs.readFileSync(coverageFile, 'utf8');
+                const coverageMatch = coverageContent.match(/TOTAL\s+\d+\s+\d+\s+(\d+)%/) ||
+                                      coverageContent.match(/TOTAL.*?(\d+)%/);
+
                 if (coverageMatch) {
                   currentCoverage = coverageMatch[1];
+                  console.log('Found coverage:', currentCoverage + '%');
                 }
 
-                // Get file-level coverage for significant changes
                 const lines = coverageContent.split('\n');
                 const fileLines = lines.filter(line =>
                   line.includes('.py') &&
@@ -215,124 +225,96 @@ jobs:
                       }
                       return null;
                     })
-                    .filter(file => file && !file.coverage.includes('%'))
-                    .slice(0, 5); // Show top 5 files
+                    .filter(file => file && file.coverage && file.coverage.includes('%'))
+                    .slice(0, 5);
 
                   if (significantFiles.length > 0) {
                     coverageDetails = '\n### 📁 Key Files Coverage:\n' +
-                      significantFiles.map(file =>
-                        `- \`${file.fileName}\`: ${file.coverage}`
-                      ).join('\n');
+                      significantFiles.map(file => `- \`${file.fileName}\`: ${file.coverage}`).join('\n');
                   }
                 }
-              }
-            } catch (e) {
-              console.log('Could not parse coverage details:', e);
-            }
-
-            const targetCoverage = '${{ steps.target-coverage.outputs.TARGET_COVERAGE }}';
-            const targetBranch = '${{ steps.target-coverage.outputs.TARGET_BRANCH }}';
-
-            let comparisonMessage = '';
-            let changeEmoji = '📊';
-
-            if (targetCoverage && targetCoverage !== 'unknown' && currentCoverage !== 'unknown') {
-              const targetPercent = parseInt(targetCoverage.replace('%', ''));
-              const currentPercent = parseInt(currentCoverage);
-              const difference = currentPercent - targetPercent;
-
-              if (difference > 0) {
-                changeEmoji = '📈';
-                comparisonMessage = `
-            ## ${changeEmoji} Coverage Improved!
-
-            | Branch | Coverage | Change |
-            |--------|----------|--------|
-            | **${targetBranch}** (target) | **${targetCoverage}** | baseline |
-            | **Current PR** | **${currentCoverage}%** | **+${difference}%** ✅ |
-
-            🎉 **Great job!** This PR increases code coverage by **${difference} percentage point${difference !== 1 ? 's' : ''}**.`;
-
-              } else if (difference < 0) {
-                changeEmoji = '📉';
-                comparisonMessage = `
-            ## ${changeEmoji} Coverage Decreased
-
-            | Branch | Coverage | Change |
-            |--------|----------|--------|
-            | **${targetBranch}** (target) | **${targetCoverage}** | baseline |
-            | **Current PR** | **${currentCoverage}%** | **${difference}%** ⚠️ |
-
-            ⚠️ **Attention:** This PR decreases code coverage by **${Math.abs(difference)} percentage point${Math.abs(difference) !== 1 ? 's' : ''}**.
-            Consider adding more tests to maintain or improve coverage.`;
-
               } else {
-                changeEmoji = '🔄';
-                comparisonMessage = `
-            ## ${changeEmoji} Coverage Maintained
-
-            | Branch | Coverage | Change |
-            |--------|----------|--------|
-            | **${targetBranch}** (target) | **${targetCoverage}** | baseline |
-            | **Current PR** | **${currentCoverage}%** | **no change** ✅ |
-
-            ✅ **Perfect!** This PR maintains the same coverage level as the target branch.`;
+                console.log('Coverage file not found');
               }
-            } else {
-              comparisonMessage = `
-            ## 📊 Coverage Report
 
-            **Current PR Coverage:** ${currentCoverage}%
+              const targetCoverage = '${{ steps.target-coverage.outputs.TARGET_COVERAGE }}' || '85%';
+              const targetBranch = '${{ steps.target-coverage.outputs.TARGET_BRANCH }}' || 'dev';
 
-            > 💡 **Note:** Could not compare with ${targetBranch} branch coverage.
-            This might be the first run or target branch is not accessible.`;
-            }
+              let comparisonMessage = '';
 
-            const body = `${comparisonMessage}
+              if (currentCoverage !== 'unknown') {
+                const targetPercent = parseInt((targetCoverage || '85%').replace('%', ''));
+                const currentPercent = parseInt(currentCoverage);
+                const difference = currentPercent - targetPercent;
 
-            ${coverageDetails}
+                let changeEmoji = '📊';
+                let changeText = '';
 
-            ---
+                if (Number.isInteger(difference) && difference > 0) {
+                  changeEmoji = '📈';
+                  changeText = `+${difference}% ✅`;
+                } else if (Number.isInteger(difference) && difference < 0) {
+                  changeEmoji = '📉';
+                  changeText = `${difference}% ⚠️`;
+                } else {
+                  changeEmoji = '🔄';
+                  changeText = 'no change ✅';
+                }
 
-            📋 **Coverage Target Guidelines:**
-            - 🎯 **Target:** Maintain or improve coverage
-            - ✅ **Good:** Above 80% coverage
-            - ⚠️ **Acceptable:** 70-80% coverage
-            - ❌ **Needs Work:** Below 70% coverage
+                comparisonMessage = `## ${changeEmoji} Coverage Report
 
-            > 🔗 View detailed coverage report in the main coverage comment above`;
+  | Branch | Coverage | Change |
+  |--------|----------|--------|
+  | **${targetBranch}** (baseline) | ${targetCoverage} | - |
+  | **Current PR** | ${currentCoverage}% | ${changeText} |
 
-            // Find existing coverage comparison comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
+  ${coverageDetails}`;
+              } else {
+                comparisonMessage = `## 📊 Coverage Report
 
-            const comparisonComment = comments.find(comment =>
-              comment.user.type === 'Bot' &&
-              (comment.body.includes('Coverage Improved') ||
-               comment.body.includes('Coverage Decreased') ||
-               comment.body.includes('Coverage Maintained') ||
-               comment.body.includes('Coverage Report'))
-            );
+  **Coverage data not available**
 
-            if (comparisonComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: comparisonComment.id,
-                body: body
-              });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: body
-              });
+  > Note: Coverage file may not have been generated or could not be parsed.`;
+              }
+
+              const body = comparisonMessage;
+
+              try {
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                });
+
+                const existingComment = comments.find(comment =>
+                  comment.user.type === 'Bot' &&
+                  comment.body.includes('Coverage Report')
+                );
+
+                if (existingComment) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: existingComment.id,
+                    body: body
+                  });
+                  console.log('Updated existing coverage comment');
+                } else {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.issue.number,
+                    body: body
+                  });
+                  console.log('Created new coverage comment');
+                }
+              } catch (apiError) {
+                console.log('Could not post comment:', apiError.message);
+              }
+
+            } catch (error) {
+              console.error('Coverage comparison error:', error);
+              console.log('Step continuing despite error');
             }
 
       - name: Upload coverage to Codecov
