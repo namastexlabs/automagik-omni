@@ -25,7 +25,7 @@ jobs:
     services:
       # PostgreSQL service for tests that need a database
       postgres:
-        image: postgres:15
+        image: postgres:15-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -130,34 +130,41 @@ jobs:
           TARGET_BRANCH="${{ github.base_ref }}"
           echo "TARGET_BRANCH=$TARGET_BRANCH" >> $GITHUB_OUTPUT
 
-          # Try to get coverage from target branch from artifacts or create baseline
+          # Try to get coverage from target branch
           echo "Attempting to get coverage from target branch: $TARGET_BRANCH"
 
-          # Store current branch
-          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          # Check if we're in a git repository context
+          if [ -d .git ]; then
+            # Store current branch
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-          # Fetch target branch
-          git fetch origin $TARGET_BRANCH:$TARGET_BRANCH || echo "Could not fetch target branch"
+            # Fetch target branch
+            git fetch origin $TARGET_BRANCH:$TARGET_BRANCH || echo "Could not fetch target branch"
 
-          # Try to get target branch coverage by checking out and running tests
-          if git checkout $TARGET_BRANCH 2>/dev/null; then
-            echo "Successfully checked out target branch $TARGET_BRANCH"
+            # Try to get target branch coverage by checking out and running tests
+            if git checkout $TARGET_BRANCH 2>/dev/null; then
+              echo "Successfully checked out target branch $TARGET_BRANCH"
 
-            # Quick coverage check on target branch (only if deps are already installed)
-            if pytest tests/ --cov=src --cov-report=term --maxfail=1 -q -x &>/dev/null; then
-              TARGET_COVERAGE=$(pytest tests/ --cov=src --cov-report=term 2>/dev/null | grep -oP 'TOTAL.*?(\d+)%' | grep -oP '\d+%' | head -1 || echo "0%")
-              echo "TARGET_COVERAGE=$TARGET_COVERAGE" >> $GITHUB_OUTPUT
-              echo "Target branch coverage: $TARGET_COVERAGE"
+              # Quick coverage check on target branch (only if deps are already installed)
+              if pytest tests/ --cov=src --cov-report=term --maxfail=1 -q -x &>/dev/null; then
+                TARGET_COVERAGE=$(pytest tests/ --cov=src --cov-report=term 2>/dev/null | grep -oP 'TOTAL.*?(\d+)%' | grep -oP '\d+%' | head -1 || echo "0%")
+                echo "TARGET_COVERAGE=$TARGET_COVERAGE" >> $GITHUB_OUTPUT
+                echo "Target branch coverage: $TARGET_COVERAGE"
+              else
+                echo "TARGET_COVERAGE=unknown" >> $GITHUB_OUTPUT
+                echo "Could not determine target branch coverage"
+              fi
+
+              # Return to current branch
+              git checkout $CURRENT_BRANCH
             else
               echo "TARGET_COVERAGE=unknown" >> $GITHUB_OUTPUT
-              echo "Could not determine target branch coverage"
+              echo "Could not checkout target branch for coverage comparison"
             fi
-
-            # Return to current branch
-            git checkout $CURRENT_BRANCH
           else
-            echo "TARGET_COVERAGE=unknown" >> $GITHUB_OUTPUT
-            echo "Could not checkout target branch for coverage comparison"
+            # Not in a git context, use baseline
+            echo "Not in git repository, using baseline coverage"
+            echo "TARGET_COVERAGE=85%" >> $GITHUB_OUTPUT
           fi
 
       - name: Beautiful Coverage Comment
@@ -350,11 +357,16 @@ jobs:
       - name: Test Report
         if: always()
         uses: dorny/test-reporter@v1
+        continue-on-error: true
         with:
           name: Test Results (Python ${{ matrix.python-version }})
           path: test-results.xml
           reporter: java-junit
           fail-on-error: false
+          path-replace-backslashes: false
+          list-suites: all
+          list-tests: failed
+          max-annotations: 10
 
       - name: Enhanced Test Results Comment
         if: github.event_name == 'pull_request' && always()
