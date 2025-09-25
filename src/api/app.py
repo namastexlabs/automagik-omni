@@ -26,32 +26,40 @@ logger = logging.getLogger("src.api.app")
 _MIGRATIONS_READY = False
 
 
-def _ensure_database_ready() -> None:
-    """Run database migrations before importing modules with side effects."""
+def _ensure_database_ready() -> float:
+    """Ensure database schema is up to date, returning runtime in seconds."""
 
     global _MIGRATIONS_READY
 
     if _MIGRATIONS_READY:
-        return
+        return 0.0
 
     environment = os.environ.get("ENVIRONMENT")
 
     if environment == "test":
         _MIGRATIONS_READY = True
-        return
+        return 0.0
 
     from src.db.migrations import auto_migrate
 
-    logger.info("Checking database migrations...")
+    logger.info("Running database migrations (first launch may take longer)...")
+    start_time = time.perf_counter()
+
     if not auto_migrate():
         logger.error("❌ Database migrations failed during module initialization")
         raise RuntimeError("Database migrations must succeed before startup")
 
-    logger.info("✅ Database migrations completed successfully")
+    duration = time.perf_counter() - start_time
+    logger.info(f"✅ Database migrations ready in {duration:.2f}s")
     _MIGRATIONS_READY = True
+    return duration
 
 
-_ensure_database_ready()
+def prepare_runtime() -> float:
+    """Public helper used by the CLI to warm database state before starting the API."""
+
+    return _ensure_database_ready()
+
 
 from src.core.telemetry import track_api_request, track_webhook_processed
 from src.config import config
