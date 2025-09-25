@@ -152,9 +152,7 @@ class UserService:
 
         if link:
             if link.user_id != user_id:
-                logger.warning(
-                    f"Reassigning external link {provider}:{external_id} from {link.user_id} to {user_id}"
-                )
+                logger.warning(f"Reassigning external link {provider}:{external_id} from {link.user_id} to {user_id}")
                 link.user_id = user_id
                 link.instance_name = instance_name
                 link.updated_at = utcnow()
@@ -172,9 +170,7 @@ class UserService:
         db.commit()
         return True
 
-    def resolve_user_by_external(
-        self, provider: str, external_id: str, db: Session
-    ) -> Optional[User]:
+    def resolve_user_by_external(self, provider: str, external_id: str, db: Session) -> Optional[User]:
         """Resolve a User by provider/external_id mapping."""
         if not (provider and external_id):
             return None

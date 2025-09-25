@@ -67,9 +67,7 @@ async def test_discord_inbound_creates_trace_payload(monkeypatch):
     trace_service_mock.create_trace.return_value = trace_context
     monkeypatch.setattr(channel_handler, "TraceService", trace_service_mock, raising=False)
 
-    route_mock = MagicMock(
-        return_value={"message": "pong", "user_id": "agent-user-123"}
-    )
+    route_mock = MagicMock(return_value={"message": "pong", "user_id": "agent-user-123"})
     monkeypatch.setattr(channel_handler.message_router, "route_message", route_mock)
 
     await handler._handle_message(message, instance_config, client)

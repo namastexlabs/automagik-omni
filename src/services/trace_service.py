@@ -369,9 +369,7 @@ class TraceService:
                 instance_name=instance_name,
                 whatsapp_message_id=discord_message_id,
                 sender_phone=str(author.get("id")) if author.get("id") is not None else None,
-                sender_name=author.get("display_name")
-                or author.get("username")
-                or metadata.get("author_name"),
+                sender_name=author.get("display_name") or author.get("username") or metadata.get("author_name"),
                 sender_jid=str(author.get("id")) if author.get("id") is not None else None,
                 message_type=message_type,
                 has_media=has_media,
@@ -420,9 +418,7 @@ class TraceService:
 
         except Exception as e:
             logger.error(f"Failed to create Discord message trace: {e}", exc_info=True)
-            logger.error(
-                f"Discord message data that failed: {json.dumps(message_data, indent=2, default=str)[:500]}"
-            )
+            logger.error(f"Discord message data that failed: {json.dumps(message_data, indent=2, default=str)[:500]}")
             return None
 
     @staticmethod
