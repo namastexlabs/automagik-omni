@@ -59,7 +59,9 @@ class OmniChannelMessageSender:
                     try:
                         payload_metadata = {
                             "session_name": session_name,
-                            "kwargs": {k: send_kwargs.get(k) for k in sorted(send_kwargs.keys()) if k not in {"quoted_message"}},
+                            "kwargs": {
+                                k: send_kwargs.get(k) for k in sorted(send_kwargs.keys()) if k not in {"quoted_message"}
+                            },
                         }
                         TraceService.record_outbound_message(
                             instance_name=self.instance_config.name,
