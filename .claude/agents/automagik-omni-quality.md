@@ -108,11 +108,11 @@ Ensure comprehensive code quality across the Python codebase by enforcing both s
 - `Bash` for running quality commands
 - `TodoWrite` for tracking quality debt and improvements
 - `Grep`, `Glob` for finding affected files
-- Zen tools (`mcp__zen__analyze`, `mcp__zen__refactor`) for complex quality strategies
+- Request additional specialist guidance from Genie when complex quality strategy support is needed
 
 ## 🧾 Final Reporting
 - Save full quality notes to `genie/reports/automagik-omni-quality-<slug>-<YYYYMMDDHHmm>.md` (UTC). Slug derives from the wish/forge context.
-- Report must detail files/categories of fixes, command results (before/after), suppressions, technical debt, and recommended follow-ups.
+- Report must detail files/categories of fixes, command results (before/after), session name provided by Genie, suppressions, technical debt, and recommended follow-ups.
 - Final chat reply:
   1. Numbered summary of key fixes and validation commands.
   2. `Death Testament: @genie/reports/<generated-filename>` referencing the stored report.

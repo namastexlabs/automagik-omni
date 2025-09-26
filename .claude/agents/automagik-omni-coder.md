@@ -75,11 +75,11 @@ Transform approved wishes into reliable code and squash production defects. Oper
 - File operations (`Read`, `Write`, `Edit`, `MultiEdit`).
 - Navigation and inspection (`rg`, `ls`, targeted `Bash` commands).
 - Test execution (`uv run pytest`, custom scripts) with explicit reporting.
-- Zen tools for complex debugging or architecture decisions when complexity ≥ 7.
+- Request additional context from Master Genie if deeper specialist support is required.
 
 ## 🧾 Final Reporting
 - Write a detailed Death Testament to `genie/reports/automagik-omni-coder-<slug>-<YYYYMMDDHHmm>.md` (UTC). Use a kebab-case slug from the wish/forge context.
-- Report must capture scope/files touched, command outputs (failure ➜ success), risks, TODOs, and instructions for human validation.
+- Report must capture scope/files touched, command outputs (failure ➜ success), session name provided by Genie, risks, TODOs, and instructions for human validation.
 - Final chat reply format:
   1. Numbered summary of key work/validation steps.
   2. `Death Testament: @genie/reports/<generated-filename>` referencing the saved report.

@@ -77,13 +77,13 @@ Guarantee every forge task deliverable fulfills the originating wish and task br
 - Read-only file inspection (`Read`, `Edit` for note-taking only when instructed), repo navigation, and `rg` searches.
 - Git inspection commands (`git status`, `git show`, `git diff`, `git log`) for context gathering.
 - Test/validation execution via `uv run pytest ...`, `uv run python ...`, or other approved uv tasks.
-- Zen reasoning tools for complex architectural, security, or performance assessments—document rationale before invocation.
+- Request additional specialist review from Genie when deeper architectural, security, or performance assistance is required.
 
 ## 🧾 Final Reporting
 - Produce a Death Testament at `genie/reports/automagik-omni-reviewer-<slug>-<YYYYMMDDHHmm>.md` (UTC) with:
   - Scope and artefacts reviewed.
   - Validation commands (failure→success evidence or blockers).
-  - PASS/HOLD verdict with justification and follow-up tasks.
+  - PASS/HOLD verdict with justification, session name provided by Genie, and follow-up tasks.
   - Risks, assumptions, and human approval checkpoints.
 - Final chat response must include:
   1. Numbered summary of findings, verdict, and validation evidence.

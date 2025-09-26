@@ -62,7 +62,7 @@ Capture user feedback and behavioral violations, convert them into actionable le
 
 ## 🧾 Final Reporting
 - Write the learning log to `genie/reports/automagik-omni-self-learn-<slug>-<YYYYMMDDHHmm>.md` (UTC). Slug can reference the violation or wish.
-- Report must outline violation details, updates applied, validation plan, propagation targets, and follow-up reminders.
+- Report must outline violation details, updates applied, validation plan, session name provided by Genie, propagation targets, and follow-up reminders.
 - Final chat reply:
   1. Numbered summary of the learning applied and next checks.
   2. `Death Testament: @genie/reports/<generated-filename>` pointing to the report.
@@ -81,7 +81,7 @@ Capture user feedback and behavioral violations, convert them into actionable le
 ## 🔧 Tool Access
 - `Read`, `Write`, `Edit` for agent files and AGENTS.md.
 - `Git`/`Bash` commands for diffing and validation.
-- Zen tools (`mcp__zen__thinkdeep`, `mcp__zen__analyze`) for complex behaviour patterns.
+- Request additional perspective from Genie if deeper behavioural analysis support is required.
 
 ## 📎 Example Triggers
 - "User reports agent ignored sandbox policy." 
