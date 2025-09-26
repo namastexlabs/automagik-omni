@@ -10,8 +10,9 @@ from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect
+from sqlalchemy.exc import OperationalError
 
-from .database import engine
+from .database import get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -36,18 +37,35 @@ def get_alembic_config() -> Config:
 def check_database_exists() -> bool:
     """Check if the database has any tables."""
     try:
-        inspector = inspect(engine)
+        inspector = inspect(get_engine())
         tables = inspector.get_table_names()
         return len(tables) > 0
     except Exception as e:
         logger.error(f"Error checking database existence: {e}")
         return False
 
+def _find_merge_revision(script_dir: ScriptDirectory, heads: list[str]) -> str | None:
+    """Locate a merge revision that resolves the supplied heads."""
+    if not heads:
+        return None
+
+    target_heads = set(heads)
+
+    upper = tuple(heads) if len(heads) > 1 else heads[0]
+
+    for revision in script_dir.walk_revisions(upper, "base"):
+        down_revision = revision.down_revision
+
+        if isinstance(down_revision, tuple) and set(down_revision) == target_heads:
+            return revision.revision
+
+    return None
+
 
 def get_current_revision() -> str | None:
     """Get the current database revision."""
     try:
-        with engine.connect() as connection:
+        with get_engine().connect() as connection:
             context = MigrationContext.configure(connection)
 
             # Try to get single revision first
@@ -63,13 +81,11 @@ def get_current_revision() -> str | None:
                     config = get_alembic_config()
                     script_dir = ScriptDirectory.from_config(config)
 
-                    # Look for a migration that has these heads as down_revisions
-                    for revision in script_dir.iterate_revisions("heads"):
-                        if revision.down_revision and isinstance(revision.down_revision, tuple):
-                            if set(revision.down_revision) == set(heads):
-                                logger.info(f"Found merge migration {revision.revision} for current heads")
-                                # Return None to trigger migration to the merge
-                                return None
+                    merge_revision = _find_merge_revision(script_dir, heads)
+                    if merge_revision:
+                        logger.info(f"Found merge migration {merge_revision} for current heads")
+                        # Return None to trigger migration to the merge
+                        return None
 
                     # If no merge found, return the first head
                     return heads[0] if heads else None
@@ -97,13 +113,10 @@ def get_head_revision() -> str | None:
             # Multiple heads detected - check if merge migration exists
             logger.warning(f"Multiple migration heads detected: {heads}")
 
-            # Look for a merge migration that has all heads as dependencies
-            for revision in script_dir.iterate_revisions("heads"):
-                if revision.down_revision and isinstance(revision.down_revision, tuple):
-                    # This is a merge migration
-                    if set(revision.down_revision) == set(heads):
-                        logger.info(f"Found merge migration: {revision.revision}")
-                        return revision.revision
+            merge_revision = _find_merge_revision(script_dir, heads)
+            if merge_revision:
+                logger.info(f"Found merge migration: {merge_revision}")
+                return merge_revision
 
             # No merge migration found - return None to trigger migration
             logger.warning("No merge migration found for multiple heads")
@@ -137,6 +150,21 @@ def needs_migration() -> bool:
         return False
 
 
+def _is_idempotent_schema_error(error: OperationalError) -> bool:
+    """Determine if an OperationalError indicates schema already matches migration."""
+    message = str(error.orig if getattr(error, "orig", None) else error)
+    lowered = message.lower()
+    return any(
+        phrase in lowered
+        for phrase in [
+            "already exists",
+            "duplicate column",
+            "duplicate key",
+            "duplicate constraint",
+        ]
+    )
+
+
 def run_migrations() -> bool:
     """
     Run database migrations.
@@ -154,29 +182,40 @@ def run_migrations() -> bool:
 
         # Check if database exists
         if not check_database_exists():
-            logger.info("Database is empty, running initial migration...")
+            logger.debug("Database is empty, running initial migration...")
         else:
             current = get_current_revision()
             head = get_head_revision()
 
             if current == head and len(heads) == 1:
-                logger.info("Database is up to date, no migrations needed")
+                logger.debug("Database is up to date, no migrations needed")
                 return True
 
             if len(heads) > 1:
-                logger.info(f"Multiple heads detected: {heads}")
-                logger.info("Will upgrade to all heads to resolve branches")
+                logger.debug(f"Multiple heads detected: {heads}")
+                logger.debug("Will upgrade to all heads to resolve branches")
 
-            logger.info(f"Migrating database from {current} to {head or 'heads'}")
+            logger.debug(f"Migrating database from {current} to {head or 'heads'}")
 
         # Run migrations - 'head' will upgrade to all heads if multiple exist
-        command.upgrade(config, "head")
-        logger.info("Database migrations completed successfully")
+        try:
+            command.upgrade(config, "head")
+            logger.debug("Database migrations completed successfully")
+        except OperationalError as op_err:
+            if _is_idempotent_schema_error(op_err):
+                logger.warning(
+                    "Migration DDL reported already-applied schema changes; stamping database to head instead"
+                )
+                if stamp_database("head"):
+                    logger.debug("Database stamped to head after detecting pre-applied schema")
+                    return True
+                logger.error("Stamping database to head failed after idempotent schema error")
+            raise
 
         # After upgrading, check if we now have a single head
         new_heads = script_dir.get_heads()
         if len(new_heads) == 1:
-            logger.info(f"Successfully resolved to single head: {new_heads[0]}")
+            logger.debug(f"Successfully resolved to single head: {new_heads[0]}")
         elif len(new_heads) > 1:
             logger.warning(f"Still have multiple heads after migration: {new_heads}")
             logger.warning("You may need to create a merge migration manually")
@@ -229,7 +268,7 @@ def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
             raise exception[0]
 
         if result[0]:
-            logger.info(f"Database stamped with revision: {revision}")
+            logger.debug(f"Database stamped with revision: {revision}")
 
         return result[0]
 
@@ -252,25 +291,30 @@ def auto_migrate() -> bool:
         bool: True if migration handling was successful, False otherwise
     """
     try:
-        logger.info("Starting automatic database migration check...")
+        logger.debug("Starting automatic database migration check...")
 
         current_revision = get_current_revision()
         head_revision = get_head_revision()
         has_tables = check_database_exists()
 
-        logger.info(f"Database state: current={current_revision}, head={head_revision}, has_tables={has_tables}")
+        logger.debug(
+            "Database state: current=%s, head=%s, has_tables=%s",
+            current_revision,
+            head_revision,
+            has_tables,
+        )
 
         if not has_tables:
             # Empty database - run all migrations
-            logger.info("Empty database detected, running all migrations...")
+            logger.debug("Empty database detected, running all migrations...")
             return run_migrations()
 
         elif current_revision is None and has_tables:
             # Existing database without revision tracking - stamp it as current
-            logger.info("Existing database without revision tracking detected, stamping as current...")
+            logger.debug("Existing database without revision tracking detected, stamping as current...")
             success = stamp_database(head_revision)
             if success:
-                logger.info("Database successfully stamped with current revision")
+                logger.debug("Database successfully stamped with current revision")
             else:
                 logger.warning("Failed to stamp database, but continuing anyway (database is functional)")
                 # Return True to allow the application to continue
@@ -280,12 +324,12 @@ def auto_migrate() -> bool:
 
         elif current_revision != head_revision:
             # Database needs updating
-            logger.info("Database needs updating, running migrations...")
+            logger.debug("Database needs updating, running migrations...")
             return run_migrations()
 
         else:
             # Database is up to date
-            logger.info("Database is up to date")
+            logger.debug("Database is up to date")
             return True
 
     except Exception as e:

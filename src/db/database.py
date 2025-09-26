@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -37,29 +38,56 @@ def ensure_sqlite_directory(database_url: str) -> None:
         logger.info(f"SQLite database file: {sqlite_path}")
 
 
-# Get database URL and ensure directory exists
-DATABASE_URL = get_database_url()
-ensure_sqlite_directory(DATABASE_URL)
-
-# Initialize database (create if needed for PostgreSQL)
-if not initialize_database(DATABASE_URL):
-    logger.error("Failed to initialize database. Please check your database configuration and permissions.")
-    # Continue anyway - let SQLAlchemy fail with a more specific error if needed
-
-# SQLAlchemy engine
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},  # Needed for SQLite
-    )
-else:
-    engine = create_engine(DATABASE_URL)
-
-# Session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+_DATABASE_URL: str | None = None
+_engine: Engine | None = None
+_SessionLocal: sessionmaker | None = None
 
 # Base class for models
 Base = declarative_base()
+
+
+def _initialize_engine() -> None:
+    """Initialize the SQLAlchemy engine and session factory lazily."""
+
+    global _DATABASE_URL, _engine, _SessionLocal
+
+    if _engine is not None and _SessionLocal is not None:
+        return
+
+    database_url = get_database_url()
+    _DATABASE_URL = database_url
+
+    ensure_sqlite_directory(database_url)
+
+    if not initialize_database(database_url):
+        logger.error("Failed to initialize database. Please check your database configuration and permissions.")
+        # Continue anyway - let SQLAlchemy fail with a more specific error if needed
+
+    if database_url.startswith("sqlite"):
+        _engine = create_engine(
+            database_url,
+            connect_args={"check_same_thread": False},  # Needed for SQLite
+        )
+    else:
+        _engine = create_engine(database_url)
+
+    _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+
+
+def get_engine() -> Engine:
+    """Return the lazily initialized SQLAlchemy engine."""
+
+    _initialize_engine()
+    assert _engine is not None
+    return _engine
+
+
+def get_session_factory() -> sessionmaker:
+    """Return the lazily initialized session factory."""
+
+    _initialize_engine()
+    assert _SessionLocal is not None
+    return _SessionLocal
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -67,6 +95,7 @@ def get_db() -> Generator[Session, None, None]:
     Dependency function to get database session.
     Used by FastAPI dependency injection.
     """
+    SessionLocal = get_session_factory()
     db = SessionLocal()
     try:
         yield db
@@ -74,6 +103,13 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def SessionLocal(*args, **kwargs):
+    """Backwards-compatible callable returning a new database session."""
+
+    session_factory = get_session_factory()
+    return session_factory(*args, **kwargs)
+
+
 def create_tables():
     """Create all database tables."""
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=get_engine())

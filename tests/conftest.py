@@ -39,7 +39,7 @@ if "src.config" in sys.modules:
 
 # Import after setting environment
 from src.db.database import Base
-from src.db.models import InstanceConfig, AccessRule  # Import models to register with Base
+from src.db.models import InstanceConfig  # Import models to register with Base
 from src.channels.whatsapp.mention_parser import WhatsAppMentionParser
 from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
 

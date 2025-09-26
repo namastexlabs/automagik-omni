@@ -8,6 +8,7 @@ from src.core.telemetry import track_command, telemetry_client
 from src.cli.instance_cli import app as instance_app
 from src.cli.telemetry_cli import app as telemetry_app
 from src.cli.discord_cli import app as discord_app
+from src.api.app import prepare_runtime
 
 # Create main app
 app = typer.Typer(help="Automagik Omni: Multi-tenant omnichannel messaging hub")
@@ -48,6 +49,13 @@ def start_api(
     try:
         # Track API start command
         track_command("api_start", success=True, host=host, port=port, reload=reload)
+
+        typer.echo("🔧 Preparing Automagik Omni runtime...", err=True)
+        duration = prepare_runtime()
+        if duration <= 0:
+            typer.echo("✅ Runtime already prepared", err=True)
+        else:
+            typer.echo(f"✅ Runtime ready in {duration:.2f}s", err=True)
 
         # Start the API server
         import uvicorn

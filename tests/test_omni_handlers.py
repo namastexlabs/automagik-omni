@@ -8,6 +8,9 @@ Tests both WhatsApp and Discord chat handlers with:
 - Environment configuration validation
 """
 
+import sys
+import types
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
@@ -47,9 +50,30 @@ def mock_httpx_client():
 
 @pytest.fixture(autouse=True)
 def mock_discord_py():
-    """Mock discord.py dependencies globally."""
-    with patch("discord.Client"), patch("discord.Intents"), patch("discord.utils.get"):
-        yield
+    """Mock discord.py dependencies globally, even if the optional package is absent."""
+    created_stub = False
+
+    if "discord" not in sys.modules:
+        created_stub = True
+        discord_stub = types.ModuleType("discord")
+        discord_stub.Client = object()
+        discord_stub.Intents = object()
+
+        utils_stub = types.ModuleType("discord.utils")
+        utils_stub.get = lambda *args, **kwargs: None
+
+        discord_stub.utils = utils_stub
+
+        sys.modules["discord"] = discord_stub
+        sys.modules["discord.utils"] = utils_stub
+
+    try:
+        with patch("discord.Client"), patch("discord.Intents"), patch("discord.utils.get"):
+            yield
+    finally:
+        if created_stub:
+            sys.modules.pop("discord", None)
+            sys.modules.pop("discord.utils", None)
 
 
 class TestWhatsAppChatHandler:
