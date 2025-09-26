@@ -87,6 +87,50 @@ Depth:
 ## Wish Discovery (Optional Secondary Pass)
 > Populate when a second analyst (e.g., `agent` twin or human partner) performs additional discovery. Summarize deltas, additional risks, or consensus notes here.
 
+## 🧾 Reviewer Operating Protocol
+[TASK]
+Shepherd this wish with humans until planning earns 100/100, then coordinate implementation scoring toward 100/100 completion.
+@{wish_path}
+
+<task_breakdown>
+1. [Discovery] Validate referenced systems/evidence before edits
+2. [Planning Iteration] Update architecture with human approval, log decisions
+3. [Verification] Lock planning (100/100) before preparing execution wishes/tasks
+</task_breakdown>
+
+[CONTEXT]
+- Scope: architecture + orchestration guidance (no implementation)
+- Tools: repo search, docs, decision logs, human interviews
+
+[SUCCESS CRITERIA]
+✅ Planning Score reaches 100/100 with human-approved evidence in Status Log & Clearance Log
+✅ Implementation Score remains 0/100 until humans unlock execution evaluation
+✅ Incremental edits only (apply_patch, targeted diffs)
+✅ Open Questions & Clearance Log stays current (owners, status, evidence)
+
+[NEVER DO]
+❌ Adjust scores without explicit human confirmation + linked evidence
+❌ Replace the entire file or collapse roadmap phases without rationale
+❌ Spawn implementation work before Planning Score is 100/100
+
+[WORKSTYLE]
+- Lead with evidence references (paths, commands, data)
+- Summarize progress + score changes in the Status Log after each session
+- Mirror tone/structure across companion wishes for consistency
+
+[HUMAN ALIGNMENT]
+- Maintain live dialogue with human owners until Planning Score is 100/100
+- Require human sign-off before unlocking Implementation Score tracking
+- Log approver + evidence whenever scores change
+
+## 🎯 Evaluation Scoreboard
+- **Planning Score:** 0/100 — Only raise when each blocker in the Clearance Log is resolved with evidence and Status Log cites the approving human.
+- **Implementation Score:** 0/100 — Locked until Planning Score hits 100/100; once unlocked, document validation evidence for execution work.
+
+### Scoring Notes
+- Record every score adjustment in the Status Log with approver, evidence link, and impacted sections.
+- Keep companion wishes in sync when scores change; cross-link evidence where relevant.
+
 ## Executive Summary
 Concise outcome statement tying feature to human impact.
 
@@ -214,14 +258,18 @@ Tailor these patterns to the wish scope. Provide high-signal guidance only.
 
 Expand this catalog as new wish archetypes emerge (performance, infra hardening, compliance). Always define discovery scope, change surface, verification, and hand-offs.
 
-## Open Questions & Assumptions
-Track unknowns, competing options, or items needing human confirmation. Each assumption must include its rationale and the validation plan during execution.
+## Open Questions & Clearance Log
+| Item | Owner | Status | Evidence | Score Impact |
+| --- | --- | --- | --- | --- |
+| Example blocker | Human Owner | Open | — | Planning blocker |
+
+> Update rows as answers land. Mark `Status` = Cleared only after citing evidence (PR, doc, log) and logging human approval in the Status Log. Planning Score may increase once all planning blockers are cleared.
 
 ## Blocker Protocol
 Executors issue a Blocker Testament (`genie/reports/blocker-<group-slug>-<timestamp>.md`) when runtime discovery contradicts the plan. Document notification paths, turnaround expectations, and how the wish will be revised before work resumes.
 
 ## Status Log
-Maintain timestamped entries for revisions, approvals, and significant decisions so future sessions can resume with shared context.
+Maintain timestamped entries for revisions, approvals, score changes (Planning/Implementation), and significant decisions so future sessions can resume with shared context.
 
 ## Guidance for Executors
 - Re-read every referenced file and diagnostic before coding.
@@ -240,3 +288,4 @@ Maintain timestamped entries for revisions, approvals, and significant decisions
 - Keep workspace tidy—edit existing wish files instead of creating variants.
 
 A wish is a human-guided EPIC. Map where to explore, what to deliver, and how to prove success—then let specialist agents bring the implementation to life.
+```
