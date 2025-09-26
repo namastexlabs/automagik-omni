@@ -10,8 +10,9 @@ Provide a perfectly organized option map for Omni’s next evolution so humans c
 
 ## 🧠 Executive Report (Visual Summary)
 - **Priority Pulse**
-  - `[~]` Phase 1 – Event Fabric Foundation is approved and hot (schema, ingestion, migration work starts immediately).
-  - Identity & Lookup upgrade is queued behind Phase 1; the lookup feature (“find Mom across my handles”) is earmarked for a dedicated future wish.
+  - `[~]` Phase 1 – Event Fabric Foundation scope now lives in @genie/wishes/omni-event-fabric-foundation-wish.md (approved priority for immediate execution).
+  - `[~]` Phase 2 – Action Queue System split to @genie/wishes/omni-action-queue-wish.md (deferred until foundation complete).
+  - Identity & Lookup upgrade stays queued behind Phase 1; the lookup feature ("find Mom across my handles") remains earmarked for its own future wish.
 
 - **Current Database Snapshot** *(captured via `sqlite3 data/automagik-omni.db`)*
   - Core tables: `instance_configs`, `users`, `message_traces`, `trace_payloads`, `user_external_ids`, `access_rules`, `allowed_users`, `alembic_version`.
@@ -34,56 +35,67 @@ Provide a perfectly organized option map for Omni’s next evolution so humans c
   - Identity lookup service (Phase 2+): agent-friendly search across all handles with preferred-channel routing.
   - History as a primitive: agents query canonical event store for cross-channel timelines once `omni_events` lands.
 
-## 🧾 Onboarding Prompt (for Incoming Agents)
+## 🧾 Reviewer Operating Protocol
 
 ```
 [TASK]
-Refine the Omni Event Fabric & Action Engine wish alongside humans so it becomes the definitive, prioritized roadmap.
-Treat every pass as a conversation: surface findings, confirm direction, and never advance planning without human commentary or approval.
+Shepherd this wish with humans until planning earns 100/100, then oversee implementation scoring toward 100/100 completion.
 @genie/wishes/omni-event-fabric-and-action-engine.md
+@genie/wishes/omni-event-fabric-foundation-wish.md
 
 <task_breakdown>
-1. [Discovery] Validate every statement in the wish
-   - Investigate referenced modules/tests in the repo
-   - Cross-check assumptions with live code and data artifacts
-   - Review the most recent interaction logs and interview the human for context, unknowns, and priorities before shaping edits
+1. [Discovery] Validate every statement and dependency
+   - Read referenced modules/tests before proposing changes
+   - Surface conflicting facts or missing evidence immediately
+   - Confirm human priorities and unknowns driving this roadmap
 
-2. [Implementation] Curate the wish content with human approval
-   - Highlight conflicting facts or missing evidence
-   - Propose reorganizations (dependencies, priority bands, phase buckets)
-   - Offer to research any outstanding Open Questions (see section below) before drafting updates, and share the plan with the human for sign-off
-   - Apply only human-approved edits via incremental patches
+2. [Planning Iteration] Curate the wish content with human approval
+   - Maintain dependency/phase organization
+   - Capture human decisions inline with evidence links
+   - Do not advance the Planning Score without recorded human sign-off
 
-3. [Verification] Confirm the document is decision-ready
-   - Summarize evidence for each major pillar and confirm alignment with the human
-   - Ensure open questions are current, owners/progress noted, and invite the human to prioritize which to tackle next
-   - Capture human acknowledgements before closing the loop
+3. [Verification] Lock planning, then advance toward implementation readiness
+   - Ensure Open Questions & Clearance Log rows are resolved with evidence before Planning Score hits 100/100
+   - Prepare implementation guidance without coding; tee up execution wishes/forge tasks only after humans approve the plan
+   - Once Planning Score is 100/100, coordinate the Implementation Score with humans and evidence logs
 </task_breakdown>
 
 [CONTEXT]
-- Purpose: help humans decide what stays, what gaps exist, and how to stage delivery.
-- Scope: validation + doc refinement only; never ship features from this wish.
-- Tools: repo exploration (`rg`, `uv run ...`), targeted scripts, and human interviews.
+- Scope: roadmap architecture, prioritization, and evidence—not implementation.
+- Tools: repo exploration (`rg`, `uv run ...`), raw payload assets, human interviews, decision logs.
+- Companion wish: @genie/wishes/omni-event-fabric-foundation-wish.md anchors Phase 1 delivery details.
 
 [SUCCESS CRITERIA]
-✅ Every claim in the wish is either backed by codebase evidence or tagged for follow-up
-✅ Document stays perfectly organized by dependencies, priorities, and roadmap phases
-✅ Human decisions and rationales captured in-line (no silent updates)
-✅ Open questions list remains current with owners/next steps
+✅ Planning Score reaches 100/100 with human-approved evidence recorded in Status Log and Clearance Log
+✅ Implementation Score remains 0/100 until planning is fully cleared and humans authorize execution scoring
+✅ Reviewer updates stay incremental (apply_patch, targeted diffs) with references to validated evidence
+✅ Open Questions & Clearance Log reflects current blockers, owners, and evidence links
 
 [NEVER DO]
-❌ Skip validation—assumptions must be proven or surfaced as risks
-❌ Restructure or trim content without human sign-off
-❌ Create Forge tasks or implementation subwishes from this document; roadmap decisions come first, delivery wishes follow later
-❌ Leave ambiguous statements; clarify with human or flag explicitly
+❌ Modify scores or mark questions cleared without explicit human confirmation and linked evidence
+❌ Collapse roadmap phases or deliverable slices without capturing rationale
+❌ Spawn implementation wishes/forge tasks before Planning Score reaches 100/100
+❌ Replace entire documents—always edit incrementally to preserve review diffs
 
 [WORKSTYLE]
-- Default to evidence-first: cite file paths, line refs, or command outputs.
-- Treat the human as chief editor—present options, gather direction, then act.
-- Before editing, ping the human with a short list of open questions you can investigate (repo search, docs, evidence gathering) and offer to run those dives on their behalf.
-- Track progress against the roadmap phases; note impacts of proposed changes.
-- Close each session with a status snapshot + refreshed decision log.
+- Lead with evidence citations (file paths, commands, data captures).
+- Invite human direction whenever uncertainty remains; document outcomes inline.
+- Sync updates with companion wishes to avoid conflicting guidance.
+- Conclude every session with a Status Log entry summarizing progress toward the two scores.
+
+[HUMAN ALIGNMENT]
+- Keep a live conversation with human decision-makers until Planning Score registers 100/100.
+- Require human acknowledgement before unlocking Implementation Score tracking.
+- When scores change, log the approving human + evidence in the Status Log.
 ```
+
+## 🎯 Evaluation Scoreboard
+- **Planning Score:** 0/100 — Blocked by Open Questions & Clearance Log entries; raise only when each row is cleared with evidence and Status Log notes the approving human.
+- **Implementation Score:** 0/100 — Locked until Planning Score reaches 100/100; once unlocked, track implementation validation evidence here and in the Status Log.
+
+### Scoring Notes
+- Record every score change (even partial increments) in the Status Log with human approver, evidence link, and impacted sections.
+- Cross-reference score updates with @genie/wishes/omni-event-fabric-foundation-wish.md to keep execution guidance synchronized.
 
 ### Status Legend
 - `[x]` committed / already in place
@@ -92,39 +104,9 @@ Treat every pass as a conversation: surface findings, confirm direction, and nev
 
 ## 🕰️ Chronological Progression
 
-### Phase 0A – Context Intake (2025-09-26T04:56:50.754895+00:00)
-- [x] Phase set to concept consolidation; GENIE orchestrates while implementation agents wait for spec lock.
-- [x] Manual capture toolkit staged; `message_table_draft.csv` + `data/raw_webhook_events.jsonl` reference a baseline event catalogue row-by-row.
-- [x] Raw webhook capture lives in a manual sidecar listener (`scripts/raw_webhook_listener.py`) plus helper (`src/utils/raw_webhook_store.py`); production still relies on humans to trigger captures until the event fabric lands.
-- [x] `message_table_draft.csv` built from authentic payloads (stickers, polls) but still tied to legacy naming.
-- [x] Legacy stack: `src/channels/**/*` + `src/services/**/*` orchestrate ingest/routing with WhatsApp-centric assumptions.
-- [x] No public launch → we can replace tables/files without back-compat constraints, provided telemetry isn’t dropped.
-
-### Phase 0B – Background Systems Scan
-- [x] Incoming events flow through WhatsApp-first code: `src/channels/whatsapp/*`, `src/services/trace_service.py`, `src/services/message_router.py`. Key fields/hard-coded behaviours reflect Evolution naming.
-- [x] `message_traces` / `trace_payloads` store only text/media types; no `protocolMessage`/`viewOnce`/`sticker` coverage. Observability depends on these tables.
-- [x] Reply logic is hard-wired in `agent_service.process_whatsapp_message`, mixing transport, persistence, and agent orchestration instead of routing through an engine.
-- [x] Recent load tests surfaced new payload types (`stickerMessage`, `pollCreationMessageV3`) that don’t map cleanly to the legacy schema; deletes/transforms arrive as `protocolMessage` but still aren’t persisted.
-- [x] Instance configuration already exists (`instance_configs`) but naming blurs “instance vs. connection vs. channel”; needs clarity for future connectors.
-- [x] Agents rely on ad hoc trace queries or manual exports; no first-class event query interface.
-
-### Phase 0C – Data Capture Assets
-- [x] Manual raw capture sidecar (`scripts/raw_webhook_listener.py`, `src/utils/raw_webhook_store.py`) records webhook payloads into `data/raw_webhook_events.jsonl` whenever a human triggers the listener.
-- [x] `message_table_draft.csv` mirrors those captures row-by-row, giving a baseline event catalogue (one event per line) to inspect without replaying JSON.
-- [x] `scripts/dump_evolution_events.py` summarizes observed message shapes from both the JSONL file and SQLite traces so we can spot gaps before schema work starts.
-
-### Phase 0D – Evidence & Early Analysis
-
-#### ✅ Signals In Hand
-- [x] Phase 0C assets confirm we can capture authentic payloads and review them offline via `data/raw_webhook_events.jsonl` and the derived `message_table_draft.csv` of one-event-per-line samples.
-- [x] Schema Samples: `message_table_draft.csv` regenerated from authentic payloads; new columns cover forwarding context, mentions, disappearing mode, and new message types (sticker, poll). Reactions/deletes still missing because the backend never stored protocol events.
-- [x] Trace Service Limits: `TraceService._determine_message_type` returns `unknown` for stickers, polls, reactions, view-once types; raw payload logging only happens when tracing is enabled.
-- [x] Instance Model: `instance_configs` already maps provider connections; we must preserve the concept while clarifying naming for non-WhatsApp adapters.
-- [x] Legacy Footprint: `message_traces` / `trace_payloads` underpin today’s telemetry and traces API but are replaceable—no public launch history forces backward compatibility.
-- [x] All ingestion plants under `src/channels` and `src/services`; any new architecture must either wrap or refactor them.
-
-### Phase 0E – Approved Accelerators
-- [x] Omni Events foundation is green-lit; Phase 1 work (schema, ingestion, migrations) is now the top priority and must progress immediately after outstanding open questions are resolved.
+### Phase 0 Findings (archived)
+- Detailed discovery notes, evidence snapshots, and the Phase 1 execution scope moved to @genie/wishes/omni-event-fabric-foundation-wish.md.
+- This umbrella wish now tracks strategic options, undecided capabilities, and follow-on phases beyond the foundation build.
 
 #### 🚨 Risks & Gaps
 Modernization pressure points we must account for regardless of which capabilities we greenlight.
@@ -143,6 +125,7 @@ Modernization pressure points we must account for regardless of which capabiliti
 Foundational pillars we can invest in; each bullet is a potential deliverable slice to keep, defer, or drop.
 
 **Event Backbone**
+*Execution scoped in @genie/wishes/omni-event-fabric-foundation-wish.md; retain high-level options here for roadmap context.*
 - Introduce `src/omni/events/` module housing ingestion, normalization, and the `omni_events` model (typed fields + JSON payload + provider metadata + context).
 - Build a raw payload archive (existing JSONL) plus an accessor for replay/testing.
 - Audit WhatsApp-centric naming across `trace_models`, `trace_service`, `message_router`, `instance_configs`, CLI, API DTOs—rename or adapter-map to neutral fields (`provider_message_id`, `contact_handle`, `provider_status`, etc.).
@@ -446,27 +429,25 @@ flowchart LR
 - [ ] Schedule implementation agents for Phases 1 & 2 once spec is locked.
 - [ ] Document current usages of `message_traces` / `trace_payloads` (API routes, services, cleanup tasks) to guide rewiring effort.
 
-## ❓ Open Questions (To Answer Before Build Wishes)
-- **Workflow Format & Runtime**
-  - Preferred configuration format (YAML, JSON, other) and versioning story?
-  - Execute workflows inline with webhook ingestion or via worker queues?
-  - What representative scenarios (self-chat assistant, partner exception, forwarded media, VIP routing) must the initial DSL support?
+## ❓ Open Questions & Clearance Log
 
-- **Schema & Storage**
-  - Canonical participant identity source: new Omni registry vs. existing CRM/instance configs?
-  - Retention/offload policy for `omni_events` and raw payload archive (TTL, encryption, S3, deletion workflow)? Who signs off?
-  - Should forwarded transcripts/images persist as derived events or metadata on the original message?
-  - Normalize conversation/thread IDs across providers or maintain per-channel mapping table?
-  - Where do workflow/action configs live (database, file-backed, hybrid) and how do we handle dedupe/idempotency semantics?
+| Item | Owner | Status | Evidence | Score Impact |
+| --- | --- | --- | --- | --- |
+| Workflow configuration format (YAML/JSON/other) and versioning approach | Human (Workflow PM) | Open | — | Planning blocker |
+| Workflow execution runtime (inline vs queued workers) | Human (Platform Eng) | Open | — | Planning blocker |
+| Initial DSL scenarios required (self-chat, partner exception, forwarded media, VIP routing) | Human (Ops Lead) | Open | — | Planning blocker |
+| Canonical participant identity source (new Omni registry vs existing CRM/instance configs) | Human (Data Owner) | Open | — | Planning blocker |
+| Retention/offload policy for `omni_events` + raw payload archive (TTL, encryption, S3, deletion workflow) | Human (Compliance) | Open | — | Planning blocker |
+| Derived data stance for transcripts/images (separate events vs original metadata) | Human (Product) | Open | — | Planning blocker |
+| Conversation/thread ID normalization strategy across providers | Human (Platform Eng) | Open | — | Planning blocker |
+| Workflow/action configuration storage location (database vs file-backed vs hybrid) + dedupe semantics | Human (Platform Eng) | Open | — | Planning blocker |
+| Required dashboards/metrics to preserve during migration | Human (Analytics) | Open | — | Planning blocker |
+| Need for dedicated action-execution audit log | Human (Governance) | Open | — | Planning blocker |
+| Throttling/rate-limiting policy when multiple rules fire for a single event | Human (Ops Lead) | Open | — | Planning blocker |
+| `src/channels` / `src/services` phase-out strategy (feature flag vs hard cut) | Human (Engineering Lead) | Open | — | Planning blocker |
+| Approved drop/migration plan for `message_traces` / `trace_payloads` | Human (Engineering Lead) | Open | — | Planning blocker |
 
-- **Operations & Governance**
-  - Required dashboards/metrics to preserve during migration?
-  - Need a dedicated audit log for action execution outcomes beyond telemetry?
-  - How do we throttle/rate-limit when multiple rules fire for the same event?
-
-- **Migration Strategy**
-  - Do we phase out `src/channels`/`src/services` with feature flags or hard cut?
-  - What’s the approved drop/migration plan for `message_traces` / `trace_payloads` (service updates, APIs, telemetry, cleanup, tests)?
+> Reviewers must keep this table current. When a row is cleared, update Status to “Cleared,” cite evidence (PR, doc, log), and note the approving human. Only then may the Planning Score increase.
 
 ## 📝 Agent Updates Log
 
@@ -485,3 +466,9 @@ flowchart LR
 ### 2025-09-27 00:00 UTC – GENIE (Lead Dev Intake)
 - Reviewed the wish, captured Phase 0 orientation findings with supporting evidence snapshots, and surfaced identity/retention/runtime questions for human follow-up.
 - Logged Phase 0 follow-ups (schema RFC, consumer inventory, raw archive retention alignment) to unblock Phase 1 planning conversations.
+
+### 2025-09-27 01:20 UTC – GENIE
+- Extracted Phase 1 Event Fabric scope into @genie/wishes/omni-event-fabric-foundation-wish.md so this document can focus on strategic decisions and later phases.
+
+### 2025-09-27 02:05 UTC – GENIE
+- Established the shared Reviewer Operating Protocol, Evaluation Scoreboard, and Clearance Log; Planning Score remains 0/100 until humans resolve the listed blockers.
