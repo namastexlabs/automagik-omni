@@ -1,6 +1,17 @@
-# 🧞 Omni Event Fabric Foundation WISH
+# 🧞 [01 CHILD] Omni Event Fabric Foundation
 
-**Status:** DRAFT
+**Hierarchy:** 01 Child of @genie/wishes/00-omni-event-fabric-master.md
+**Status:** PLANNING
+**Planning Score:** 80/100
+**Implementation Score:** 0/100
+
+## 🔗 Wish Relationships
+- **Parent:** @genie/wishes/00-omni-event-fabric-master.md
+- **Siblings:**
+  - @genie/wishes/01-omni-event-fabric--action-queue.md (Phase 2)
+  - @genie/wishes/01-omni-event-fabric--identity-lookup.md (Future Phase 3)
+- **Dependencies:** None (first phase)
+- **Dependents:** @genie/wishes/01-omni-event-fabric--action-queue.md
 
 ## Wish Discovery Summary
 - **Primary analyst:** GENIE (2025-09-27)
@@ -14,8 +25,8 @@
 ```
 [TASK]
 Guide this foundation wish to 100/100 planning completeness with humans, then coordinate implementation validation toward 100/100 execution.
-@genie/wishes/omni-event-fabric-foundation-wish.md
-@genie/wishes/omni-event-fabric-and-action-engine.md
+@genie/wishes/01-omni-event-fabric--foundation.md
+@genie/wishes/00-omni-event-fabric-master.md
 
 <task_breakdown>
 1. [Discovery] Confirm assumptions, migrations, and dependencies
@@ -37,7 +48,7 @@ Guide this foundation wish to 100/100 planning completeness with humans, then co
 [CONTEXT]
 - Scope: schema + ingest blueprint for Phase 1; no direct implementation.
 - Tools: alembic migrations, sqlite snapshots, repo tests, human interviews.
-- Dependent doc: @genie/wishes/omni-event-fabric-and-action-engine.md orchestrates broader roadmap decisions.
+- Parent doc: @genie/wishes/00-omni-event-fabric-master.md orchestrates broader roadmap decisions.
 
 [SUCCESS CRITERIA]
 ✅ Planning Score hits 100/100 with cleared Open Questions logged and human approvals captured
@@ -64,12 +75,10 @@ Guide this foundation wish to 100/100 planning completeness with humans, then co
 ```
 
 ## 🎯 Evaluation Scoreboard
-- **Planning Score:** 30/100 — Core blockers cleared (retention, queue split, identity strategy); ready for schema design phase.
-- **Implementation Score:** 0/100 — Locked until Planning Score reaches 100/100 and humans green-light implementation evaluation.
 
 ### Scoring Notes
 - Document score adjustments in the Status Log with approver, evidence link, and affected sections.
-- Coordinate score updates with @genie/wishes/omni-event-fabric-and-action-engine.md so both wishes reflect the same planning status.
+- Coordinate score updates with @genie/wishes/00-omni-event-fabric-master.md so both wishes reflect the same planning status.
 
 ## Wish Discovery (Optional Secondary Pass)
 > None yet – invite a specialist analyst when retention/governance answers surface.
@@ -161,18 +170,33 @@ class IdentityService:
 ## Task Decomposition
 - **Group Name:** schema-foundation
   - **Goal:** Define and migrate the `omni_events` schema plus identity handle support.
-  - **Context to Review:** @alembic/versions/, @src/db/trace_models.py, @scripts/generate_message_table_from_raw.py.
-  - **Creates / Modifies:** alembic migration files, ORM models for `omni_events`, `omni_event_actions`, `omni_identities`, `omni_identity_handles`.
-  - **Evidence:** `uv run alembic upgrade head`, `uv run pytest tests/db/test_omni_events.py -q`, documented SQLite snapshot before/after.
-  - **Dependencies:** Discovery assets validated; retention plan placeholder accepted.
-  - **Hand-off Notes:** Share schema diagram + column glossary with downstream groups.
+  - **Context to Review:** @alembic/versions/, @src/db/trace_models.py, @src/db/models.py (User, UserExternalId), @scripts/generate_message_table_from_raw.py.
+  - **Creates / Modifies:**
+    - New: `alembic/versions/xxx_create_omni_events_schema.py`
+    - New: `src/db/omni_event_models.py` (OmniEvent, OmniEventAction SQLAlchemy models)
+    - New: `src/services/identity_service.py` (centralized identity resolution)
+    - Modified: `src/db/__init__.py` (export new models)
+  - **Evidence:**
+    - `uv run alembic upgrade head` success log
+    - `sqlite3 data/automagik-omni.db ".schema omni_events"` output
+    - `uv run pytest tests/db/test_omni_events.py -v` passing (new test file)
+  - **Dependencies:** None (first phase, creates foundation)
+  - **Hand-off Notes:** Document column mappings from legacy `message_traces` to new `omni_events` for compatibility layer.
 - **Group Name:** ingest-unification
   - **Goal:** Route all inbound provider events through `src/omni/events/` normalization.
   - **Context to Review:** @src/channels/whatsapp/handlers.py, @src/channels/discord/bot_manager.py, @src/services/trace_service.py, @src/services/message_router.py.
-  - **Creates / Modifies:** new ingest adapters, updates to trace service/router to call omni events API, feature flag or toggle to control cut-over.
-  - **Evidence:** `uv run pytest tests/services/test_trace_service.py -k omni_events -q`, manual replay using `scripts/raw_webhook_listener.py` captured as success log.
-  - **Dependencies:** schema-foundation completed, adapters to identity service available.
-  - **Hand-off Notes:** Provide compatibility checklist for API/CLI consumers.
+  - **Creates / Modifies:**
+    - New: `src/omni/` directory structure
+    - New: `src/omni/events/ingest.py` (unified ingestion service)
+    - New: `src/omni/events/normalizers.py` (provider-specific normalizers)
+    - Modified: `src/services/trace_service.py` (add omni_events writer)
+    - Modified: `src/services/message_router.py` (route through omni ingest)
+  - **Evidence:**
+    - `uv run pytest tests/omni/test_ingest.py -v` passing
+    - WhatsApp webhook replay: `curl -X POST localhost:8000/webhook/whatsapp -d @data/raw_webhook_events.jsonl`
+    - SQL verification: `sqlite3 data/automagik-omni.db "SELECT COUNT(*) FROM omni_events"`
+  - **Dependencies:** schema-foundation completed, identity_service available
+  - **Hand-off Notes:** Document feature flag `OMNI_EVENTS_ENABLED` for gradual rollout.
 - **Group Name:** naming-neutralization
   - **Goal:** Remove WhatsApp-specific identifiers from API/CLI surfaces while maintaining adapters.
   - **Context to Review:** @src/api/routes/traces.py, @src/services/streaming_trace_context.py, @src/cli/commands/, `message_table_draft.csv`.
@@ -198,12 +222,104 @@ class IdentityService:
 
 > Close each row with human approval + evidence before raising the Planning Score. Update Status to “Cleared” and cite logs/scripts/decisions in the Evidence column.
 
+## Implementation Sequence & Rollback Strategy
+
+### Phase 1A: Schema Foundation (Days 1-2)
+1. Create alembic migration for `omni_events` table
+2. Build SQLAlchemy models in `src/db/omni_event_models.py`
+3. Implement `IdentityService` in `src/services/identity_service.py`
+4. Write comprehensive tests in `tests/db/test_omni_events.py`
+5. **Rollback**: `uv run alembic downgrade -1` removes schema cleanly
+
+### Phase 1B: Ingest Pipeline (Days 3-4)
+1. Create `src/omni/events/` module structure
+2. Build normalizers for WhatsApp and Discord
+3. Add feature flag `OMNI_EVENTS_ENABLED` (default: False)
+4. Parallel write to both legacy and new tables when flag enabled
+5. **Rollback**: Disable feature flag, no data loss as legacy continues
+
+### Phase 1C: Validation & Cutover (Days 5-6)
+1. Data validation: Compare counts and content between tables
+2. Performance testing: Measure query latency for recent events
+3. Gradual rollout: Enable for specific instances first
+4. Full cutover: Switch default to new pipeline
+5. **Rollback**: Revert feature flag, legacy tables remain intact
+
+## Performance Benchmarks
+
+### Target Metrics
+- **Ingest latency**: < 50ms per event (p99)
+- **Query performance**: Recent events (24h) < 100ms
+- **Identity resolution**: < 10ms cached, < 50ms uncached
+- **Storage overhead**: < 20% increase vs current tables
+
+### Measurement Plan
+```sql
+-- Baseline current performance
+EXPLAIN QUERY PLAN SELECT * FROM message_traces
+WHERE created_at > datetime('now', '-24 hours');
+
+-- Compare with new schema
+EXPLAIN QUERY PLAN SELECT * FROM omni_events
+WHERE created_at > datetime('now', '-24 hours');
+```
+
+## Test Strategy & Validation
+
+### Unit Test Coverage
+- `tests/db/test_omni_events.py`: Schema, constraints, indexes
+- `tests/services/test_identity_service.py`: Resolution logic, caching
+- `tests/omni/test_normalizers.py`: Provider payload normalization
+
+### Integration Testing
+- `tests/omni/test_ingest.py`: End-to-end event flow
+- `tests/api/test_omni_events_api.py`: REST endpoints
+- `tests/test_migration.py`: Legacy compatibility layer
+
+### Validation Criteria
+✅ 100% backward compatibility: All existing API calls return same data
+✅ Zero data loss: Every legacy event migrated or accessible
+✅ Performance maintained: No regression in p95 latencies
+✅ Provider parity: WhatsApp and Discord events fully captured
+
+## Data Migration Mapping
+
+### Legacy to Omni Field Mappings
+```python
+FIELD_MAPPINGS = {
+    # message_traces -> omni_events
+    'trace_id': 'id',
+    'wamid': 'provider_event_id',
+    'sender_phone': 'sender_handle',
+    'recipient_phone': 'recipient_handle',
+    'message_body': 'content_text',
+    'message_type': 'content_type',
+    'wa_status': 'status',
+    'created_at': 'provider_timestamp',
+
+    # Computed fields
+    'provider': lambda row: 'whatsapp',  # Hardcoded for legacy
+    'event_type': lambda row: 'message' if row['direction'] == 'inbound' else 'status',
+    'sender_identity_id': lambda row: resolve_identity('whatsapp', row['sender_phone']),
+    'recipient_identity_id': lambda row: resolve_identity('whatsapp', row['recipient_phone']),
+}
+```
+
+### Backfill Strategy
+1. Run in batches of 10,000 rows to avoid locking
+2. Process oldest data first (already cold)
+3. Maintain mapping table for trace_id -> omni_event.id
+4. Verify counts and spot-check content after each batch
+
 ## Blocker Protocol
 - If ingestion fails to resolve `identity_id` for a provider, pause rollout and file a Blocker Testament referencing schema-foundation.
 - Escalate immediately when telemetry consumers lose fields or see regression in `/api/v1/traces` responses.
 - Halt cut-over if retention plan remains unsigned; document interim storage usage before proceeding.
+- Stop if performance benchmarks exceed targets by >50%.
 
 ## Status Log
 - 2025-09-27 – GENIE drafted foundation wish, extracted approved Phase 1 scope from omni-event-fabric master document.
 - 2025-09-27 02:05 UTC – GENIE aligned with umbrella wish on Reviewer Operating Protocol, Evaluation Scoreboard, and Clearance Log; Planning Score remains 0/100 pending human sign-off on listed blockers.
 - 2025-09-26 – Human (namastex) cleared all three blockers: simplified retention (no tiering until pain), queue split to separate wish, centralized IdentityService approved. Planning Score raised to 30/100.
+- 2025-09-26 – Claude analyzed planning completeness: verified existing models (User, UserExternalId in src/db/models.py), legacy tables (message_traces, trace_payloads in src/db/trace_models.py), confirmed no existing identity_service. Enhanced task decomposition with specific file paths and evidence requirements. Planning Score raised to 60/100.
+- 2025-09-26 – Claude added Implementation Sequence with rollback strategy, Performance Benchmarks with target metrics, Test Strategy with validation criteria, and Data Migration Mapping with field mappings. Planning Score raised to 80/100. Remaining 20%: Final human approval on implementation sequence and confirmation of performance targets.

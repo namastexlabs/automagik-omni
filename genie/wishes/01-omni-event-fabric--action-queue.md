@@ -1,8 +1,17 @@
-# 🧞 Omni Action Queue WISH
+# 🧞 [01 CHILD] Omni Action Queue System
 
+**Hierarchy:** 01 Child of @genie/wishes/00-omni-event-fabric-master.md
 **Status:** DRAFT
-**Parent Wish:** @genie/wishes/omni-event-fabric-and-action-engine.md
-**Dependency:** @genie/wishes/omni-event-fabric-foundation-wish.md (must complete first)
+**Planning Score:** 0/100
+**Implementation Score:** 0/100
+
+## 🔗 Wish Relationships
+- **Parent:** @genie/wishes/00-omni-event-fabric-master.md
+- **Siblings:**
+  - @genie/wishes/01-omni-event-fabric--foundation.md (Phase 1 - must complete first)
+  - @genie/wishes/01-omni-event-fabric--identity-lookup.md (Future Phase 3)
+- **Dependencies:** @genie/wishes/01-omni-event-fabric--foundation.md
+- **Dependents:** None yet
 
 ## Executive Summary
 Build a robust asynchronous action processing system for Omni events, enabling reliable webhook handling, retry logic, and scalable action execution without blocking the ingestion pipeline.
