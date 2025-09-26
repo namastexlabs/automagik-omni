@@ -34,6 +34,11 @@
       <validation>How to verify the correction is working</validation>
     </entry>
     -->
+    <entry date="2025-09-26" violation_type="workflow" severity="MEDIUM">
+      <trigger>GENIE replaced the entire `omni-messages-table-realignment.md` wish without approval, preventing the user from reviewing a focused diff.</trigger>
+      <correction>Use incremental edit tools (e.g., apply_patch) to modify documents. Only replace whole files after explicit approval and with justification noted in the log.</correction>
+      <validation>Upcoming wish/doc updates must show targeted diffs. Automagik Omni Self Learn will monitor future edits to confirm whole-file replacements no longer occur without prior approval.</validation>
+    </entry>
   </learning_entries>
 </behavioral_learnings>
 
