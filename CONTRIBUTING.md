@@ -1,400 +1,380 @@
 # Contributing to Automagik Omni
 
-Thank you for your interest in contributing to Automagik Omni! We're building the universal messaging hub for AI agents, and we'd love your help making it even better.
+First off, thank you for considering contributing to Automagik Omni! It's people like you that make Automagik Omni the best omnipresent messaging hub for AI agents.
 
-## 🚀 Quick Start
+## 🎯 Philosophy
 
-1. **Fork** the repository on GitHub
-2. **Clone** your fork: `git clone https://github.com/YOUR_USERNAME/automagik-omni`
-3. **Install** dependencies: `make install`
-4. **Set up** environment: `cp .env.example .env`
-5. **Run** migrations: `make migrate`
-6. **Create** a branch: `git checkout -b feature/your-feature-name`
-7. **Make** your changes
-8. **Test**: `make test`
-9. **Push** and create a Pull Request
+Automagik Omni is built by practitioners, for practitioners. We value:
 
-## 📋 What We're Looking For
+- **Production readiness** over feature completeness
+- **Developer experience** over implementation complexity
+- **Universal compatibility** over platform lock-in
+- **Clear communication** over assumed understanding
 
-### New Channel Integrations
-- **Messaging platforms**: Slack, Telegram, Instagram, etc.
-- **Enterprise channels**: Microsoft Teams, LinkedIn Messages
-- **Regional platforms**: WeChat, Line, Viber
-- **Documentation**: Clear setup guides for each channel
+## 🚀 Ways to Contribute
 
-### Core Features
-- **Access control**: Whitelist/blacklist systems
-- **Message routing**: Intelligent routing and filtering
-- **Analytics**: Enhanced tracing and insights
-- **Performance**: Optimization and scalability improvements
+### 1. Report Bugs 🐛
 
-### Developer Experience
-- **Better errors**: Clear, actionable error messages
-- **More examples**: Sample integrations and use cases
-- **CLI improvements**: Enhanced command-line tools
-- **Documentation**: Tutorials, guides, and API references
+Found a bug? Help us squash it!
 
-## 🛠️ Development Process
+**Before submitting:**
+- Check if the bug has already been reported in [Issues](https://github.com/namastexlabs/automagik-omni/issues)
+- Verify the bug exists in the latest version
+- Collect relevant information (OS, Python version, error messages, logs)
 
-### 1. Setting Up
+**When submitting:**
+```markdown
+**Bug Description**: Clear, concise description of the problem
+
+**Steps to Reproduce**:
+1. Step one
+2. Step two
+3. Expected vs actual behavior
+
+**Environment**:
+- OS: [e.g., Ubuntu 22.04]
+- Python: [e.g., 3.12.1]
+- Omni Version: [e.g., 1.2.3]
+- Channel: [e.g., WhatsApp, Discord]
+
+**Logs/Screenshots**:
+[Attach relevant logs or screenshots]
+```
+
+### 2. Add New Channels ✨
+
+Want to integrate a new messaging platform?
+
+**Good channel proposals include:**
+- **Platform details**: Which messaging service?
+- **Use cases**: Why this channel matters
+- **API availability**: Does the platform have a stable API?
+- **Technical requirements**: Authentication, webhooks, etc.
+
+### 3. Improve Documentation 📚
+
+Documentation improvements are always welcome:
+- Fix typos or clarify confusing sections
+- Add examples for common use cases
+- Create tutorials or integration guides
+- Document edge cases and troubleshooting
+
+### 4. Submit Code 💻
+
+Ready to code? Awesome! Here's how to get started.
+
+## 🛠️ Development Setup
+
+### Prerequisites
+
+- Python 3.12+ (3.11+ supported)
+- PostgreSQL 16+ or SQLite (for development)
+- Git
+- Evolution API instance (for WhatsApp testing)
+- Discord Bot Token (for Discord testing)
+
+### Setup Steps
 
 ```bash
-# Clone and install
-git clone https://github.com/namastexlabs/automagik-omni
+# 1. Fork and clone the repository
+git clone https://github.com/YOUR_USERNAME/automagik-omni.git
 cd automagik-omni
 
-# Install with UV (fast Python package manager)
+# 2. Install dependencies
 make install
 
-# Set up environment
+# 3. Set up environment
 cp .env.example .env
-# Edit .env with your test credentials
+# Edit .env with your configuration
 
-# Run migrations
+# 4. Run database migrations
 make migrate
 
-# Start development server
+# 5. Run tests to verify setup
+make test
+
+# 6. Start development server
 make dev
 ```
 
-### 2. Making Changes
+## 📋 Development Workflow
+
+### 1. Create a Feature Branch
 
 ```bash
-# Create feature branch from main
-git checkout -b feature/your-feature-name
-
-# Make your changes
-# Edit files...
-
-# Test locally
-make test
-make lint
-
-# Run specific tests
-pytest tests/test_your_feature.py -v
+git checkout -b feature/telegram-integration
+# or
+git checkout -b fix/whatsapp-timeout
 ```
 
-### 3. Testing
+**Branch naming conventions:**
+- `feature/` - New channel integrations or features
+- `fix/` - Bug fixes
+- `docs/` - Documentation updates
+- `refactor/` - Code refactoring
+- `test/` - Test additions or fixes
+
+### 2. Make Your Changes
+
+**Key principles:**
+- Follow existing channel handler patterns
+- Write or update tests for your changes
+- Update documentation as needed
+- Keep commits focused and atomic
+
+**Code style:**
+```bash
+# Run linting
+make lint
+
+# Format code
+make format
+
+# Check all quality gates
+make check
+```
+
+### 3. Test Your Changes
 
 ```bash
 # Run all tests
 make test
 
+# Run specific test files
+pytest tests/channels/test_whatsapp.py
+
 # Run with coverage
-pytest --cov=automagik_omni tests/
+make test-coverage
 
-# Test specific module
-pytest tests/services/test_message_handler.py -v
-
-# Check code quality
-make lint
-make format
+# Test your changes manually
+make dev  # Start server and verify functionality
+curl http://localhost:8000/health
 ```
 
-### 4. Submitting
+### 4. Commit Your Changes
+
+**Commit message format:**
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+**Types:**
+- `feat`: New feature or channel
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `test`: Test additions or changes
+- `chore`: Maintenance tasks
+
+**Examples:**
+```bash
+git commit -m "feat(channels): add Telegram integration"
+git commit -m "fix(whatsapp): handle webhook timeout gracefully"
+git commit -m "docs(readme): update channel integration guide"
+```
+
+### 5. Push and Create Pull Request
 
 ```bash
-# Commit with conventional commits
-git add .
-git commit -m "feat: add Telegram integration"
-
 # Push to your fork
-git push origin feature/your-feature-name
-
-# Create Pull Request on GitHub
+git push origin feature/telegram-integration
 ```
+
+Then create a Pull Request on GitHub.
 
 ## 📝 Pull Request Guidelines
 
 ### PR Title Format
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-
-- `feat: Add Slack channel integration`
-- `fix: Handle rate limiting in WhatsApp API`
-- `docs: Update installation guide`
-- `refactor: Simplify message routing logic`
-- `test: Add integration tests for Discord`
-- `chore: Update dependencies`
+Follow the same format as commit messages:
+```
+feat(channels): add Telegram channel support
+```
 
 ### PR Description Template
 
 ```markdown
 ## Description
-Brief description of what this PR does
+Brief description of what this PR does.
 
-## Motivation
-Why is this change needed?
+## Type of Change
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New channel integration
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Documentation update
 
-## Changes
+## Related Issues
+Fixes #123
+Related to #456
+
+## Changes Made
 - Change 1
 - Change 2
 - Change 3
 
-## Testing
-How to test these changes:
-1. Step 1
-2. Step 2
-3. Expected result
+## Testing Done
+- [ ] Added/updated unit tests
+- [ ] Added/updated integration tests
+- [ ] Manual testing with actual messaging platform
+- [ ] All existing tests pass
 
-## Breaking Changes
-List any breaking changes (if applicable)
-
-## Screenshots
-Add screenshots for UI changes (if applicable)
+## Checklist
+- [ ] Code follows project style guidelines
+- [ ] Self-reviewed my own code
+- [ ] Commented code where necessary
+- [ ] Updated documentation
+- [ ] No sensitive data or credentials in code
+- [ ] Environment variables documented in .env.example
+- [ ] Channel configuration tested with real messages
 ```
 
-### PR Checklist
+### Review Process
 
-Before submitting, ensure:
+1. **Automated Checks**: CI/CD runs tests and linting
+2. **Code Review**: Maintainers review your code
+3. **Feedback**: Address any requested changes
+4. **Approval**: Once approved, your PR will be merged
 
-- [ ] Tests pass (`make test`)
-- [ ] Code is formatted (`make format`)
-- [ ] Code passes linting (`make lint`)
-- [ ] Documentation updated (if needed)
-- [ ] Tests added for new features
-- [ ] PR title follows conventional commits
-- [ ] No sensitive credentials in code
-- [ ] Environment variables added to `.env.example`
+**What reviewers look for:**
+- Code quality and pattern consistency
+- Test coverage for changes
+- Documentation updates
+- Security considerations (credential handling)
+- Performance implications (message throughput)
 
-## 🧪 Testing Guidelines
+## 🏗️ Project Architecture
 
-### Unit Tests
+Understanding the codebase structure helps you contribute effectively:
 
+```
+automagik-omni/
+├── automagik_omni/          # Main application
+│   ├── channels/            # Channel handlers
+│   │   ├── whatsapp/        # WhatsApp integration
+│   │   ├── discord/         # Discord integration
+│   │   └── base.py          # Base channel handler
+│   ├── api/                 # FastAPI application
+│   │   └── routes/          # API endpoints
+│   ├── models/              # Database models
+│   ├── services/            # Business logic
+│   └── utils/               # Shared utilities
+├── tests/                   # Test suite
+│   ├── channels/            # Channel tests
+│   ├── api/                 # API tests
+│   └── integration/         # Integration tests
+├── docs/                    # Documentation
+└── migrations/              # Database migrations
+```
+
+### Key Patterns
+
+**Channel Handler Pattern:**
 ```python
-import pytest
-from automagik_omni.services.message_handler import MessageHandler
+# automagik_omni/channels/my_channel/handler.py
+class MyChannelHandler(BaseChannelHandler):
+    """Handler for My Channel platform."""
 
+    async def send_message(self, phone: str, message: str):
+        """Send text message through My Channel."""
+        # Implementation here
+        pass
+
+    async def receive_webhook(self, data: dict):
+        """Process incoming webhook from My Channel."""
+        # Implementation here
+        pass
+```
+
+**Instance Configuration:**
+```python
+# Create instance via API
+instance = {
+    "name": "my-bot",
+    "channel_type": "my_channel",
+    "api_url": "https://api.mychannel.com",
+    "api_key": "secret_key",
+    "agent_url": "https://my-agent.com/chat"
+}
+```
+
+**Testing Pattern:**
+```python
+# tests/channels/test_my_channel.py
 @pytest.mark.asyncio
-async def test_message_routing():
-    """Test message routing to correct agent."""
-    handler = MessageHandler()
-
-    # Arrange
-    message = {"text": "Hello", "from": "+1234567890"}
-
-    # Act
-    result = await handler.route_message(message)
-
-    # Assert
-    assert result.status == "success"
-    assert result.agent_id is not None
+async def test_send_message():
+    handler = MyChannelHandler()
+    result = await handler.send_message("+123456789", "Test")
+    assert result["status"] == "success"
 ```
 
-### Integration Tests
+## 🎓 Learning Resources
 
-```python
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_whatsapp_flow():
-    """Test complete WhatsApp message flow."""
-    # Test with real Evolution API (requires test instance)
-    async with TestClient() as client:
-        response = await client.post(
-            "/api/v1/instances/test-bot/send-text",
-            json={"phone": "+1234567890", "message": "Test"}
-        )
-        assert response.status_code == 200
-```
+### Documentation
+- [Main README](README.md) - Overview and quick start
+- [API Documentation](docs/api.md) - API reference
+- [Channel Integration Guide](docs/channels.md) - Adding new channels
 
-### Testing Best Practices
+### External Resources
+- [FastAPI Documentation](https://fastapi.tiangolo.com/) - API framework
+- [Evolution API](https://evolution-api.com/docs) - WhatsApp integration
+- [Discord.py Documentation](https://discordpy.readthedocs.io/) - Discord bots
 
-1. **Mock external services**: Use `pytest-mock` for API calls
-2. **Use fixtures**: Share test setup with `conftest.py`
-3. **Test edge cases**: Null values, empty strings, rate limits
-4. **Async tests**: Mark with `@pytest.mark.asyncio`
-5. **Database tests**: Use test database or in-memory SQLite
+## ❓ Questions?
 
-## 📚 Documentation
+### Get Help
 
-When contributing, update relevant documentation:
+- **Discord**: [Join our community](https://discord.gg/xcW8c7fF3R)
+- **GitHub Discussions**: [Ask questions](https://github.com/namastexlabs/automagik-omni/discussions)
+- **Twitter**: [@namastexlabs](https://twitter.com/namastexlabs)
 
-### README.md
-- Add new features to feature list
-- Update installation steps if changed
-- Add examples for new functionality
+### Before Asking
 
-### API Documentation
-- Document new endpoints
-- Add request/response examples
-- List query parameters and headers
+1. Search existing issues and discussions
+2. Check documentation (README, API docs, etc.)
+3. Review the [DeepWiki docs](https://deepwiki.com/namastexlabs/automagik-omni)
 
-### Code Documentation
-```python
-async def send_message(
-    instance_name: str,
-    phone: str,
-    message: str
-) -> MessageResult:
-    """Send text message through instance.
+## 📜 Code of Conduct
 
-    Args:
-        instance_name: Name of the messaging instance
-        phone: Recipient phone number with country code
-        message: Text message to send
+### Our Pledge
 
-    Returns:
-        MessageResult with message ID and status
+We are committed to providing a welcoming and inspiring community for all. Please be respectful and constructive in all interactions.
 
-    Raises:
-        InstanceNotFoundError: If instance doesn't exist
-        ValidationError: If phone number is invalid
+### Our Standards
 
-    Example:
-        >>> result = await send_message("my-bot", "+1234567890", "Hello!")
-        >>> print(result.message_id)
-        "msg_abc123"
-    """
-```
+- **Be welcoming**: Help newcomers feel at home
+- **Be respectful**: Disagree professionally
+- **Be constructive**: Provide actionable feedback
+- **Be patient**: Remember we're all learning
 
-## 🏗️ Architecture Guidelines
+## 🎉 Recognition
 
-### Project Structure
-
-```
-automagik_omni/
-├── api/              # FastAPI routes and endpoints
-├── services/         # Business logic
-├── models/           # Database models
-├── handlers/         # Channel-specific handlers
-├── mcp/              # MCP server implementation
-└── utils/            # Shared utilities
-
-tests/
-├── unit/             # Unit tests
-├── integration/      # Integration tests
-└── conftest.py       # Shared fixtures
-```
-
-### Code Style
-
-- **Python 3.12+**: Use modern Python features
-- **Type hints**: Always use type annotations
-- **Async/await**: Prefer async for I/O operations
-- **Pydantic**: Use for data validation
-- **SQLAlchemy**: Use for database operations
-- **FastAPI**: Follow FastAPI best practices
-
-### Naming Conventions
-
-```python
-# Classes: PascalCase
-class MessageHandler:
-    pass
-
-# Functions/methods: snake_case
-async def send_message():
-    pass
-
-# Constants: UPPER_SNAKE_CASE
-MAX_RETRIES = 3
-
-# Private: prefix with underscore
-def _internal_helper():
-    pass
-```
-
-## 🔒 Security Guidelines
-
-### Sensitive Data
-
-- **Never commit** API keys, tokens, or credentials
-- **Use** environment variables for all secrets
-- **Add** new secrets to `.env.example` (without values)
-- **Validate** all user inputs
-- **Sanitize** error messages (no credential leaks)
-
-### API Security
-
-```python
-# Good: Use environment variables
-api_key = os.getenv("EVOLUTION_API_KEY")
-
-# Bad: Hardcoded credentials
-api_key = "abc123xyz"  # NEVER DO THIS!
-```
-
-## 🌍 Channel Integration Guidelines
-
-### Adding a New Channel
-
-1. **Create handler**: `automagik_omni/handlers/your_channel.py`
-2. **Implement interface**: Follow `BaseChannelHandler`
-3. **Add config**: Environment variables for credentials
-4. **Add tests**: Unit and integration tests
-5. **Document**: Setup guide and examples
-
-### Channel Handler Template
-
-```python
-from automagik_omni.handlers.base import BaseChannelHandler
-
-class YourChannelHandler(BaseChannelHandler):
-    """Handler for Your Channel integration."""
-
-    async def send_text(self, recipient: str, message: str) -> dict:
-        """Send text message."""
-        pass
-
-    async def send_media(self, recipient: str, media_url: str) -> dict:
-        """Send media message."""
-        pass
-
-    async def get_status(self) -> dict:
-        """Get connection status."""
-        pass
-```
-
-## 🤝 Code of Conduct
-
-We are committed to providing a welcoming and inclusive experience:
-
-- **Be respectful**: Treat everyone with respect and kindness
-- **Be inclusive**: Welcome newcomers and diverse perspectives
-- **Be constructive**: Focus on helpful feedback
-- **Be professional**: Keep interactions professional
-- **Assume good faith**: Presume positive intentions
-
-## 💬 Getting Help
-
-### Community
-
-- **Discord**: [Join our server](https://discord.gg/xcW8c7fF3R)
-- **GitHub Issues**: Search existing issues or create new ones
-- **GitHub Discussions**: Ask questions and share ideas
-
-### Resources
-
-- **Documentation**: [DeepWiki Docs](https://deepwiki.com/namastexlabs/automagik-omni)
-- **API Reference**: See `/docs` endpoint when running locally
-- **Examples**: Check `examples/` directory
-
-## 🎯 Current Priorities
-
-We're especially interested in contributions for:
-
-1. **Slack Integration** (Q4 2025 priority)
-2. **Access Control** (Whitelist/blacklist)
-3. **WhatsApp Business API** (Flows support)
-4. **Performance Optimization** (Scalability)
-5. **Documentation** (Tutorials and guides)
-6. **Test Coverage** (Expand test suite)
-
-## 🏆 Recognition
-
-Contributors are valued and recognized:
-
+Contributors who make significant impacts will be:
 - Listed in our README acknowledgments
 - Mentioned in release notes
-- Invited to contributor Discord channel
-- Priority support for future contributions
+- Invited to our contributors' Discord channel
+- Given priority support for their own projects using Omni
 
-## 📜 License
+## 🔒 Security
 
-By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
+If you discover a security vulnerability, please email security@namastex.ai instead of opening a public issue.
+
+## 📄 License
+
+By contributing to Automagik Omni, you agree that your contributions will be licensed under the Apache License 2.0.
 
 ---
 
-**Thank you for contributing to Automagik Omni!** 🌐
+<p align="center">
+  <strong>Thank you for contributing to Automagik Omni! 🎉</strong><br>
+  Together, we're building the future of omnipresent AI messaging.
+</p>
 
-Every contribution, no matter how small, helps us build the universal messaging hub for AI agents.
+<p align="center">
+  Made with ❤️ by <a href="https://namastex.ai">Namastex Labs</a> and amazing contributors like you
+</p>
