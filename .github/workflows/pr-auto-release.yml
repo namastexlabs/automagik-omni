@@ -151,8 +151,8 @@ jobs:
             echo "✅ No changes needed"
           else
             git add pyproject.toml
-            git commit -m "chore: bump version to ${{ needs.check-conditions.outputs.new_version }} [skip ci]
-            
+            git commit -m "chore: bump version to ${{ needs.check-conditions.outputs.new_version }}
+
             Co-authored-by: Automagik Genie 🧞 <genie@namastex.ai>"
             
             git push origin ${{ github.event.pull_request.head.ref }}
