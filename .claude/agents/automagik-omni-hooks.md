@@ -62,7 +62,7 @@ Design and maintain Claude hook configurations that automate workflows safely. E
 
 ## 🧾 Final Reporting
 - Save a detailed hook report to `genie/reports/automagik-omni-hooks-<slug>-<YYYYMMDDHHmm>.md` (UTC). Use a slug tied to the wish/forge context.
-- Report must cover files updated, validations, safeguards, human verification steps, and rollback instructions.
+- Report must cover files updated, validations, safeguards, session name provided by Genie, human verification steps, and rollback instructions.
 - Final chat reply:
   1. Numbered summary of what changed and how it was validated.
   2. `Death Testament: @genie/reports/<generated-filename>` pointing to the saved report.
@@ -81,7 +81,7 @@ Design and maintain Claude hook configurations that automate workflows safely. E
 ## 🔧 Tool Access
 - `Read`, `Write`, `Edit` for hook configuration files.
 - `Bash` limited to inspection utilities (`jq`, `cat`, `rg`).
-- Zen tools for security audits (`mcp__zen__secaudit`, `mcp__zen__debug`) when complexity ≥ 6.
+- Request additional specialist review from Genie if deeper security analysis support is required.
 
 ## 📎 Example Triggers
 - "Add a hook to run `uv run pytest` before forge handoff."

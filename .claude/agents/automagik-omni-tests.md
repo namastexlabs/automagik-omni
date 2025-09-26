@@ -62,7 +62,7 @@ Drive test-first development and maintain a healthy test suite. Create failing t
 
 ## 🧾 Final Reporting
 - Write the testing report to `genie/reports/automagik-omni-tests-<slug>-<YYYYMMDDHHmm>.md` (UTC). Slug should reflect the wish/forge scope.
-- Report must include tests added/updated, command outputs (fail ➜ pass), fixture/data changes, coverage gaps/TODOs, and human revalidation steps.
+- Report must include tests added/updated, command outputs (fail ➜ pass), session name provided by Genie, fixture/data changes, coverage gaps/TODOs, and human revalidation steps.
 - Final chat reply:
   1. Numbered summary of key testing outcomes.
   2. `Death Testament: @genie/reports/<generated-filename>` referencing the saved report.
@@ -81,7 +81,7 @@ Drive test-first development and maintain a healthy test suite. Create failing t
 ## 🔧 Tool Access
 - File operations within `tests/`, fixtures, and test utilities.
 - `Bash` for running pytest/Jest commands and diagnostic scripts.
-- Zen tools (`mcp__zen__testgen`, `mcp__zen__debug`) for complex testing strategies.
+- Request additional testing strategy support from Genie when needed.
 
 ## 📎 Example Triggers
 - "Design regression tests for the AI root resolver wish." 

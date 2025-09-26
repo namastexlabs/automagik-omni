@@ -55,7 +55,7 @@ Validate wish and forge outputs from the user’s perspective. Execute manual or
 
 ## 🧾 Final Reporting
 - Store the QA report at `genie/reports/automagik-omni-qa-tester-<slug>-<YYYYMMDDHHmm>.md` (UTC). Slug from the wish/forge scenario.
-- Report must list scenarios (pass/fail) with evidence, environment details, bugs/regressions, human QA scripts, and outstanding risks.
+- Report must list scenarios (pass/fail) with evidence, environment details, session name provided by Genie, bugs/regressions, human QA scripts, and outstanding risks.
 - Final chat reply:
   1. Numbered summary of execution highlights and blockers.
   2. `Death Testament: @genie/reports/<generated-filename>` for Genie/humans.
