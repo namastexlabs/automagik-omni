@@ -1,98 +1,125 @@
 <p align="center">
-  <a href="https://omni.automag.ik">
-    <img src="docs/omni-logo.svg" alt="Automagik Omni Logo" width="400">
-  </a>
+  <img src="docs/omni-logo.svg" alt="Automagik Omni Logo" width="400">
 </p>
-<h2 align="center">The Omnipresent Multi-Channel Messaging Hub for AI Agents</h2>
+<h2 align="center">The Omnipresent Messaging Hub for AI Agents</h2>
 
 <p align="center">
   <strong>🌐 One Integration, All Channels, Zero Headaches</strong><br>
-  Connect your AI agents to WhatsApp, Discord, Slack, and more through a unified API,<br>
-  with complete multi-tenant isolation, message tracing, and production-grade reliability
+  Connect your AI agents to WhatsApp, Discord, Slack, and more—all through one unified API<br>
+  Multi-tenant, production-ready, and built for scale
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/automagik-omni"><img alt="npm version" src="https://img.shields.io/npm/v/automagik-omni?style=flat-square&color=00D9FF" /></a>
   <a href="https://github.com/namastexlabs/automagik-omni/actions"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/namastexlabs/automagik-omni/test.yml?branch=main&style=flat-square" /></a>
   <a href="https://github.com/namastexlabs/automagik-omni/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/namastexlabs/automagik-omni?style=flat-square&color=00D9FF" /></a>
-  <a href="https://discord.gg/automagik"><img alt="Discord" src="https://img.shields.io/discord/1234567890?style=flat-square&color=00D9FF&label=discord" /></a>
+  <a href="https://discord.gg/xcW8c7fF3R"><img alt="Discord" src="https://img.shields.io/discord/1234567890?style=flat-square&color=00D9FF&label=discord" /></a>
 </p>
 
 <p align="center">
   <a href="#-what-is-automagik-omni">What is Omni?</a> •
   <a href="#-key-features">Features</a> •
   <a href="#-quick-start">Quick Start</a> •
-  <a href="#-supported-channels">Channels</a> •
+  <a href="#-architecture">Architecture</a> •
   <a href="#-roadmap">Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
-
-![Automagik Omni Dashboard](docs/omni-dashboard.png)
 
 ---
 
 ## 🚀 What is Automagik Omni?
 
-**Automagik Omni** is the intelligent messaging hub that connects your AI agents to the world. Think of it as a **specialized postman** that knows every address (messaging platform), speaks every language (protocol), and ensures your AI's messages reach users wherever they are.
+**Automagik Omni** is your AI agent's universal translator for the messaging world. Think of it as an **intelligent postman** who:
+- 🗺️ Knows every address (WhatsApp, Discord, Slack, Instagram...)
+- 🌍 Speaks every language (different protocols and APIs)
+- 📬 Delivers messages reliably, every time
+- 👥 Remembers every conversation for analytics and debugging
 
-### 🎯 The Problem We Solve
+### 💔 The Problem: Integration Hell
 
-**"Integrating with multiple messaging platforms is a developer's nightmare"**
+**"Building messaging integrations is a developer's nightmare"**
 
-Developers face:
-- 🔄 Multiple APIs to learn and maintain
-- 🏗️ Separate integrations for each platform
-- 📝 Duplicated code across channels
-- 🌀 Growing complexity with each new platform
-- ⏰ Procrastination: *"Slack integration? I'll do that later..."*
+Every time you want your AI agent to work on a new platform, you face:
 
-### ✨ The Omni Solution
+- 📚 **Learn a new API**: Each platform has different docs, authentication, webhooks
+- ♻️ **Duplicate code**: The same logic written 5 different ways for 5 platforms
+- 🐛 **Maintenance nightmare**: Updates break across different integrations
+- ⏰ **Procrastination paralysis**: *"I'll add Slack support... later"*
+- 🔥 **Production fires**: When WhatsApp breaks, everything breaks
 
-**One integration, all channels, zero headaches**
+**The result?** Months of development, fragile code, and agents that only work on 1-2 platforms.
+
+### ✨ The Omni Solution: Write Once, Connect Everywhere
 
 ```mermaid
 graph LR
-    A[Your AI Agent] --> B[OMNI HUB]
-    B --> C[WhatsApp]
-    B --> D[Discord]
-    B --> E[Slack]
-    B --> F[Instagram]
-    B --> G[And More...]
+    A[Your AI Agent] -->|One API| B[OMNI HUB]
+    B -->|Automatic| C[WhatsApp]
+    B -->|Automatic| D[Discord]
+    B -->|Automatic| E[Slack]
+    B -->|Automatic| F[Instagram]
+    B -->|Automatic| G[Teams]
+    B -->|Automatic| H[...and more]
+
+    style B fill:#00D9FF,stroke:#0099CC,stroke-width:3px,color:#000
 ```
 
-### 🌟 The Omnipresent Vision
+**What you get:**
+- ✍️ **Write integration code once** → works everywhere
+- 🔌 **Plug & Play**: Connect new channels in minutes, not weeks
+- 🏗️ **Production-grade**: Multi-tenant, secure, scalable from day one
+- 📊 **Full visibility**: Every message traced from input to output
+- 🤖 **MCP-native**: Control via Claude, Cursor, or any MCP tool
 
-Our dream: **True agent omnipresence** - like talking to the same person across different apps:
-- 📱 "I saw something on Instagram, help me with it on WhatsApp"
-- 🔄 Seamless context continuity between platforms
-- 👤 The agent knows who you are, regardless of where you message
+### 🌟 The Vision: True Omnipresence
 
-*Current reality: We're "present" on multiple platforms. Next goal: True omnipresence with shared context.*
+Imagine talking to the same AI agent across all your apps, with perfect context:
+
+> *"Hey assistant, I saw a cool product on Instagram—can you help me order it here on WhatsApp?"*
+
+The agent remembers who you are, what you were talking about, and responds naturally—**regardless of platform**.
+
+**Today:** Omni makes your agents **present** on multiple channels
+**Tomorrow:** True **omnipresence** with shared context across all platforms
 
 ---
 
 ## 🌟 Key Features
 
-### Production Ready Today
-- **🔌 Plug & Play**: Install, configure, and run in under 5 minutes
-- **🏢 Multi-Tenant**: Complete isolation between instances
-- **📊 Full Tracing**: Every message tracked from input to output
-- **🔐 Secure**: API key authentication, input validation, CORS controls
-- **🤖 MCP Native**: Control everything via Model Context Protocol
-- **🚀 Production Scale**: Handle 100+ instances, hundreds of concurrent messages
+### ✅ Production-Ready Today
 
-### Channel Support
-- ✅ **WhatsApp** (Evolution API): Text, media, audio, stickers, reactions
-- ✅ **Discord** (Bot + IPC): Multi-server, attachments, Unix socket communication
-- 🔄 **Slack**: Coming Q4 2025
-- 📅 **Instagram, Telegram, Teams**: Q1-Q2 2026
+- **🔌 Plug & Play Setup**: From zero to sending messages in under 5 minutes
+- **🏢 Multi-Tenant Architecture**: Complete isolation between instances, teams, and clients
+- **📊 Comprehensive Tracing**: Every message logged with performance metrics and payloads
+- **🔐 Enterprise Security**: API key authentication, request validation, CORS controls
+- **🤖 MCP Server Built-in**: Control from Claude Code, Cursor, or any MCP-compatible tool
+- **🚀 Battle-Tested Scale**: Handle 100+ instances and hundreds of concurrent conversations
+- **🔄 Real-Time Streaming**: SSE support for [Automagik Hive](https://github.com/namastexlabs/automagik-hive) agents
+- **🐳 Deployment Flexible**: Docker, PM2, systemd—deploy however you prefer
 
-### Developer Experience
-- **Zero Dependencies**: Use only what you need
-- **Unified API**: Same endpoints for all channels
-- **Real-time Streaming**: SSE support for Hive agents
-- **Comprehensive Logging**: Know exactly what's happening
-- **Docker & PM2 Ready**: Deploy however you prefer
+### 📱 Supported Channels
+
+| Channel | Status | Features |
+|---------|--------|----------|
+| **WhatsApp** | ✅ Production | Text, media, audio, stickers, reactions, presence, QR login via Evolution API |
+| **Discord** | ✅ Production | Multi-server, text, attachments, voice infrastructure, bot + IPC architecture |
+| **Slack** | 🔄 Q4 2025 | Full workspace integration with threads and reactions |
+| **WhatsApp Business** | 🔄 Q4 2025 | Business API with Flows for structured interactions |
+| **Instagram Direct** | 📅 Q1 2026 | DMs, stories, and engagement |
+| **Telegram** | 📅 Q1 2026 | Bots, channels, and groups |
+| **Microsoft Teams** | 📅 Q1 2026 | Enterprise collaboration |
+| **LinkedIn Messages** | 📅 2026-2027 | Professional networking |
+| **WeChat** | 📅 2026-2027 | China market access |
+| **TikTok DMs** | 📅 2026-2027 | Short-form social engagement |
+| **SMS Gateway** | 📅 2026-2027 | Universal text messaging |
+
+### 🧩 Integrations
+
+Works seamlessly with the Automagik ecosystem:
+
+- **[Automagik Hive](https://github.com/namastexlabs/automagik-hive)**: Multi-agent orchestration with streaming SSE
+- **[Automagik Spark](https://github.com/namastexlabs/automagik-spark)**: Scheduled messaging and workflows
+- **[Automagik Tools](https://github.com/namastexlabs/automagik-tools)**: MCP tools for enhanced agent capabilities
+- **Any OpenAPI-Compatible Agent**: Bring your own agent with standard HTTP APIs
 
 ---
 
@@ -100,153 +127,250 @@ Our dream: **True agent omnipresence** - like talking to the same person across 
 
 ### Prerequisites
 
-- Node.js 18+ or Python 3.11+
-- PostgreSQL or SQLite
-- Evolution API instance (for WhatsApp)
-- Discord bot token (for Discord)
+- **Python 3.12+** (3.11+ supported)
+- **PostgreSQL** (recommended) or **SQLite** (for development)
+- **Evolution API instance** (for WhatsApp) - [Deploy with docker](https://github.com/namastexlabs/automagik-evolution)
+- **Discord Bot Token** (for Discord) - [Create here](https://discord.com/developers/applications)
 
-### Installation
+### Installation in 3 Commands
 
 ```bash
-# Clone the repository
+# 1. Clone and enter directory
 git clone https://github.com/namastexlabs/automagik-omni.git
 cd automagik-omni
 
-# Install with UV (recommended - fast Python package manager)
+# 2. Install with UV (fast Python package manager)
 make install
 
-# Or traditional pip
-pip install -r requirements.txt
-
-# Set up environment
+# 3. Set up environment
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your settings
 
-# Run database migrations
+# 4. Initialize database
 make migrate
 
-# Start the service
+# 5. Start the server!
 make dev
-# Or with PM2
-pm2 start ecosystem.config.js
+# API running at http://localhost:8000
 ```
 
-### Your First Instance
+### Your First Message in 60 Seconds
 
 ```bash
-# 1. API is running at http://localhost:8000
+# Check health
 curl http://localhost:8000/health
+# {"status": "healthy"}
 
-# 2. Create a WhatsApp instance
+# Create a WhatsApp instance
 curl -X POST http://localhost:8000/api/v1/instances \
-  -H "x-api-key: your-api-key" \
+  -H "x-api-key: your-api-key-here" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "my-assistant",
+    "name": "my-first-bot",
     "channel_type": "whatsapp",
-    "evolution_url": "https://your-evolution.com",
+    "evolution_url": "https://your-evolution-instance.com",
     "evolution_api_key": "your-evolution-key",
-    "agent_url": "https://your-agent.com",
-    "agent_api_key": "your-agent-key"
+    "agent_url": "https://your-agent-endpoint.com/chat",
+    "agent_api_key": "optional-agent-key"
   }'
 
-# 3. Get QR Code for WhatsApp
-curl http://localhost:8000/api/v1/instances/my-assistant/qr \
-  -H "x-api-key: your-api-key"
+# Get QR code to connect WhatsApp
+curl http://localhost:8000/api/v1/instances/my-first-bot/qr \
+  -H "x-api-key: your-api-key-here"
+# Scan with WhatsApp → Connected!
 
-# 4. You're connected! Messages flow automatically
+# Send a test message
+curl -X POST http://localhost:8000/api/v1/instances/my-first-bot/send-text \
+  -H "x-api-key: your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "+1234567890",
+    "message": "🎉 Hello from Automagik Omni!"
+  }'
+```
+
+**That's it!** Your agent is now live and responding on WhatsApp.
+
+---
+
+## 🏗️ Architecture
+
+### How Omni Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         OMNI HUB                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────────┐      ┌───────────────┐      ┌──────────┐ │
+│  │   WhatsApp   │─────▶│   Instance    │─────▶│   AI     │ │
+│  │   Webhook    │      │   Manager     │      │  Agent   │ │
+│  └──────────────┘      └───────────────┘      └──────────┘ │
+│                               │                              │
+│  ┌──────────────┐             │                              │
+│  │   Discord    │─────────────┤                              │
+│  │   Bot + IPC  │             │                              │
+│  └──────────────┘             │                              │
+│                         ┌─────▼──────┐                       │
+│  ┌──────────────┐      │   Message   │      ┌──────────┐   │
+│  │   Slack      │─────▶│   Router    │─────▶│  Trace   │   │
+│  │   (Soon)     │      │  & Handler  │      │  Store   │   │
+│  └──────────────┘      └─────────────┘      └──────────┘   │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+1. **Instance Manager**: Multi-tenant instance management with complete isolation
+2. **Channel Handler Factory**: Pluggable architecture for platform-specific logic
+3. **Message Router**: Validates, enriches, and routes messages to appropriate agents
+4. **Trace System**: Complete message lifecycle tracking with performance metrics
+5. **MCP Server**: Remote control interface for AI coding agents
+
+### Message Flow
+
+```
+User sends message → Platform webhook → Omni validates
+                                      ↓
+                              Access control check
+                                      ↓
+                              Route to AI agent
+                                      ↓
+                              Agent processes (with streaming support)
+                                      ↓
+                              Format for platform
+                                      ↓
+                              Send via channel
+                                      ↓
+                              Store trace for analytics
 ```
 
 ---
 
-## 🔗 Supported Channels
+## 🤖 MCP: Control from Anywhere
 
-### ✅ WhatsApp (Production Ready)
-- **Integration**: Evolution API
-- **Features**: QR login, text/media/audio, reactions, quotes, presence
-- **Management**: Connect/disconnect, status monitoring, profile updates
+Automagik Omni includes a **Model Context Protocol (MCP) server**, enabling AI agents to programmatically manage messaging instances and send messages.
 
-### ✅ Discord (Production Ready)
-- **Integration**: Discord.py bot with IPC
-- **Features**: Multi-server, text/attachments, voice infrastructure
-- **Management**: CLI controls, Unix socket communication
+### Available MCP Tools
 
-### 🔄 Coming Soon
+| Tool | Description | Operations |
+|------|-------------|------------|
+| `manage_instances` | Instance CRUD operations | list, get, create, update, delete, status, qr, restart, logout |
+| `send_message` | Send messages to any channel | text, media, audio, sticker, contact, reaction |
+| `manage_traces` | Message history and analytics | list, get, analytics, cleanup |
+| `manage_profiles` | User profile management | fetch, update_picture |
 
-| Channel | Timeline | Status |
-|---------|----------|--------|
-| Slack | Q4 2025 | In Development |
-| WhatsApp Business | Q4 2025 | Planned |
-| Instagram Direct | Q1 2026 | Planned |
-| Telegram | Q1 2026 | Planned |
-| Microsoft Teams | Q1 2026 | Planned |
-| LinkedIn Messages | 2026-2027 | Research |
-| WeChat | 2026-2027 | Research |
+### Quick MCP Setup
 
----
+<details>
+<summary><b>🤖 Claude Code Configuration</b></summary>
 
-## 🤖 Agent Integration
-
-Omni works seamlessly with the Automagik ecosystem:
-
-### Automagik Hive
-Multi-agent workflow engine with streaming SSE support
-```python
-# Omni automatically handles Hive's streaming responses
-# Formats them appropriately for each channel
-```
-
-### Any OpenAPI-Compatible Agent
-```json
-{
-  "agent_url": "https://your-agent.com/chat",
-  "agent_api_key": "your-key",
-  "agent_type": "custom"
-}
-```
-
-### MCP Control
-Manage instances and send messages from any MCP-compatible tool:
-```javascript
-// From Claude, Cursor, or any MCP client
-mcp.manage_instances({ operation: "list" })
-mcp.send_message({ 
-  message_type: "text",
-  phone: "+1234567890",
-  message: "Hello from MCP!"
-})
-```
-
----
-
-## 📡 MCP Server
-
-Omni includes a built-in MCP server for remote control from AI coding agents.
-
-### Available Tools
-
-| Tool | Description | Example |
-|------|-------------|---------|
-| `manage_instances` | CRUD operations on instances | List, create, update, delete |
-| `send_message` | Send messages to any channel | Text, media, reactions |
-| `manage_traces` | View message history | Analytics, debugging |
-| `manage_profiles` | User profile management | Fetch info, update pictures |
-
-### Configuration Example (Claude Code)
+Add to your Claude Code MCP servers configuration:
 
 ```json
 {
   "mcpServers": {
     "omni": {
-      "command": "python",
-      "args": ["-m", "mcp_local_omni"],
+      "command": "uvx",
+      "args": ["--from", "automagik-omni", "mcp-server-omni"],
       "env": {
         "OMNI_URL": "http://localhost:8000",
-        "OMNI_API_KEY": "your-api-key"
+        "OMNI_API_KEY": "your-api-key-here"
       }
     }
   }
 }
+```
+
+**Usage:**
+```
+"List all my messaging instances"
+"Send a WhatsApp message to +1234567890: Hello!"
+"Show me message analytics for the last 24 hours"
+```
+
+</details>
+
+<details>
+<summary><b>🎯 Cursor Configuration</b></summary>
+
+Add to Cursor's MCP settings:
+
+```json
+{
+  "mcp.servers": {
+    "omni": {
+      "command": "uvx",
+      "args": ["--from", "automagik-omni", "mcp-server-omni"],
+      "env": {
+        "OMNI_URL": "http://localhost:8000",
+        "OMNI_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>📝 VSCode + Cline Configuration</b></summary>
+
+For the Cline extension:
+
+```json
+{
+  "cline.mcpServers": [
+    {
+      "name": "omni",
+      "command": "uvx",
+      "args": ["--from", "automagik-omni", "mcp-server-omni"],
+      "env": {
+        "OMNI_URL": "http://localhost:8000",
+        "OMNI_API_KEY": "your-api-key-here"
+      }
+    }
+  ]
+}
+```
+
+</details>
+
+<details>
+<summary><b>🔧 Generic MCP Configuration</b></summary>
+
+For any MCP-compatible tool:
+
+```json
+{
+  "command": "uvx",
+  "args": ["--from", "automagik-omni", "mcp-server-omni"],
+  "env": {
+    "OMNI_URL": "http://localhost:8000",
+    "OMNI_API_KEY": "your-api-key-here"
+  }
+}
+```
+
+</details>
+
+### MCP Usage Examples
+
+```bash
+# From Claude Code or any MCP client
+
+"Create a new WhatsApp instance named 'support-bot'"
+→ Uses manage_instances to create and configure
+
+"Send a message to customer +5511999999999: Your order has shipped!"
+→ Uses send_message with proper formatting
+
+"Show me all failed messages from yesterday"
+→ Uses manage_traces with filters
+
+"Get QR code for my WhatsApp instance 'sales-team'"
+→ Uses manage_instances(operation="qr")
 ```
 
 ---
@@ -256,71 +380,218 @@ Omni includes a built-in MCP server for remote control from AI coding agents.
 ### Core Endpoints
 
 #### Instance Management
-```http
-GET    /api/v1/instances              # List all instances
-POST   /api/v1/instances              # Create new instance
-GET    /api/v1/instances/{name}       # Get instance details
-PUT    /api/v1/instances/{name}       # Update instance
-DELETE /api/v1/instances/{name}       # Delete instance
 
-# Channel Operations
-GET    /api/v1/instances/{name}/qr    # Get WhatsApp QR
-GET    /api/v1/instances/{name}/status # Connection status
-POST   /api/v1/instances/{name}/connect    # Connect
-POST   /api/v1/instances/{name}/disconnect # Disconnect
+```http
+# List all instances
+GET /api/v1/instances
+Headers: x-api-key: your-key
+
+# Create new instance
+POST /api/v1/instances
+{
+  "name": "my-bot",
+  "channel_type": "whatsapp|discord",
+  "evolution_url": "https://...",  # WhatsApp only
+  "evolution_api_key": "...",      # WhatsApp only
+  "discord_token": "...",          # Discord only
+  "agent_url": "https://your-agent.com/chat",
+  "agent_api_key": "optional"
+}
+
+# Get instance details
+GET /api/v1/instances/{name}
+
+# Update instance
+PATCH /api/v1/instances/{name}
+{
+  "agent_url": "https://new-endpoint.com"
+}
+
+# Delete instance
+DELETE /api/v1/instances/{name}
+```
+
+#### Channel Operations
+
+```http
+# Get WhatsApp QR Code
+GET /api/v1/instances/{name}/qr
+
+# Check connection status
+GET /api/v1/instances/{name}/status
+
+# Restart connection
+POST /api/v1/instances/{name}/restart
+
+# Logout/disconnect
+POST /api/v1/instances/{name}/logout
 ```
 
 #### Messaging
+
 ```http
-POST /api/v1/instance/{name}/send-text      # Send text message
-POST /api/v1/instance/{name}/send-media     # Send image/video
-POST /api/v1/instance/{name}/send-audio     # Send audio
-POST /api/v1/instance/{name}/send-sticker   # Send sticker
-POST /api/v1/instance/{name}/send-reaction  # Send reaction
+# Send text message
+POST /api/v1/instances/{name}/send-text
+{
+  "phone": "+1234567890",
+  "message": "Hello!",
+  "quoted_message_id": "optional"
+}
+
+# Send media (image, video, document)
+POST /api/v1/instances/{name}/send-media
+{
+  "phone": "+1234567890",
+  "media_url": "https://example.com/image.jpg",
+  "media_type": "image|video|document",
+  "caption": "Optional caption"
+}
+
+# Send audio/voice note
+POST /api/v1/instances/{name}/send-audio
+{
+  "phone": "+1234567890",
+  "audio_url": "https://example.com/audio.mp3"
+}
+
+# Send reaction
+POST /api/v1/instances/{name}/send-reaction
+{
+  "phone": "+1234567890",
+  "message_id": "message-to-react-to",
+  "emoji": "👍"
+}
 ```
 
 #### Traces & Analytics
+
 ```http
-GET  /api/v1/traces                          # List traces
-GET  /api/v1/traces/{id}                     # Get trace details
-GET  /api/v1/traces/analytics/summary        # Analytics summary
-POST /api/v1/traces/cleanup                  # Clean old traces
+# List message traces
+GET /api/v1/traces?instance_name=my-bot&limit=50
+
+# Get specific trace
+GET /api/v1/traces/{trace_id}
+
+# Analytics summary
+GET /api/v1/traces/analytics/summary?start_date=2025-01-01
+
+# Cleanup old traces
+POST /api/v1/traces/cleanup
+{
+  "days_old": 30,
+  "dry_run": false
+}
+```
+
+### Authentication
+
+All API requests require the `x-api-key` header:
+
+```bash
+curl -H "x-api-key: your-secret-key" \
+  http://localhost:8000/api/v1/instances
+```
+
+Set your API key in `.env`:
+```env
+OMNI_API_KEY=your-super-secret-key-here
+```
+
+---
+
+## 🎯 Agent Integration
+
+### Automagik Hive (Recommended)
+
+Omni has first-class support for [Automagik Hive](https://github.com/namastexlabs/automagik-hive) with **streaming Server-Sent Events**:
+
+```python
+# Hive agent responds with SSE streaming
+# Omni automatically:
+# 1. Buffers the stream
+# 2. Formats for the target channel
+# 3. Sends when complete
+# 4. Handles errors gracefully
+
+# Just point agent_url to your Hive endpoint!
+```
+
+### Custom HTTP Agent
+
+Any agent that accepts HTTP POST with JSON:
+
+```json
+POST https://your-agent.com/chat
+Content-Type: application/json
+
+{
+  "message": "User's message",
+  "user_id": "platform:user_id",
+  "platform": "whatsapp|discord",
+  "context": {
+    "phone": "+1234567890",
+    "instance_name": "my-bot"
+  }
+}
+
+Response:
+{
+  "response": "Agent's reply message"
+}
+```
+
+### OpenAPI-Compatible Agent
+
+If your agent has an OpenAPI spec, it just works:
+
+```bash
+# Create instance pointing to any OpenAPI endpoint
+curl -X POST http://localhost:8000/api/v1/instances \
+  -H "x-api-key: your-key" \
+  -d '{
+    "agent_url": "https://api.yourservice.com/v1/chat",
+    "agent_api_key": "service-api-key"
+  }'
 ```
 
 ---
 
 ## 🗺️ Roadmap
 
-### Q4 2025 - Immediate Priorities
-- 🎯 **Robustness & Scale**: Beyond Evolution API limitations
-- 📋 **Access Control**: Whitelist/blacklist system
-- 💼 **WhatsApp Business**: Flows for enterprise
-- 💬 **Slack Integration**: Most requested feature
-- 🔄 **Fallback System**: Multiple WhatsApp engines
+### Q4 2025 - Foundation Strengthening
 
-### Q1-Q2 2026 - Expansion & Omnipresence
-- 📱 **Instagram Direct**
-- ✈️ **Telegram**
-- 👔 **Microsoft Teams**
-- 🌟 **True Omnipresence**: Shared context across all channels
-- 👤 **Unified User Management**: Link same person everywhere
+- 🎯 **Robustness & Scale**: Performance beyond Evolution API limitations
+- 📋 **Access Control**: Whitelist/blacklist for user management
+- 💼 **WhatsApp Business API**: Flows for structured interactions
+- 💬 **Slack Integration**: Full workspace support with threads
+- 🔄 **Fallback System**: Multiple WhatsApp engines for redundancy
 
-### 2026-2027 - Complete Vision
-- 💼 **LinkedIn Messages**
-- 🇨🇳 **WeChat**
-- 🎵 **TikTok DMs**
-- 📱 **SMS Gateway**
-- 🔌 **Open Architecture**: Connect any agent system
-- 🌍 **Global Scale**: Enterprise-ready infrastructure
+### Q1-Q2 2026 - Channel Expansion
+
+- 📱 **Instagram Direct**: DMs, stories, engagement
+- ✈️ **Telegram**: Bots, channels, groups
+- 👔 **Microsoft Teams**: Enterprise collaboration
+- 🌐 **Meta Messenger**: Facebook messaging
+- 🌟 **Unified User Management**: Link users across platforms
+- 🧠 **True Omnipresence**: Shared context across all channels
+
+### 2026-2027 - Global Scale
+
+- 💼 **LinkedIn Messages**: Professional networking
+- 🇨🇳 **WeChat**: China market access
+- 🎵 **TikTok DMs**: Short-form social engagement
+- 📱 **SMS Gateway**: Universal text messaging
+- 🔌 **Open Architecture**: Plugin system for any messaging platform
+- 🌍 **Enterprise Features**: SSO, audit logs, compliance tools
 
 ---
 
 ## 🚀 Development
 
-### Running Locally
+### Local Development
 
 ```bash
-# Development mode with hot reload
+# Start with hot reload
 make dev
 
 # Run tests
@@ -329,51 +600,96 @@ make test
 # View logs
 make logs
 
+# Check code quality
+make lint
+make format
+
 # Database operations
 make migrate        # Run migrations
-make db-reset      # Reset database
+make db-reset      # Reset database (caution!)
+make db-shell      # Open database shell
 ```
 
 ### Docker Deployment
 
 ```bash
-# Build and run with Docker Compose
+# Build and run
 docker-compose up -d
 
-# View container logs
+# View logs
 docker-compose logs -f omni-api
+
+# Restart services
+docker-compose restart
+
+# Stop everything
+docker-compose down
 ```
 
-### CLI Tools
+### Production Deployment with PM2
 
 ```bash
-# Instance management
-automagik-omni instance list
-automagik-omni instance add --name my-bot --type whatsapp
-automagik-omni instance set-default my-bot
+# Install PM2
+npm install -g pm2
 
-# Discord bot management
-automagik-omni discord start my-discord
-automagik-omni discord status
-automagik-omni discord stop my-discord
+# Start all services
+pm2 start ecosystem.config.js
 
-# Health check
-automagik-omni health
+# Monitor
+pm2 monit
+
+# View logs
+pm2 logs omni-api
+
+# Restart
+pm2 restart all
+
+# Stop
+pm2 stop all
+```
+
+### Environment Variables
+
+Key configuration options (see `.env.example` for complete list):
+
+```env
+# API Configuration
+OMNI_API_KEY=your-secret-key
+HOST=0.0.0.0
+PORT=8000
+
+# Database
+DATABASE_URL=postgresql://user:pass@localhost/omni
+# Or SQLite for development:
+# DATABASE_URL=sqlite:///./omni.db
+
+# Evolution API (for WhatsApp)
+DEFAULT_EVOLUTION_URL=https://your-evolution.com
+DEFAULT_EVOLUTION_API_KEY=your-key
+
+# Discord
+DEFAULT_DISCORD_TOKEN=your-bot-token
+
+# Logging
+LOG_LEVEL=INFO  # DEBUG for development
 ```
 
 ---
 
 ## 🤝 Contributing
 
-We love contributions! Please read our [Contributing Guide](CONTRIBUTING.md) first.
+We love contributions! Here's how to get started:
 
-### How to Contribute
+### Quick Contribution Guide
 
-1. **Fork & Clone**: Fork the repo and clone locally
-2. **Branch**: Create a feature branch (`feature/amazing-feature`)
-3. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`)
-4. **Test**: Ensure all tests pass
-5. **PR**: Open a pull request with clear description
+1. **Fork** the repository
+2. **Clone** your fork locally
+3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+4. **Make** your changes
+5. **Test** thoroughly: `make test`
+6. **Commit** with conventional commits: `feat: add slack integration`
+7. **Push** to your fork: `git push origin feature/amazing-feature`
+8. **Open** a Pull Request with clear description
 
 ### Development Setup
 
@@ -382,26 +698,43 @@ We love contributions! Please read our [Contributing Guide](CONTRIBUTING.md) fir
 git clone https://github.com/YOUR_USERNAME/automagik-omni.git
 cd automagik-omni
 
-# Install dependencies
+# Install dependencies with UV (recommended)
 make install
 
-# Create feature branch
-git checkout -b feature/my-feature
+# Create .env file
+cp .env.example .env
 
-# Run tests
+# Run migrations
+make migrate
+
+# Start development server
+make dev
+
+# Run tests before committing
 make test
-
-# Submit PR when ready!
+make lint
 ```
+
+### Contribution Guidelines
+
+- Follow existing code style (use `make format`)
+- Write tests for new features
+- Update documentation
+- Use conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`)
+- Keep PRs focused on a single feature/fix
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ---
 
 ## 🙏 Acknowledgments
 
 Special thanks to:
-- Evolution API team for WhatsApp infrastructure
-- Discord.py community for excellent bot framework
-- All our contributors and early adopters
+
+- **Evolution API Team**: For excellent WhatsApp infrastructure
+- **Discord.py Community**: For the powerful bot framework
+- **Automagik Community**: Early adopters and contributors
+- **FastAPI Team**: For the amazing Python web framework
 
 ---
 
@@ -413,22 +746,22 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🔗 Links
 
-- **Website**: [omni.automag.ik](https://omni.automag.ik)
-- **Documentation**: [docs.automag.ik/omni](https://docs.automag.ik/omni)
 - **GitHub**: [github.com/namastexlabs/automagik-omni](https://github.com/namastexlabs/automagik-omni)
-- **Discord**: [discord.gg/automagik](https://discord.gg/automagik)
-- **Twitter**: [@automagikdev](https://twitter.com/automagikdev)
+- **Discord**: [discord.gg/xcW8c7fF3R](https://discord.gg/xcW8c7fF3R)
+- **Twitter**: [@namastexlabs](https://twitter.com/namastexlabs)
+- **DeepWiki Docs**: [deepwiki.com/namastexlabs/automagik-omni](https://deepwiki.com/namastexlabs/automagik-omni)
 
 ---
 
 <p align="center">
   <strong>🌐 Connect your AI to every messaging platform with one integration</strong><br>
-  <strong>The omnipresent messaging hub that just works™</strong><br><br>
-  <a href="https://github.com/namastexlabs/automagik-omni">Star us on GitHub</a> • 
-  <a href="https://discord.gg/automagik">Join our Discord</a>
+  <strong>The omnipresent hub that just works™</strong><br><br>
+  <a href="https://github.com/namastexlabs/automagik-omni">Star us on GitHub</a> •
+  <a href="https://discord.gg/xcW8c7fF3R">Join our Discord</a>
 </p>
 
 <p align="center">
   Made with ❤️ by <a href="https://namastex.ai">Namastex Labs</a><br>
-  <em>Building bridges between AI and humans, one message at a time</em>
+  <em>AI that elevates human potential, not replaces it</em>
 </p>
+<a href="https://deepwiki.com/namastexlabs/automagik-omni"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
