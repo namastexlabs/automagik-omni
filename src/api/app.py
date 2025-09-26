@@ -26,12 +26,12 @@ logger = logging.getLogger("src.api.app")
 _MIGRATIONS_READY = False
 
 
-def _ensure_database_ready() -> float:
+def _ensure_database_ready(*, force: bool = False) -> float:
     """Ensure database schema is up to date, returning runtime in seconds."""
 
     global _MIGRATIONS_READY
 
-    if _MIGRATIONS_READY:
+    if _MIGRATIONS_READY and not force:
         return 0.0
 
     environment = os.environ.get("ENVIRONMENT")
@@ -47,6 +47,7 @@ def _ensure_database_ready() -> float:
 
     if not auto_migrate():
         logger.error("❌ Database migrations failed during module initialization")
+        _MIGRATIONS_READY = False
         raise RuntimeError("Database migrations must succeed before startup")
 
     duration = time.perf_counter() - start_time
@@ -184,8 +185,7 @@ async def lifespan(app: FastAPI):
     environment = os.environ.get("ENVIRONMENT")
 
     if environment != "test":
-        if not _MIGRATIONS_READY:
-            _ensure_database_ready()
+        _ensure_database_ready(force=True)
 
         # After migrations succeed, ensure tables exist for runtime checks
         try:
