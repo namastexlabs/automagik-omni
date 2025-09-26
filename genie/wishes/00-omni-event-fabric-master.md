@@ -1,4 +1,9 @@
-# 🧞 Wish: Omni Event Fabric & Action Engine
+# 🧞 [00 MASTER] Omni Event Fabric & Action Engine
+
+**Hierarchy:** 00 Master (Orchestrator)
+**Status:** PLANNING
+**Planning Score:** 0/100 — Cleared when all child wishes complete
+**Implementation Score:** 0/100 — Sum of child wish completions
 
 ## 📋 Context & Objective
 
@@ -10,8 +15,8 @@ Provide a perfectly organized option map for Omni’s next evolution so humans c
 
 ## 🧠 Executive Report (Visual Summary)
 - **Priority Pulse**
-  - `[~]` Phase 1 – Event Fabric Foundation scope now lives in @genie/wishes/omni-event-fabric-foundation-wish.md (approved priority for immediate execution).
-  - `[~]` Phase 2 – Action Queue System split to @genie/wishes/omni-action-queue-wish.md (deferred until foundation complete).
+  - `[~]` Phase 1 – Event Fabric Foundation scope now lives in @genie/wishes/01-omni-event-fabric--foundation.md (approved priority for immediate execution).
+  - `[~]` Phase 2 – Action Queue System split to @genie/wishes/01-omni-event-fabric--action-queue.md (deferred until foundation complete).
   - Identity & Lookup upgrade stays queued behind Phase 1; the lookup feature ("find Mom across my handles") remains earmarked for its own future wish.
 
 - **Current Database Snapshot** *(captured via `sqlite3 data/automagik-omni.db`)*
@@ -40,8 +45,9 @@ Provide a perfectly organized option map for Omni’s next evolution so humans c
 ```
 [TASK]
 Shepherd this wish with humans until planning earns 100/100, then oversee implementation scoring toward 100/100 completion.
-@genie/wishes/omni-event-fabric-and-action-engine.md
-@genie/wishes/omni-event-fabric-foundation-wish.md
+@genie/wishes/00-omni-event-fabric-master.md
+@genie/wishes/01-omni-event-fabric--foundation.md
+@genie/wishes/01-omni-event-fabric--action-queue.md
 
 <task_breakdown>
 1. [Discovery] Validate every statement and dependency
@@ -63,7 +69,7 @@ Shepherd this wish with humans until planning earns 100/100, then oversee implem
 [CONTEXT]
 - Scope: roadmap architecture, prioritization, and evidence—not implementation.
 - Tools: repo exploration (`rg`, `uv run ...`), raw payload assets, human interviews, decision logs.
-- Companion wish: @genie/wishes/omni-event-fabric-foundation-wish.md anchors Phase 1 delivery details.
+- Child wishes: @genie/wishes/01-omni-event-fabric--*.md contain implementation details.
 
 [SUCCESS CRITERIA]
 ✅ Planning Score reaches 100/100 with human-approved evidence recorded in Status Log and Clearance Log
@@ -95,7 +101,7 @@ Shepherd this wish with humans until planning earns 100/100, then oversee implem
 
 ### Scoring Notes
 - Record every score change (even partial increments) in the Status Log with human approver, evidence link, and impacted sections.
-- Cross-reference score updates with @genie/wishes/omni-event-fabric-foundation-wish.md to keep execution guidance synchronized.
+- Cross-reference score updates with child wishes (@genie/wishes/01-omni-event-fabric--*.md) to keep execution guidance synchronized.
 
 ### Status Legend
 - `[x]` committed / already in place
