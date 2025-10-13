@@ -1,3 +1,0 @@
-Resolved user from discord external id: {'user_id': '9946478a-f8da-4514-a46b-5f68faca6086', 'phone_number': '+15551230001', 'instance_name': 'qa-discord-parity-instance'}
-Call 1: origin=discord user_id=None session_name=discord_88112233_555001777
-Call 2: origin=discord user_id=9946478a-f8da-4514-a46b-5f68faca6086 session_name=discord_dm_555001777
