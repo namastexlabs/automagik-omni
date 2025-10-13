@@ -61,13 +61,17 @@ BLOCKS=$(echo "$JSON" | jq -r '.dependencies.blocks // [] | map("- " + .) | join
 
 DEPENDENCIES=""
 if [[ -n "$BLOCKED_BY" ]]; then
-  DEPENDENCIES="**Blocked by:**\n$BLOCKED_BY"
+  DEPENDENCIES="**Blocked by:**
+$BLOCKED_BY"
 fi
 if [[ -n "$BLOCKS" ]]; then
   if [[ -n "$DEPENDENCIES" ]]; then
-    DEPENDENCIES="$DEPENDENCIES\n\n"
+    DEPENDENCIES="$DEPENDENCIES
+
+"
   fi
-  DEPENDENCIES="${DEPENDENCIES}**Blocks:**\n$BLOCKS"
+  DEPENDENCIES="${DEPENDENCIES}**Blocks:**
+$BLOCKS"
 fi
 if [[ -z "$DEPENDENCIES" ]]; then
   DEPENDENCIES="N/A"
@@ -83,10 +87,6 @@ fi
 
 # Build issue body
 BODY=$(cat <<EOF
-## 🔗 Roadmap Initiative Number
-
-$INITIATIVE
-
 ## 📄 Description
 
 $DESCRIPTION
@@ -108,6 +108,12 @@ $DEPENDENCIES
 **Work Type:** $WORK_TYPE
 **Estimated Complexity:** $COMPLEXITY
 **Priority:** $PRIORITY
+
+---
+
+### 🔗 Roadmap Initiative Number
+
+$INITIATIVE
 EOF
 )
 
@@ -125,11 +131,4 @@ ISSUE_URL=$(echo "$BODY" | gh issue create \
 
 ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '/issues/\K\d+')
 echo "✓ Created issue #$ISSUE_NUMBER: $ISSUE_URL"
-
-# Add comment linking to roadmap initiative
-gh issue comment "$ISSUE_NUMBER" \
-  --repo namastexlabs/automagik-omni \
-  --body "🗺️ **Roadmap Initiative:** namastexlabs/automagik-roadmap#${INITIATIVE}" \
-  > /dev/null 2>&1 || echo "  ⚠ Could not add initiative comment"
-
 echo ""
