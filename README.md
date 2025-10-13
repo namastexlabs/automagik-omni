@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/omni-logo.svg" alt="Automagik Omni Logo" width="400">
+  <img src=".github/images/omni-logo.svg" alt="Automagik Omni Logo" width="400">
 </p>
 <h2 align="center">The Omnipresent Messaging Hub for AI Agents</h2>
 
