@@ -1,0 +1,63 @@
+{
+  "_comment": "PLANNED FEATURE ISSUE TEMPLATE - Use this to create implementation issues linked to roadmap initiatives",
+  "_usage": "cat your-issue.json | ./.github/scripts/create-planned-feature.sh",
+  "_example": "cat .github/scripts/planned-feature-issue-template.json | ./.github/scripts/create-planned-feature.sh",
+
+  "title": "Implement load testing framework for WhatsApp, Discord, and Slack",
+  "initiative": "39",
+  "_initiative_help": "Roadmap initiative number from namastexlabs/automagik-roadmap (e.g., 39, 40, 41)",
+  "description": "Create comprehensive load testing framework to validate Omni can handle 10,000+ messages per hour across all supported platforms.\n\n**Scope:**\n- WhatsApp load testing suite (10k+ msgs/hour)\n- Discord load testing suite (10k+ msgs/hour)\n- Slack load testing suite (10k+ msgs/hour)\n- Performance baseline reporting\n- CI/CD integration for regression testing\n\n**Approach:**\n- Use locust or k6 for load generation\n- Mock external APIs where appropriate\n- Measure latency, throughput, error rates\n- Generate performance reports",
+  "_description_help": "Technical description with scope and approach. Supports markdown formatting.",
+
+  "acceptance_criteria": [
+    "Load testing suite for WhatsApp (10k+ msgs/hour)",
+    "Load testing suite for Discord (10k+ msgs/hour)",
+    "Load testing suite for Slack (10k+ msgs/hour)",
+    "Performance baseline report generated",
+    "CI integration for regression testing",
+    "Documentation on running load tests"
+  ],
+  "_acceptance_criteria_help": "Array of strings. Will be converted to checkboxes (- [ ]) automatically.",
+
+  "context": "Part of Enterprise Infrastructure & Scale initiative (#39). Critical for production readiness.",
+  "_context_help": "Optional. Debug reports, investigation links, related docs. Supports markdown.",
+
+  "dependencies": {
+    "blocked_by": [
+      "namastexlabs/automagik-roadmap#39 (parent initiative)"
+    ],
+    "blocks": []
+  },
+  "_dependencies_help": "Optional. Lists of issues this is blocked by or blocks. Use full references (e.g., 'namastexlabs/automagik-roadmap#39' or '#123').",
+
+  "work_type": "Testing / QA",
+  "_work_type_help": "Options: 'Feature Implementation', 'Bug Fix (from investigation/debug)', 'Technical Debt / Refactoring', 'Testing / QA', 'Documentation', 'Research / Spike'",
+
+  "complexity": "L - 1-2 weeks",
+  "_complexity_help": "Options: 'XS - Few hours', 'S - 1-2 days', 'M - 3-5 days', 'L - 1-2 weeks', 'XL - 2+ weeks'",
+
+  "priority": "high",
+  "_priority_help": "Options: 'critical', 'high', 'medium', 'low'. Default: 'medium'",
+
+  "areas": [
+    "Testing",
+    "API",
+    "Channels (WhatsApp/Slack/Discord)"
+  ],
+  "_areas_help": "Optional. Array of component areas. Options: 'API', 'MCP Server', 'Channels (WhatsApp/Slack/Discord)', 'Webhooks', 'Evolution API', 'Messaging', 'Agents', 'Docs', 'Testing', 'Build / CI', 'Other'",
+
+  "labels": [
+    "type:testing",
+    "area:infrastructure",
+    "priority:high",
+    "initiative-39"
+  ],
+  "_labels_help": "Optional. Array of label strings. Common patterns: 'type:*', 'area:*', 'priority:*', 'initiative-{number}'. Script auto-adds 'planned-feature'.",
+
+  "_full_example_usage": [
+    "1. Copy this file: cp .github/scripts/planned-feature-issue-template.json tempo/issues/my-issue.json",
+    "2. Edit your values (remove all _help and _comment fields if you want)",
+    "3. Create issue: cat tempo/issues/my-issue.json | ./.github/scripts/create-planned-feature.sh",
+    "4. Batch create: for f in tempo/issues/*.json; do cat $f | ./.github/scripts/create-planned-feature.sh; sleep 2; done"
+  ]
+}
