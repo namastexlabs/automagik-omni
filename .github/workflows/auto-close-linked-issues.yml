@@ -102,25 +102,6 @@ jobs:
               }
             }
 
-            console.log('Issue closure process complete');
-
-      - name: Comment on PR with closure summary
-        if: steps.extract.outputs.has_issues == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issueNumbers = JSON.parse('${{ steps.extract.outputs.issue_numbers }}');
-
-            const issueLinks = issueNumbers.map(num => `#${num}`).join(', ');
-
-            const comment = `🤖 **Auto-Close Report**\n\n` +
-              `Automatically closed ${issueNumbers.length} linked issue(s): ${issueLinks}\n\n` +
-              `Issues were closed because this PR's description contained closing keywords ` +
-              `(\`Closes\`, \`Fixes\`, or \`Resolves\`) followed by issue numbers.`;
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: comment
-            });
+            console.log('✅ Issue closure process complete - closed', issueNumbers.length, 'issue(s)');
+            // Note: Cannot comment on merged PRs due to GitHub permissions
+            // Issues are closed with explanatory comments, which is the primary goal
