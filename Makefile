@@ -259,9 +259,9 @@ dev: ## Start development server with auto-reload
 	$(call print_status,Starting development server with auto-reload)
 	@if [ -f .env ]; then \
 		export $$(cat .env | grep -v '^#' | xargs) && \
-		$(UV) run automagik-omni start --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload --log-level $$(echo "$${LOG_LEVEL:-INFO}" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run automagik-omni start --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload; \
 	else \
-		$(UV) run automagik-omni start --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]'); \
+		$(UV) run automagik-omni start --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload; \
 	fi
 
 .PHONY: test
