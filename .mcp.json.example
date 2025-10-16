@@ -8,20 +8,11 @@
       ],
       "command": "npx"
     },
-    "claude-context": {
-      "command": "npx",
-      "args": ["@zilliz/claude-context-mcp@latest"],
-      "env": {
-        "OPENAI_API_KEY": "your-openai-api-key-here",
-        "MILVUS_ADDRESS": "https://your-milvus-instance.serverless.gcp-us-west1.cloud.zilliz.com",
-        "MILVUS_TOKEN": "your-milvus-token-here"
-      }
-    },
     "omni": {
       "command": "uvx",
       "args": ["automagik-tools", "tool", "omni"],
       "env": {
-        "OMNI_API_KEY": "your-omni-api-key",
+        "OMNI_API_KEY": "namastex888",
         "OMNI_BASE_URL": "http://localhost:8882"
       }
     }
