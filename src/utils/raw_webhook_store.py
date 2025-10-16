@@ -45,4 +45,3 @@ async def capture_from_request(request: Request, body: Dict[str, Any]) -> None:
 
     headers = dict(request.headers)
     append_event(body, headers)
-
