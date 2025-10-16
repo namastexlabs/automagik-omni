@@ -44,6 +44,7 @@ def check_database_exists() -> bool:
         logger.error(f"Error checking database existence: {e}")
         return False
 
+
 def _find_merge_revision(script_dir: ScriptDirectory, heads: list[str]) -> str | None:
     """Locate a merge revision that resolves the supplied heads."""
     if not heads:
