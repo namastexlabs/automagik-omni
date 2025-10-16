@@ -79,33 +79,44 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             contacts = []
             total_count = 0
 
-            if isinstance(contacts_response, dict):
-                # Handle paginated response
+            # Evolution v2.3.5+ returns a list directly, older versions return dict
+            if isinstance(contacts_response, list):
+                # Direct list response from Evolution v2.3.5+
+                contact_list = contacts_response
+                total_count = len(contact_list)
+            elif isinstance(contacts_response, dict):
+                # Handle paginated response from older Evolution versions
                 contact_list = contacts_response.get("contacts", contacts_response.get("data", []))
                 total_count = contacts_response.get("total", contacts_response.get("count", len(contact_list)))
+            else:
+                contact_list = []
 
-                if isinstance(contact_list, list):
-                    for contact_data in contact_list:
-                        try:
-                            # Apply search filter if provided
-                            if search_query:
-                                name = contact_data.get("pushName") or contact_data.get("name", "")
-                                if search_query.lower() not in name.lower():
-                                    continue
+            if isinstance(contact_list, list):
+                for contact_data in contact_list:
+                    try:
+                        # Normalize Evolution v2.3.5 field names to match transformer expectations
+                        if "remoteJid" in contact_data and "id" not in contact_data:
+                            contact_data["id"] = contact_data["remoteJid"]
 
-                            # Apply status filter if provided (WhatsApp may have presence data)
-                            if status_filter and contact_data.get("presence") != status_filter:
+                        # Apply search filter if provided
+                        if search_query:
+                            name = contact_data.get("pushName") or contact_data.get("name", "")
+                            if search_query.lower() not in name.lower():
                                 continue
 
-                            omni_contact = WhatsAppTransformer.contact_to_omni(contact_data, instance.name)
-                            contacts.append(omni_contact)
-                        except Exception as e:
-                            logger.warning(f"Failed to transform contact data: {e}")
+                        # Apply status filter if provided (WhatsApp may have presence data)
+                        if status_filter and contact_data.get("presence") != status_filter:
                             continue
 
-                # Adjust total count if we applied client-side filtering
-                if search_query or status_filter:
-                    total_count = len(contacts)
+                        omni_contact = WhatsAppTransformer.contact_to_omni(contact_data, instance.name)
+                        contacts.append(omni_contact)
+                    except Exception as e:
+                        logger.warning(f"Failed to transform contact data: {e}")
+                        continue
+
+            # Adjust total count if we applied client-side filtering
+            if search_query or status_filter:
+                total_count = len(contacts)
 
             logger.info(
                 f"Successfully fetched {len(contacts)} WhatsApp contacts (total: {total_count}) for instance {instance.name}"
@@ -143,37 +154,48 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             chats = []
             total_count = 0
 
-            if isinstance(chats_response, dict):
-                # Handle paginated response
+            # Evolution v2.3.5+ returns a list directly, older versions return dict
+            if isinstance(chats_response, list):
+                # Direct list response from Evolution v2.3.5+
+                chat_list = chats_response
+                total_count = len(chat_list)
+            elif isinstance(chats_response, dict):
+                # Handle paginated response from older Evolution versions
                 chat_list = chats_response.get("chats", chats_response.get("data", []))
                 total_count = chats_response.get("total", chats_response.get("count", len(chat_list)))
+            else:
+                chat_list = []
 
-                if isinstance(chat_list, list):
-                    for chat_data in chat_list:
-                        try:
-                            # Apply chat type filter if provided
-                            if chat_type_filter:
-                                chat_id = chat_data.get("id", "")
-                                if chat_type_filter == "direct" and not chat_id.endswith("@c.us"):
-                                    continue
-                                elif chat_type_filter == "group" and not chat_id.endswith("@g.us"):
-                                    continue
-                                elif chat_type_filter == "channel" and not chat_id.endswith("@broadcast"):
-                                    continue
+            if isinstance(chat_list, list):
+                for chat_data in chat_list:
+                    try:
+                        # Normalize Evolution v2.3.5 field names to match transformer expectations
+                        if "remoteJid" in chat_data and "id" not in chat_data:
+                            chat_data["id"] = chat_data["remoteJid"]
 
-                            # Apply archived filter if provided
-                            if archived is not None and chat_data.get("isArchived", False) != archived:
+                        # Apply chat type filter if provided
+                        if chat_type_filter:
+                            chat_id = chat_data.get("id", "")
+                            if chat_type_filter == "direct" and not chat_id.endswith("@c.us"):
+                                continue
+                            elif chat_type_filter == "group" and not chat_id.endswith("@g.us"):
+                                continue
+                            elif chat_type_filter == "channel" and not chat_id.endswith("@broadcast"):
                                 continue
 
-                            omni_chat = WhatsAppTransformer.chat_to_omni(chat_data, instance.name)
-                            chats.append(omni_chat)
-                        except Exception as e:
-                            logger.warning(f"Failed to transform chat data: {e}")
+                        # Apply archived filter if provided
+                        if archived is not None and chat_data.get("isArchived", False) != archived:
                             continue
 
-                # Adjust total count if we applied client-side filtering
-                if chat_type_filter or archived is not None:
-                    total_count = len(chats)
+                        omni_chat = WhatsAppTransformer.chat_to_omni(chat_data, instance.name)
+                        chats.append(omni_chat)
+                    except Exception as e:
+                        logger.warning(f"Failed to transform chat data: {e}")
+                        continue
+
+            # Adjust total count if we applied client-side filtering
+            if chat_type_filter or archived is not None:
+                total_count = len(chats)
 
             logger.info(
                 f"Successfully fetched {len(chats)} WhatsApp chats (total: {total_count}) for instance {instance.name}"
