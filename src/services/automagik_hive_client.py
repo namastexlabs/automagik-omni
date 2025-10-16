@@ -213,7 +213,7 @@ class AutomagikHiveClient:
             if not agent_id:
                 raise AutomagikHiveError("agent_id is required")
 
-        endpoint = f"{self.api_url}/playground/agents/{agent_id}/runs"
+        endpoint = f"{self.api_url}/agents/{agent_id}/runs"
 
         request_data = {
             "message": message,
@@ -256,7 +256,7 @@ class AutomagikHiveClient:
             if not team_id:
                 raise AutomagikHiveError("team_id is required")
 
-        endpoint = f"{self.api_url}/playground/teams/{team_id}/runs"
+        endpoint = f"{self.api_url}/teams/{team_id}/runs"
 
         request_data = {
             "message": message,
@@ -295,7 +295,7 @@ class AutomagikHiveClient:
         if not agent_id:
             agent_id = self.default_agent_id
 
-        endpoint = f"{self.api_url}/playground/agents/{agent_id}/runs/{run_id}/continue"
+        endpoint = f"{self.api_url}/agents/{agent_id}/runs/{run_id}/continue"
 
         request_data = HiveContinueRequest(message=message, user_id=user_id, metadata=metadata)
 
