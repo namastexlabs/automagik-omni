@@ -95,7 +95,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 for contact_data in contact_list:
                     try:
                         # Normalize Evolution v2.3.5 field names to match transformer expectations
-                        if "remoteJid" in contact_data and "id" not in contact_data:
+                        # Always use remoteJid as id for consistent contact identification
+                        # Evolution v2.3.5 returns both 'id' (database ID) and 'remoteJid' (WhatsApp JID)
+                        if "remoteJid" in contact_data:
                             contact_data["id"] = contact_data["remoteJid"]
                         # Ensure id is always a string, never None
                         if not contact_data.get("id"):
@@ -173,7 +175,10 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 for chat_data in chat_list:
                     try:
                         # Normalize Evolution v2.3.5 field names to match transformer expectations
-                        if "remoteJid" in chat_data and "id" not in chat_data:
+                        # CRITICAL: Always use remoteJid as id for chat type detection
+                        # Evolution v2.3.5 returns both 'id' (database ID) and 'remoteJid' (WhatsApp JID)
+                        # The transformer needs remoteJid to detect groups (@g.us) vs direct chats
+                        if "remoteJid" in chat_data:
                             chat_data["id"] = chat_data["remoteJid"]
                         # Ensure id is always a string, never None
                         if not chat_data.get("id"):
