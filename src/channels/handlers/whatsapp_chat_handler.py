@@ -97,6 +97,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                         # Normalize Evolution v2.3.5 field names to match transformer expectations
                         if "remoteJid" in contact_data and "id" not in contact_data:
                             contact_data["id"] = contact_data["remoteJid"]
+                        # Ensure id is always a string, never None
+                        if not contact_data.get("id"):
+                            contact_data["id"] = ""
 
                         # Apply search filter if provided
                         if search_query:
@@ -172,10 +175,13 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                         # Normalize Evolution v2.3.5 field names to match transformer expectations
                         if "remoteJid" in chat_data and "id" not in chat_data:
                             chat_data["id"] = chat_data["remoteJid"]
+                        # Ensure id is always a string, never None
+                        if not chat_data.get("id"):
+                            chat_data["id"] = ""
 
                         # Apply chat type filter if provided
                         if chat_type_filter:
-                            chat_id = chat_data.get("id", "")
+                            chat_id = chat_data.get("id") or ""
                             if chat_type_filter == "direct" and not chat_id.endswith("@c.us"):
                                 continue
                             elif chat_type_filter == "group" and not chat_id.endswith("@g.us"):
