@@ -45,18 +45,14 @@ jobs:
           fetch-depth: 0
 
       - name: Get PR coverage from artifacts
-        id: pr-coverage
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE == 'true'
+        id: pr-coverage-cached
         run: |
-          if [ "${{ steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE }}" == "true" ]; then
-            # Reuse coverage from pr-tests workflow
-            cp ./pr-artifacts/coverage.json coverage-pr.json
-            PR_COVERAGE=$(python3 -c "import json; data=json.load(open('coverage-pr.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
-            echo "PR_COVERAGE=$PR_COVERAGE" >> $GITHUB_OUTPUT
-            echo "📊 PR Coverage (from cache): $PR_COVERAGE%"
-          else
-            echo "⚠️ Need to run tests - artifacts not available"
-            echo "PR_COVERAGE=0.00" >> $GITHUB_OUTPUT
-          fi
+          # Reuse coverage from pr-tests workflow
+          cp ./pr-artifacts/coverage.json coverage-pr.json
+          PR_COVERAGE=$(python3 -c "import json; data=json.load(open('coverage-pr.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
+          echo "PR_COVERAGE=$PR_COVERAGE" >> $GITHUB_OUTPUT
+          echo "📊 PR Coverage (from cache): $PR_COVERAGE%"
 
       - name: Set up Python
         if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
@@ -102,6 +98,7 @@ jobs:
 
       - name: Run tests and get PR coverage (fallback)
         if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        id: pr-coverage-fallback
         run: |
           # Run full test suite with coverage in parallel
           pytest tests/ \
@@ -119,6 +116,15 @@ jobs:
           PR_COVERAGE=$(python -c "import json; data=json.load(open('coverage-pr.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
           echo "PR_COVERAGE=$PR_COVERAGE" >> $GITHUB_OUTPUT
           echo "📊 PR Coverage: $PR_COVERAGE%"
+
+      - name: Set PR coverage output
+        id: pr-coverage
+        run: |
+          if [ "${{ steps.pr-coverage-cached.outputs.PR_COVERAGE }}" != "" ]; then
+            echo "PR_COVERAGE=${{ steps.pr-coverage-cached.outputs.PR_COVERAGE }}" >> $GITHUB_OUTPUT
+          else
+            echo "PR_COVERAGE=${{ steps.pr-coverage-fallback.outputs.PR_COVERAGE }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Checkout main branch
         run: |
