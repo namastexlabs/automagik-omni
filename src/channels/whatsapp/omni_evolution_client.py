@@ -109,9 +109,9 @@ class OmniEvolutionClient(EvolutionClient):
             # Preserve original structure for dict responses
             result = response.copy() if isinstance(response, dict) else {}
             # Update with paginated data
-            if "contacts" in response:
+            if isinstance(response, dict) and "contacts" in response:
                 result["contacts"] = paginated_items
-            elif "chats" in response:
+            elif isinstance(response, dict) and "chats" in response:
                 result["chats"] = paginated_items
             else:
                 result["data"] = paginated_items
