@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Progressive Coverage Enforcement**: Automated CI/CD workflow requiring 1% coverage increase per PR from dev→main (90% cap)
+  - New GitHub Actions workflow: `.github/workflows/coverage-enforcement.yml`
+  - Comprehensive coverage policy documentation: `docs/COVERAGE_POLICY.md`
+  - Detailed PR comments with coverage comparison, actionable guidance, and progress tracking
+  - Automatic pass when 90% coverage cap is reached
+
 ## [0.2.0] - 2025-06-21
 
 ### Added
