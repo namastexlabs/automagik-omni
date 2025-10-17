@@ -87,14 +87,9 @@ jobs:
       - name: Initialize database for PR branch
         if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         run: |
-          python -c "
-          from sqlalchemy import create_engine
-          from src.db.models import Base
-          import os
-          engine = create_engine(os.environ['DATABASE_URL'])
-          Base.metadata.create_all(engine)
-          print('Database initialized')
-          "
+          # Run Alembic migrations to ensure schema is up-to-date
+          alembic upgrade head
+          echo "Database migrated to latest schema"
 
       - name: Run tests and get PR coverage (fallback)
         if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
@@ -140,14 +135,9 @@ jobs:
       - name: Clean database for main branch
         run: |
           rm -f data/test.db
-          python -c "
-          from sqlalchemy import create_engine
-          from src.db.models import Base
-          import os
-          engine = create_engine(os.environ['DATABASE_URL'])
-          Base.metadata.create_all(engine)
-          print('Database re-initialized for main branch')
-          "
+          # Run Alembic migrations for main branch schema
+          alembic upgrade head
+          echo "Database migrated to main branch schema"
 
       - name: Run tests and get main branch coverage
         id: main-coverage
