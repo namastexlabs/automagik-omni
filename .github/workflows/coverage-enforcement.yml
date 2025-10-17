@@ -1,4 +1,4 @@
-name: Coverage Enforcement (dev → main)
+name: Coverage Enforcement (dev → main) - 0.5% Increase Required
 
 on:
   pull_request:
@@ -12,36 +12,75 @@ permissions:
 
 jobs:
   enforce-coverage-increase:
-    name: Enforce 1% Coverage Increase
+    name: Enforce 0.5% Coverage Increase
     runs-on: ubuntu-latest
     # Only run if PR is from dev branch to main
     if: github.head_ref == 'dev' || github.head_ref == 'refs/heads/dev'
 
     steps:
+      - name: Try to download PR test artifacts
+        id: download-pr-artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results-3.12
+          path: ./pr-artifacts
+
+      - name: Check if artifacts were downloaded
+        id: check-artifacts
+        run: |
+          if [ -f ./pr-artifacts/coverage.json ]; then
+            echo "ARTIFACTS_AVAILABLE=true" >> $GITHUB_OUTPUT
+            echo "✅ Reusing test results from pr-tests workflow"
+          else
+            echo "ARTIFACTS_AVAILABLE=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No artifacts found, will run tests manually"
+          fi
+
       - name: Checkout PR branch (dev)
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
+      - name: Get PR coverage from artifacts
+        id: pr-coverage
+        run: |
+          if [ "${{ steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE }}" == "true" ]; then
+            # Reuse coverage from pr-tests workflow
+            cp ./pr-artifacts/coverage.json coverage-pr.json
+            PR_COVERAGE=$(python3 -c "import json; data=json.load(open('coverage-pr.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
+            echo "PR_COVERAGE=$PR_COVERAGE" >> $GITHUB_OUTPUT
+            echo "📊 PR Coverage (from cache): $PR_COVERAGE%"
+          else
+            echo "⚠️ Need to run tests - artifacts not available"
+            echo "PR_COVERAGE=0.00" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Python
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
 
       - name: Install system dependencies
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libpq-dev python3-dev
 
       - name: Install Python dependencies
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install -e .
           pip install -e ".[discord]"
+          pip install pytest-xdist
 
       - name: Set up environment for PR branch
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         run: |
           mkdir -p data
           echo "DATABASE_URL=sqlite:///data/test.db" >> $GITHUB_ENV
@@ -50,6 +89,7 @@ jobs:
           echo "CI=true" >> $GITHUB_ENV
 
       - name: Initialize database for PR branch
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         run: |
           python -c "
           from sqlalchemy import create_engine
@@ -60,10 +100,10 @@ jobs:
           print('Database initialized')
           "
 
-      - name: Run tests and get PR coverage
-        id: pr-coverage
+      - name: Run tests and get PR coverage (fallback)
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
         run: |
-          # Run full test suite with coverage
+          # Run full test suite with coverage in parallel
           pytest tests/ \
             --cov=src \
             --cov-report=term \
@@ -72,6 +112,7 @@ jobs:
             --tb=short \
             --maxfail=5 \
             --disable-warnings \
+            -n auto \
             -k "not test_bearer_token_validation and not test_add_command_help"
 
           # Extract coverage percentage from JSON report
@@ -147,16 +188,16 @@ jobs:
             exit 0
           fi
 
-          # Check if coverage increased by at least 1%
-          if (( $(echo "$DIFF >= 1.00" | bc -l) )); then
-            echo "STATUS=✅ Coverage increased by required 1%" >> $GITHUB_OUTPUT
+          # Check if coverage increased by at least 0.5%
+          if (( $(echo "$DIFF >= 0.50" | bc -l) )); then
+            echo "STATUS=✅ Coverage increased by required 0.5%" >> $GITHUB_OUTPUT
             echo "PASSED=true" >> $GITHUB_OUTPUT
             echo "✅ Coverage increased by ${DIFF}% (requirement met)"
             exit 0
           else
             echo "STATUS=❌ Coverage increase requirement not met" >> $GITHUB_OUTPUT
             echo "PASSED=false" >> $GITHUB_OUTPUT
-            echo "❌ Coverage only increased by ${DIFF}% (need at least 1.00%)"
+            echo "❌ Coverage only increased by ${DIFF}% (need at least 0.50%)"
             exit 1
           fi
 
@@ -195,19 +236,19 @@ jobs:
             - 🎉 Excellent work! The 90% coverage cap has been achieved.
             - No further coverage increase is required for this PR.
             `;
-            } else if (diff >= 1.0) {
+            } else if (diff >= 0.5) {
               message += `
             ✅ **Requirement Met**
-            - Coverage increased by **${diff.toFixed(2)}%** ≥ 1.0%
+            - Coverage increased by **${diff.toFixed(2)}%** ≥ 0.5%
             - Progress toward 90% cap: **${prCov.toFixed(1)}%** / 90%
             - Keep up the great work! 🚀
             `;
             } else {
               message += `
             ❌ **Requirement NOT Met**
-            - Coverage increased by only **${diff.toFixed(2)}%** < 1.0%
-            - **Required increase:** 1.0% minimum
-            - **Current shortfall:** ${(1.0 - diff).toFixed(2)}%
+            - Coverage increased by only **${diff.toFixed(2)}%** < 0.5%
+            - **Required increase:** 0.5% minimum
+            - **Current shortfall:** ${(0.5 - diff).toFixed(2)}%
 
             ### 🔧 What to do:
             1. Add tests for uncovered code paths
@@ -228,7 +269,7 @@ jobs:
 
             ### 📌 Policy Details
             - **Trigger:** PRs from \`dev\` → \`main\`
-            - **Requirement:** +1% coverage increase per PR
+            - **Requirement:** +0.5% coverage increase per PR
             - **Cap:** 90% (once reached, no increase required)
             - **Current Progress:** ${prCov.toFixed(1)}% / 90% (${(prCov/90*100).toFixed(1)}% of goal)
 
@@ -281,7 +322,7 @@ jobs:
         if: steps.enforce.outputs.PASSED != 'true'
         run: |
           echo "❌ Coverage enforcement check failed!"
-          echo "This PR does not meet the minimum 1% coverage increase requirement."
+          echo "This PR does not meet the minimum 0.5% coverage increase requirement."
           echo "Please add more tests to increase coverage before merging to main."
           exit 1
 

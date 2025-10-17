@@ -70,6 +70,7 @@ discord-voice-ai = [
 dev = [
     "black>=25.1.0",
     "mypy>=1.16.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.12.0",
 ]
 
