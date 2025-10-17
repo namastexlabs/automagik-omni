@@ -141,9 +141,11 @@ jobs:
 
       - name: Run tests and get main branch coverage
         id: main-coverage
-        continue-on-error: true
         run: |
-          # Run tests on main branch
+          # Set fallback first
+          echo "MAIN_COVERAGE=33.12" >> $GITHUB_OUTPUT
+
+          # Try to run tests on main branch
           pytest tests/ \
             --cov=src \
             --cov-report=term \
@@ -154,15 +156,14 @@ jobs:
             --disable-warnings \
             -k "not test_bearer_token_validation and not test_add_command_help" || true
 
-          # Extract coverage percentage
+          # Update with actual coverage if tests succeeded
           if [ -f coverage-main.json ]; then
             MAIN_COVERAGE=$(python -c "import json; data=json.load(open('coverage-main.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
+            echo "MAIN_COVERAGE=$MAIN_COVERAGE" >> $GITHUB_OUTPUT
+            echo "📊 Main Coverage (actual): $MAIN_COVERAGE%"
           else
-            # Fallback to current known coverage if tests fail
-            MAIN_COVERAGE="33.00"
+            echo "⚠️ Main branch tests failed, using fallback coverage: 33.12%"
           fi
-          echo "MAIN_COVERAGE=$MAIN_COVERAGE" >> $GITHUB_OUTPUT
-          echo "📊 Main Coverage: $MAIN_COVERAGE%"
 
       - name: Calculate coverage difference and enforce
         id: enforce
