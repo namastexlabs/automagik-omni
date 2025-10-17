@@ -86,6 +86,9 @@ class InstanceConfig(Base):
     # Instance status
     is_active = Column(Boolean, default=False, index=True)  # Evolution connection status
 
+    # Message splitting control
+    enable_auto_split = Column(Boolean, default=True, nullable=False)  # Auto-split messages on \n\n
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)

@@ -32,12 +32,14 @@ class EvolutionApiSender:
             self.server_url = config_override.evolution_url or None
             self.api_key = config_override.evolution_key or None
             self.instance_name = config_override.whatsapp_instance
+            self.config = config_override  # Store config for accessing enable_auto_split
             logger.info(f"Evolution API sender initialized for instance '{config_override.name}'")
         else:
             # Initialize with empty values (will be set from webhook)
             self.server_url = None
             self.api_key = None
             self.instance_name = None
+            self.config = None
 
     def update_from_webhook(self, webhook_data: Dict[str, Any]) -> None:
         """
@@ -86,6 +88,7 @@ class EvolutionApiSender:
         mentioned: Optional[List[str]] = None,
         mentions_everyone: bool = False,
         auto_parse_mentions: bool = True,
+        split_message: Optional[bool] = None,
     ) -> bool:
         """
         Send a text message via Evolution API with optional message quoting, mentions, and auto-splitting.
@@ -97,6 +100,7 @@ class EvolutionApiSender:
             mentioned: Explicit list of WhatsApp JIDs to mention
             mentions_everyone: Whether to mention everyone in group
             auto_parse_mentions: Whether to auto-detect @phone in text
+            split_message: Optional override for message splitting (None uses instance config)
 
         Returns:
             bool: Success status
@@ -114,24 +118,47 @@ class EvolutionApiSender:
                 logger.info(f"Auto-parsed {len(parsed_mentions)} mentions from text")
 
         # Check if message should be split (contains \n\n and is replying to a text message)
-        should_split = self._should_split_message(text, quoted_message)
+        should_split = self._should_split_message(text, quoted_message, split_message)
 
         if should_split:
             return self._send_split_messages(recipient, text, quoted_message, final_mentioned, mentions_everyone)
         else:
             return self._send_single_message(recipient, text, quoted_message, final_mentioned, mentions_everyone)
 
-    def _should_split_message(self, text: str, quoted_message: Optional[Dict[str, Any]]) -> bool:
+    def _should_split_message(
+        self, text: str, quoted_message: Optional[Dict[str, Any]], split_message: Optional[bool] = None
+    ) -> bool:
         """
-        Determine if a message should be split.
+        Determine if a message should be split based on priority logic.
+
+        Priority: per-message override > instance config > default (True)
 
         Args:
             text: Message text
             quoted_message: Original message being replied to
+            split_message: Optional per-message override for splitting behavior
 
         Returns:
             bool: True if message should be split
         """
+        # Priority 1: Per-message override (explicit True or False)
+        if split_message is not None:
+            should_split = split_message
+            logger.info(f"Using per-message split override: {should_split}")
+        # Priority 2: Instance configuration
+        elif self.config and hasattr(self.config, "enable_auto_split"):
+            should_split = self.config.enable_auto_split
+            logger.info(f"Using instance config enable_auto_split: {should_split}")
+        # Priority 3: Default behavior (True)
+        else:
+            should_split = True
+            logger.info("Using default split behavior: True")
+
+        # If splitting is disabled, return False immediately
+        if not should_split:
+            logger.info("Message splitting disabled - sending as single message")
+            return False
+
         # Don't split if it's a reply to a media message
         if quoted_message and self._is_media_message(quoted_message):
             logger.info("Not splitting message - replying to media message")

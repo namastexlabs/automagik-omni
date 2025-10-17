@@ -44,7 +44,7 @@ class SendTextRequest(BaseModel):
     text: str = Field(description="Message text to send")
     quoted_message_id: Optional[str] = Field(None, description="ID of message to quote/reply to")
 
-    # NEW: Mention support
+    # Mention support
     auto_parse_mentions: bool = Field(
         default=True,
         description="Automatically detect and convert @phone mentions in text",
@@ -54,6 +54,14 @@ class SendTextRequest(BaseModel):
         description="Explicit list of phone numbers to mention (overrides auto-parsing)",
     )
     mentions_everyone: bool = Field(default=False, description="Mention everyone in group chat")
+
+    # Message splitting control
+    split_message: Optional[bool] = Field(
+        default=None,
+        description="Optional override for message splitting behavior. If None, uses instance config (enable_auto_split). "
+        "For WhatsApp: controls splitting on \\n\\n. For Discord: controls preference for \\n\\n split point "
+        "(2000-char hard limit always applies).",
+    )
 
 
 class SendMediaRequest(BaseModel):
@@ -290,6 +298,7 @@ async def send_text_message(
             mentioned=mentioned_jids,
             mentions_everyone=request.mentions_everyone,
             auto_parse_mentions=request.auto_parse_mentions,
+            split_message=request.split_message,  # Pass through split_message override
         )
 
         return MessageResponse(

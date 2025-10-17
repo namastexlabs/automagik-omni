@@ -106,6 +106,7 @@ class OmniChannelMessageSender:
                 mentioned=kwargs.get("mentioned"),
                 mentions_everyone=kwargs.get("mentions_everyone", False),
                 auto_parse_mentions=kwargs.get("auto_parse_mentions", True),
+                split_message=kwargs.get("split_message"),  # Pass through split_message override
             )
             return {"success": success, "channel": "whatsapp"}
         except Exception as e:
