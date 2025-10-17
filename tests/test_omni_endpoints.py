@@ -501,6 +501,155 @@ class TestOmniContactsEndpoint:
 
         assert response.status_code == 500
 
+    @patch("src.api.routes.omni.get_omni_handler")
+    @patch("src.api.routes.omni.get_instance_by_name")
+    def test_contacts_pagination_returns_exact_page_size(
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
+    ):
+        """Test that page_size parameter returns exactly the requested number of items.
+
+        This test addresses GitHub issue #107 - ensuring pagination parameters are respected.
+        When requesting page_size=5, API should return exactly 5 contacts, not all 100.
+        """
+        mock_get_instance.return_value = mock_instance_config
+
+        # Create 100 mock contacts to simulate large dataset
+        mock_contacts = [
+            OmniContact(
+                id=f"contact-{i}@example.com",
+                name=f"Contact {i}",
+                channel_type=ChannelType.WHATSAPP,
+                instance_name="test-instance",
+                status=OmniContactStatus.ONLINE,
+            )
+            for i in range(100)
+        ]
+
+        handler = AsyncMock()
+        # Handler should return only page_size items, not all 100
+        handler.get_contacts.return_value = (mock_contacts[:5], 100)
+        mock_get_handler.return_value = handler
+
+        response = test_client.get(
+            "/api/v1/instances/test-instance/contacts?page_size=5",
+            headers=mention_api_headers,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # CRITICAL: Should return exactly 5 contacts, not 100
+        assert len(data["contacts"]) == 5, f"Expected 5 contacts but got {len(data['contacts'])}"
+        assert data["total_count"] == 100
+        assert data["page_size"] == 5
+        assert data["has_more"] is True  # More pages available
+
+    @patch("src.api.routes.omni.get_omni_handler")
+    @patch("src.api.routes.omni.get_instance_by_name")
+    def test_contacts_pagination_different_pages_return_different_data(
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
+    ):
+        """Test that different page numbers return different contact sets.
+
+        This test verifies that pagination actually pages through data,
+        not just returning the same results repeatedly.
+        """
+        mock_get_instance.return_value = mock_instance_config
+
+        # Create 20 mock contacts
+        all_contacts = [
+            OmniContact(
+                id=f"contact-{i}@example.com",
+                name=f"Contact {i}",
+                channel_type=ChannelType.WHATSAPP,
+                instance_name="test-instance",
+                status=OmniContactStatus.ONLINE,
+            )
+            for i in range(20)
+        ]
+
+        handler = AsyncMock()
+        mock_get_handler.return_value = handler
+
+        # Test page 1
+        handler.get_contacts.return_value = (all_contacts[:5], 20)
+        response1 = test_client.get(
+            "/api/v1/instances/test-instance/contacts?page=1&page_size=5",
+            headers=mention_api_headers,
+        )
+        page1_data = response1.json()
+        page1_ids = [c["id"] for c in page1_data["contacts"]]
+
+        # Test page 2
+        handler.get_contacts.return_value = (all_contacts[5:10], 20)
+        response2 = test_client.get(
+            "/api/v1/instances/test-instance/contacts?page=2&page_size=5",
+            headers=mention_api_headers,
+        )
+        page2_data = response2.json()
+        page2_ids = [c["id"] for c in page2_data["contacts"]]
+
+        # Pages should return different contacts
+        assert page1_ids != page2_ids, "Different pages should return different contacts"
+        assert len(set(page1_ids) & set(page2_ids)) == 0, "Pages should not have overlapping contacts"
+
+    @patch("src.api.routes.omni.get_omni_handler")
+    @patch("src.api.routes.omni.get_instance_by_name")
+    def test_contacts_pagination_metadata_accuracy(
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
+    ):
+        """Test that pagination metadata (has_more, total_count) is accurate."""
+        mock_get_instance.return_value = mock_instance_config
+
+        handler = AsyncMock()
+        mock_get_handler.return_value = handler
+
+        # Test: Middle page (has_more should be True)
+        mock_contacts = [
+            OmniContact(
+                id=f"contact-{i}@example.com",
+                name=f"Contact {i}",
+                channel_type=ChannelType.WHATSAPP,
+                instance_name="test-instance",
+                status=OmniContactStatus.ONLINE,
+            )
+            for i in range(10)
+        ]
+        handler.get_contacts.return_value = (mock_contacts, 50)
+
+        response = test_client.get(
+            "/api/v1/instances/test-instance/contacts?page=2&page_size=10",
+            headers=mention_api_headers,
+        )
+        data = response.json()
+        assert data["has_more"] is True, "Middle page should have has_more=True"
+        assert data["total_count"] == 50
+
+        # Test: Last page (has_more should be False)
+        handler.get_contacts.return_value = (mock_contacts, 50)
+        response = test_client.get(
+            "/api/v1/instances/test-instance/contacts?page=5&page_size=10",
+            headers=mention_api_headers,
+        )
+        data = response.json()
+        assert data["has_more"] is False, "Last page should have has_more=False"
+        assert data["total_count"] == 50
+
 
 class TestOmniChatsEndpoint:
     """Comprehensive tests for GET /api/v1/instances/{instance_name}/chats"""
@@ -622,6 +771,155 @@ class TestOmniChatsEndpoint:
         data = response.json()
         assert data["channel_type"] == "whatsapp"
         assert data["chats"][0]["chat_type"] == "direct"
+
+    @patch("src.api.routes.omni.get_omni_handler")
+    @patch("src.api.routes.omni.get_instance_by_name")
+    def test_chats_pagination_returns_exact_page_size(
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
+    ):
+        """Test that page_size parameter returns exactly the requested number of chats.
+
+        This test addresses GitHub issue #107 - ensuring pagination parameters are respected.
+        When requesting page_size=5, API should return exactly 5 chats, not all 100.
+        """
+        mock_get_instance.return_value = mock_instance_config
+
+        # Create 100 mock chats to simulate large dataset
+        mock_chats = [
+            OmniChat(
+                id=f"chat-{i}@example.com",
+                name=f"Chat {i}",
+                channel_type=ChannelType.WHATSAPP,
+                instance_name="test-instance",
+                chat_type=OmniChatType.DIRECT,
+            )
+            for i in range(100)
+        ]
+
+        handler = AsyncMock()
+        # Handler should return only page_size items, not all 100
+        handler.get_chats.return_value = (mock_chats[:5], 100)
+        mock_get_handler.return_value = handler
+
+        response = test_client.get(
+            "/api/v1/instances/test-instance/chats?page_size=5",
+            headers=mention_api_headers,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # CRITICAL: Should return exactly 5 chats, not 100
+        assert len(data["chats"]) == 5, f"Expected 5 chats but got {len(data['chats'])}"
+        assert data["total_count"] == 100
+        assert data["page_size"] == 5
+        assert data["has_more"] is True  # More pages available
+
+    @patch("src.api.routes.omni.get_omni_handler")
+    @patch("src.api.routes.omni.get_instance_by_name")
+    def test_chats_pagination_different_pages_return_different_data(
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
+    ):
+        """Test that different page numbers return different chat sets.
+
+        This test verifies that pagination actually pages through data,
+        not just returning the same results repeatedly.
+        """
+        mock_get_instance.return_value = mock_instance_config
+
+        # Create 20 mock chats
+        all_chats = [
+            OmniChat(
+                id=f"chat-{i}@example.com",
+                name=f"Chat {i}",
+                channel_type=ChannelType.WHATSAPP,
+                instance_name="test-instance",
+                chat_type=OmniChatType.DIRECT,
+            )
+            for i in range(20)
+        ]
+
+        handler = AsyncMock()
+        mock_get_handler.return_value = handler
+
+        # Test page 1
+        handler.get_chats.return_value = (all_chats[:5], 20)
+        response1 = test_client.get(
+            "/api/v1/instances/test-instance/chats?page=1&page_size=5",
+            headers=mention_api_headers,
+        )
+        page1_data = response1.json()
+        page1_ids = [c["id"] for c in page1_data["chats"]]
+
+        # Test page 2
+        handler.get_chats.return_value = (all_chats[5:10], 20)
+        response2 = test_client.get(
+            "/api/v1/instances/test-instance/chats?page=2&page_size=5",
+            headers=mention_api_headers,
+        )
+        page2_data = response2.json()
+        page2_ids = [c["id"] for c in page2_data["chats"]]
+
+        # Pages should return different chats
+        assert page1_ids != page2_ids, "Different pages should return different chats"
+        assert len(set(page1_ids) & set(page2_ids)) == 0, "Pages should not have overlapping chats"
+
+    @patch("src.api.routes.omni.get_omni_handler")
+    @patch("src.api.routes.omni.get_instance_by_name")
+    def test_chats_pagination_metadata_accuracy(
+        self,
+        mock_get_instance,
+        mock_get_handler,
+        test_client,
+        mention_api_headers,
+        mock_instance_config,
+    ):
+        """Test that pagination metadata (has_more, total_count) is accurate for chats."""
+        mock_get_instance.return_value = mock_instance_config
+
+        handler = AsyncMock()
+        mock_get_handler.return_value = handler
+
+        # Test: Middle page (has_more should be True)
+        mock_chats = [
+            OmniChat(
+                id=f"chat-{i}@example.com",
+                name=f"Chat {i}",
+                channel_type=ChannelType.WHATSAPP,
+                instance_name="test-instance",
+                chat_type=OmniChatType.DIRECT,
+            )
+            for i in range(10)
+        ]
+        handler.get_chats.return_value = (mock_chats, 50)
+
+        response = test_client.get(
+            "/api/v1/instances/test-instance/chats?page=2&page_size=10",
+            headers=mention_api_headers,
+        )
+        data = response.json()
+        assert data["has_more"] is True, "Middle page should have has_more=True"
+        assert data["total_count"] == 50
+
+        # Test: Last page (has_more should be False)
+        handler.get_chats.return_value = (mock_chats, 50)
+        response = test_client.get(
+            "/api/v1/instances/test-instance/chats?page=5&page_size=10",
+            headers=mention_api_headers,
+        )
+        data = response.json()
+        assert data["has_more"] is False, "Last page should have has_more=False"
+        assert data["total_count"] == 50
 
 
 class TestOmniChannelsEndpoint:
