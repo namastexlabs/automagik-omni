@@ -47,8 +47,18 @@ class DiscordChannelHandler(ChannelHandler):
         # Cache agent user_id returned by downstream routers keyed by instance+discord user
         self._agent_user_cache: Dict[str, Dict[str, str]] = {}
 
-    def _chunk_message(self, message: str, max_length: int = 2000) -> list[str]:
-        """Split message into chunks that respect Discord's character limit."""
+    def _chunk_message(self, message: str, max_length: int = 2000, prefer_double_newline: bool = True) -> list[str]:
+        """
+        Split message into chunks that respect Discord's character limit.
+
+        Args:
+            message: Message text to split
+            max_length: Maximum length per chunk (Discord hard limit: 2000)
+            prefer_double_newline: Whether to prefer \\n\\n as split point (controlled by enable_auto_split)
+
+        Returns:
+            List of message chunks
+        """
         if len(message) <= max_length:
             return [message]
 
@@ -64,7 +74,12 @@ class DiscordChannelHandler(ChannelHandler):
             chunk = remaining[:max_length]
 
             # Find the last newline, sentence end, or word boundary
-            split_points = ["\n\n", "\n", ". ", "! ", "? ", " "]
+            # If prefer_double_newline is False, skip \n\n as preferred split point
+            if prefer_double_newline:
+                split_points = ["\n\n", "\n", ". ", "! ", "? ", " "]
+            else:
+                split_points = ["\n", ". ", "! ", "? ", " "]
+
             split_at = -1
 
             for split_point in split_points:
@@ -156,8 +171,20 @@ class DiscordChannelHandler(ChannelHandler):
         session_name: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         agent_response: Optional[Dict[str, Any]] = None,
+        split_message: Optional[bool] = None,
     ) -> None:
-        """Send response to Discord channel, handling message chunking + trace logging."""
+        """Send response to Discord channel, handling message chunking + trace logging.
+
+        Args:
+            channel: Discord channel to send to
+            response: Message text to send
+            trace_context: Optional trace context for logging
+            instance: Optional InstanceConfig for accessing enable_auto_split
+            session_name: Optional session name for tracing
+            metadata: Optional metadata dict
+            agent_response: Optional agent response data
+            split_message: Optional per-message override for splitting behavior
+        """
 
         if not response:
             return
@@ -166,7 +193,19 @@ class DiscordChannelHandler(ChannelHandler):
         channel_id = metadata.get("channel_id") or getattr(channel, "id", None)
         channel_name = metadata.get("channel_name") or getattr(channel, "name", None)
 
-        chunks = self._chunk_message(response)
+        # Determine whether to prefer \n\n for splitting
+        # Priority: per-message override > instance config > default (True)
+        if split_message is not None:
+            prefer_double_newline = split_message
+            logger.info(f"Discord: Using per-message split override: {prefer_double_newline}")
+        elif instance and hasattr(instance, "enable_auto_split"):
+            prefer_double_newline = instance.enable_auto_split
+            logger.info(f"Discord: Using instance config enable_auto_split: {prefer_double_newline}")
+        else:
+            prefer_double_newline = True
+            logger.info("Discord: Using default split behavior: True")
+
+        chunks = self._chunk_message(response, prefer_double_newline=prefer_double_newline)
         send_payload = {
             "recipient": str(channel_id) if channel_id is not None else None,
             "channel_name": channel_name,
