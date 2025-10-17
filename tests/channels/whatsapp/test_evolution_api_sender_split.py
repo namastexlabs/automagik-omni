@@ -128,13 +128,7 @@ class TestMessageSplittingRules:
     def test_no_split_for_media_reply(self, sender_with_config):
         """Test that replies to media messages are not split."""
         text = "Caption 1\n\nCaption 2"
-        quoted_message = {
-            "message": {
-                "imageMessage": {
-                    "caption": "Original image"
-                }
-            }
-        }
+        quoted_message = {"message": {"imageMessage": {"caption": "Original image"}}}
 
         result = sender_with_config._should_split_message(text, quoted_message, split_message=None)
         assert result is False
@@ -142,11 +136,7 @@ class TestMessageSplittingRules:
     def test_split_for_text_reply(self, sender_with_config):
         """Test that replies to text messages can be split."""
         text = "Reply 1\n\nReply 2"
-        quoted_message = {
-            "message": {
-                "conversation": "Original text"
-            }
-        }
+        quoted_message = {"message": {"conversation": "Original text"}}
 
         result = sender_with_config._should_split_message(text, quoted_message, split_message=None)
         assert result is True
@@ -168,56 +158,32 @@ class TestMediaMessageDetection:
 
     def test_is_media_message_image(self, sender_with_config):
         """Test detection of image messages."""
-        quoted_message = {
-            "message": {
-                "imageMessage": {"caption": "test"}
-            }
-        }
+        quoted_message = {"message": {"imageMessage": {"caption": "test"}}}
         assert sender_with_config._is_media_message(quoted_message) is True
 
     def test_is_media_message_video(self, sender_with_config):
         """Test detection of video messages."""
-        quoted_message = {
-            "message": {
-                "videoMessage": {"caption": "test"}
-            }
-        }
+        quoted_message = {"message": {"videoMessage": {"caption": "test"}}}
         assert sender_with_config._is_media_message(quoted_message) is True
 
     def test_is_media_message_audio(self, sender_with_config):
         """Test detection of audio messages."""
-        quoted_message = {
-            "message": {
-                "audioMessage": {}
-            }
-        }
+        quoted_message = {"message": {"audioMessage": {}}}
         assert sender_with_config._is_media_message(quoted_message) is True
 
     def test_is_media_message_document(self, sender_with_config):
         """Test detection of document messages."""
-        quoted_message = {
-            "message": {
-                "documentMessage": {"fileName": "test.pdf"}
-            }
-        }
+        quoted_message = {"message": {"documentMessage": {"fileName": "test.pdf"}}}
         assert sender_with_config._is_media_message(quoted_message) is True
 
     def test_is_media_message_sticker(self, sender_with_config):
         """Test detection of sticker messages."""
-        quoted_message = {
-            "message": {
-                "stickerMessage": {}
-            }
-        }
+        quoted_message = {"message": {"stickerMessage": {}}}
         assert sender_with_config._is_media_message(quoted_message) is True
 
     def test_is_not_media_message_text(self, sender_with_config):
         """Test that text messages are not detected as media."""
-        quoted_message = {
-            "message": {
-                "conversation": "Just text"
-            }
-        }
+        quoted_message = {"message": {"conversation": "Just text"}}
         assert sender_with_config._is_media_message(quoted_message) is False
 
     def test_is_not_media_message_none(self, sender_with_config):
@@ -232,7 +198,7 @@ class TestMediaMessageDetection:
 class TestSendTextMessageIntegration:
     """Test send_text_message with split_message parameter."""
 
-    @patch('src.channels.whatsapp.evolution_api_sender.requests.post')
+    @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
     def test_send_with_split_enabled(self, mock_post, sender_with_config):
         """Test sending message with splitting enabled."""
         mock_post.return_value.status_code = 200
@@ -244,14 +210,14 @@ class TestSendTextMessageIntegration:
         result = sender_with_config.send_text_message(
             recipient=recipient,
             text=text,
-            split_message=True  # Explicitly enable
+            split_message=True,  # Explicitly enable
         )
 
         # Should be split into 3 messages
         assert result is True
         assert mock_post.call_count == 3
 
-    @patch('src.channels.whatsapp.evolution_api_sender.requests.post')
+    @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
     def test_send_with_split_disabled(self, mock_post, sender_with_config):
         """Test sending message with splitting disabled."""
         mock_post.return_value.status_code = 200
@@ -263,7 +229,7 @@ class TestSendTextMessageIntegration:
         result = sender_with_config.send_text_message(
             recipient=recipient,
             text=text,
-            split_message=False  # Explicitly disable
+            split_message=False,  # Explicitly disable
         )
 
         # Should send as single message
@@ -272,10 +238,10 @@ class TestSendTextMessageIntegration:
 
         # Verify the full text was sent
         call_args = mock_post.call_args
-        payload = call_args[1]['json']
-        assert payload['text'] == text  # Full text, not split
+        payload = call_args[1]["json"]
+        assert payload["text"] == text  # Full text, not split
 
-    @patch('src.channels.whatsapp.evolution_api_sender.requests.post')
+    @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
     def test_send_uses_instance_config(self, mock_post, sender_with_config):
         """Test that instance config is respected when no override."""
         mock_post.return_value.status_code = 200
@@ -288,17 +254,14 @@ class TestSendTextMessageIntegration:
         recipient = "5551234567890"
 
         # No per-message override, should use instance config
-        result = sender_with_config.send_text_message(
-            recipient=recipient,
-            text=text
-        )
+        result = sender_with_config.send_text_message(recipient=recipient, text=text)
 
         # Should send as single message (config disabled splitting)
         assert result is True
         assert mock_post.call_count == 1
 
-    @patch('src.channels.whatsapp.evolution_api_sender.requests.post')
-    @patch('time.sleep')  # Mock sleep to speed up tests
+    @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
+    @patch("time.sleep")  # Mock sleep to speed up tests
     def test_split_message_delays(self, mock_sleep, mock_post, sender_with_config):
         """Test that split messages have delays between them."""
         mock_post.return_value.status_code = 200
@@ -307,11 +270,7 @@ class TestSendTextMessageIntegration:
         text = "Part 1\n\nPart 2\n\nPart 3"
         recipient = "5551234567890"
 
-        sender_with_config.send_text_message(
-            recipient=recipient,
-            text=text,
-            split_message=True
-        )
+        sender_with_config.send_text_message(recipient=recipient, text=text, split_message=True)
 
         # Should have 2 delays (between 3 messages)
         assert mock_sleep.call_count == 2
@@ -321,7 +280,7 @@ class TestSendTextMessageIntegration:
             delay = call[0][0]
             assert 0.3 <= delay <= 1.0
 
-    @patch('src.channels.whatsapp.evolution_api_sender.requests.post')
+    @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
     def test_mentions_only_in_first_split_part(self, mock_post, sender_with_config):
         """Test that mentions are only included in first message part."""
         mock_post.return_value.status_code = 200
@@ -331,23 +290,18 @@ class TestSendTextMessageIntegration:
         recipient = "5551234567890"
         mentioned = ["5559876543@s.whatsapp.net"]
 
-        sender_with_config.send_text_message(
-            recipient=recipient,
-            text=text,
-            mentioned=mentioned,
-            split_message=True
-        )
+        sender_with_config.send_text_message(recipient=recipient, text=text, mentioned=mentioned, split_message=True)
 
         # First call should have mentions
-        first_call = mock_post.call_args_list[0][1]['json']
-        assert 'mentioned' in first_call
-        assert first_call['mentioned'] == mentioned
+        first_call = mock_post.call_args_list[0][1]["json"]
+        assert "mentioned" in first_call
+        assert first_call["mentioned"] == mentioned
 
         # Second call should NOT have mentions
-        second_call = mock_post.call_args_list[1][1]['json']
-        assert 'mentioned' not in second_call
+        second_call = mock_post.call_args_list[1][1]["json"]
+        assert "mentioned" not in second_call
 
-    @patch('src.channels.whatsapp.evolution_api_sender.requests.post')
+    @patch("src.channels.whatsapp.evolution_api_sender.requests.post")
     def test_quote_only_in_first_split_part(self, mock_post, sender_with_config):
         """Test that quoted message is only in first message part."""
         mock_post.return_value.status_code = 200
@@ -355,18 +309,12 @@ class TestSendTextMessageIntegration:
 
         text = "Reply 1\n\nReply 2"
         recipient = "5551234567890"
-        quoted_message = {
-            "key": {"id": "test_msg_id"},
-            "message": {"conversation": "Original"}
-        }
+        quoted_message = {"key": {"id": "test_msg_id"}, "message": {"conversation": "Original"}}
 
         # Note: Quoting is currently disabled in the implementation due to Evolution API bugs,
         # but we test the logic is correct in _send_split_messages
         sender_with_config.send_text_message(
-            recipient=recipient,
-            text=text,
-            quoted_message=quoted_message,
-            split_message=True
+            recipient=recipient, text=text, quoted_message=quoted_message, split_message=True
         )
 
         # Both messages sent (quoting disabled in actual implementation)
