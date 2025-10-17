@@ -11,10 +11,7 @@ from src.channels.whatsapp.omni_evolution_client import OmniEvolutionClient
 @pytest.fixture
 def mock_evolution_client():
     """Create a mock OmniEvolutionClient for testing."""
-    client = OmniEvolutionClient(
-        base_url="https://test-evolution.api",
-        api_key="test-api-key"
-    )
+    client = OmniEvolutionClient(base_url="https://test-evolution.api", api_key="test-api-key")
     return client
 
 
@@ -33,7 +30,7 @@ class TestOmniEvolutionClientPagination:
             {"id": "5553333333@s.whatsapp.net", "pushName": "Contact 5"},
         ]
 
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_contacts
 
             # Test first page with 2 items per page
@@ -59,7 +56,7 @@ class TestOmniEvolutionClientPagination:
             "total": 3,
         }
 
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_response
 
             # Test with page_size larger than total
@@ -74,11 +71,9 @@ class TestOmniEvolutionClientPagination:
     async def test_fetch_chats_pagination_second_page(self, mock_evolution_client):
         """Test fetching second page of chats."""
         # Mock response with many chats
-        mock_chats = [
-            {"id": f"chat_{i}@g.us", "name": f"Chat {i}"} for i in range(15)
-        ]
+        mock_chats = [{"id": f"chat_{i}@g.us", "name": f"Chat {i}"} for i in range(15)]
 
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_chats
 
             # Test page 2 with 5 items per page
@@ -95,11 +90,9 @@ class TestOmniEvolutionClientPagination:
     async def test_fetch_chats_pagination_last_page(self, mock_evolution_client):
         """Test fetching last page with fewer items than page_size."""
         # Mock response with 12 chats
-        mock_chats = [
-            {"id": f"chat_{i}@g.us", "name": f"Chat {i}"} for i in range(12)
-        ]
+        mock_chats = [{"id": f"chat_{i}@g.us", "name": f"Chat {i}"} for i in range(12)]
 
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_chats
 
             # Test page 3 with 5 items per page (should return only 2 items)
@@ -115,7 +108,7 @@ class TestOmniEvolutionClientPagination:
 
     async def test_fetch_contacts_empty_response(self, mock_evolution_client):
         """Test handling of empty contacts list."""
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = []
 
             result = await mock_evolution_client.fetch_contacts("test_instance", page=1, page_size=10)
@@ -137,11 +130,9 @@ class TestOmniEvolutionClientPagination:
 
     async def test_fetch_chats_page_out_of_range(self, mock_evolution_client):
         """Test fetching a page number beyond available data."""
-        mock_chats = [
-            {"id": f"chat_{i}@g.us", "name": f"Chat {i}"} for i in range(5)
-        ]
+        mock_chats = [{"id": f"chat_{i}@g.us", "name": f"Chat {i}"} for i in range(5)]
 
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_chats
 
             # Request page 10 when only 1 page exists
@@ -164,7 +155,7 @@ class TestOmniEvolutionClientPagination:
             "total": 2,
         }
 
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_response
 
             result = await mock_evolution_client.fetch_contacts("test_instance", page=1, page_size=10)
@@ -186,7 +177,7 @@ class TestOmniEvolutionClientPagination:
             "count": 3,
         }
 
-        with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_response
 
             result = await mock_evolution_client.fetch_chats("test_instance", page=1, page_size=2)
@@ -202,14 +193,14 @@ class TestOmniEvolutionClientPagination:
 
         # Test various page/page_size combinations
         test_cases = [
-            (1, 10, 0, 10),    # First page, 10 items
-            (2, 10, 10, 20),   # Second page, 10 items
+            (1, 10, 0, 10),  # First page, 10 items
+            (2, 10, 10, 20),  # Second page, 10 items
             (5, 20, 80, 100),  # Fifth page, 20 items per page
             (1, 100, 0, 100),  # Single page with all items
         ]
 
         for page, page_size, expected_start, expected_end in test_cases:
-            with patch.object(mock_evolution_client, '_request', new_callable=AsyncMock) as mock_request:
+            with patch.object(mock_evolution_client, "_request", new_callable=AsyncMock) as mock_request:
                 mock_request.return_value = items
 
                 result = await mock_evolution_client.fetch_chats("test_instance", page=page, page_size=page_size)
