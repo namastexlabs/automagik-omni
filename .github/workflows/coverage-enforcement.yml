@@ -139,12 +139,10 @@ jobs:
           alembic upgrade head
           echo "Database migrated to main branch schema"
 
-      - name: Run tests and get main branch coverage
-        id: main-coverage
+      - name: Run tests on main branch
+        id: main-coverage-test
+        continue-on-error: true
         run: |
-          # Set fallback first
-          echo "MAIN_COVERAGE=33.12" >> $GITHUB_OUTPUT
-
           # Try to run tests on main branch
           pytest tests/ \
             --cov=src \
@@ -154,14 +152,19 @@ jobs:
             --tb=short \
             --maxfail=5 \
             --disable-warnings \
-            -k "not test_bearer_token_validation and not test_add_command_help" || true
+            -k "not test_bearer_token_validation and not test_add_command_help" || echo "Tests failed, will use fallback"
 
-          # Update with actual coverage if tests succeeded
+      - name: Extract main branch coverage
+        id: main-coverage
+        run: |
+          # Extract coverage if tests succeeded
           if [ -f coverage-main.json ]; then
             MAIN_COVERAGE=$(python -c "import json; data=json.load(open('coverage-main.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
             echo "MAIN_COVERAGE=$MAIN_COVERAGE" >> $GITHUB_OUTPUT
-            echo "📊 Main Coverage (actual): $MAIN_COVERAGE%"
+            echo "📊 Main Coverage (from tests): $MAIN_COVERAGE%"
           else
+            # Use fallback if tests failed
+            echo "MAIN_COVERAGE=33.12" >> $GITHUB_OUTPUT
             echo "⚠️ Main branch tests failed, using fallback coverage: 33.12%"
           fi
 
