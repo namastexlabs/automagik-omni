@@ -133,11 +133,12 @@ jobs:
           pip install -e ".[discord]" --no-deps 2>/dev/null || true
 
       - name: Clean database for main branch
+        continue-on-error: true
         run: |
           rm -f data/test.db
           # Run Alembic migrations for main branch schema
-          alembic upgrade head
-          echo "Database migrated to main branch schema"
+          alembic upgrade head || echo "⚠️ Migration failed (expected if main has older schema)"
+          echo "Database migration attempted"
 
       - name: Run tests on main branch
         id: main-coverage-test
