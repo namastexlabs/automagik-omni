@@ -128,12 +128,12 @@ export default function Dashboard() {
           {/* PM2 Status Card */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">PM2 Processes</h2>
+              <h2 className="text-xl font-semibold">Process Manager</h2>
               <Badge variant={status?.pm2.running ? 'default' : 'destructive'}>
-                {status?.pm2.running ? `${status.pm2.processes.length} Running` : 'Stopped'}
+                {status?.pm2.running ? `PM2: ${status.pm2.processes.length} Running` : 'Direct Process'}
               </Badge>
             </div>
-            {status?.pm2.processes && status.pm2.processes.length > 0 && (
+            {status?.pm2.processes && status.pm2.processes.length > 0 ? (
               <div className="text-sm text-zinc-400 space-y-2">
                 {status.pm2.processes.map((proc) => (
                   <div key={proc.name} className="flex items-center justify-between">
@@ -143,6 +143,12 @@ export default function Dashboard() {
                     </Badge>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="text-sm text-zinc-400">
+                {status?.api.running
+                  ? '⚡ Running via direct process (not PM2)'
+                  : 'No processes detected'}
               </div>
             )}
           </div>
@@ -179,20 +185,33 @@ export default function Dashboard() {
         )}
 
         {/* Control Buttons */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap">
           <Button onClick={handleStart} disabled={loading || status?.api.running}>
-            Start Backend
+            {status?.api.running ? '✓ Backend Running' : 'Start Backend'}
           </Button>
-          <Button onClick={handleStop} disabled={loading || !status?.api.running} variant="destructive">
+          <Button
+            onClick={handleStop}
+            disabled={loading || !status?.api.running || !status?.pm2.running}
+            variant="destructive"
+          >
             Stop Backend
           </Button>
-          <Button onClick={handleRestart} disabled={loading} variant="outline">
+          <Button onClick={handleRestart} disabled={loading || !status?.pm2.running} variant="outline">
             Restart Backend
           </Button>
           <Button onClick={loadStatus} disabled={loading} variant="outline">
             Refresh Status
           </Button>
         </div>
+
+        {!status?.pm2.running && status?.api.running && (
+          <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
+            <p className="text-sm text-yellow-200">
+              ℹ️ Backend is running as a direct process (not managed by PM2). Start/Stop/Restart
+              controls are disabled. Use your terminal to manage the process.
+            </p>
+          </div>
+        )}
 
         {loading && (
           <div className="mt-4 text-zinc-400">
