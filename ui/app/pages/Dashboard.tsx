@@ -1,0 +1,205 @@
+import { useState, useEffect } from 'react'
+import { useConveyor } from '@/app/hooks/use-conveyor'
+import { Button } from '@/app/components/ui/button'
+import { Badge } from '@/app/components/ui/badge'
+import type { BackendStatus, HealthCheck } from '@/lib/conveyor/schemas/backend-schema'
+
+export default function Dashboard() {
+  const { backend } = useConveyor()
+  const [status, setStatus] = useState<BackendStatus | null>(null)
+  const [health, setHealth] = useState<HealthCheck | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadStatus = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const [statusData, healthData] = await Promise.all([backend.status(), backend.health()])
+      setStatus(statusData)
+      setHealth(healthData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load status')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStart = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await backend.start()
+      if (result.success) {
+        await loadStatus()
+      } else {
+        setError(result.message)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start backend')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStop = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await backend.stop()
+      if (result.success) {
+        await loadStatus()
+      } else {
+        setError(result.message)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop backend')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRestart = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await backend.restart()
+      if (result.success) {
+        await loadStatus()
+      } else {
+        setError(result.message)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restart backend')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadStatus()
+    const interval = setInterval(loadStatus, 10000) // Poll every 10s
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-black text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-bold mb-8">Automagik Omni Dashboard</h1>
+
+        {error && (
+          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* API Status Card */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">FastAPI</h2>
+              <Badge variant={status?.api.healthy ? 'default' : 'destructive'}>
+                {status?.api.running ? (status.api.healthy ? 'Healthy' : 'Unhealthy') : 'Stopped'}
+              </Badge>
+            </div>
+            {status?.api.running && (
+              <div className="text-sm text-zinc-400">
+                <p>Port: {status.api.port}</p>
+                <p className="truncate">URL: {status.api.url}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Discord Bot Card */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Discord Bot</h2>
+              <Badge variant={status?.discord.healthy ? 'default' : 'destructive'}>
+                {status?.discord.running
+                  ? status.discord.healthy
+                    ? 'Healthy'
+                    : 'Unhealthy'
+                  : 'Stopped'}
+              </Badge>
+            </div>
+          </div>
+
+          {/* PM2 Status Card */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">PM2 Processes</h2>
+              <Badge variant={status?.pm2.running ? 'default' : 'destructive'}>
+                {status?.pm2.running ? `${status.pm2.processes.length} Running` : 'Stopped'}
+              </Badge>
+            </div>
+            {status?.pm2.processes && status.pm2.processes.length > 0 && (
+              <div className="text-sm text-zinc-400 space-y-2">
+                {status.pm2.processes.map((proc) => (
+                  <div key={proc.name} className="flex items-center justify-between">
+                    <span className="truncate">{proc.name}</span>
+                    <Badge variant={proc.status === 'online' ? 'default' : 'destructive'}>
+                      {proc.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Health Check Info */}
+        {health && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold mb-4">System Health</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-zinc-400">API</p>
+                <Badge variant={health.services.api ? 'default' : 'destructive'}>
+                  {health.services.api ? 'OK' : 'Down'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm text-zinc-400">Discord</p>
+                <Badge variant={health.services.discord ? 'default' : 'destructive'}>
+                  {health.services.discord ? 'OK' : 'Down'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm text-zinc-400">Database</p>
+                <Badge variant={health.services.database ? 'default' : 'destructive'}>
+                  {health.services.database ? 'OK' : 'Down'}
+                </Badge>
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-zinc-400">
+              Last checked: {new Date(health.timestamp).toLocaleString()}
+            </div>
+          </div>
+        )}
+
+        {/* Control Buttons */}
+        <div className="flex gap-4">
+          <Button onClick={handleStart} disabled={loading || status?.api.running}>
+            Start Backend
+          </Button>
+          <Button onClick={handleStop} disabled={loading || !status?.api.running} variant="destructive">
+            Stop Backend
+          </Button>
+          <Button onClick={handleRestart} disabled={loading} variant="outline">
+            Restart Backend
+          </Button>
+          <Button onClick={loadStatus} disabled={loading} variant="outline">
+            Refresh Status
+          </Button>
+        </div>
+
+        {loading && (
+          <div className="mt-4 text-zinc-400">
+            <p>Loading...</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
