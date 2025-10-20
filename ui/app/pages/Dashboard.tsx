@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [health, setHealth] = useState<HealthCheck | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showInfoBanner, setShowInfoBanner] = useState(true)
 
   const loadStatus = async () => {
     try {
@@ -197,7 +198,7 @@ export default function Dashboard() {
           </Button>
           <Button
             onClick={handleStop}
-            disabled={loading || !status?.api.running || !status?.pm2.running}
+            disabled={loading || !status?.pm2.running}
             variant="destructive"
           >
             Stop Backend
@@ -210,9 +211,16 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {!status?.pm2.running && status?.api.running && (
-          <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg max-w-full">
-            <p className="text-sm text-yellow-200 break-words">
+        {!status?.pm2.running && status?.api.running && showInfoBanner && (
+          <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg max-w-full relative">
+            <button
+              onClick={() => setShowInfoBanner(false)}
+              className="absolute top-2 right-2 text-yellow-200 hover:text-yellow-100 text-xl leading-none"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+            <p className="text-sm text-yellow-200 break-words pr-6">
               ℹ️ Backend is running as a direct process (not managed by PM2). Start/Stop/Restart
               controls are disabled. Use your terminal to manage the process.
             </p>
