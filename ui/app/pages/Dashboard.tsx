@@ -31,6 +31,8 @@ export default function Dashboard() {
       setError(null)
       const result = await backend.start()
       if (result.success) {
+        // Wait for PM2 to fully start processes (2 seconds)
+        await new Promise((resolve) => setTimeout(resolve, 2000))
         await loadStatus()
       } else {
         setError(result.message)
@@ -48,6 +50,8 @@ export default function Dashboard() {
       setError(null)
       const result = await backend.stop()
       if (result.success) {
+        // Wait for PM2 to fully stop (1 second)
+        await new Promise((resolve) => setTimeout(resolve, 1000))
         await loadStatus()
       } else {
         setError(result.message)
@@ -65,6 +69,8 @@ export default function Dashboard() {
       setError(null)
       const result = await backend.restart()
       if (result.success) {
+        // Wait for PM2 to restart (3 seconds)
+        await new Promise((resolve) => setTimeout(resolve, 3000))
         await loadStatus()
       } else {
         setError(result.message)
@@ -84,8 +90,8 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="h-screen bg-black text-white overflow-auto">
+      <div className="max-w-6xl mx-auto p-8">
         <h1 className="text-4xl font-bold mb-8">Automagik Omni Dashboard</h1>
 
         {error && (
@@ -205,8 +211,8 @@ export default function Dashboard() {
         </div>
 
         {!status?.pm2.running && status?.api.running && (
-          <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
-            <p className="text-sm text-yellow-200">
+          <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg max-w-full">
+            <p className="text-sm text-yellow-200 break-words">
               ℹ️ Backend is running as a direct process (not managed by PM2). Start/Stop/Restart
               controls are disabled. Use your terminal to manage the process.
             </p>
