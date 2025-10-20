@@ -1,6 +1,6 @@
 [project]
 name = "automagik-omni"
-version = "0.5.1"
+version = "0.5.2"
 description = "Automagik Omni: Multi-tenant omnichannel messaging hub"
 readme = "README.md"
 authors = [
@@ -70,7 +70,10 @@ discord-voice-ai = [
 dev = [
     "black>=25.1.0",
     "mypy>=1.16.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.12.0",
+    "types-pytz>=2025.2.0.20250809",
+    "types-requests>=2.32.4.20250913",
 ]
 
 [tool.ruff]

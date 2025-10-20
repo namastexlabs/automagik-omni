@@ -131,12 +131,15 @@ class AutomagikHiveClient:
         # Timeout configuration
         self._timeout_config = httpx.Timeout(connect=10.0, read=float(self.timeout), write=10.0, pool=5.0)
 
+        # API version tracking
+        self._api_version: Optional[str] = None
+
         logger.info(f"AutomagikHive client initialized - URL: {self.api_url}")
 
     def _make_headers(self, accept_sse: bool = False) -> Dict[str, str]:
-        """Make headers for API requests with Bearer token authentication."""
+        """Make headers for API requests with X-API-Key authentication."""
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "X-API-Key": self.api_key,
             "User-Agent": "automagik-omni/1.0",
         }
 
@@ -213,7 +216,7 @@ class AutomagikHiveClient:
             if not agent_id:
                 raise AutomagikHiveError("agent_id is required")
 
-        endpoint = f"{self.api_url}/playground/agents/{agent_id}/runs"
+        endpoint = f"{self.api_url}/agents/{agent_id}/runs"
 
         request_data = {
             "message": message,
@@ -256,7 +259,7 @@ class AutomagikHiveClient:
             if not team_id:
                 raise AutomagikHiveError("team_id is required")
 
-        endpoint = f"{self.api_url}/playground/teams/{team_id}/runs"
+        endpoint = f"{self.api_url}/teams/{team_id}/runs"
 
         request_data = {
             "message": message,
@@ -295,7 +298,7 @@ class AutomagikHiveClient:
         if not agent_id:
             agent_id = self.default_agent_id
 
-        endpoint = f"{self.api_url}/playground/agents/{agent_id}/runs/{run_id}/continue"
+        endpoint = f"{self.api_url}/agents/{agent_id}/runs/{run_id}/continue"
 
         request_data = HiveContinueRequest(message=message, user_id=user_id, metadata=metadata)
 
@@ -814,9 +817,39 @@ class AutomagikHiveClient:
             # Cleanup is handled by the client's context manager
             pass
 
+    async def get_api_version(self) -> Optional[str]:
+        """
+        Fetch the API version from the OpenAPI spec.
+
+        Returns:
+            str: API version string (e.g., "0.1.1b2"), or None if unavailable
+        """
+        try:
+            client = await self._get_client()
+            openapi_url = f"{self.api_url}/openapi.json"
+            response = await client.get(openapi_url)
+
+            if response.status_code == 200:
+                openapi_spec = response.json()
+                version = openapi_spec.get("info", {}).get("version")
+                if version:
+                    self._api_version = version
+                    logger.info(f"Detected Hive API version: {version}")
+                    return version
+                else:
+                    logger.warning("Version not found in OpenAPI spec")
+                    return None
+            else:
+                logger.warning(f"Failed to fetch OpenAPI spec: HTTP {response.status_code}")
+                return None
+
+        except Exception as e:
+            logger.warning(f"Failed to detect API version: {e}")
+            return None
+
     async def health_check(self) -> bool:
         """
-        Check if the AutomagikHive API is accessible.
+        Check if the AutomagikHive API is accessible and log version info.
 
         Returns:
             bool: True if API is accessible, False otherwise
@@ -825,11 +858,20 @@ class AutomagikHiveClient:
             client = await self._get_client()
             headers = self._make_headers()
 
-            # Try a simple endpoint (adjust based on actual API)
+            # Check health endpoint
             health_url = f"{self.api_url}/health"
             response = await client.get(health_url, headers=headers)
 
-            return response.status_code == 200
+            if response.status_code == 200:
+                # Also fetch and log API version for debugging
+                await self.get_api_version()
+                logger.info(
+                    f"Hive health check passed - API URL: {self.api_url}, Version: {self._api_version or 'unknown'}"
+                )
+                return True
+            else:
+                logger.warning(f"Health check failed: HTTP {response.status_code}")
+                return False
 
         except Exception as e:
             logger.warning(f"Health check failed: {e}")

@@ -92,6 +92,12 @@ class InstanceConfigCreate(BaseModel):
     agent_type: Optional[str] = Field(default="agent", description="Agent type: agent or team")
     agent_stream_mode: Optional[bool] = Field(default=False, description="Enable streaming mode")
 
+    # Message splitting control
+    enable_auto_split: Optional[bool] = Field(
+        default=True,
+        description="Enable automatic message splitting on \\n\\n (WhatsApp: full control, Discord: preference only)",
+    )
+
 
 class InstanceConfigUpdate(BaseModel):
     """Schema for updating instance configuration."""
@@ -124,6 +130,9 @@ class InstanceConfigUpdate(BaseModel):
     agent_id: Optional[str] = None
     agent_type: Optional[str] = None
     agent_stream_mode: Optional[bool] = None
+
+    # Message splitting control
+    enable_auto_split: Optional[bool] = None
 
 
 class EvolutionStatusInfo(BaseModel):
@@ -180,6 +189,10 @@ class InstanceConfigResponse(BaseModel):
     agent_id: Optional[str] = None
     agent_type: Optional[str] = None
     agent_stream_mode: Optional[bool] = None
+
+    # Message splitting control
+    enable_auto_split: Optional[bool] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 

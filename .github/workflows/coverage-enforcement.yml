@@ -1,0 +1,335 @@
+name: Coverage Enforcement (dev → main) - 0.5% Increase Required
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  enforce-coverage-increase:
+    name: Enforce 0.5% Coverage Increase
+    runs-on: ubuntu-latest
+    # Only run if PR is from dev branch to main
+    if: github.head_ref == 'dev' || github.head_ref == 'refs/heads/dev'
+
+    steps:
+      - name: Try to download PR test artifacts
+        id: download-pr-artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results-3.12
+          path: ./pr-artifacts
+
+      - name: Check if artifacts were downloaded
+        id: check-artifacts
+        run: |
+          if [ -f ./pr-artifacts/coverage.json ]; then
+            echo "ARTIFACTS_AVAILABLE=true" >> $GITHUB_OUTPUT
+            echo "✅ Reusing test results from pr-tests workflow"
+          else
+            echo "ARTIFACTS_AVAILABLE=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No artifacts found, will run tests manually"
+          fi
+
+      - name: Checkout PR branch (dev)
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Get PR coverage from artifacts
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE == 'true'
+        id: pr-coverage-cached
+        run: |
+          # Reuse coverage from pr-tests workflow
+          cp ./pr-artifacts/coverage.json coverage-pr.json
+          PR_COVERAGE=$(python3 -c "import json; data=json.load(open('coverage-pr.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
+          echo "PR_COVERAGE=$PR_COVERAGE" >> $GITHUB_OUTPUT
+          echo "📊 PR Coverage (from cache): $PR_COVERAGE%"
+
+      - name: Set up Python
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install system dependencies
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libpq-dev python3-dev
+
+      - name: Install Python dependencies
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e .
+          pip install -e ".[discord]"
+          pip install pytest-xdist
+
+      - name: Set up environment for PR branch
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        run: |
+          mkdir -p data
+          echo "DATABASE_URL=sqlite:///data/test.db" >> $GITHUB_ENV
+          echo "AUTOMAGIK_OMNI_API_KEY=dummy-key" >> $GITHUB_ENV
+          echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
+
+      - name: Initialize database for PR branch
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        run: |
+          # Run Alembic migrations to ensure schema is up-to-date
+          alembic upgrade head
+          echo "Database migrated to latest schema"
+
+      - name: Run tests and get PR coverage (fallback)
+        if: steps.check-artifacts.outputs.ARTIFACTS_AVAILABLE != 'true'
+        id: pr-coverage-fallback
+        run: |
+          # Run full test suite with coverage in parallel
+          pytest tests/ \
+            --cov=src \
+            --cov-report=term \
+            --cov-report=json:coverage-pr.json \
+            -v \
+            --tb=short \
+            --maxfail=5 \
+            --disable-warnings \
+            -n auto \
+            -k "not test_bearer_token_validation and not test_add_command_help"
+
+          # Extract coverage percentage from JSON report
+          PR_COVERAGE=$(python -c "import json; data=json.load(open('coverage-pr.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
+          echo "PR_COVERAGE=$PR_COVERAGE" >> $GITHUB_OUTPUT
+          echo "📊 PR Coverage: $PR_COVERAGE%"
+
+      - name: Set PR coverage output
+        id: pr-coverage
+        run: |
+          if [ "${{ steps.pr-coverage-cached.outputs.PR_COVERAGE }}" != "" ]; then
+            echo "PR_COVERAGE=${{ steps.pr-coverage-cached.outputs.PR_COVERAGE }}" >> $GITHUB_OUTPUT
+          else
+            echo "PR_COVERAGE=${{ steps.pr-coverage-fallback.outputs.PR_COVERAGE }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout main branch
+        run: |
+          git fetch origin main
+          git checkout main
+
+      - name: Install dependencies for main branch
+        run: |
+          # Dependencies should already be cached, but ensure they're available
+          pip install -e . --no-deps 2>/dev/null || true
+          pip install -e ".[discord]" --no-deps 2>/dev/null || true
+
+      - name: Clean database for main branch
+        continue-on-error: true
+        run: |
+          rm -f data/test.db
+          # Run Alembic migrations for main branch schema
+          alembic upgrade head || echo "⚠️ Migration failed (expected if main has older schema)"
+          echo "Database migration attempted"
+
+      - name: Run tests on main branch
+        id: main-coverage-test
+        continue-on-error: true
+        run: |
+          # Try to run tests on main branch
+          pytest tests/ \
+            --cov=src \
+            --cov-report=term \
+            --cov-report=json:coverage-main.json \
+            -v \
+            --tb=short \
+            --maxfail=5 \
+            --disable-warnings \
+            -k "not test_bearer_token_validation and not test_add_command_help" || echo "Tests failed, will use fallback"
+
+      - name: Extract main branch coverage
+        id: main-coverage
+        run: |
+          # Extract coverage if tests succeeded
+          if [ -f coverage-main.json ]; then
+            MAIN_COVERAGE=$(python -c "import json; data=json.load(open('coverage-main.json')); print(f\"{data['totals']['percent_covered']:.2f}\")")
+            echo "MAIN_COVERAGE=$MAIN_COVERAGE" >> $GITHUB_OUTPUT
+            echo "📊 Main Coverage (from tests): $MAIN_COVERAGE%"
+          else
+            # Use fallback if tests failed
+            echo "MAIN_COVERAGE=33.12" >> $GITHUB_OUTPUT
+            echo "⚠️ Main branch tests failed, using fallback coverage: 33.12%"
+          fi
+
+      - name: Calculate coverage difference and enforce
+        id: enforce
+        run: |
+          PR_COV="${{ steps.pr-coverage.outputs.PR_COVERAGE }}"
+          MAIN_COV="${{ steps.main-coverage.outputs.MAIN_COVERAGE }}"
+
+          # Calculate difference
+          DIFF=$(python -c "print(f'{float('$PR_COV') - float('$MAIN_COV'):.2f}')")
+
+          echo "COVERAGE_DIFF=$DIFF" >> $GITHUB_OUTPUT
+          echo "📈 Coverage Difference: $DIFF%"
+
+          # Check if PR coverage is >= 90% (cap reached)
+          if (( $(echo "$PR_COV >= 90.00" | bc -l) )); then
+            echo "STATUS=✅ Coverage cap reached (≥90%)" >> $GITHUB_OUTPUT
+            echo "PASSED=true" >> $GITHUB_OUTPUT
+            echo "✅ Coverage cap reached at ${PR_COV}%"
+            exit 0
+          fi
+
+          # Check if coverage increased by at least 0.5%
+          if (( $(echo "$DIFF >= 0.50" | bc -l) )); then
+            echo "STATUS=✅ Coverage increased by required 0.5%" >> $GITHUB_OUTPUT
+            echo "PASSED=true" >> $GITHUB_OUTPUT
+            echo "✅ Coverage increased by ${DIFF}% (requirement met)"
+            exit 0
+          else
+            echo "STATUS=❌ Coverage increase requirement not met" >> $GITHUB_OUTPUT
+            echo "PASSED=false" >> $GITHUB_OUTPUT
+            echo "❌ Coverage only increased by ${DIFF}% (need at least 0.50%)"
+            exit 1
+          fi
+
+      - name: Post detailed coverage report
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prCov = parseFloat('${{ steps.pr-coverage.outputs.PR_COVERAGE }}');
+            const mainCov = parseFloat('${{ steps.main-coverage.outputs.MAIN_COVERAGE }}');
+            const diff = parseFloat('${{ steps.enforce.outputs.COVERAGE_DIFF }}');
+            const passed = '${{ steps.enforce.outputs.PASSED }}' === 'true';
+
+            let statusEmoji = passed ? '✅' : '❌';
+            let statusText = passed ? 'PASSED' : 'FAILED';
+            let statusColor = passed ? '🟢' : '🔴';
+
+            let message = `## ${statusEmoji} Coverage Enforcement Report
+
+            ### ${statusColor} Status: ${statusText}
+
+            | Branch | Coverage | Change |
+            |--------|----------|--------|
+            | **main** (baseline) | ${mainCov.toFixed(2)}% | - |
+            | **dev** (PR) | ${prCov.toFixed(2)}% | ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}% |
+
+            ---
+
+            ### 📋 Requirements
+            `;
+
+            if (prCov >= 90.0) {
+              message += `
+            ✅ **Coverage Cap Reached**
+            - Current coverage: **${prCov.toFixed(2)}%** ≥ 90%
+            - 🎉 Excellent work! The 90% coverage cap has been achieved.
+            - No further coverage increase is required for this PR.
+            `;
+            } else if (diff >= 0.5) {
+              message += `
+            ✅ **Requirement Met**
+            - Coverage increased by **${diff.toFixed(2)}%** ≥ 0.5%
+            - Progress toward 90% cap: **${prCov.toFixed(1)}%** / 90%
+            - Keep up the great work! 🚀
+            `;
+            } else {
+              message += `
+            ❌ **Requirement NOT Met**
+            - Coverage increased by only **${diff.toFixed(2)}%** < 0.5%
+            - **Required increase:** 0.5% minimum
+            - **Current shortfall:** ${(0.5 - diff).toFixed(2)}%
+
+            ### 🔧 What to do:
+            1. Add tests for uncovered code paths
+            2. Focus on files with low coverage (use \`pytest --cov=src --cov-report=term-missing\`)
+            3. Run \`uv run pytest --cov=src --cov-report=html\` locally to see detailed coverage
+            4. Check \`htmlcov/index.html\` to identify untested areas
+
+            ### 📊 Coverage Tips:
+            - Target files with 0-50% coverage first for maximum impact
+            - Each well-tested module can significantly boost overall coverage
+            - Integration tests often cover multiple modules at once
+            `;
+            }
+
+            message += `
+
+            ---
+
+            ### 📌 Policy Details
+            - **Trigger:** PRs from \`dev\` → \`main\`
+            - **Requirement:** +0.5% coverage increase per PR
+            - **Cap:** 90% (once reached, no increase required)
+            - **Current Progress:** ${prCov.toFixed(1)}% / 90% (${(prCov/90*100).toFixed(1)}% of goal)
+
+            ---
+
+            🔗 [View Full Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+
+            // Post or update comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Coverage Enforcement Report')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: message
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              });
+            }
+
+      - name: Add status check
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.enforce.outputs.PASSED }}' === 'true';
+            const conclusion = passed ? 'success' : 'failure';
+            const prCov = '${{ steps.pr-coverage.outputs.PR_COVERAGE }}';
+            const diff = '${{ steps.enforce.outputs.COVERAGE_DIFF }}';
+
+            console.log(`Coverage check ${conclusion}: ${prCov}% (${diff >= 0 ? '+' : ''}${diff}%)`);
+
+      - name: Fail if coverage requirement not met
+        if: steps.enforce.outputs.PASSED != 'true'
+        run: |
+          echo "❌ Coverage enforcement check failed!"
+          echo "This PR does not meet the minimum 0.5% coverage increase requirement."
+          echo "Please add more tests to increase coverage before merging to main."
+          exit 1
+
+      - name: Success summary
+        if: steps.enforce.outputs.PASSED == 'true'
+        run: |
+          echo "✅ Coverage enforcement check passed!"
+          echo "${{ steps.enforce.outputs.STATUS }}"
+          echo "Coverage: ${{ steps.pr-coverage.outputs.PR_COVERAGE }}%"

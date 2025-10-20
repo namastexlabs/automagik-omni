@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Progressive Coverage Enforcement**: Automated CI/CD workflow requiring 1% coverage increase per PR from dev→main (90% cap)
+  - New GitHub Actions workflow: `.github/workflows/coverage-enforcement.yml`
+  - Comprehensive coverage policy documentation: `docs/COVERAGE_POLICY.md`
+  - Detailed PR comments with coverage comparison, actionable guidance, and progress tracking
+  - Automatic pass when 90% coverage cap is reached
+
+- **Configurable Message Splitting**: Instance-level and per-message controls for automatic message splitting
+  - New `enable_auto_split` boolean column in InstanceConfig (default: True for backward compatibility)
+  - Per-message `split_message` parameter in send text endpoint
+  - Priority logic: per-message override → instance config → default
+  - **WhatsApp**: Complete control over splitting (can disable entirely)
+  - **Discord**: Controls \n\n preference (2000-char hard limit always enforced)
+  - Database migration: `49e3788203da_add_enable_auto_split_to_instance_config`
+
+### Fixed
+- **Client-side Pagination for Omni API**: Evolution API v2.3.5 pagination bugs workaround
+  - Implemented reliable client-side pagination in OmniEvolutionClient
+  - `page_size` parameter now properly limits returned items
+  - Fixes MCP integration token limit issues (25K token cap)
+  - Comprehensive pagination tests added (6 new test cases)
+  - Proper total_count calculation respecting pagination metadata
+
+- **Coverage Workflow Enhancements**: Multiple fixes to ensure accurate coverage reporting
+  - Split main coverage test and extraction steps to handle step output precedence
+  - Use Alembic migrations for database initialization (fixes schema mismatch errors)
+  - Make database clean step non-blocking for main branch compatibility
+  - Correct PR coverage calculation (was showing 0% due to output override issues)
+
 ## [0.2.0] - 2025-06-21
 
 ### Added
