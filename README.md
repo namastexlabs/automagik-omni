@@ -21,7 +21,7 @@
   <a href="#-key-features">Features</a> •
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-architecture">Architecture</a> •
-  <a href="https://github.com/orgs/namastexlabs/projects/9/views/1?filterQuery=project%3Aomni">🗺️ Roadmap</a> •
+  <a href="https://github.com/orgs/namastexlabs/projects/9/views/1?filterQuery=project%3Aomni">Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
 
