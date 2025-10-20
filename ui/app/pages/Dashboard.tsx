@@ -101,9 +101,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 auto-rows-fr">
           {/* API Status Card */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">FastAPI</h2>
               <Badge variant={status?.api.healthy ? 'default' : 'destructive'}>
@@ -111,7 +111,7 @@ export default function Dashboard() {
               </Badge>
             </div>
             {status?.api.running && (
-              <div className="text-sm text-zinc-400">
+              <div className="text-sm text-zinc-400 mt-auto">
                 <p>Port: {status.api.port}</p>
                 <p className="truncate">URL: {status.api.url}</p>
               </div>
@@ -119,7 +119,7 @@ export default function Dashboard() {
           </div>
 
           {/* Discord Bot Card */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Discord Bot</h2>
               <Badge variant={status?.discord.healthy ? 'default' : 'destructive'}>
@@ -133,19 +133,24 @@ export default function Dashboard() {
           </div>
 
           {/* PM2 Status Card */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex flex-col min-w-0">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Process Manager</h2>
               <Badge variant={status?.pm2.running ? 'default' : 'destructive'}>
-                {status?.pm2.running ? `PM2: ${status.pm2.processes.length} Running` : 'Direct Process'}
+                {status?.pm2.running ? `${status.pm2.processes.length} Running` : 'No PM2'}
               </Badge>
             </div>
             {status?.pm2.processes && status.pm2.processes.length > 0 ? (
               <div className="text-sm text-zinc-400 space-y-2">
                 {status.pm2.processes.map((proc) => (
-                  <div key={proc.name} className="flex items-center justify-between">
-                    <span className="truncate">{proc.name}</span>
-                    <Badge variant={proc.status === 'online' ? 'default' : 'destructive'}>
+                  <div key={proc.name} className="flex items-center justify-between gap-2 min-w-0">
+                    <span className="truncate flex-1 font-mono text-xs">
+                      {proc.name.replace('automagik-omni-', '')}
+                    </span>
+                    <Badge
+                      variant={proc.status === 'online' ? 'default' : 'destructive'}
+                      className="shrink-0"
+                    >
                       {proc.status}
                     </Badge>
                   </div>
@@ -154,7 +159,7 @@ export default function Dashboard() {
             ) : (
               <div className="text-sm text-zinc-400">
                 {status?.api.running
-                  ? '⚡ Running via direct process (not PM2)'
+                  ? '⚡ Running via direct process'
                   : 'No processes detected'}
               </div>
             )}
