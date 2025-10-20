@@ -592,3 +592,44 @@ class TestDiscordTransformer:
             # Should handle gracefully without crashing
             transformed = WhatsAppTransformer.contact_to_omni(contact, "test")
             assert isinstance(transformed, OmniContact)
+
+    def test_discord_snowflake_timestamp_invalid_inputs(self):
+        """Test Discord snowflake timestamp parsing with invalid inputs."""
+        # Test None snowflake
+        result = DiscordTransformer._parse_snowflake_timestamp(None)
+        assert result is None
+
+        # Test invalid snowflake that raises exception
+        result = DiscordTransformer._parse_snowflake_timestamp("invalid_snowflake")
+        assert result is None
+
+        # Test empty string
+        result = DiscordTransformer._parse_snowflake_timestamp("")
+        assert result is None
+
+        # Test valid snowflake
+        valid_snowflake = 987654321098765432
+        result = DiscordTransformer._parse_snowflake_timestamp(valid_snowflake)
+        assert isinstance(result, datetime)
+
+    def test_discord_timestamp_parsing_with_exceptions(self):
+        """Test Discord timestamp parsing exception handling."""
+        # Test None timestamp
+        result = DiscordTransformer._parse_datetime(None)
+        assert result is None
+
+        # Test invalid timestamp type that raises exception
+        result = DiscordTransformer._parse_datetime({"invalid": "dict"})
+        assert result is None
+
+        # Test list input
+        result = DiscordTransformer._parse_datetime([1, 2, 3])
+        assert result is None
+
+        # Test valid integer timestamp
+        result = DiscordTransformer._parse_datetime(1640995200)
+        assert isinstance(result, datetime)
+
+        # Test valid ISO string
+        result = DiscordTransformer._parse_datetime("2022-01-01T00:00:00Z")
+        assert isinstance(result, datetime)

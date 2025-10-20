@@ -53,6 +53,7 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -e .
           pip install -e ".[discord]"  # Install optional discord dependencies
+          pip install pytest-xdist  # For parallel test execution
 
       - name: Set up environment variables
         run: |
@@ -78,8 +79,7 @@ jobs:
       - name: Run tests with coverage
         id: test
         run: |
-          # Run tests with coverage, skip known CI issues
-          # Note: Removed parallel execution (-n auto) as it can cause issues in CI
+          # Run tests with coverage in parallel for faster execution
           pytest tests/ \
             -v \
             --tb=short \
@@ -88,10 +88,12 @@ jobs:
             --cov-report=term-missing:skip-covered \
             --cov-report=xml \
             --cov-report=html \
+            --cov-report=json:coverage.json \
             --cov-report=term > pytest-coverage.txt \
             --junitxml=test-results.xml \
             --maxfail=5 \
             --disable-warnings \
+            -n auto \
             -k "not test_bearer_token_validation and not test_add_command_help" \
             || TEST_FAILED=$?
 
@@ -113,6 +115,7 @@ jobs:
             htmlcov/
             pytest-coverage.txt
             coverage.xml
+            coverage.json
           retention-days: 7
 
       - name: Get target branch coverage for comparison
