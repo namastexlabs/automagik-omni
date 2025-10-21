@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, app } from 'electron'
+import { BrowserWindow, shell, app, Menu } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import appIcon from '@/resources/build/icon.png?asset'
@@ -50,6 +50,9 @@ export function createAppWindow(): void {
   // Register custom protocol for resources
   registerResourcesProtocol()
 
+  // Remove default menu bar
+  Menu.setApplicationMenu(null)
+
   // Load config and initialize Omni client
   const { apiUrl, apiKey } = loadEnvConfig()
   initOmniClient(apiUrl, apiKey)
@@ -59,9 +62,9 @@ export function createAppWindow(): void {
     width: 1400,
     height: 900,
     show: true, // Show immediately
-    backgroundColor: '#1c1c1c',
+    backgroundColor: '#000000',
     icon: appIcon,
-    frame: true, // Use native frame for WSL compatibility
+    frame: false, // Frameless for custom titlebar
     title: 'Automagik Omni',
     maximizable: true,
     resizable: true,
@@ -78,6 +81,18 @@ export function createAppWindow(): void {
   registerAppHandlers(app)
   registerBackendHandlers()
   registerOmniHandlers()
+
+  // Handle window controls
+  const { ipcMain } = require('electron')
+  ipcMain.on('window-minimize', () => mainWindow.minimize())
+  ipcMain.on('window-maximize', () => {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow.maximize()
+    }
+  })
+  ipcMain.on('window-close', () => mainWindow.close())
 
   // DevTools can be opened with F12 if needed (disabled by default)
   // if (!app.isPackaged) {
