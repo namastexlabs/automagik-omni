@@ -109,4 +109,8 @@ export const registerOmniHandlers = () => {
   handle('omni:traces:get', async (traceId: string) => {
     return await getClient().getTrace(traceId)
   })
+
+  handle('omni:traces:analytics', async (params?: { instanceName?: string; startDate?: string; endDate?: string }) => {
+    return await getClient().getTraceAnalytics(params)
+  })
 }

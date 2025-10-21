@@ -1,6 +1,6 @@
-import Dashboard from '@/app/pages/Dashboard'
+import Router from '@/app/router'
 import './styles/app.css'
 
 export default function App() {
-  return <Dashboard />
+  return <Router />
 }

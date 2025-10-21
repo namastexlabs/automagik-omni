@@ -136,4 +136,21 @@ export class OmniApi extends ConveyorApi {
   getTrace = (traceId: string): Promise<Trace> => {
     return this.invoke('omni:traces:get', traceId)
   }
+
+  getTraceAnalytics = (params?: {
+    instanceName?: string
+    startDate?: string
+    endDate?: string
+  }): Promise<{
+    total_messages: number
+    success_rate: number
+    average_duration: number
+    failed_count: number
+    messages_over_time: Array<{ date: string; count: number }>
+    success_vs_failed: Array<{ name: string; value: number }>
+    message_types: Array<{ type: string; count: number }>
+    top_contacts: Array<{ phone: string; count: number }>
+  }> => {
+    return this.invoke('omni:traces:analytics', params)
+  }
 }
