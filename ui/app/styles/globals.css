@@ -2,7 +2,18 @@
 @source '@/app';
 @source '@/lib';
 
+/* Blanka Font */
+@font-face {
+  font-family: 'Blanka';
+  src: url('@/resources/fonts/Blanka-Regular.otf') format('opentype'),
+       url('@/resources/fonts/Blanka-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
+  --font-family-blanka: 'Blanka', sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
