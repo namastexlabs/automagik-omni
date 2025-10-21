@@ -41,7 +41,7 @@ function loadEnvConfig(): { apiUrl: string; apiKey: string } {
   if (apiHost === '0.0.0.0') apiHost = 'localhost'
 
   return {
-    apiUrl: `http://${apiHost}:${apiPort}/api/v1`,
+    apiUrl: `http://${apiHost}:${apiPort}`,
     apiKey,
   }
 }
