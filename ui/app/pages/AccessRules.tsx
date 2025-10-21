@@ -69,13 +69,11 @@ export default function AccessRules() {
   useEffect(() => {
     let filtered = [...rules]
 
-    // Search filter (phone number or friendly name)
+    // Search filter (phone number)
     if (filters.search.trim()) {
       const searchLower = filters.search.toLowerCase().trim()
-      filtered = filtered.filter(
-        (rule) =>
-          rule.phone_number.toLowerCase().includes(searchLower) ||
-          (rule.friendly_name?.toLowerCase().includes(searchLower) ?? false)
+      filtered = filtered.filter((rule) =>
+        rule.phone_number.toLowerCase().includes(searchLower)
       )
     }
 
