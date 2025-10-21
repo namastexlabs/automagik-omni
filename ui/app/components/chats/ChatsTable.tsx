@@ -81,15 +81,30 @@ export function ChatsTable({
       header: 'Last Message',
       cell: ({ row }) => {
         // Try multiple sources for last message text
-        const lastMessage =
+        let lastMessage =
           row.original.last_message_text ||
           row.original.channel_data?.raw_data?.lastMessage?.message ||
           row.original.channel_data?.raw_data?.lastMessage?.text ||
           row.original.channel_data?.last_message_text
 
+        // Handle complex message objects (WhatsApp protocol messages)
+        if (lastMessage && typeof lastMessage === 'object') {
+          // Extract text from various WhatsApp message types
+          lastMessage =
+            lastMessage.conversation ||
+            lastMessage.extendedTextMessage?.text ||
+            lastMessage.imageMessage?.caption ||
+            lastMessage.videoMessage?.caption ||
+            lastMessage.documentMessage?.caption ||
+            '[Media]'
+        }
+
+        // Ensure we only render strings
+        const displayMessage = typeof lastMessage === 'string' ? lastMessage : 'No messages'
+
         return (
           <span className="text-sm text-zinc-400 truncate max-w-xs block">
-            {lastMessage || 'No messages'}
+            {displayMessage}
           </span>
         )
       },
