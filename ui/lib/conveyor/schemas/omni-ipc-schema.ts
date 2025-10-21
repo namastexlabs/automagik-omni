@@ -36,7 +36,13 @@ export const omniIpcSchema = {
 
   'omni:instances:qr': {
     args: z.tuple([z.string()]), // instance_name
-    return: z.object({ qr_code: z.string(), base64: z.string() }),
+    return: z.object({
+      instance_name: z.string(),
+      channel_type: z.string(),
+      qr_code: z.string().nullable(),
+      base64: z.string().nullable().optional(),
+      message: z.string().optional(),
+    }),
   },
 
   'omni:instances:status': {

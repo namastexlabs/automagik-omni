@@ -62,7 +62,16 @@ export default function Contacts() {
         setTotalCount(result.total_count)
         setHasMore(result.has_more)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load contacts')
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load contacts'
+
+        // Check if instance doesn't exist in Evolution API
+        if (errorMessage.includes('does not exist')) {
+          setError(`Instance "${selectedInstance}" no longer exists. Please select another instance or create a new one.`)
+          // Clear the selected instance so user must choose another
+          setSelectedInstance('')
+        } else {
+          setError(errorMessage)
+        }
         setContacts([])
       } finally {
         setLoading(false)

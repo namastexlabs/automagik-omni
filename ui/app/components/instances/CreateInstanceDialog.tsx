@@ -53,6 +53,11 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
     resolver: zodResolver(createInstanceSchema),
     defaultValues: {
       channel_type: 'whatsapp',
+      evolution_url: 'http://localhost:8080',
+      evolution_key: 'namastex888',
+      agent_api_url: 'http://localhost:8886',
+      agent_api_key: 'hive_key_placeholder',
+      default_agent: 'template-agent',
       agent_timeout: 30000,
     },
   })

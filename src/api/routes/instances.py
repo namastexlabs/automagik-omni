@@ -775,15 +775,15 @@ async def restart_instance(
     # Get appropriate channel handler
     try:
         handler = ChannelHandlerFactory.get_handler(instance.channel_type)
-        result = await handler.restart_instance(instance)
+        await handler.restart_instance(instance)
 
         # Update instance as active after successful restart
         instance.is_active = True
         db.commit()
 
         return {
+            "success": True,
             "message": f"Instance '{instance_name}' restarted successfully",
-            "result": result,
         }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
