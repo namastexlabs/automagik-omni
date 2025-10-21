@@ -363,6 +363,22 @@ class WhatsAppChannelHandler(ChannelHandler):
             logger.error(f"Failed to restart instance {instance.name}: {e}")
             raise Exception(f"WhatsApp instance restart failed: {str(e)}")
 
+    async def disconnect_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
+        """Disconnect WhatsApp instance (same as logout)."""
+        try:
+            evolution_client = self._get_evolution_client(instance)
+            result = await evolution_client.logout_instance(instance.name)
+
+            return {
+                "status": "success",
+                "message": f"WhatsApp instance '{instance.name}' disconnected",
+                "evolution_response": result,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to disconnect instance {instance.name}: {e}")
+            raise Exception(f"WhatsApp instance disconnect failed: {str(e)}")
+
     async def logout_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Logout WhatsApp instance."""
         try:

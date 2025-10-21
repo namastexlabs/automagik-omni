@@ -94,7 +94,12 @@ class InstanceConfig(Base):
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
 
     # Relationships
-    users = relationship("User", back_populates="instance")
+    users = relationship(
+        "User",
+        back_populates="instance",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     access_rules = relationship(
         "AccessRule",
         back_populates="instance",

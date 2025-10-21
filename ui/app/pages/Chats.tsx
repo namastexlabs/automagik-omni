@@ -60,7 +60,16 @@ export default function Chats() {
         setTotalCount(result.total_count)
         setHasMore(result.has_more)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load chats')
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load chats'
+
+        // Check if instance doesn't exist in Evolution API
+        if (errorMessage.includes('does not exist')) {
+          setError(`Instance "${selectedInstance}" no longer exists. Please select another instance or create a new one.`)
+          // Clear the selected instance so user must choose another
+          setSelectedInstance('')
+        } else {
+          setError(errorMessage)
+        }
         setChats([])
       } finally {
         setLoading(false)
