@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet">
   <!-- Add padding by using a larger viewBox and centering the content -->
   <g transform="translate(256, 256)">
-    <!-- Scale down to 70% and center -->
-    <g transform="scale(0.7) translate(-187.5, -187.5)">
+    <!-- Scale to 85% and center (better size with some padding) -->
+    <g transform="scale(0.85) translate(-187.5, -187.5)">
       <g fill="#ff00ff" fill-opacity="1">
         <g transform="translate(30.403611, 300.703502)">
           <g>
