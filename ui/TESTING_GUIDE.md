@@ -27,11 +27,19 @@ curl http://localhost:8882/health
 # In a separate terminal
 cd /home/cezar/automagik/automagik-omni/ui
 
-# Start Electron in dev mode
+# RECOMMENDED (WSL): Use clean start script
+./clean-start.sh
+
+# OR: Start Electron in dev mode
 pnpm run dev
 ```
 
 The app will open automatically and connect to `http://localhost:8882`.
+
+**⚠️ WSL Users:** If the window appears blank or doesn't show:
+1. Use `./clean-start.sh` instead of `pnpm run dev`
+2. Or restart WSL: `wsl --shutdown` (from PowerShell) then `wsl`
+3. See `WSL_ELECTRON_FIX.md` for details
 
 ---
 
@@ -267,6 +275,34 @@ This is **expected** - the UI gracefully handles backend unavailability by:
 
 ## Troubleshooting
 
+### Issue: Blank/White Window (WSL Only)
+
+**Symptom:** Electron starts in logs but window is blank or doesn't appear.
+
+**Cause:** Zombie Electron processes holding WSLg display resources.
+
+**Fix:**
+```bash
+# Option 1: Clean start (recommended)
+cd ui
+./clean-start.sh
+
+# Option 2: Manual cleanup
+pkill -9 -f "electron|vite"
+sleep 1
+pnpm run dev
+
+# Option 3: Restart WSL (from PowerShell)
+wsl --shutdown
+wsl
+```
+
+**Prevention:** Always use Ctrl+C to stop Electron, not `pkill -9`.
+
+See `WSL_ELECTRON_FIX.md` for detailed explanation.
+
+---
+
 ### Issue: "Error: Not Found"
 
 **Cause:** Backend API not running
@@ -287,6 +323,26 @@ make start-local
 1. Check `.env` file in root directory
 2. Verify `AUTOMAGIK_OMNI_API_PORT=8882`
 3. Restart Electron app
+
+---
+
+### Issue: Schema Validation Errors
+
+**Symptom:** Runtime errors about Zod validation failures.
+
+**Cause:** Schema mismatch between UI and backend API.
+
+**Fix:**
+1. Check DevTools console for specific validation error
+2. Verify backend is up-to-date (latest API changes)
+3. Ensure UI schemas have `.passthrough()` for unknown fields
+4. Check field names match OpenAPI spec exactly
+
+**Recent fixes applied:**
+- Instance schema: Added 23 missing fields
+- Trace schema: `trace_id`, `sender_phone`, `received_at`
+- Contact/Chat: Added `instance_name`, `channel_type`
+- All schemas: Added `.passthrough()` for backend compatibility
 
 ---
 

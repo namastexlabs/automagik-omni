@@ -79,10 +79,10 @@ export function createAppWindow(): void {
   registerBackendHandlers()
   registerOmniHandlers()
 
-  // Open DevTools in development
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools()
-  }
+  // DevTools can be opened with F12 if needed (disabled by default)
+  // if (!app.isPackaged) {
+  //   mainWindow.webContents.openDevTools()
+  // }
 
   // Disable always on top after 3 seconds
   setTimeout(() => {

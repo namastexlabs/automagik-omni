@@ -449,6 +449,6 @@ export class OmniApiClient {
     if (params?.startDate) queryParams.append('start_date', params.startDate)
     if (params?.endDate) queryParams.append('end_date', params.endDate)
 
-    return this.request(`/api/v1/traces/analytics?${queryParams}`)
+    return this.request(`/api/v1/traces/analytics/summary?${queryParams}`)
   }
 }

@@ -71,7 +71,7 @@ export function ContactDetailsPanel({ contact, onClose }: ContactDetailsPanelPro
         {/* Contact ID */}
         <div>
           <label className="text-sm text-zinc-400 block mb-1">ID</label>
-          <p className="text-xs text-zinc-500 font-mono break-all">{contact.contact_id}</p>
+          <p className="text-xs text-zinc-500 font-mono break-all">{contact.id}</p>
         </div>
       </div>
     </div>

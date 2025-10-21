@@ -56,14 +56,31 @@ Native cross-platform desktop application for managing Automagik Omni messaging 
 - ✅ Process name display (shortened for clean UI)
 - ✅ Card grid alignment (equal heights, proper truncation)
 
-### Phase 2: Ready to Start
+### Phase 2: Full UI with All Pages ✅ COMPLETE
 
-- [ ] Navigation layout with routing
-- [ ] Instances page (CRUD, QR codes, status)
-- [ ] Messages page (composer, history)
-- [ ] Contacts page (search, details)
-- [ ] Chats page (list, filters)
-- [ ] Traces page (analytics, debugging)
+**Routing & Navigation:**
+- ✅ React Router v7 with MainLayout
+- ✅ Responsive sidebar navigation
+- ✅ 6 functional pages
+- ✅ Zustand state management with localStorage persistence
+
+**Pages Implemented:**
+- ✅ **Dashboard** - Backend monitoring & control
+- ✅ **Instances** - Full CRUD operations, QR codes, connection management
+- ✅ **Messages** - Multi-type composer (text, media, audio, reaction)
+- ✅ **Contacts** - Paginated list, search, details panel, CSV export
+- ✅ **Chats** - Filtered list, chat details, unread badges
+- ✅ **Traces** - Analytics dashboard with charts, filtering, CSV export
+
+**Bug Fixes Applied (Post Phase 2):**
+- ✅ Fixed API URL construction (removed duplicate `/api/v1` prefix)
+- ✅ Fixed Zod schema validation (20 critical schema mismatches)
+- ✅ Corrected API endpoint paths (`/api/v1/omni/` → `/api/v1/instances/`)
+- ✅ Fixed Instance schema (added 23 missing fields)
+- ✅ Fixed Trace field names (trace_id, sender_phone, received_at)
+- ✅ Fixed Contact & Chat schemas (added instance_name, channel_type)
+- ✅ Added `.passthrough()` to all schemas for backend compatibility
+- ✅ Enabled DevTools in development mode for debugging
 
 ### Phase 3: Planned
 
@@ -134,6 +151,7 @@ pnpm run dev
 
 ```bash
 pnpm run dev          # Start Electron + Vite dev server with HMR
+./clean-start.sh      # Clean restart (kills zombies + starts dev) - WSL recommended
 pnpm run start        # Preview production build
 pnpm run lint         # Run ESLint with auto-fix
 pnpm run format       # Format code with Prettier
@@ -269,6 +287,42 @@ The UI automatically:
 
 ## Troubleshooting
 
+### Blank/White Window or No Window Appears (WSL)
+
+**Symptom:** Electron app starts successfully in logs but window is blank or doesn't appear.
+
+**Root Cause:** Zombie Electron processes holding display resources in WSL's display server (WSLg).
+
+**Quick Fix:**
+```bash
+# Option 1: Use the clean start script
+cd ui
+./clean-start.sh
+
+# Option 2: Manual cleanup
+pkill -9 -f "electron|vite"
+sleep 1
+pnpm run dev
+
+# Option 3: Restart WSL (from PowerShell)
+wsl --shutdown
+wsl
+```
+
+**Prevention:**
+- Always use **Ctrl+C** to stop Electron (not `pkill -9`)
+- Check for zombies: `ps aux | grep defunct`
+- Use `./clean-start.sh` when in doubt
+
+**Technical Details:**
+- Electron spawns multiple processes (main, GPU, renderer, utility)
+- When killed improperly, child processes become zombies
+- Zombies hold file descriptors to WSLg X11 sockets
+- New Electron instances can't get display connections
+- Result: Window created but not visible
+
+See `WSL_ELECTRON_FIX.md` for complete troubleshooting guide.
+
 ### Backend Not Starting
 
 1. Ensure PM2 is installed: `npm install -g pm2`
@@ -287,6 +341,15 @@ The UI automatically:
 1. Check tsconfig.json paths are correct
 2. Verify all schemas are exported from `lib/conveyor/schemas/index.ts`
 3. Run type check: `tsc --noEmit`
+
+### Schema Validation Errors
+
+If you see runtime errors about schema validation:
+
+1. Ensure all Zod schemas have `.passthrough()` to allow extra backend fields
+2. Verify field names match OpenAPI spec exactly (e.g., `trace_id` not `id`)
+3. Check that nullable fields use `.nullable().optional()`
+4. Enable DevTools to see validation error details (auto-enabled in dev mode)
 
 ## Implementation Details
 
