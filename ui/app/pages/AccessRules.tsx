@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Shield } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { Button } from '@/app/components/ui/button'
 import { AccessRulesTable } from '@/app/components/access-rules/AccessRulesTable'
@@ -119,8 +120,11 @@ export default function AccessRules() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold">🛡️ Access Rules</h1>
-            <p className="text-zinc-400 mt-2">
+            <div className="flex items-center gap-3 mb-2">
+              <Shield className="h-8 w-8 text-white" />
+              <h1 className="text-4xl font-bold">Access Rules</h1>
+            </div>
+            <p className="text-zinc-400">
               Manage phone number access controls (allowlist/blocklist)
             </p>
           </div>
