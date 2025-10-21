@@ -698,6 +698,21 @@ class DiscordChannelHandler(ChannelHandler):
                 channel_data={"error": str(e)},
             )
 
+    async def connect_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
+        """Connect Discord bot (same as create)."""
+        try:
+            logger.info(f"Connecting Discord bot instance '{instance.name}'...")
+            result = await self.create_instance(instance)
+
+            if "error" not in result:
+                result["status"] = "connected"
+                result["message"] = f"Discord bot instance '{instance.name}' connected successfully"
+
+            return result
+        except Exception as e:
+            logger.error(f"Failed to connect Discord bot instance: {e}")
+            return {"error": str(e), "status": "connect_failed"}
+
     async def restart_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Restart Discord bot connection."""
         try:
