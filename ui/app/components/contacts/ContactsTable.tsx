@@ -142,17 +142,26 @@ export function ContactsTable({
       setActionLoading(`block-${contact.id}`)
       setErrorMessage(null)
 
-      await omni.createAccessRule({
-        phone_number: phone,
-        rule_type: 'block',
-        instance_name: contact.instance_name || undefined,
-      })
+      // Check if there's an existing allow rule for this exact phone
+      const { status, rule } = getAccessStatus(contact)
+
+      if (status === 'allowed' && rule && !rule.phone_number.includes('*')) {
+        // Delete specific allow rule instead of creating conflicting block rule
+        await omni.deleteAccessRule(rule.id)
+        setSuccessMessage(`Removed allow rule for ${phone}`)
+      } else {
+        // Create block rule (may override wildcard allow or create new block)
+        await omni.createAccessRule({
+          phone_number: phone,
+          rule_type: 'block',
+          instance_name: contact.instance_name || undefined,
+        })
+        setSuccessMessage(`Blocked ${phone}`)
+      }
 
       // Reload rules
       const updatedRules = await omni.listAccessRules()
       setAccessRules(updatedRules)
-
-      setSuccessMessage(`Blocked ${phone}`)
     } catch (err) {
       console.error('Failed to block contact:', err)
       setErrorMessage(err instanceof Error ? err.message : 'Failed to block contact')
@@ -161,7 +170,7 @@ export function ContactsTable({
     }
   }
 
-  // Handle allow action (delete blocking rule)
+  // Handle allow action
   const handleAllow = async (contact: Contact, rule: AccessRule) => {
     // Backend stores phone in channel_data.phone_number (underscore) for WhatsApp
     const phone = contact.channel_data?.phone_number || contact.channel_data?.phone || contact.channel_data?.jid || contact.id || ''
@@ -170,13 +179,25 @@ export function ContactsTable({
       setActionLoading(`allow-${contact.id}`)
       setErrorMessage(null)
 
-      await omni.deleteAccessRule(rule.id)
+      // If blocked by a wildcard rule (e.g., *, +55*), create explicit allow rule
+      // Otherwise, delete the specific block rule
+      if (rule.phone_number.includes('*')) {
+        // Create explicit allow rule for this specific contact
+        await omni.createAccessRule({
+          phone_number: phone,
+          rule_type: 'allow',
+          instance_name: contact.instance_name || undefined,
+        })
+        setSuccessMessage(`Created allow rule for ${phone} (overrides wildcard block)`)
+      } else {
+        // Delete specific block rule
+        await omni.deleteAccessRule(rule.id)
+        setSuccessMessage(`Removed block rule for ${phone}`)
+      }
 
       // Reload rules
       const updatedRules = await omni.listAccessRules()
       setAccessRules(updatedRules)
-
-      setSuccessMessage(`Allowed ${phone}`)
     } catch (err) {
       console.error('Failed to allow contact:', err)
       setErrorMessage(err instanceof Error ? err.message : 'Failed to allow contact')
