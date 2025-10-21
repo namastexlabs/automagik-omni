@@ -5,6 +5,9 @@ import {
   TraceSchema,
   ContactsResponseSchema,
   ChatsResponseSchema,
+  AccessRuleSchema,
+  AccessRuleListResponseSchema,
+  CheckAccessResponseSchema,
 } from './omni-schema'
 
 export const omniIpcSchema = {
@@ -164,5 +167,38 @@ export const omniIpcSchema = {
       average_duration: z.number().optional(),
       failed_count: z.number().optional(),
     }).passthrough(),
+  },
+
+  // ========== ACCESS RULES ==========
+  'omni:access:list': {
+    args: z.tuple([
+      z.string().optional(), // instance_name
+      z.enum(['allow', 'block']).optional(), // rule_type
+    ]),
+    return: AccessRuleListResponseSchema,
+  },
+
+  'omni:access:create': {
+    args: z.tuple([
+      z.object({
+        phone_number: z.string(),
+        rule_type: z.enum(['allow', 'block']),
+        instance_name: z.string().optional(),
+      })
+    ]),
+    return: AccessRuleSchema,
+  },
+
+  'omni:access:delete': {
+    args: z.tuple([z.number()]), // rule_id
+    return: z.object({ success: z.boolean(), message: z.string() }),
+  },
+
+  'omni:access:check': {
+    args: z.tuple([
+      z.string(), // phone_number
+      z.string().optional(), // instance_name
+    ]),
+    return: CheckAccessResponseSchema,
   },
 } as const

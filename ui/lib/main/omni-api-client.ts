@@ -99,6 +99,29 @@ export interface Trace {
   evolution_success: boolean | null
 }
 
+export interface AccessRule {
+  id: number
+  phone_number: string
+  rule_type: 'allow' | 'block'
+  instance_name: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface CreateAccessRule {
+  phone_number: string
+  rule_type: 'allow' | 'block'
+  instance_name?: string
+}
+
+export interface CheckAccessResponse {
+  allowed: boolean
+  rule_type?: 'allow' | 'block' | null
+  rule_id?: number | null
+  phone_number: string
+  instance_name?: string | null
+}
+
 export interface PaginatedResponse<T> {
   data: T[]
   total_count: number
@@ -550,5 +573,61 @@ export class OmniApiClient {
       })),
       top_contacts: [], // Not provided by current API
     }
+  }
+
+  // ============================================================================
+  // ACCESS RULES
+  // ============================================================================
+
+  /**
+   * List access rules with optional filters
+   */
+  async listAccessRules(filters?: {
+    instance_name?: string
+    rule_type?: 'allow' | 'block'
+  }): Promise<AccessRule[]> {
+    const params = new URLSearchParams()
+    if (filters?.instance_name) params.append('instance_name', filters.instance_name)
+    if (filters?.rule_type) params.append('rule_type', filters.rule_type)
+
+    const queryString = params.toString()
+    return this.request<AccessRule[]>(
+      `/api/v1/access/rules${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  /**
+   * Create new access rule
+   */
+  async createAccessRule(data: CreateAccessRule): Promise<AccessRule> {
+    return this.request<AccessRule>('/api/v1/access/rules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  /**
+   * Delete access rule
+   */
+  async deleteAccessRule(ruleId: number): Promise<void> {
+    return this.request<void>(`/api/v1/access/rules/${ruleId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  /**
+   * Check if phone number is allowed
+   */
+  async checkPhoneAccess(
+    phoneNumber: string,
+    instanceName?: string
+  ): Promise<CheckAccessResponse> {
+    const params = new URLSearchParams()
+    if (instanceName) params.append('instance_name', instanceName)
+
+    const queryString = params.toString()
+    return this.request<CheckAccessResponse>(
+      `/api/v1/access/check/${phoneNumber}${queryString ? `?${queryString}` : ''}`
+    )
   }
 }

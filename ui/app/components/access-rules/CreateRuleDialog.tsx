@@ -1,0 +1,214 @@
+import { useState, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/app/components/ui/dialog'
+import { Button } from '@/app/components/ui/button'
+import { Input } from '@/app/components/ui/input'
+import { Label } from '@/app/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/app/components/ui/select'
+import { useConveyor } from '@/app/hooks/use-conveyor'
+import type { Instance } from '@/lib/main/omni-api-client'
+
+const createRuleSchema = z.object({
+  phone_number: z
+    .string()
+    .min(1, 'Phone number is required')
+    .regex(/^\+\d+\*?$/, 'Must start with + followed by digits, optionally ending with *'),
+  rule_type: z.enum(['allow', 'block']),
+  instance_name: z.string().optional(),
+})
+
+type CreateRuleFormData = z.infer<typeof createRuleSchema>
+
+interface CreateRuleDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreated: () => void
+  onCreate: (data: CreateRuleFormData) => Promise<void>
+}
+
+export function CreateRuleDialog({
+  open,
+  onOpenChange,
+  onCreated,
+  onCreate,
+}: CreateRuleDialogProps) {
+  const { omni } = useConveyor()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [instances, setInstances] = useState<Instance[]>([])
+  const [loadingInstances, setLoadingInstances] = useState(false)
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setValue,
+    watch,
+  } = useForm<CreateRuleFormData>({
+    resolver: zodResolver(createRuleSchema),
+    defaultValues: {
+      rule_type: 'allow',
+      instance_name: '',
+    },
+  })
+
+  const ruleType = watch('rule_type')
+  const instanceName = watch('instance_name')
+
+  const loadInstances = async () => {
+    try {
+      setLoadingInstances(true)
+      const data = await omni.getInstances()
+      setInstances(data)
+    } catch (err) {
+      console.error('Failed to load instances:', err)
+    } finally {
+      setLoadingInstances(false)
+    }
+  }
+
+  // Load instances for the scope selector
+  useEffect(() => {
+    if (open) {
+      loadInstances()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const onSubmit = async (data: CreateRuleFormData) => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // If instance_name is empty string, convert to undefined for global scope
+      const payload = {
+        ...data,
+        instance_name: data.instance_name === '' ? undefined : data.instance_name,
+      }
+
+      await onCreate(payload)
+      reset()
+      onCreated()
+      onOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create rule')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRuleTypeChange = (value: string) => {
+    setValue('rule_type', value as 'allow' | 'block')
+  }
+
+  const handleScopeChange = (value: string) => {
+    setValue('instance_name', value === 'global' ? '' : value)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Access Rule</DialogTitle>
+          <DialogDescription>
+            Add a new allow or block rule for phone numbers
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {error && (
+            <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="phone_number">Phone Number *</Label>
+            <Input
+              id="phone_number"
+              placeholder="+1234567890 or +1* for wildcard"
+              {...register('phone_number')}
+              className="bg-zinc-800 border-zinc-700 text-white"
+            />
+            {errors.phone_number && (
+              <p className="text-sm text-red-400">{errors.phone_number.message}</p>
+            )}
+            <p className="text-xs text-zinc-400">
+              Use * at the end for prefix matching (e.g., +1* matches all US numbers)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rule_type">Rule Type *</Label>
+            <Select value={ruleType} onValueChange={handleRuleTypeChange}>
+              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                <SelectValue placeholder="Select rule type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="allow">Allow</SelectItem>
+                <SelectItem value="block">Block</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.rule_type && (
+              <p className="text-sm text-red-400">{errors.rule_type.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="instance_name">Scope</Label>
+            <Select
+              value={instanceName === '' ? 'global' : instanceName}
+              onValueChange={handleScopeChange}
+              disabled={loadingInstances}
+            >
+              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                <SelectValue placeholder="Select scope" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="global">Global (All Instances)</SelectItem>
+                {instances.map((instance) => (
+                  <SelectItem key={instance.name} value={instance.name}>
+                    {instance.name} ({instance.channel_type})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-zinc-400">
+              Global rules apply to all instances, or choose a specific instance
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Creating...' : 'Create Rule'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

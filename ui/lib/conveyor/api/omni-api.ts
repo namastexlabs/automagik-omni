@@ -5,6 +5,9 @@ import type {
   Chat,
   Message,
   Trace,
+  AccessRule,
+  CreateAccessRule,
+  CheckAccessResponse,
 } from '@/lib/conveyor/schemas/omni-schema'
 
 export interface PaginatedResponse<T> {
@@ -154,5 +157,29 @@ export class OmniApi extends ConveyorApi {
     top_contacts: Array<{ phone: string; count: number }>
   }> => {
     return this.invoke('omni:traces:analytics', params)
+  }
+
+  // ========== ACCESS RULES ==========
+
+  listAccessRules = (
+    instanceName?: string,
+    ruleType?: 'allow' | 'block'
+  ): Promise<AccessRule[]> => {
+    return this.invoke('omni:access:list', instanceName, ruleType)
+  }
+
+  createAccessRule = (data: CreateAccessRule): Promise<AccessRule> => {
+    return this.invoke('omni:access:create', data)
+  }
+
+  deleteAccessRule = (ruleId: number): Promise<{ success: boolean; message: string }> => {
+    return this.invoke('omni:access:delete', ruleId)
+  }
+
+  checkPhoneAccess = (
+    phoneNumber: string,
+    instanceName?: string
+  ): Promise<CheckAccessResponse> => {
+    return this.invoke('omni:access:check', phoneNumber, instanceName)
   }
 }
