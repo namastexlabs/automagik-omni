@@ -208,27 +208,27 @@ export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =
   })
 
 // Specific response schemas that match backend API
-// Using z.any() for contacts/chats arrays to avoid Zod circular reference cache issues
+// Using z.unknown() for contacts/chats arrays to avoid Zod v4 validation cache issues
 export const ContactsResponseSchema = z.object({
-  contacts: z.array(z.any()),
-  total_count: z.number(),
-  page: z.number(),
-  page_size: z.number(),
-  has_more: z.boolean(),
+  contacts: z.unknown().default([]),
+  total_count: z.number().default(0),
+  page: z.number().default(1),
+  page_size: z.number().default(50),
+  has_more: z.boolean().default(false),
   instance_name: z.string().optional(),
   channel_type: z.enum(['whatsapp', 'discord']).optional(),
-  partial_errors: z.array(z.any()).optional(),
+  partial_errors: z.unknown().optional(),
 }).passthrough()
 
 export const ChatsResponseSchema = z.object({
-  chats: z.array(z.any()),
-  total_count: z.number(),
-  page: z.number(),
-  page_size: z.number(),
-  has_more: z.boolean(),
+  chats: z.unknown().default([]),
+  total_count: z.number().default(0),
+  page: z.number().default(1),
+  page_size: z.number().default(50),
+  has_more: z.boolean().default(false),
   instance_name: z.string().optional(),
   channel_type: z.enum(['whatsapp', 'discord']).optional(),
-  partial_errors: z.array(z.any()).optional(),
+  partial_errors: z.unknown().optional(),
 }).passthrough()
 
 // ============================================================================
