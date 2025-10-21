@@ -27,7 +27,10 @@ const createRuleSchema = z.object({
   phone_number: z
     .string()
     .min(1, 'Phone number is required')
-    .regex(/^\+\d+\*?$/, 'Must start with + followed by digits, optionally ending with *'),
+    .regex(
+      /^(\*|\+\d+\*?)$/,
+      'Must be * (all numbers) or start with + followed by digits, optionally ending with *'
+    ),
   rule_type: z.enum(['allow', 'block']),
   instance_name: z.string().optional(),
 })
@@ -38,14 +41,12 @@ interface CreateRuleDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: () => void
-  onCreate: (data: CreateRuleFormData) => Promise<void>
 }
 
 export function CreateRuleDialog({
   open,
   onOpenChange,
   onCreated,
-  onCreate,
 }: CreateRuleDialogProps) {
   const { omni } = useConveyor()
   const [loading, setLoading] = useState(false)
@@ -102,7 +103,9 @@ export function CreateRuleDialog({
         instance_name: data.instance_name === '' ? undefined : data.instance_name,
       }
 
-      await onCreate(payload)
+      // Create the rule via API
+      await omni.createAccessRule(payload)
+
       reset()
       onCreated()
       onOpenChange(false)
@@ -142,7 +145,7 @@ export function CreateRuleDialog({
             <Label htmlFor="phone_number">Phone Number *</Label>
             <Input
               id="phone_number"
-              placeholder="+1234567890 or +1* for wildcard"
+              placeholder="* or +1234567890 or +1*"
               {...register('phone_number')}
               className="bg-zinc-800 border-zinc-700 text-white"
             />
@@ -150,7 +153,7 @@ export function CreateRuleDialog({
               <p className="text-sm text-red-400">{errors.phone_number.message}</p>
             )}
             <p className="text-xs text-zinc-400">
-              Use * at the end for prefix matching (e.g., +1* matches all US numbers)
+              Use * to match all numbers, or +1* for prefix matching (e.g., all US numbers)
             </p>
           </div>
 
