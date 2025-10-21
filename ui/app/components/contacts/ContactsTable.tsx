@@ -72,7 +72,9 @@ export function ContactsTable({
       accessorKey: 'phone_number',
       header: 'Phone',
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.phone_number || 'N/A'}</span>
+        <span className="font-mono text-sm">
+          {row.original.channel_data?.phone || row.original.channel_data?.jid || 'N/A'}
+        </span>
       ),
     },
     {

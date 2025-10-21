@@ -35,37 +35,36 @@ export interface Instance {
 }
 
 export interface Contact {
-  contact_id: string
+  id: string
   name?: string
-  phone_number?: string
-  avatar_url?: string
-  status?: string
-  instance_name: string
   channel_type: 'whatsapp' | 'discord'
-  is_group?: boolean
-  is_business?: boolean
-  business_description?: string
-  last_seen?: string
-  created_at?: string
-  updated_at?: string
+  instance_name: string
+  avatar_url?: string | null
+  status?: 'unknown' | 'online' | 'offline' | 'away' | 'dnd'
+  is_verified?: boolean | null
+  is_business?: boolean | null
+  channel_data?: Record<string, any>
+  created_at?: string | null
+  last_seen?: string | null
 }
 
 export interface Chat {
-  chat_id: string
+  id: string
   name?: string
   chat_type?: 'direct' | 'group' | 'channel' | 'thread'
-  avatar_url?: string
-  unread_count?: number
-  last_message_text?: string
-  last_message_time?: string
-  archived?: boolean
-  muted?: boolean
+  avatar_url?: string | null
+  unread_count?: number | null
+  last_message_text?: string | null
+  last_message_at?: string | null
+  is_archived?: boolean
+  is_muted?: boolean
+  is_pinned?: boolean
   instance_name: string
   channel_type: 'whatsapp' | 'discord'
-  participant_count?: number
-  description?: string
-  created_at?: string
-  updated_at?: string
+  participant_count?: number | null
+  description?: string | null
+  created_at?: string | null
+  channel_data?: Record<string, any>
 }
 
 export interface Message {
@@ -81,26 +80,23 @@ export interface Message {
 export interface Trace {
   trace_id: string
   instance_name: string
-  sender_phone: string
-  sender_name?: string
-  message_type: string
-  trace_status: string
-  received_at: string
-  completed_at?: string
-  session_name?: string
-  agent_session_id?: string
-  whatsapp_message_id?: string
-  has_media?: boolean
-  has_quoted_message?: boolean
-  agent_processing_time_ms?: number
-  total_processing_time_ms?: number
-  evolution_success?: boolean
-  agent_response_success?: boolean
-  error_message?: string
-  error_stage?: string
-  message_text?: string
-  media_url?: string
-  updated_at?: string
+  whatsapp_message_id: string | null
+  sender_phone: string | null
+  sender_name: string | null
+  message_type: string | null
+  has_media: boolean
+  has_quoted_message: boolean
+  session_name: string | null
+  agent_session_id: string | null
+  status: string
+  error_message: string | null
+  error_stage: string | null
+  received_at: string | null
+  completed_at: string | null
+  agent_processing_time_ms: number | null
+  total_processing_time_ms: number | null
+  agent_response_success: boolean | null
+  evolution_success: boolean | null
 }
 
 export interface PaginatedResponse<T> {
@@ -406,18 +402,18 @@ export class OmniApiClient {
    */
   async getTraces(
     instanceName?: string,
-    page = 1,
-    pageSize = 50,
-    statusFilter?: string
-  ): Promise<PaginatedResponse<Trace>> {
+    limit = 50,
+    offset = 0,
+    traceStatus?: string
+  ): Promise<Trace[]> {
     const params = new URLSearchParams({
-      page: page.toString(),
-      page_size: pageSize.toString(),
+      limit: limit.toString(),
+      offset: offset.toString(),
     })
     if (instanceName) params.append('instance_name', instanceName)
-    if (statusFilter) params.append('status_filter', statusFilter)
+    if (traceStatus) params.append('trace_status', traceStatus)
 
-    return this.request(`/api/v1/traces?${params}`)
+    return this.request<Trace[]>(`/api/v1/traces?${params}`)
   }
 
   /**

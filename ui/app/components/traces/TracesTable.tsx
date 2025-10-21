@@ -86,7 +86,7 @@ export function TracesTable({
                   </TableCell>
                   <TableCell className="text-zinc-300 capitalize">{trace.message_type}</TableCell>
                   <TableCell>
-                    <Badge variant={getStatusBadgeVariant(trace.trace_status)}>{trace.trace_status}</Badge>
+                    <Badge variant={getStatusBadgeVariant(trace.status)}>{trace.status}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

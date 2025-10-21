@@ -80,23 +80,11 @@ export function TraceDetailsDialog({ trace, open, onClose }: TraceDetailsDialogP
           </div>
 
           {/* Error Message */}
-          {trace.error && (
+          {trace.error_message && (
             <div>
               <p className="text-sm text-zinc-400 mb-2">Error</p>
               <div className="bg-red-900/20 border border-red-500/30 rounded-md p-3">
-                <p className="text-sm text-red-300 font-mono">{trace.error}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Payload */}
-          {trace.payload && (
-            <div>
-              <p className="text-sm text-zinc-400 mb-2">Payload</p>
-              <div className="bg-zinc-800 border border-zinc-700 rounded-md p-3 max-h-60 overflow-auto">
-                <pre className="text-xs text-zinc-300 font-mono whitespace-pre-wrap">
-                  {JSON.stringify(trace.payload, null, 2)}
-                </pre>
+                <p className="text-sm text-red-300 font-mono">{trace.error_message}</p>
               </div>
             </div>
           )}

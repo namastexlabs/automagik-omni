@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { TraceFilters } from '@/app/components/traces/TraceFilters'
 import { AnalyticsCards } from '@/app/components/traces/AnalyticsCards'
-import { MessagesOverTimeChart } from '@/app/components/traces/MessagesOverTimeChart'
 import { SuccessRateChart } from '@/app/components/traces/SuccessRateChart'
 import { MessageTypesChart } from '@/app/components/traces/MessageTypesChart'
 import { TracesTable } from '@/app/components/traces/TracesTable'
@@ -13,13 +12,15 @@ import { format, subDays } from 'date-fns'
 
 interface AnalyticsData {
   total_messages: number
+  successful_messages: number
+  failed_messages: number
   success_rate: number
-  average_duration: number
-  failed_count: number
-  messages_over_time: Array<{ date: string; count: number }>
-  success_vs_failed: Array<{ name: string; value: number }>
-  message_types: Array<{ type: string; count: number }>
-  top_contacts: Array<{ phone: string; count: number }>
+  avg_processing_time_ms: number | null
+  avg_agent_time_ms: number | null
+  message_types: Record<string, number>
+  error_stages: Record<string, number>
+  instances: Record<string, number>
+  top_contacts?: Array<{ phone: string; count: number }>
 }
 
 export default function Traces() {
@@ -40,9 +41,9 @@ export default function Traces() {
   const [status, setStatus] = useState('')
   const [messageType, setMessageType] = useState('')
 
-  // Pagination
-  const [page, setPage] = useState(1)
-  const [pageSize] = useState(50)
+  // Pagination (using offset-based pagination)
+  const [offset, setOffset] = useState(0)
+  const [limit] = useState(50)
   const [totalCount, setTotalCount] = useState(0)
 
   // Load instances on mount
@@ -55,7 +56,7 @@ export default function Traces() {
   useEffect(() => {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedInstance, startDate, endDate, status, messageType, page])
+  }, [selectedInstance, startDate, endDate, status, messageType, offset])
 
   const loadInstances = async () => {
     try {
@@ -71,15 +72,18 @@ export default function Traces() {
       setLoading(true)
       setError(null)
 
-      // Load traces
-      const tracesResponse = await omni.listTraces(
+      // Load traces - API returns array, not paginated response
+      // API signature: (instanceName, offset, limit, statusFilter)
+      const tracesArray = await omni.listTraces(
         selectedInstance || undefined,
-        page,
-        pageSize,
+        offset,
+        limit,
         status || undefined
       )
-      setTraces(tracesResponse.data)
-      setTotalCount(tracesResponse.total_count)
+      setTraces(tracesArray)
+      // Since API returns array, we estimate total based on returned count
+      // If we got less than limit, we're at the end
+      setTotalCount(tracesArray.length < limit ? offset + tracesArray.length : offset + tracesArray.length + 1)
 
       // Load analytics
       const analyticsData = await omni.getTraceAnalytics({
@@ -97,12 +101,13 @@ export default function Traces() {
   }
 
   const handleRefresh = () => {
-    setPage(1)
+    setOffset(0)
     loadData()
   }
 
   const handlePageChange = (newPage: number) => {
-    setPage(newPage)
+    // Convert page number to offset
+    setOffset((newPage - 1) * limit)
   }
 
   const handleTraceClick = async (trace: Trace) => {
@@ -181,25 +186,34 @@ export default function Traces() {
         {/* Analytics Cards */}
         {analytics && (
           <AnalyticsCards
-            totalMessages={analytics.total_messages}
-            successRate={analytics.success_rate}
-            averageDuration={analytics.average_duration}
-            failedCount={analytics.failed_count}
+            totalMessages={analytics.total_messages || 0}
+            successRate={analytics.success_rate || 0}
+            averageDuration={analytics.avg_processing_time_ms || 0}
+            failedCount={analytics.failed_messages || 0}
           />
         )}
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Messages Over Time */}
+          {/* Success vs Failed */}
           {analytics && (
-            <MessagesOverTimeChart data={analytics.messages_over_time || []} />
+            <SuccessRateChart
+              data={[
+                { name: 'Success', value: analytics.successful_messages || 0 },
+                { name: 'Failed', value: analytics.failed_messages || 0 },
+              ]}
+            />
           )}
 
-          {/* Success vs Failed */}
-          {analytics && <SuccessRateChart data={analytics.success_vs_failed || []} />}
-
           {/* Message Types */}
-          {analytics && <MessageTypesChart data={analytics.message_types || []} />}
+          {analytics && analytics.message_types && (
+            <MessageTypesChart
+              data={Object.entries(analytics.message_types).map(([type, count]) => ({
+                type,
+                count,
+              }))}
+            />
+          )}
 
           {/* Top Contacts */}
           {analytics && analytics.top_contacts && analytics.top_contacts.length > 0 && (
@@ -223,8 +237,8 @@ export default function Traces() {
           <TracesTable
             traces={traces}
             totalCount={totalCount}
-            page={page}
-            pageSize={pageSize}
+            page={Math.floor(offset / limit) + 1}
+            pageSize={limit}
             onPageChange={handlePageChange}
             onTraceClick={handleTraceClick}
             loading={loading}
