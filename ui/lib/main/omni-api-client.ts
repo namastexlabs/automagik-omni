@@ -174,6 +174,11 @@ export class OmniApiClient {
         throw new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`)
       }
 
+      // Handle 204 No Content responses (like DELETE operations)
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return undefined as T
+      }
+
       return await response.json()
     } catch (error) {
       clearTimeout(timeoutId)

@@ -79,11 +79,20 @@ export function ChatsTable({
     {
       accessorKey: 'last_message_text',
       header: 'Last Message',
-      cell: ({ row }) => (
-        <span className="text-sm text-zinc-400 truncate max-w-xs block">
-          {row.original.last_message_text || 'No messages'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        // Try multiple sources for last message text
+        const lastMessage =
+          row.original.last_message_text ||
+          row.original.channel_data?.raw_data?.lastMessage?.message ||
+          row.original.channel_data?.raw_data?.lastMessage?.text ||
+          row.original.channel_data?.last_message_text
+
+        return (
+          <span className="text-sm text-zinc-400 truncate max-w-xs block">
+            {lastMessage || 'No messages'}
+          </span>
+        )
+      },
     },
     {
       accessorKey: 'unread_count',
