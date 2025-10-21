@@ -664,7 +664,6 @@ class DiscordChannelHandler(ChannelHandler):
                     instance_name=instance.name,
                     channel_type="discord",
                     status="not_found",
-                    connected=False,
                 )
             bot_instance = self._bot_instances[instance.name]
 
@@ -688,7 +687,6 @@ class DiscordChannelHandler(ChannelHandler):
                 instance_name=instance.name,
                 channel_type="discord",
                 status=bot_instance.status,
-                connected=(bot_instance.status == "connected"),
                 channel_data=channel_data,
             )
         except Exception as e:
@@ -697,7 +695,6 @@ class DiscordChannelHandler(ChannelHandler):
                 instance_name=instance.name,
                 channel_type="discord",
                 status="error",
-                connected=False,
                 channel_data={"error": str(e)},
             )
 
@@ -722,6 +719,29 @@ class DiscordChannelHandler(ChannelHandler):
         except Exception as e:
             logger.error(f"Failed to restart Discord bot instance: {e}")
             return {"error": str(e), "status": "restart_failed"}
+
+    async def disconnect_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
+        """Disconnect Discord bot (same as logout)."""
+        try:
+            logger.info(f"Disconnecting Discord bot instance '{instance.name}'...")
+
+            if instance.name not in self._bot_instances:
+                return {
+                    "instance_name": instance.name,
+                    "status": "not_found",
+                    "message": f"Discord bot instance '{instance.name}' not found",
+                }
+            await self._cleanup_bot_instance(instance.name)
+
+            logger.info(f"Discord bot instance '{instance.name}' disconnected successfully")
+            return {
+                "instance_name": instance.name,
+                "status": "disconnected",
+                "message": f"Discord bot instance '{instance.name}' disconnected successfully",
+            }
+        except Exception as e:
+            logger.error(f"Failed to disconnect Discord bot instance: {e}")
+            return {"error": str(e), "status": "disconnect_failed"}
 
     async def logout_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Logout/disconnect Discord bot."""
