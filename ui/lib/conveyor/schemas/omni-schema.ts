@@ -5,23 +5,23 @@ import { z } from 'zod'
 // ============================================================================
 
 export const InstanceSchema = z.object({
-  id: z.string(),
+  id: z.union([z.string(), z.number()]).transform(val => String(val)),
   name: z.string(),
   channel_type: z.string(),
   is_default: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
-  evolution_url: z.string().optional(),
-  whatsapp_instance: z.string().optional(),
-  discord_bot_token: z.string().optional(),
-  discord_guild_id: z.string().optional(),
+  evolution_url: z.string().optional().nullable(),
+  whatsapp_instance: z.string().optional().nullable(),
+  discord_bot_token: z.string().optional().nullable(),
+  discord_guild_id: z.string().optional().nullable(),
   agent_api_url: z.string(),
   agent_api_key: z.string(),
-  default_agent: z.string().optional(),
+  default_agent: z.string().optional().nullable(),
   agent_timeout: z.number(),
-  status: z.enum(['connected', 'disconnected', 'connecting', 'error']).optional(),
-  qr_code: z.string().optional(),
-})
+  status: z.enum(['connected', 'disconnected', 'connecting', 'error']).optional().nullable(),
+  qr_code: z.string().optional().nullable(),
+}).passthrough()
 
 export const ContactSchema = z.object({
   id: z.string(),
@@ -54,15 +54,26 @@ export const MessageSchema = z.object({
 })
 
 export const TraceSchema = z.object({
-  id: z.string(),
+  trace_id: z.string(),
   instance_name: z.string(),
-  phone_number: z.string(),
+  sender_phone: z.string(),
+  sender_name: z.string().optional().nullable(),
   message_type: z.string(),
-  status: z.enum(['received', 'processing', 'completed', 'failed']),
-  created_at: z.string(),
-  payload: z.any().optional(),
-  error: z.string().optional(),
-})
+  status: z.string(),
+  received_at: z.string(),
+  completed_at: z.string().optional().nullable(),
+  session_name: z.string().optional().nullable(),
+  agent_session_id: z.string().optional().nullable(),
+  whatsapp_message_id: z.string().optional().nullable(),
+  has_media: z.boolean().optional().nullable(),
+  has_quoted_message: z.boolean().optional().nullable(),
+  agent_processing_time_ms: z.number().optional().nullable(),
+  total_processing_time_ms: z.number().optional().nullable(),
+  evolution_success: z.boolean().optional().nullable(),
+  agent_response_success: z.boolean().optional().nullable(),
+  error_message: z.string().optional().nullable(),
+  error_stage: z.string().optional().nullable(),
+}).passthrough()
 
 export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({

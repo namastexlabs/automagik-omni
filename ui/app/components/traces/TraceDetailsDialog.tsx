@@ -47,7 +47,7 @@ export function TraceDetailsDialog({ trace, open, onClose }: TraceDetailsDialogP
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-zinc-400 mb-1">Trace ID</p>
-              <p className="text-sm font-mono text-zinc-200 break-all">{trace.id}</p>
+              <p className="text-sm font-mono text-zinc-200 break-all">{trace.trace_id}</p>
             </div>
             <div>
               <p className="text-sm text-zinc-400 mb-1">Status</p>
@@ -69,12 +69,12 @@ export function TraceDetailsDialog({ trace, open, onClose }: TraceDetailsDialogP
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-zinc-400 mb-1">Phone Number</p>
-              <p className="text-sm font-mono text-zinc-200">{trace.phone_number}</p>
+              <p className="text-sm font-mono text-zinc-200">{trace.sender_phone}</p>
             </div>
             <div>
               <p className="text-sm text-zinc-400 mb-1">Created At</p>
               <p className="text-sm text-zinc-200">
-                {format(new Date(trace.created_at), 'MMM dd, yyyy HH:mm:ss')}
+                {format(new Date(trace.received_at), 'MMM dd, yyyy HH:mm:ss')}
               </p>
             </div>
           </div>

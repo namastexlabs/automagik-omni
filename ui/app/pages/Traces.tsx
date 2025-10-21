@@ -108,7 +108,7 @@ export default function Traces() {
   const handleTraceClick = async (trace: Trace) => {
     try {
       // Fetch full trace details if not already loaded
-      const fullTrace = trace.payload ? trace : await omni.getTrace(trace.id)
+      const fullTrace = trace.payload ? trace : await omni.getTrace(trace.trace_id)
       setSelectedTrace(fullTrace)
     } catch (err) {
       console.error('Failed to load trace details:', err)
@@ -121,12 +121,12 @@ export default function Traces() {
 
     const headers = ['Timestamp', 'Instance', 'Phone', 'Type', 'Status', 'Error']
     const rows = traces.map((trace) => [
-      trace.created_at,
+      trace.received_at,
       trace.instance_name,
-      trace.phone_number,
+      trace.sender_phone,
       trace.message_type,
       trace.status,
-      trace.error || '',
+      trace.error_message || '',
     ])
 
     const csv = [

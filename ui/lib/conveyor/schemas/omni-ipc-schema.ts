@@ -131,7 +131,7 @@ export const omniIpcSchema = {
       z.number().optional(), // page_size
       z.string().optional(), // status_filter
     ]),
-    return: PaginatedResponseSchema(TraceSchema),
+    return: z.array(TraceSchema),
   },
 
   'omni:traces:get': {

@@ -76,13 +76,13 @@ export function TracesTable({
               </TableRow>
             ) : (
               traces.map((trace) => (
-                <TableRow key={trace.id} className="hover:bg-zinc-800/50 cursor-pointer">
+                <TableRow key={trace.trace_id} className="hover:bg-zinc-800/50 cursor-pointer">
                   <TableCell className="text-zinc-300">
-                    {format(new Date(trace.created_at), 'MMM dd, yyyy HH:mm:ss')}
+                    {format(new Date(trace.received_at), 'MMM dd, yyyy HH:mm:ss')}
                   </TableCell>
                   <TableCell className="text-zinc-300">{trace.instance_name}</TableCell>
                   <TableCell className="text-zinc-300 font-mono text-sm">
-                    {trace.phone_number}
+                    {trace.sender_phone}
                   </TableCell>
                   <TableCell className="text-zinc-300 capitalize">{trace.message_type}</TableCell>
                   <TableCell>
