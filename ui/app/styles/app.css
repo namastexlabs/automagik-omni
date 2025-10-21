@@ -1,6 +1,15 @@
 @import './globals.css';
 @import './window.css';
 
+/* Custom titlebar styles */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
 body {
   font-family:
     system-ui,

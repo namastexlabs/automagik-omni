@@ -11,6 +11,7 @@ import {
   Menu,
   X
 } from 'lucide-react'
+import { CustomTitlebar } from '../components/CustomTitlebar'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -26,7 +27,9 @@ export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="h-screen bg-black text-white flex overflow-hidden">
+    <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
+      <CustomTitlebar />
+      <div className="flex flex-1 overflow-hidden">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -44,8 +47,14 @@ export function MainLayout() {
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
-        <div className="flex items-center justify-between h-16 px-6 border-b border-zinc-800">
-          <h1 className="text-lg font-bold">Automagik Omni</h1>
+        <div className="flex items-center justify-between h-20 px-6 border-b border-zinc-800">
+          <div className="flex items-center gap-4">
+            <img
+              src="res://icons/omni-logo-light.png"
+              alt="Omni Logo"
+              className="h-20 w-auto object-contain"
+            />
+          </div>
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden text-zinc-400 hover:text-white"
@@ -78,20 +87,27 @@ export function MainLayout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar for mobile */}
-        <header className="lg:hidden h-16 bg-zinc-900 border-b border-zinc-800 flex items-center px-4">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="text-zinc-400 hover:text-white"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-          <h1 className="ml-4 text-lg font-bold">Automagik Omni</h1>
+        <header className="lg:hidden h-20 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="text-zinc-400 hover:text-white"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+            <img
+              src="res://icons/omni-logo-light.png"
+              alt="Omni Logo"
+              className="h-16 w-auto object-contain"
+            />
+          </div>
         </header>
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
+      </div>
       </div>
     </div>
   )
