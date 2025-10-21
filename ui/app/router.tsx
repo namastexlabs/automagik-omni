@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { MainLayout } from './layouts/MainLayout'
 import Dashboard from './pages/Dashboard'
 import Instances from './pages/Instances'
@@ -12,14 +13,15 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
-      { index: true, element: <Dashboard /> },
-      { path: 'instances', element: <Instances /> },
-      { path: 'access-rules', element: <AccessRules /> },
-      { path: 'messages', element: <Messages /> },
-      { path: 'contacts', element: <Contacts /> },
-      { path: 'chats', element: <Chats /> },
-      { path: 'traces', element: <Traces /> }
+      { index: true, element: <Dashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'instances', element: <Instances />, errorElement: <ErrorBoundary /> },
+      { path: 'access-rules', element: <AccessRules />, errorElement: <ErrorBoundary /> },
+      { path: 'messages', element: <Messages />, errorElement: <ErrorBoundary /> },
+      { path: 'contacts', element: <Contacts />, errorElement: <ErrorBoundary /> },
+      { path: 'chats', element: <Chats />, errorElement: <ErrorBoundary /> },
+      { path: 'traces', element: <Traces />, errorElement: <ErrorBoundary /> }
     ]
   }
 ])
