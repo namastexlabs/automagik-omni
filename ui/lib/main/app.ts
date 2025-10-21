@@ -58,14 +58,15 @@ export function createAppWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    show: false,
+    show: true, // Show immediately
     backgroundColor: '#1c1c1c',
     icon: appIcon,
-    frame: false,
-    titleBarStyle: 'hiddenInset',
+    frame: true, // Use native frame for WSL compatibility
     title: 'Automagik Omni',
     maximizable: true,
     resizable: true,
+    center: true,
+    alwaysOnTop: true, // Force on top temporarily
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       sandbox: false,
@@ -78,9 +79,15 @@ export function createAppWindow(): void {
   registerBackendHandlers()
   registerOmniHandlers()
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
+  // Open DevTools in development
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools()
+  }
+
+  // Disable always on top after 3 seconds
+  setTimeout(() => {
+    mainWindow.setAlwaysOnTop(false)
+  }, 3000)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

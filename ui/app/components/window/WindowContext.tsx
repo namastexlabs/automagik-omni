@@ -29,7 +29,12 @@ export const WindowContextProvider = ({
   const { windowInit } = useConveyor('window')
 
   useEffect(() => {
-    windowInit().then(setInitProps)
+    // Only call windowInit if it exists (Electron context)
+    if (windowInit && typeof windowInit === 'function') {
+      windowInit().then(setInitProps).catch(err => {
+        console.warn('Failed to initialize window:', err)
+      })
+    }
 
     // Add class to parent element
     const parent = document.querySelector('.window-content')?.parentElement

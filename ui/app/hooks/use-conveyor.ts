@@ -9,6 +9,12 @@ type ConveyorKey = keyof Window['conveyor']
 export const useConveyor = <T extends ConveyorKey | undefined = undefined>(
   key?: T
 ): T extends ConveyorKey ? Window['conveyor'][T] : Window['conveyor'] => {
+  // Safety check: return empty object if not in Electron context
+  if (typeof window === 'undefined' || !window.conveyor) {
+    console.warn('Conveyor API not available - not running in Electron context')
+    return {} as any
+  }
+
   const conveyor = window.conveyor
 
   if (key) {

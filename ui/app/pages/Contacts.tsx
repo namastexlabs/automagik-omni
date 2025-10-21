@@ -94,11 +94,11 @@ export default function Contacts() {
 
     const headers = ['Name', 'Phone Number', 'Status', 'Channel Type', 'ID']
     const rows = contacts.map((c) => [
-      c.name,
+      c.name || 'Unknown',
       c.phone_number || 'N/A',
       c.status || 'N/A',
       c.channel_type,
-      c.id,
+      c.contact_id,
     ])
 
     const csv = [headers, ...rows].map((row) => row.map((v) => `"${v}"`).join(',')).join('\n')

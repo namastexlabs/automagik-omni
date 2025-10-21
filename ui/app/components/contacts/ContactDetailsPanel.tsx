@@ -24,18 +24,18 @@ export function ContactDetailsPanel({ contact, onClose }: ContactDetailsPanelPro
 
       <div className="space-y-6">
         {/* Profile Picture */}
-        {contact.profile_picture_url ? (
+        {contact.avatar_url ? (
           <div className="flex justify-center">
             <img
-              src={contact.profile_picture_url}
-              alt={contact.name}
+              src={contact.avatar_url}
+              alt={contact.name || 'Contact'}
               className="w-24 h-24 rounded-full object-cover"
             />
           </div>
         ) : (
           <div className="flex justify-center">
             <div className="w-24 h-24 rounded-full bg-zinc-800 flex items-center justify-center text-4xl text-zinc-400">
-              {contact.name.charAt(0).toUpperCase()}
+              {contact.name?.charAt(0).toUpperCase() || '?'}
             </div>
           </div>
         )}
@@ -43,7 +43,7 @@ export function ContactDetailsPanel({ contact, onClose }: ContactDetailsPanelPro
         {/* Name */}
         <div>
           <label className="text-sm text-zinc-400 block mb-1">Name</label>
-          <p className="text-white">{contact.name}</p>
+          <p className="text-white">{contact.name || 'Unknown'}</p>
         </div>
 
         {/* Phone Number */}
@@ -71,7 +71,7 @@ export function ContactDetailsPanel({ contact, onClose }: ContactDetailsPanelPro
         {/* Contact ID */}
         <div>
           <label className="text-sm text-zinc-400 block mb-1">ID</label>
-          <p className="text-xs text-zinc-500 font-mono break-all">{contact.id}</p>
+          <p className="text-xs text-zinc-500 font-mono break-all">{contact.contact_id}</p>
         </div>
       </div>
     </div>

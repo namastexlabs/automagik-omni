@@ -35,23 +35,37 @@ export interface Instance {
 }
 
 export interface Contact {
-  id: string
-  name: string
+  contact_id: string
+  name?: string
   phone_number?: string
-  profile_picture_url?: string
+  avatar_url?: string
   status?: string
-  channel_type: string
+  instance_name: string
+  channel_type: 'whatsapp' | 'discord'
+  is_group?: boolean
+  is_business?: boolean
+  business_description?: string
+  last_seen?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Chat {
-  id: string
-  name: string
-  chat_type: 'direct' | 'group' | 'channel' | 'thread'
-  unread_count: number
-  last_message?: string
-  last_message_timestamp?: string
-  archived: boolean
-  channel_type: string
+  chat_id: string
+  name?: string
+  chat_type?: 'direct' | 'group' | 'channel' | 'thread'
+  avatar_url?: string
+  unread_count?: number
+  last_message_text?: string
+  last_message_time?: string
+  archived?: boolean
+  muted?: boolean
+  instance_name: string
+  channel_type: 'whatsapp' | 'discord'
+  participant_count?: number
+  description?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Message {
@@ -65,14 +79,28 @@ export interface Message {
 }
 
 export interface Trace {
-  id: string
+  trace_id: string
   instance_name: string
-  phone_number: string
+  sender_phone: string
+  sender_name?: string
   message_type: string
-  status: 'received' | 'processing' | 'completed' | 'failed'
-  created_at: string
-  payload?: any
-  error?: string
+  trace_status: string
+  received_at: string
+  completed_at?: string
+  session_name?: string
+  agent_session_id?: string
+  whatsapp_message_id?: string
+  has_media?: boolean
+  has_quoted_message?: boolean
+  agent_processing_time_ms?: number
+  total_processing_time_ms?: number
+  evolution_success?: boolean
+  agent_response_success?: boolean
+  error_message?: string
+  error_stage?: string
+  message_text?: string
+  media_url?: string
+  updated_at?: string
 }
 
 export interface PaginatedResponse<T> {
@@ -245,7 +273,7 @@ export class OmniApiClient {
     if (searchQuery) params.append('search_query', searchQuery)
 
     const response = await this.request<any>(
-      `/api/v1/omni/${instanceName}/contacts?${params}`
+      `/api/v1/instances/${instanceName}/contacts?${params}`
     )
 
     return {
@@ -277,7 +305,7 @@ export class OmniApiClient {
     if (chatTypeFilter) params.append('chat_type_filter', chatTypeFilter)
 
     const response = await this.request<any>(
-      `/api/v1/omni/${instanceName}/chats?${params}`
+      `/api/v1/instances/${instanceName}/chats?${params}`
     )
 
     return {
