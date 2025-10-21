@@ -398,4 +398,29 @@ export class OmniApiClient {
   async getTrace(traceId: string): Promise<Trace> {
     return this.request(`/api/v1/traces/${traceId}`)
   }
+
+  /**
+   * Get trace analytics
+   */
+  async getTraceAnalytics(params?: {
+    instanceName?: string
+    startDate?: string
+    endDate?: string
+  }): Promise<{
+    total_messages: number
+    success_rate: number
+    average_duration: number
+    failed_count: number
+    messages_over_time: Array<{ date: string; count: number }>
+    success_vs_failed: Array<{ name: string; value: number }>
+    message_types: Array<{ type: string; count: number }>
+    top_contacts: Array<{ phone: string; count: number }>
+  }> {
+    const queryParams = new URLSearchParams()
+    if (params?.instanceName) queryParams.append('instance_name', params.instanceName)
+    if (params?.startDate) queryParams.append('start_date', params.startDate)
+    if (params?.endDate) queryParams.append('end_date', params.endDate)
+
+    return this.request(`/api/v1/traces/analytics?${queryParams}`)
+  }
 }
