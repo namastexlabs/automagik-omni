@@ -47,7 +47,16 @@ Native cross-platform desktop application for managing Automagik Omni messaging 
 - ✅ Traces (list, filter, analytics)
 - ✅ Connection management (QR codes, status)
 
-### Phase 2: In Progress
+**Issues Fixed:**
+- ✅ PM2 process detection (now uses `make start-local` for proper PM2 management)
+- ✅ Backend control buttons (Stop/Restart now work correctly)
+- ✅ Info banner dismissible (× close button)
+- ✅ App quit handling (proper cleanup without blocking)
+- ✅ Layout overflow (horizontal scroll eliminated)
+- ✅ Process name display (shortened for clean UI)
+- ✅ Card grid alignment (equal heights, proper truncation)
+
+### Phase 2: Ready to Start
 
 - [ ] Navigation layout with routing
 - [ ] Instances page (CRUD, QR codes, status)
