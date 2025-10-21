@@ -96,7 +96,8 @@ export function ContactsTable({
       if (rule.phone_number.endsWith('*')) {
         const prefix = rule.phone_number.slice(0, -1)
         contacts.forEach((contact) => {
-          const phone = contact.channel_data?.phone || contact.channel_data?.jid || ''
+          // Backend stores phone in channel_data.phone_number (underscore) for WhatsApp
+          const phone = contact.channel_data?.phone_number || contact.channel_data?.phone || contact.channel_data?.jid || contact.id || ''
           if (phone.startsWith(prefix)) {
             // Only set if no exact match already exists
             if (!map.has(phone)) {
@@ -115,7 +116,8 @@ export function ContactsTable({
 
   // Get access status for a contact
   const getAccessStatus = (contact: Contact): { status: 'blocked' | 'allowed' | 'no-rule'; rule?: AccessRule } => {
-    const phone = contact.channel_data?.phone || contact.channel_data?.jid || ''
+    // Backend stores phone in channel_data.phone_number (underscore) for WhatsApp
+    const phone = contact.channel_data?.phone_number || contact.channel_data?.phone || contact.channel_data?.jid || contact.id || ''
     if (!phone) return { status: 'no-rule' }
 
     const rule = accessRulesMap.get(phone)
@@ -129,7 +131,8 @@ export function ContactsTable({
 
   // Handle block action
   const handleBlock = async (contact: Contact) => {
-    const phone = contact.channel_data?.phone || contact.channel_data?.jid || ''
+    // Backend stores phone in channel_data.phone_number (underscore) for WhatsApp
+    const phone = contact.channel_data?.phone_number || contact.channel_data?.phone || contact.channel_data?.jid || contact.id || ''
     if (!phone) {
       setErrorMessage('Cannot block: No phone number found')
       return
@@ -160,7 +163,8 @@ export function ContactsTable({
 
   // Handle allow action (delete blocking rule)
   const handleAllow = async (contact: Contact, rule: AccessRule) => {
-    const phone = contact.channel_data?.phone || contact.channel_data?.jid || ''
+    // Backend stores phone in channel_data.phone_number (underscore) for WhatsApp
+    const phone = contact.channel_data?.phone_number || contact.channel_data?.phone || contact.channel_data?.jid || contact.id || ''
 
     try {
       setActionLoading(`allow-${contact.id}`)
@@ -205,18 +209,43 @@ export function ContactsTable({
     {
       accessorKey: 'phone_number',
       header: 'Phone',
-      cell: ({ row }) => (
-        <span className="font-mono text-sm">
-          {row.original.channel_data?.phone || row.original.channel_data?.jid || 'N/A'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        // Backend stores phone in channel_data.phone_number (underscore) for WhatsApp
+        const phone = row.original.channel_data?.phone_number || row.original.channel_data?.phone || row.original.channel_data?.jid || row.original.id
+        // Remove @c.us or @s.whatsapp.net suffix for display
+        const displayPhone = phone?.replace(/@c\.us|@s\.whatsapp\.net/, '') || 'N/A'
+        return (
+          <span className="font-mono text-sm">
+            {displayPhone}
+          </span>
+        )
+      },
     },
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => (
-        <span className="text-sm text-zinc-400">{row.original.status || 'N/A'}</span>
-      ),
+      cell: ({ row }) => {
+        const status = row.original.status || 'unknown'
+        const statusColors: Record<string, string> = {
+          online: 'text-green-400',
+          offline: 'text-zinc-400',
+          away: 'text-yellow-400',
+          dnd: 'text-red-400',
+          unknown: 'text-zinc-500',
+        }
+        const statusIcons: Record<string, string> = {
+          online: '🟢',
+          offline: '⚫',
+          away: '🟡',
+          dnd: '🔴',
+          unknown: '❓',
+        }
+        return (
+          <span className={`text-sm ${statusColors[status] || 'text-zinc-400'}`}>
+            {statusIcons[status] || ''} {status}
+          </span>
+        )
+      },
     },
     {
       accessorKey: 'channel_type',
