@@ -3,8 +3,7 @@ import { useConveyor } from '@/app/hooks/use-conveyor'
 import { ChatsTable } from '@/app/components/chats/ChatsTable'
 import { ChatTypeFilter } from '@/app/components/chats/ChatTypeFilter'
 import { ChatDetailsPanel } from '@/app/components/chats/ChatDetailsPanel'
-import type { Chat } from '@/lib/main/omni-api-client'
-import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
+import type { Chat, Instance } from '@/lib/conveyor/schemas/omni-schema'
 import {
   Select,
   SelectContent,

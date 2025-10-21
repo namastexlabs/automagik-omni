@@ -12,15 +12,13 @@ import { format, subDays } from 'date-fns'
 
 interface AnalyticsData {
   total_messages: number
-  successful_messages: number
-  failed_messages: number
   success_rate: number
-  avg_processing_time_ms: number | null
-  avg_agent_time_ms: number | null
-  message_types: Record<string, number>
-  error_stages: Record<string, number>
-  instances: Record<string, number>
-  top_contacts?: Array<{ phone: string; count: number }>
+  average_duration: number
+  failed_count: number
+  messages_over_time: Array<{ date: string; count: number }>
+  success_vs_failed: Array<{ name: string; value: number }>
+  message_types: Array<{ type: string; count: number }>
+  top_contacts: Array<{ phone: string; count: number }>
 }
 
 export default function Traces() {
@@ -40,6 +38,7 @@ export default function Traces() {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [status, setStatus] = useState('')
   const [messageType, setMessageType] = useState('')
+  const [phoneFilter, setPhoneFilter] = useState('')
 
   // Pagination (using offset-based pagination)
   const [offset, setOffset] = useState(0)
@@ -56,7 +55,7 @@ export default function Traces() {
   useEffect(() => {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedInstance, startDate, endDate, status, messageType, offset])
+  }, [selectedInstance, startDate, endDate, status, messageType, phoneFilter, offset])
 
   const loadInstances = async () => {
     try {
@@ -73,12 +72,14 @@ export default function Traces() {
       setError(null)
 
       // Load traces - API returns array, not paginated response
-      // API signature: (instanceName, offset, limit, statusFilter)
+      // API signature: (instanceName, offset, limit, statusFilter, phone, messageType)
       const tracesArray = await omni.listTraces(
         selectedInstance || undefined,
         offset,
         limit,
-        status || undefined
+        status || undefined,
+        phoneFilter || undefined,
+        messageType || undefined
       )
       setTraces(tracesArray)
       // Since API returns array, we estimate total based on returned count
@@ -174,11 +175,13 @@ export default function Traces() {
           endDate={endDate}
           status={status}
           messageType={messageType}
+          phoneFilter={phoneFilter}
           onInstanceChange={setSelectedInstance}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
           onStatusChange={setStatus}
           onMessageTypeChange={setMessageType}
+          onPhoneFilterChange={setPhoneFilter}
           onRefresh={handleRefresh}
           loading={loading}
         />
@@ -188,31 +191,21 @@ export default function Traces() {
           <AnalyticsCards
             totalMessages={analytics.total_messages || 0}
             successRate={analytics.success_rate || 0}
-            averageDuration={analytics.avg_processing_time_ms || 0}
-            failedCount={analytics.failed_messages || 0}
+            averageDuration={analytics.average_duration || 0}
+            failedCount={analytics.failed_count || 0}
           />
         )}
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Success vs Failed */}
-          {analytics && (
-            <SuccessRateChart
-              data={[
-                { name: 'Success', value: analytics.successful_messages || 0 },
-                { name: 'Failed', value: analytics.failed_messages || 0 },
-              ]}
-            />
+          {analytics && analytics.success_vs_failed && (
+            <SuccessRateChart data={analytics.success_vs_failed} />
           )}
 
           {/* Message Types */}
-          {analytics && analytics.message_types && (
-            <MessageTypesChart
-              data={Object.entries(analytics.message_types).map(([type, count]) => ({
-                type,
-                count,
-              }))}
-            />
+          {analytics && analytics.message_types && analytics.message_types.length > 0 && (
+            <MessageTypesChart data={analytics.message_types} />
           )}
 
           {/* Top Contacts */}

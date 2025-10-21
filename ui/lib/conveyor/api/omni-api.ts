@@ -128,9 +128,11 @@ export class OmniApi extends ConveyorApi {
     instanceName?: string,
     offset?: number,
     limit?: number,
-    statusFilter?: string
+    statusFilter?: string,
+    phone?: string,
+    messageType?: string
   ): Promise<Trace[]> => {
-    return this.invoke('omni:traces:list', instanceName, offset, limit, statusFilter)
+    return this.invoke('omni:traces:list', instanceName, offset, limit, statusFilter, phone, messageType)
   }
 
   getTrace = (traceId: string): Promise<Trace> => {

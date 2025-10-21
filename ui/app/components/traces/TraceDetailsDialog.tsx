@@ -62,30 +62,126 @@ export function TraceDetailsDialog({ trace, open, onClose }: TraceDetailsDialogP
             </div>
             <div>
               <p className="text-sm text-zinc-400 mb-1">Message Type</p>
-              <p className="text-sm text-zinc-200 capitalize">{trace.message_type}</p>
+              <p className="text-sm text-zinc-200 capitalize">{trace.message_type || 'N/A'}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-zinc-400 mb-1">Phone Number</p>
-              <p className="text-sm font-mono text-zinc-200">{trace.sender_phone}</p>
+              <p className="text-sm font-mono text-zinc-200">{trace.sender_phone || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-sm text-zinc-400 mb-1">Created At</p>
-              <p className="text-sm text-zinc-200">
-                {format(new Date(trace.received_at), 'MMM dd, yyyy HH:mm:ss')}
-              </p>
+              <p className="text-sm text-zinc-400 mb-1">Sender Name</p>
+              <p className="text-sm text-zinc-200">{trace.sender_name || 'N/A'}</p>
             </div>
           </div>
 
-          {/* Error Message */}
-          {trace.error_message && (
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-zinc-400 mb-2">Error</p>
-              <div className="bg-red-900/20 border border-red-500/30 rounded-md p-3">
-                <p className="text-sm text-red-300 font-mono">{trace.error_message}</p>
+              <p className="text-sm text-zinc-400 mb-1">WhatsApp Message ID</p>
+              <p className="text-sm font-mono text-zinc-200 break-all">{trace.whatsapp_message_id || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-zinc-400 mb-1">Session Name</p>
+              <p className="text-sm text-zinc-200">{trace.session_name || 'N/A'}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-zinc-400 mb-1">Has Media</p>
+              <p className="text-sm text-zinc-200">{trace.has_media ? 'Yes' : 'No'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-zinc-400 mb-1">Has Quoted Message</p>
+              <p className="text-sm text-zinc-200">{trace.has_quoted_message ? 'Yes' : 'No'}</p>
+            </div>
+          </div>
+
+          {/* Timestamps */}
+          <div className="border-t border-zinc-800 pt-4">
+            <h4 className="text-sm font-semibold text-zinc-300 mb-3">Timestamps</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-zinc-400 mb-1">Received At</p>
+                <p className="text-sm text-zinc-200">
+                  {trace.received_at ? format(new Date(trace.received_at), 'MMM dd, yyyy HH:mm:ss') : 'N/A'}
+                </p>
               </div>
+              <div>
+                <p className="text-sm text-zinc-400 mb-1">Completed At</p>
+                <p className="text-sm text-zinc-200">
+                  {trace.completed_at ? format(new Date(trace.completed_at), 'MMM dd, yyyy HH:mm:ss') : 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Processing Times */}
+          {(trace.agent_processing_time_ms !== null || trace.total_processing_time_ms !== null) && (
+            <div className="border-t border-zinc-800 pt-4">
+              <h4 className="text-sm font-semibold text-zinc-300 mb-3">Processing Times</h4>
+              <div className="grid grid-cols-2 gap-4">
+                {trace.agent_processing_time_ms !== null && (
+                  <div>
+                    <p className="text-sm text-zinc-400 mb-1">Agent Processing Time</p>
+                    <p className="text-sm text-zinc-200">{trace.agent_processing_time_ms} ms</p>
+                  </div>
+                )}
+                {trace.total_processing_time_ms !== null && (
+                  <div>
+                    <p className="text-sm text-zinc-400 mb-1">Total Processing Time</p>
+                    <p className="text-sm text-zinc-200">{trace.total_processing_time_ms} ms</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Success Flags */}
+          {(trace.agent_response_success !== null || trace.evolution_success !== null) && (
+            <div className="border-t border-zinc-800 pt-4">
+              <h4 className="text-sm font-semibold text-zinc-300 mb-3">Success Indicators</h4>
+              <div className="grid grid-cols-2 gap-4">
+                {trace.agent_response_success !== null && (
+                  <div>
+                    <p className="text-sm text-zinc-400 mb-1">Agent Response Success</p>
+                    <Badge variant={trace.agent_response_success ? 'default' : 'destructive'}>
+                      {trace.agent_response_success ? 'Success' : 'Failed'}
+                    </Badge>
+                  </div>
+                )}
+                {trace.evolution_success !== null && (
+                  <div>
+                    <p className="text-sm text-zinc-400 mb-1">Evolution API Success</p>
+                    <Badge variant={trace.evolution_success ? 'default' : 'destructive'}>
+                      {trace.evolution_success ? 'Success' : 'Failed'}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Error Information */}
+          {(trace.error_message || trace.error_stage) && (
+            <div className="border-t border-zinc-800 pt-4">
+              <h4 className="text-sm font-semibold text-red-300 mb-3">Error Details</h4>
+              {trace.error_stage && (
+                <div className="mb-3">
+                  <p className="text-sm text-zinc-400 mb-1">Error Stage</p>
+                  <p className="text-sm text-red-300 font-mono">{trace.error_stage}</p>
+                </div>
+              )}
+              {trace.error_message && (
+                <div>
+                  <p className="text-sm text-zinc-400 mb-2">Error Message</p>
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-md p-3">
+                    <p className="text-sm text-red-300 font-mono break-words">{trace.error_message}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

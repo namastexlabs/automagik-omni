@@ -326,14 +326,30 @@ export class OmniApiClient {
     message: string,
     quotedMessageId?: string
   ): Promise<Message> {
-    return this.request(`/api/v1/messages/${instanceName}/send-text`, {
+    const response = await this.request<{
+      success: boolean
+      message_id?: string
+      status: string
+      error?: string
+    }>(`/api/v1/instance/${instanceName}/send-text`, {
       method: 'POST',
       body: JSON.stringify({
-        phone,
-        message,
+        phone_number: phone,
+        text: message,
         quoted_message_id: quotedMessageId,
       }),
     })
+
+    // Transform API response to Message format for UI
+    return {
+      id: response.message_id || crypto.randomUUID(),
+      from: 'me',
+      to: phone,
+      content: message,
+      timestamp: new Date().toISOString(),
+      message_type: 'text',
+      status: response.success ? 'sent' : 'failed',
+    }
   }
 
   /**
@@ -346,15 +362,39 @@ export class OmniApiClient {
     mediaType: 'image' | 'video' | 'document',
     caption?: string
   ): Promise<Message> {
-    return this.request(`/api/v1/messages/${instanceName}/send-media`, {
+    // Determine MIME type based on media type
+    const mimeTypeMap: Record<string, string> = {
+      image: 'image/jpeg',
+      video: 'video/mp4',
+      document: 'application/pdf',
+    }
+
+    const response = await this.request<{
+      success: boolean
+      message_id?: string
+      status: string
+      error?: string
+    }>(`/api/v1/instance/${instanceName}/send-media`, {
       method: 'POST',
       body: JSON.stringify({
-        phone,
+        phone_number: phone,
         media_url: mediaUrl,
         media_type: mediaType,
+        mime_type: mimeTypeMap[mediaType] || 'application/octet-stream',
         caption,
       }),
     })
+
+    // Transform API response to Message format for UI
+    return {
+      id: response.message_id || crypto.randomUUID(),
+      from: 'me',
+      to: phone,
+      content: caption || `[${mediaType}]`,
+      timestamp: new Date().toISOString(),
+      message_type: 'media',
+      status: response.success ? 'sent' : 'failed',
+    }
   }
 
   /**
@@ -365,13 +405,29 @@ export class OmniApiClient {
     phone: string,
     audioUrl: string
   ): Promise<Message> {
-    return this.request(`/api/v1/messages/${instanceName}/send-audio`, {
+    const response = await this.request<{
+      success: boolean
+      message_id?: string
+      status: string
+      error?: string
+    }>(`/api/v1/instance/${instanceName}/send-audio`, {
       method: 'POST',
       body: JSON.stringify({
-        phone,
+        phone_number: phone,
         audio_url: audioUrl,
       }),
     })
+
+    // Transform API response to Message format for UI
+    return {
+      id: response.message_id || crypto.randomUUID(),
+      from: 'me',
+      to: phone,
+      content: '[audio]',
+      timestamp: new Date().toISOString(),
+      message_type: 'audio',
+      status: response.success ? 'sent' : 'failed',
+    }
   }
 
   /**
@@ -383,14 +439,30 @@ export class OmniApiClient {
     messageId: string,
     emoji: string
   ): Promise<Message> {
-    return this.request(`/api/v1/messages/${instanceName}/send-reaction`, {
+    const response = await this.request<{
+      success: boolean
+      message_id?: string
+      status: string
+      error?: string
+    }>(`/api/v1/instance/${instanceName}/send-reaction`, {
       method: 'POST',
       body: JSON.stringify({
-        phone,
+        phone_number: phone,
         message_id: messageId,
-        emoji,
+        reaction: emoji,
       }),
     })
+
+    // Transform API response to Message format for UI
+    return {
+      id: response.message_id || crypto.randomUUID(),
+      from: 'me',
+      to: phone,
+      content: emoji,
+      timestamp: new Date().toISOString(),
+      message_type: 'reaction',
+      status: response.success ? 'sent' : 'failed',
+    }
   }
 
   // ============================================================================
@@ -404,7 +476,9 @@ export class OmniApiClient {
     instanceName?: string,
     limit = 50,
     offset = 0,
-    traceStatus?: string
+    traceStatus?: string,
+    phone?: string,
+    messageType?: string
   ): Promise<Trace[]> {
     const params = new URLSearchParams({
       limit: limit.toString(),
@@ -412,6 +486,8 @@ export class OmniApiClient {
     })
     if (instanceName) params.append('instance_name', instanceName)
     if (traceStatus) params.append('trace_status', traceStatus)
+    if (phone) params.append('phone', phone)
+    if (messageType) params.append('message_type', messageType)
 
     return this.request<Trace[]>(`/api/v1/traces?${params}`)
   }
@@ -445,6 +521,34 @@ export class OmniApiClient {
     if (params?.startDate) queryParams.append('start_date', params.startDate)
     if (params?.endDate) queryParams.append('end_date', params.endDate)
 
-    return this.request(`/api/v1/traces/analytics/summary?${queryParams}`)
+    const response = await this.request<{
+      total_messages: number
+      successful_messages: number
+      failed_messages: number
+      success_rate: number
+      avg_processing_time_ms: number | null
+      avg_agent_time_ms: number | null
+      message_types: Record<string, number>
+      error_stages: Record<string, number>
+      instances: Record<string, number>
+    }>(`/api/v1/traces/analytics/summary?${queryParams}`)
+
+    // Transform backend response to UI format
+    return {
+      total_messages: response.total_messages || 0,
+      success_rate: response.success_rate || 0,
+      average_duration: response.avg_processing_time_ms || 0,
+      failed_count: response.failed_messages || 0,
+      messages_over_time: [], // Not provided by current API
+      success_vs_failed: [
+        { name: 'Success', value: response.successful_messages || 0 },
+        { name: 'Failed', value: response.failed_messages || 0 },
+      ],
+      message_types: Object.entries(response.message_types || {}).map(([type, count]) => ({
+        type,
+        count,
+      })),
+      top_contacts: [], // Not provided by current API
+    }
   }
 }

@@ -82,7 +82,7 @@ function InstancesLoader() {
 
   useEffect(() => {
     async function loadInstances() {
-      const response = await fetch('/api/v1/omni/instances')
+      const response = await fetch('/api/v1/instances')
       const data = await response.json()
       setInstances(data.instances)
     }
