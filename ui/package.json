@@ -1,12 +1,12 @@
 {
-  "name": "era",
-  "version": "12.0.0",
-  "description": "A modern Electron application template with React, Vite, TypeScript, Shadcn UI and TailwindCSS",
+  "name": "automagik-omni-ui",
+  "version": "1.0.0",
+  "description": "Desktop UI for Automagik Omni - Multi-tenant omnichannel messaging hub",
   "main": "./out/main/main.js",
   "license": "MIT",
   "author": {
-    "name": "Guasam",
-    "url": "https://github.com/guasam"
+    "name": "Namastex Labs",
+    "url": "https://github.com/namastexlabs/automagik-omni"
   },
   "scripts": {
     "dev": "cross-env ELECTRON_DISABLE_SANDBOX=1 electron-vite dev -w",
