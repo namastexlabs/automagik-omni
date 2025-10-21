@@ -347,6 +347,22 @@ class WhatsAppChannelHandler(ChannelHandler):
                 channel_data={"error": str(e)},
             )
 
+    async def connect_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
+        """Connect/reconnect WhatsApp instance."""
+        try:
+            evolution_client = self._get_evolution_client(instance)
+            result = await evolution_client.connect_instance(instance.name)
+
+            return {
+                "status": "success",
+                "message": f"WhatsApp instance '{instance.name}' connection initiated",
+                "evolution_response": result,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to connect instance {instance.name}: {e}")
+            raise Exception(f"WhatsApp instance connection failed: {str(e)}")
+
     async def restart_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Restart WhatsApp instance."""
         try:
