@@ -7,6 +7,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useState } from 'react'
+import { Asterisk } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -31,20 +32,40 @@ export interface AccessRule {
 
 interface AccessRulesTableProps {
   rules: AccessRule[]
-  loading: boolean
-  onDelete: (ruleId: number, phoneNumber: string) => void
+  onDelete: (rule: AccessRule) => void
 }
 
-export function AccessRulesTable({ rules, loading, onDelete }: AccessRulesTableProps) {
+export function AccessRulesTable({ rules, onDelete }: AccessRulesTableProps) {
+  const loading = false // Remove unused loading param
   const [sorting, setSorting] = useState<SortingState>([])
 
   const columns: ColumnDef<AccessRule>[] = [
     {
       accessorKey: 'phone_number',
       header: 'Phone Number',
-      cell: ({ row }) => (
-        <span className="font-mono text-sm font-medium">{row.original.phone_number}</span>
-      ),
+      cell: ({ row }) => {
+        const phoneNumber = row.original.phone_number
+        const isWildcard = phoneNumber === '*'
+        const hasWildcard = phoneNumber.includes('*')
+
+        return (
+          <div className="flex items-center gap-2">
+            {isWildcard ? (
+              <>
+                <Asterisk className="h-4 w-4 text-yellow-500" />
+                <span className="font-mono text-sm font-medium text-yellow-500">All Numbers</span>
+              </>
+            ) : hasWildcard ? (
+              <>
+                <Asterisk className="h-4 w-4 text-blue-400" />
+                <span className="font-mono text-sm font-medium">{phoneNumber}</span>
+              </>
+            ) : (
+              <span className="font-mono text-sm font-medium">{phoneNumber}</span>
+            )}
+          </div>
+        )
+      },
     },
     {
       accessorKey: 'rule_type',
@@ -60,11 +81,24 @@ export function AccessRulesTable({ rules, loading, onDelete }: AccessRulesTableP
       accessorKey: 'created_at',
       header: 'Created At',
       cell: ({ row }) => {
-        if (!row.original.created_at) return <span className="text-zinc-400">N/A</span>
+        if (!row.original.created_at) return <span className="text-zinc-500 text-sm">N/A</span>
         const date = new Date(row.original.created_at)
         return (
           <span className="text-sm text-zinc-300">
-            {date.toLocaleDateString()} {date.toLocaleTimeString()}
+            {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'updated_at',
+      header: 'Updated At',
+      cell: ({ row }) => {
+        if (!row.original.updated_at) return <span className="text-zinc-500 text-sm">N/A</span>
+        const date = new Date(row.original.updated_at)
+        return (
+          <span className="text-sm text-zinc-300">
+            {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         )
       },
@@ -76,7 +110,7 @@ export function AccessRulesTable({ rules, loading, onDelete }: AccessRulesTableP
         <Button
           variant="destructive"
           size="sm"
-          onClick={() => onDelete(row.original.id, row.original.phone_number)}
+          onClick={() => onDelete(row.original)}
         >
           Delete
         </Button>

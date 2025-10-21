@@ -6,7 +6,6 @@ import { RuleFilters } from '@/app/components/access-rules/RuleFilters'
 import { PhoneNumberTester } from '@/app/components/access-rules/PhoneNumberTester'
 import { CreateRuleDialog } from '@/app/components/access-rules/CreateRuleDialog'
 import { DeleteRuleDialog } from '@/app/components/access-rules/DeleteRuleDialog'
-import { Card } from '@/app/components/ui/card'
 import type { AccessRule, Instance } from '@/lib/conveyor/schemas/omni-schema'
 
 export default function AccessRules() {
@@ -182,9 +181,12 @@ export default function AccessRules() {
 
         {/* Phone Number Tester */}
         {showTester && (
-          <Card className="mt-8 p-6 bg-zinc-900 border-zinc-800">
-            <PhoneNumberTester />
-          </Card>
+          <div className="mt-8">
+            <PhoneNumberTester
+              rules={rules}
+              instanceNames={instances.map(i => i.name)}
+            />
+          </div>
         )}
 
         {/* Dialogs */}

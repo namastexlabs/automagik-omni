@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -41,18 +41,18 @@ interface CreateRuleDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: () => void
+  instances: Instance[]
 }
 
 export function CreateRuleDialog({
   open,
   onOpenChange,
   onCreated,
+  instances,
 }: CreateRuleDialogProps) {
   const { omni } = useConveyor()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [instances, setInstances] = useState<Instance[]>([])
-  const [loadingInstances, setLoadingInstances] = useState(false)
 
   const {
     register,
@@ -71,26 +71,6 @@ export function CreateRuleDialog({
 
   const ruleType = watch('rule_type')
   const instanceName = watch('instance_name')
-
-  const loadInstances = async () => {
-    try {
-      setLoadingInstances(true)
-      const data = await omni.getInstances()
-      setInstances(data)
-    } catch (err) {
-      console.error('Failed to load instances:', err)
-    } finally {
-      setLoadingInstances(false)
-    }
-  }
-
-  // Load instances for the scope selector
-  useEffect(() => {
-    if (open) {
-      loadInstances()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
 
   const onSubmit = async (data: CreateRuleFormData) => {
     try {
@@ -178,7 +158,6 @@ export function CreateRuleDialog({
             <Select
               value={instanceName === '' ? 'global' : instanceName}
               onValueChange={handleScopeChange}
-              disabled={loadingInstances}
             >
               <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
                 <SelectValue placeholder="Select scope" />

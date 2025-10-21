@@ -8,34 +8,33 @@ import {
   DialogFooter,
 } from '@/app/components/ui/dialog'
 import { Button } from '@/app/components/ui/button'
+import { useConveyor } from '@/app/hooks/use-conveyor'
+import type { AccessRule } from './AccessRulesTable'
 
 interface DeleteRuleDialogProps {
-  ruleId: number | null
-  phoneNumber: string | null
+  rule: AccessRule | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onDeleted: () => void
-  onDelete: (ruleId: number) => Promise<void>
 }
 
 export function DeleteRuleDialog({
-  ruleId,
-  phoneNumber,
+  rule,
   open,
   onOpenChange,
   onDeleted,
-  onDelete,
 }: DeleteRuleDialogProps) {
+  const { omni } = useConveyor()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleDelete = async () => {
-    if (!ruleId) return
+    if (!rule) return
 
     try {
       setLoading(true)
       setError(null)
-      await onDelete(ruleId)
+      await omni.deleteAccessRule(rule.id)
       onDeleted()
       onOpenChange(false)
     } catch (err) {
@@ -51,7 +50,7 @@ export function DeleteRuleDialog({
         <DialogHeader>
           <DialogTitle>Delete Access Rule</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete the rule for "{phoneNumber}"?
+            Are you sure you want to delete the rule for "{rule?.phone_number}"?
           </DialogDescription>
         </DialogHeader>
 
@@ -69,7 +68,7 @@ export function DeleteRuleDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={loading || !ruleId}>
+          <Button variant="destructive" onClick={handleDelete} disabled={loading || !rule}>
             {loading ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogFooter>

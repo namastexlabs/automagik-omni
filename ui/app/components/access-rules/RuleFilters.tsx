@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import {
   Select,
   SelectContent,
@@ -7,86 +6,61 @@ import {
   SelectValue,
 } from '@/app/components/ui/select'
 import { Input } from '@/app/components/ui/input'
-import { useConveyor } from '@/app/hooks/use-conveyor'
 import type { Instance } from '@/lib/main/omni-api-client'
 
 interface RuleFiltersProps {
-  onInstanceFilterChange: (instanceName: string | null) => void
-  onTypeFilterChange: (type: string | null) => void
-  onSearchChange: (search: string) => void
-  instanceFilter: string | null
-  typeFilter: string | null
-  searchQuery: string
+  instances: Instance[]
+  onFilterChange: (filters: { search: string; instanceName: string; ruleType: string }) => void
+  className?: string
 }
 
 export function RuleFilters({
-  onInstanceFilterChange,
-  onTypeFilterChange,
-  onSearchChange,
-  instanceFilter,
-  typeFilter,
-  searchQuery,
+  instances,
+  onFilterChange,
+  className,
 }: RuleFiltersProps) {
-  const { omni } = useConveyor()
-  const [instances, setInstances] = useState<Instance[]>([])
-  const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const [instanceName, setInstanceName] = useState('')
+  const [ruleType, setRuleType] = useState('')
 
-  const loadInstances = async () => {
-    try {
-      setLoading(true)
-      const data = await omni.getInstances()
-      setInstances(data)
-    } catch (err) {
-      console.error('Failed to load instances:', err)
-    } finally {
-      setLoading(false)
-    }
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    onFilterChange({ search: value, instanceName, ruleType })
   }
 
-  useEffect(() => {
-    loadInstances()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const handleInstanceChange = (value: string) => {
-    if (value === 'all') {
-      onInstanceFilterChange(null)
-    } else if (value === 'global') {
-      onInstanceFilterChange('')
-    } else {
-      onInstanceFilterChange(value)
-    }
+    const instance = value === 'all' ? '' : value
+    setInstanceName(instance)
+    onFilterChange({ search, instanceName: instance, ruleType })
   }
 
   const handleTypeChange = (value: string) => {
-    onTypeFilterChange(value === 'all' ? null : value)
+    const type = value === 'all' ? '' : value
+    setRuleType(type)
+    onFilterChange({ search, instanceName, ruleType: type })
   }
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4">
+    <div className={`flex flex-col sm:flex-row gap-4 ${className || ''}`}>
       <div className="flex-1">
         <Input
           placeholder="Search by phone number..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="bg-zinc-800 border-zinc-700 text-white"
         />
       </div>
 
       <div className="w-full sm:w-48">
         <Select
-          value={
-            instanceFilter === null ? 'all' : instanceFilter === '' ? 'global' : instanceFilter
-          }
+          value={instanceName || 'all'}
           onValueChange={handleInstanceChange}
-          disabled={loading}
         >
           <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
             <SelectValue placeholder="Filter by scope" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Scopes</SelectItem>
-            <SelectItem value="global">Global Only</SelectItem>
             {instances.map((instance) => (
               <SelectItem key={instance.name} value={instance.name}>
                 {instance.name}
@@ -97,9 +71,9 @@ export function RuleFilters({
       </div>
 
       <div className="w-full sm:w-40">
-        <Select value={typeFilter || 'all'} onValueChange={handleTypeChange}>
+        <Select value={ruleType || 'all'} onValueChange={handleTypeChange}>
           <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-            <SelectValue placeholder="Filter by type" />
+            <SelectValue placeholder="All Types" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
