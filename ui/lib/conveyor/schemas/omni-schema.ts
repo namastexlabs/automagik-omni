@@ -8,24 +8,34 @@ export const InstanceSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(val => String(val)),
   name: z.string(),
   channel_type: z.enum(['whatsapp', 'discord']),
+  is_default: z.boolean().optional(),
+  is_active: z.boolean().optional(),
 
   // WhatsApp fields
-  evolution_api_url: z.string().nullable().optional(),
-  evolution_api_key: z.string().nullable().optional(),
-  evolution_instance_name: z.string().nullable().optional(),
+  evolution_url: z.string().nullable().optional(),
+  evolution_key: z.string().nullable().optional(),
+  whatsapp_instance: z.string().nullable().optional(),
 
   // Discord fields
   discord_bot_token: z.string().nullable().optional(),
-  discord_application_id: z.string().nullable().optional(),
+  discord_client_id: z.string().nullable().optional(),
+  discord_guild_id: z.string().nullable().optional(),
 
-  // Status fields from Evolution API (when include_status=true)
-  instance: z.object({
-    instanceName: z.string().optional(),
-    status: z.string().optional(),
+  // Agent configuration
+  agent_api_url: z.string().optional(),
+  agent_api_key: z.string().optional(),
+  default_agent: z.string().nullable().optional(),
+  agent_timeout: z.number().nullable().optional(),
+
+  // Evolution status (WhatsApp only)
+  evolution_status: z.object({
+    state: z.string().nullable().optional(),
+    owner_jid: z.string().nullable().optional(),
+    profile_name: z.string().nullable().optional(),
+    profile_picture_url: z.string().nullable().optional(),
+    last_updated: z.string().nullable().optional(),
+    error: z.string().nullable().optional(),
   }).nullable().optional(),
-
-  // Connection status
-  state: z.string().nullable().optional(),
 
   // Timestamps
   created_at: z.string().nullable().optional(),
@@ -75,7 +85,28 @@ export const InstanceSchema = z.object({
   chatwoot_days_limit_import_messages: z.number().nullable().optional(),
   chatwoot_organization: z.string().nullable().optional(),
   chatwoot_logo: z.string().nullable().optional(),
-}).passthrough()
+}).passthrough().transform((data) => {
+  // Derive status from evolution_status.state for WhatsApp
+  let status: 'connected' | 'disconnected' | 'connecting' | 'error' = 'disconnected'
+
+  if (data.channel_type === 'whatsapp' && data.evolution_status) {
+    const state = data.evolution_status.state
+    const statusMap: Record<string, 'connected' | 'disconnected' | 'connecting' | 'error'> = {
+      'open': 'connected',
+      'close': 'disconnected',
+      'connecting': 'connecting',
+    }
+    status = statusMap[state || ''] || 'error'
+  } else if (data.channel_type === 'discord') {
+    // For Discord, check is_active
+    status = data.is_active ? 'connected' : 'disconnected'
+  }
+
+  return {
+    ...data,
+    status,
+  }
+})
 
 export const ContactSchema = z.object({
   id: z.string(),
@@ -152,24 +183,24 @@ export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =
   })
 
 // Specific response schemas that match backend API
-// Fields are optional to handle error responses gracefully
+// Using z.any() for contacts/chats arrays to avoid Zod circular reference cache issues
 export const ContactsResponseSchema = z.object({
-  contacts: z.array(ContactSchema).default([]),
-  total_count: z.number().default(0),
-  page: z.number().default(1),
-  page_size: z.number().default(50),
-  has_more: z.boolean().default(false),
+  contacts: z.array(z.any()),
+  total_count: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+  has_more: z.boolean(),
   instance_name: z.string().optional(),
   channel_type: z.enum(['whatsapp', 'discord']).optional(),
   partial_errors: z.array(z.any()).optional(),
 }).passthrough()
 
 export const ChatsResponseSchema = z.object({
-  chats: z.array(ChatSchema).default([]),
-  total_count: z.number().default(0),
-  page: z.number().default(1),
-  page_size: z.number().default(50),
-  has_more: z.boolean().default(false),
+  chats: z.array(z.any()),
+  total_count: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+  has_more: z.boolean(),
   instance_name: z.string().optional(),
   channel_type: z.enum(['whatsapp', 'discord']).optional(),
   partial_errors: z.array(z.any()).optional(),

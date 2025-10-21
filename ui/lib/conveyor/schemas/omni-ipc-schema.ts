@@ -126,9 +126,11 @@ export const omniIpcSchema = {
   'omni:traces:list': {
     args: z.tuple([
       z.string().optional(), // instance_name
-      z.number().optional(), // page
-      z.number().optional(), // page_size
+      z.number().optional(), // offset
+      z.number().optional(), // limit
       z.string().optional(), // status_filter
+      z.string().optional(), // phone
+      z.string().optional(), // message_type
     ]),
     return: z.array(TraceSchema),
   },

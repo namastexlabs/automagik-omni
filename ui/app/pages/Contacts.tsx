@@ -4,7 +4,7 @@ import { ContactsTable } from '@/app/components/contacts/ContactsTable'
 import { ContactSearch } from '@/app/components/contacts/ContactSearch'
 import { ContactDetailsPanel } from '@/app/components/contacts/ContactDetailsPanel'
 import { Button } from '@/app/components/ui/button'
-import type { Contact } from '@/lib/main/omni-api-client'
+import type { Contact } from '@/lib/conveyor/schemas/omni-schema'
 import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
 import {
   Select,
@@ -95,10 +95,10 @@ export default function Contacts() {
     const headers = ['Name', 'Phone Number', 'Status', 'Channel Type', 'ID']
     const rows = contacts.map((c) => [
       c.name || 'Unknown',
-      c.phone_number || 'N/A',
+      c.channel_data?.phone_number || c.id,
       c.status || 'N/A',
       c.channel_type,
-      c.id,  // Changed from contact_id
+      c.id,
     ])
 
     const csv = [headers, ...rows].map((row) => row.map((v) => `"${v}"`).join(',')).join('\n')

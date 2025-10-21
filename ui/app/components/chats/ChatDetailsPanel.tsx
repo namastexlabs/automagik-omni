@@ -1,5 +1,5 @@
 import { Badge } from '@/app/components/ui/badge'
-import type { Chat } from '@/lib/main/omni-api-client'
+import type { Chat } from '@/lib/conveyor/schemas/omni-schema'
 
 interface ChatDetailsPanelProps {
   chat: Chat | null

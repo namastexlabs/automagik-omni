@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
 import {
   Dialog,
   DialogContent,
@@ -36,7 +35,9 @@ export function QRCodeDialog({ instanceName, open, onOpenChange }: QRCodeDialogP
       setLoading(true)
       setError(null)
       const result = await omni.getInstanceQR(instanceName)
-      setQrCode(result.qr_code || result.base64)
+      // Backend returns base64 data URL (e.g., data:image/png;base64,...)
+      const qrImageData = result.qr_code || result.base64
+      setQrCode(qrImageData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load QR code')
     } finally {
@@ -65,7 +66,7 @@ export function QRCodeDialog({ instanceName, open, onOpenChange }: QRCodeDialogP
 
           {qrCode && !loading && (
             <div className="bg-white p-4 rounded-lg">
-              <QRCodeSVG value={qrCode} size={256} />
+              <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64" />
             </div>
           )}
 

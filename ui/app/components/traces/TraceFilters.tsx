@@ -10,11 +10,13 @@ interface TraceFiltersProps {
   endDate: string
   status: string
   messageType: string
+  phoneFilter: string
   onInstanceChange: (value: string) => void
   onStartDateChange: (value: string) => void
   onEndDateChange: (value: string) => void
   onStatusChange: (value: string) => void
   onMessageTypeChange: (value: string) => void
+  onPhoneFilterChange: (value: string) => void
   onRefresh: () => void
   loading?: boolean
 }
@@ -26,17 +28,19 @@ export function TraceFilters({
   endDate,
   status,
   messageType,
+  phoneFilter,
   onInstanceChange,
   onStartDateChange,
   onEndDateChange,
   onStatusChange,
   onMessageTypeChange,
+  onPhoneFilterChange,
   onRefresh,
   loading,
 }: TraceFiltersProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-      {/* Instance Selector */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+      {/* Row 1: Instance, Status, Message Type, Phone */}
       <div>
         <label className="block text-sm font-medium text-zinc-400 mb-2">Instance</label>
         <Select value={selectedInstance} onChange={(e) => onInstanceChange(e.target.value)}>
@@ -49,23 +53,6 @@ export function TraceFilters({
         </Select>
       </div>
 
-      {/* Start Date */}
-      <div>
-        <label className="block text-sm font-medium text-zinc-400 mb-2">Start Date</label>
-        <Input
-          type="date"
-          value={startDate}
-          onChange={(e) => onStartDateChange(e.target.value)}
-        />
-      </div>
-
-      {/* End Date */}
-      <div>
-        <label className="block text-sm font-medium text-zinc-400 mb-2">End Date</label>
-        <Input type="date" value={endDate} onChange={(e) => onEndDateChange(e.target.value)} />
-      </div>
-
-      {/* Status Filter */}
       <div>
         <label className="block text-sm font-medium text-zinc-400 mb-2">Status</label>
         <Select value={status} onChange={(e) => onStatusChange(e.target.value)}>
@@ -77,7 +64,6 @@ export function TraceFilters({
         </Select>
       </div>
 
-      {/* Message Type Filter */}
       <div>
         <label className="block text-sm font-medium text-zinc-400 mb-2">Message Type</label>
         <Select value={messageType} onChange={(e) => onMessageTypeChange(e.target.value)}>
@@ -91,8 +77,32 @@ export function TraceFilters({
         </Select>
       </div>
 
-      {/* Refresh Button */}
-      <div className="flex items-end">
+      <div>
+        <label className="block text-sm font-medium text-zinc-400 mb-2">Phone Number</label>
+        <Input
+          type="text"
+          placeholder="Filter by phone..."
+          value={phoneFilter}
+          onChange={(e) => onPhoneFilterChange(e.target.value)}
+        />
+      </div>
+
+      {/* Row 2: Start Date, End Date, Refresh Button */}
+      <div>
+        <label className="block text-sm font-medium text-zinc-400 mb-2">Start Date</label>
+        <Input
+          type="date"
+          value={startDate}
+          onChange={(e) => onStartDateChange(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-zinc-400 mb-2">End Date</label>
+        <Input type="date" value={endDate} onChange={(e) => onEndDateChange(e.target.value)} />
+      </div>
+
+      <div className="flex items-end xl:col-span-2">
         <Button onClick={onRefresh} disabled={loading} className="w-full">
           {loading ? 'Loading...' : 'Refresh'}
         </Button>

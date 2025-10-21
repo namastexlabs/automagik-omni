@@ -22,7 +22,7 @@ import {
 } from '@/app/components/ui/select'
 import { Button } from '@/app/components/ui/button'
 import { Skeleton } from '@/app/components/ui/skeleton'
-import type { Chat } from '@/lib/main/omni-api-client'
+import type { Chat } from '@/lib/conveyor/schemas/omni-schema'
 
 interface ChatsTableProps {
   chats: Chat[]

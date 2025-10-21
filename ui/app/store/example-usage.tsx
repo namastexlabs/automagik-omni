@@ -54,7 +54,7 @@ export function InstancesLoader() {
   useEffect(() => {
     async function loadInstances() {
       try {
-        const response = await fetch('http://localhost:8000/api/v1/omni/instances', {
+        const response = await fetch('http://localhost:8000/api/v1/instances', {
           headers: {
             'x-api-key': import.meta.env.VITE_API_KEY || ''
           }
