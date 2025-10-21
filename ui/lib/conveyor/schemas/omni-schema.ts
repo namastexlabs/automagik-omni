@@ -154,22 +154,22 @@ export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =
 // Specific response schemas that match backend API
 // Fields are optional to handle error responses gracefully
 export const ContactsResponseSchema = z.object({
-  contacts: z.array(ContactSchema).optional().default([]),
-  total_count: z.number().optional().default(0),
-  page: z.number().optional().default(1),
-  page_size: z.number().optional().default(50),
-  has_more: z.boolean().optional().default(false),
+  contacts: z.array(ContactSchema).default([]),
+  total_count: z.number().default(0),
+  page: z.number().default(1),
+  page_size: z.number().default(50),
+  has_more: z.boolean().default(false),
   instance_name: z.string().optional(),
   channel_type: z.enum(['whatsapp', 'discord']).optional(),
   partial_errors: z.array(z.any()).optional(),
 }).passthrough()
 
 export const ChatsResponseSchema = z.object({
-  chats: z.array(ChatSchema).optional().default([]),
-  total_count: z.number().optional().default(0),
-  page: z.number().optional().default(1),
-  page_size: z.number().optional().default(50),
-  has_more: z.boolean().optional().default(false),
+  chats: z.array(ChatSchema).default([]),
+  total_count: z.number().default(0),
+  page: z.number().default(1),
+  page_size: z.number().default(50),
+  has_more: z.boolean().default(false),
   instance_name: z.string().optional(),
   channel_type: z.enum(['whatsapp', 'discord']).optional(),
   partial_errors: z.array(z.any()).optional(),
