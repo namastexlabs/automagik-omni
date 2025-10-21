@@ -1,11 +1,10 @@
 import { z } from 'zod'
 import {
   InstanceSchema,
-  ContactSchema,
-  ChatSchema,
   MessageSchema,
   TraceSchema,
-  PaginatedResponseSchema,
+  ContactsResponseSchema,
+  ChatsResponseSchema,
 } from './omni-schema'
 
 export const omniIpcSchema = {
@@ -68,7 +67,7 @@ export const omniIpcSchema = {
       z.number().optional(), // page_size
       z.string().optional(), // search_query
     ]),
-    return: PaginatedResponseSchema(ContactSchema),
+    return: ContactsResponseSchema,  // Use specific schema with "contacts" field
   },
 
   // ========== CHATS ==========
@@ -79,7 +78,7 @@ export const omniIpcSchema = {
       z.number().optional(), // page_size
       z.string().optional(), // chat_type_filter
     ]),
-    return: PaginatedResponseSchema(ChatSchema),
+    return: ChatsResponseSchema,  // Use specific schema with "chats" field
   },
 
   // ========== MESSAGES ==========
@@ -137,5 +136,25 @@ export const omniIpcSchema = {
   'omni:traces:get': {
     args: z.tuple([z.string()]), // trace_id
     return: TraceSchema,
+  },
+
+  'omni:traces:analytics': {
+    args: z.tuple([
+      z.object({
+        instanceName: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }).optional()
+    ]),
+    return: z.object({
+      total_traces: z.number().optional().default(0),
+      by_status: z.record(z.number()).optional().default({}),
+      by_instance: z.record(z.number()).optional().default({}),
+      by_message_type: z.record(z.number()).optional().default({}),
+      total_messages: z.number().optional(),
+      success_rate: z.number().optional(),
+      average_duration: z.number().optional(),
+      failed_count: z.number().optional(),
+    }).passthrough(),
   },
 } as const

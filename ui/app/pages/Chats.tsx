@@ -57,7 +57,7 @@ export default function Chats() {
           pagination.pageSize,
           chatTypeFilter
         )
-        setChats(result.data)
+        setChats(result.chats)  // Changed from result.data
         setTotalCount(result.total_count)
         setHasMore(result.has_more)
       } catch (err) {

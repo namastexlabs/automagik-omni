@@ -58,7 +58,7 @@ export default function Contacts() {
           pagination.pageSize,
           searchQuery || undefined
         )
-        setContacts(result.data)
+        setContacts(result.contacts)  // Changed from result.data
         setTotalCount(result.total_count)
         setHasMore(result.has_more)
       } catch (err) {
@@ -98,7 +98,7 @@ export default function Contacts() {
       c.phone_number || 'N/A',
       c.status || 'N/A',
       c.channel_type,
-      c.contact_id,
+      c.id,  // Changed from contact_id
     ])
 
     const csv = [headers, ...rows].map((row) => row.map((v) => `"${v}"`).join(',')).join('\n')

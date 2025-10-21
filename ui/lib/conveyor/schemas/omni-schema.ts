@@ -78,7 +78,7 @@ export const InstanceSchema = z.object({
 }).passthrough()
 
 export const ContactSchema = z.object({
-  contact_id: z.string(),
+  id: z.string(),  // Backend returns "id" not "contact_id"
   name: z.string().nullable().optional(),
   phone_number: z.string().nullable().optional(),
   avatar_url: z.string().nullable().optional(),
@@ -87,28 +87,33 @@ export const ContactSchema = z.object({
   channel_type: z.enum(['whatsapp', 'discord']),
   is_group: z.boolean().nullable().optional(),
   is_business: z.boolean().nullable().optional(),
+  is_verified: z.boolean().nullable().optional(),
   business_description: z.string().nullable().optional(),
   last_seen: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),
+  channel_data: z.any().optional(),  // Raw channel-specific data
 }).passthrough()
 
 export const ChatSchema = z.object({
-  chat_id: z.string(),
+  id: z.string(),  // Backend returns "id" not "chat_id"
   name: z.string().nullable().optional(),
   chat_type: z.enum(['direct', 'group', 'channel', 'thread']).nullable().optional(),
   avatar_url: z.string().nullable().optional(),
   unread_count: z.number().nullable().optional(),
   last_message_text: z.string().nullable().optional(),
   last_message_time: z.string().nullable().optional(),
-  archived: z.boolean().nullable().optional(),
-  muted: z.boolean().nullable().optional(),
+  last_message_at: z.string().nullable().optional(),  // Alternative field name
+  is_archived: z.boolean().nullable().optional(),  // Backend uses is_archived
+  is_muted: z.boolean().nullable().optional(),  // Backend uses is_muted
+  is_pinned: z.boolean().nullable().optional(),
   instance_name: z.string(),
   channel_type: z.enum(['whatsapp', 'discord']),
   participant_count: z.number().nullable().optional(),
   description: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),
+  channel_data: z.any().optional(),  // Raw channel-specific data
 }).passthrough()
 
 export const MessageSchema = z.object({
@@ -151,6 +156,30 @@ export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =
     page_size: z.number(),
     has_more: z.boolean(),
   })
+
+// Specific response schemas that match backend API
+// Fields are optional to handle error responses gracefully
+export const ContactsResponseSchema = z.object({
+  contacts: z.array(ContactSchema).optional().default([]),
+  total_count: z.number().optional().default(0),
+  page: z.number().optional().default(1),
+  page_size: z.number().optional().default(50),
+  has_more: z.boolean().optional().default(false),
+  instance_name: z.string().optional(),
+  channel_type: z.enum(['whatsapp', 'discord']).optional(),
+  partial_errors: z.array(z.any()).optional(),
+}).passthrough()
+
+export const ChatsResponseSchema = z.object({
+  chats: z.array(ChatSchema).optional().default([]),
+  total_count: z.number().optional().default(0),
+  page: z.number().optional().default(1),
+  page_size: z.number().optional().default(50),
+  has_more: z.boolean().optional().default(false),
+  instance_name: z.string().optional(),
+  channel_type: z.enum(['whatsapp', 'discord']).optional(),
+  partial_errors: z.array(z.any()).optional(),
+}).passthrough()
 
 // ============================================================================
 // TYPE EXPORTS

@@ -70,12 +70,32 @@ export const registerOmniHandlers = () => {
 
   // ========== CONTACTS ==========
   handle('omni:contacts:list', async (name: string, page?: number, pageSize?: number, search?: string) => {
-    return await getClient().getContacts(name, page, pageSize, search)
+    const response = await getClient().getContacts(name, page, pageSize, search)
+    // Transform PaginatedResponse to ContactsResponse format
+    return {
+      contacts: response.data || [],
+      total_count: response.total_count || 0,
+      page: response.page || 1,
+      page_size: response.page_size || 50,
+      has_more: response.has_more || false,
+      instance_name: name,
+      channel_type: response.data?.[0]?.channel_type as 'whatsapp' | 'discord' | undefined,
+    }
   })
 
   // ========== CHATS ==========
   handle('omni:chats:list', async (name: string, page?: number, pageSize?: number, filter?: string) => {
-    return await getClient().getChats(name, page, pageSize, filter)
+    const response = await getClient().getChats(name, page, pageSize, filter)
+    // Transform PaginatedResponse to ChatsResponse format
+    return {
+      chats: response.data || [],
+      total_count: response.total_count || 0,
+      page: response.page || 1,
+      page_size: response.page_size || 50,
+      has_more: response.has_more || false,
+      instance_name: name,
+      channel_type: response.data?.[0]?.channel_type as 'whatsapp' | 'discord' | undefined,
+    }
   })
 
   // ========== MESSAGES ==========

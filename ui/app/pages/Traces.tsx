@@ -117,7 +117,7 @@ export default function Traces() {
   }
 
   const handleExportCSV = () => {
-    if (traces.length === 0) return
+    if (!traces || traces.length === 0) return
 
     const headers = ['Timestamp', 'Instance', 'Phone', 'Type', 'Status', 'Error']
     const rows = traces.map((trace) => [
