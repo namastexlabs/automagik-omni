@@ -78,42 +78,36 @@ export const InstanceSchema = z.object({
 }).passthrough()
 
 export const ContactSchema = z.object({
-  id: z.string(),  // Backend returns "id" not "contact_id"
-  name: z.string().nullable().optional(),
-  phone_number: z.string().nullable().optional(),
-  avatar_url: z.string().nullable().optional(),
-  status: z.string().nullable().optional(),
-  instance_name: z.string(),
+  id: z.string(),
+  name: z.string().optional(),
   channel_type: z.enum(['whatsapp', 'discord']),
-  is_group: z.boolean().nullable().optional(),
-  is_business: z.boolean().nullable().optional(),
+  instance_name: z.string(),
+  avatar_url: z.string().nullable().optional(),
+  status: z.enum(['unknown', 'online', 'offline', 'away', 'dnd']).optional(),
   is_verified: z.boolean().nullable().optional(),
-  business_description: z.string().nullable().optional(),
-  last_seen: z.string().nullable().optional(),
+  is_business: z.boolean().nullable().optional(),
+  channel_data: z.record(z.any()).optional(),  // Contains phone_number
   created_at: z.string().nullable().optional(),
-  updated_at: z.string().nullable().optional(),
-  channel_data: z.any().optional(),  // Raw channel-specific data
+  last_seen: z.string().nullable().optional(),
 }).passthrough()
 
 export const ChatSchema = z.object({
-  id: z.string(),  // Backend returns "id" not "chat_id"
-  name: z.string().nullable().optional(),
-  chat_type: z.enum(['direct', 'group', 'channel', 'thread']).nullable().optional(),
+  id: z.string(),
+  name: z.string().optional(),
+  chat_type: z.enum(['direct', 'group', 'channel', 'thread']).optional(),
   avatar_url: z.string().nullable().optional(),
   unread_count: z.number().nullable().optional(),
   last_message_text: z.string().nullable().optional(),
-  last_message_time: z.string().nullable().optional(),
-  last_message_at: z.string().nullable().optional(),  // Alternative field name
-  is_archived: z.boolean().nullable().optional(),  // Backend uses is_archived
-  is_muted: z.boolean().nullable().optional(),  // Backend uses is_muted
-  is_pinned: z.boolean().nullable().optional(),
+  last_message_at: z.string().nullable().optional(),  // NOT last_message_time
+  is_archived: z.boolean().optional(),  // NOT archived
+  is_muted: z.boolean().optional(),     // NOT muted
+  is_pinned: z.boolean().optional(),
   instance_name: z.string(),
   channel_type: z.enum(['whatsapp', 'discord']),
   participant_count: z.number().nullable().optional(),
   description: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
-  updated_at: z.string().nullable().optional(),
-  channel_data: z.any().optional(),  // Raw channel-specific data
+  channel_data: z.record(z.any()).optional(),
 }).passthrough()
 
 export const MessageSchema = z.object({
@@ -129,23 +123,23 @@ export const MessageSchema = z.object({
 export const TraceSchema = z.object({
   trace_id: z.string(),
   instance_name: z.string(),
-  sender_phone: z.string(),
-  sender_name: z.string().optional().nullable(),
-  message_type: z.string(),
-  status: z.string(),
-  received_at: z.string(),
-  completed_at: z.string().optional().nullable(),
-  session_name: z.string().optional().nullable(),
-  agent_session_id: z.string().optional().nullable(),
-  whatsapp_message_id: z.string().optional().nullable(),
-  has_media: z.boolean().optional().nullable(),
-  has_quoted_message: z.boolean().optional().nullable(),
-  agent_processing_time_ms: z.number().optional().nullable(),
-  total_processing_time_ms: z.number().optional().nullable(),
-  evolution_success: z.boolean().optional().nullable(),
-  agent_response_success: z.boolean().optional().nullable(),
-  error_message: z.string().optional().nullable(),
-  error_stage: z.string().optional().nullable(),
+  whatsapp_message_id: z.string().nullable(),
+  sender_phone: z.string().nullable(),
+  sender_name: z.string().nullable(),
+  message_type: z.string().nullable(),
+  has_media: z.boolean(),
+  has_quoted_message: z.boolean(),
+  session_name: z.string().nullable().optional(),
+  agent_session_id: z.string().nullable().optional(),
+  status: z.string(),  // NOT trace_status
+  error_message: z.string().nullable(),
+  error_stage: z.string().nullable(),
+  received_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
+  agent_processing_time_ms: z.number().nullable(),
+  total_processing_time_ms: z.number().nullable(),
+  agent_response_success: z.boolean().nullable(),
+  evolution_success: z.boolean().nullable(),
 }).passthrough()
 
 export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>

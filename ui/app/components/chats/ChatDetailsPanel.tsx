@@ -59,11 +59,11 @@ export function ChatDetailsPanel({ chat, onClose }: ChatDetailsPanelProps) {
         )}
 
         {/* Last Message Timestamp */}
-        {chat.last_message_time && (
+        {chat.last_message_at && (
           <div>
             <label className="text-sm text-zinc-400 block mb-1">Last Activity</label>
             <p className="text-white text-sm">
-              {new Date(chat.last_message_time).toLocaleString()}
+              {new Date(chat.last_message_at).toLocaleString()}
             </p>
           </div>
         )}
@@ -71,8 +71,8 @@ export function ChatDetailsPanel({ chat, onClose }: ChatDetailsPanelProps) {
         {/* Archived Status */}
         <div>
           <label className="text-sm text-zinc-400 block mb-1">Status</label>
-          <Badge variant={chat.archived ? 'destructive' : 'default'}>
-            {chat.archived ? 'Archived' : 'Active'}
+          <Badge variant={chat.is_archived ? 'destructive' : 'default'}>
+            {chat.is_archived ? 'Archived' : 'Active'}
           </Badge>
         </div>
 

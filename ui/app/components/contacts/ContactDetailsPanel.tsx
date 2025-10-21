@@ -47,10 +47,12 @@ export function ContactDetailsPanel({ contact, onClose }: ContactDetailsPanelPro
         </div>
 
         {/* Phone Number */}
-        {contact.phone_number && (
+        {(contact.channel_data?.phone || contact.channel_data?.jid) && (
           <div>
             <label className="text-sm text-zinc-400 block mb-1">Phone Number</label>
-            <p className="text-white font-mono">{contact.phone_number}</p>
+            <p className="text-white font-mono">
+              {contact.channel_data?.phone || contact.channel_data?.jid}
+            </p>
           </div>
         )}
 

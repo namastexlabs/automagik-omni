@@ -101,12 +101,12 @@ export function ChatsTable({
       ),
     },
     {
-      accessorKey: 'last_message_time',
+      accessorKey: 'last_message_at',
       header: 'Updated',
       cell: ({ row }) => (
         <span className="text-sm text-zinc-400">
-          {row.original.last_message_time
-            ? new Date(row.original.last_message_time).toLocaleDateString()
+          {row.original.last_message_at
+            ? new Date(row.original.last_message_at).toLocaleDateString()
             : 'N/A'}
         </span>
       ),

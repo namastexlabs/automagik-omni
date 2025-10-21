@@ -126,11 +126,11 @@ export class OmniApi extends ConveyorApi {
 
   listTraces = (
     instanceName?: string,
-    page?: number,
-    pageSize?: number,
+    offset?: number,
+    limit?: number,
     statusFilter?: string
-  ): Promise<PaginatedResponse<Trace>> => {
-    return this.invoke('omni:traces:list', instanceName, page, pageSize, statusFilter)
+  ): Promise<Trace[]> => {
+    return this.invoke('omni:traces:list', instanceName, offset, limit, statusFilter)
   }
 
   getTrace = (traceId: string): Promise<Trace> => {

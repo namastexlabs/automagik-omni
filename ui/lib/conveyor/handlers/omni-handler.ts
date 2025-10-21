@@ -122,8 +122,9 @@ export const registerOmniHandlers = () => {
   })
 
   // ========== TRACES ==========
-  handle('omni:traces:list', async (instanceName?: string, page?: number, pageSize?: number, statusFilter?: string) => {
-    return await getClient().getTraces(instanceName, page, pageSize, statusFilter)
+  handle('omni:traces:list', async (instanceName?: string, offset?: number, limit?: number, statusFilter?: string) => {
+    // API client signature: getTraces(instanceName, limit, offset, traceStatus)
+    return await getClient().getTraces(instanceName, limit, offset, statusFilter)
   })
 
   handle('omni:traces:get', async (traceId: string) => {
