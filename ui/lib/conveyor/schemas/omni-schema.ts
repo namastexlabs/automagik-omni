@@ -173,6 +173,31 @@ export const TraceSchema = z.object({
   evolution_success: z.boolean().nullable(),
 }).passthrough()
 
+export const AccessRuleSchema = z.object({
+  id: z.number(),
+  phone_number: z.string(),
+  rule_type: z.enum(['allow', 'block']),
+  instance_name: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+}).passthrough()
+
+export const CreateAccessRuleSchema = z.object({
+  phone_number: z.string(),
+  rule_type: z.enum(['allow', 'block']),
+  instance_name: z.string().nullable().optional(),
+})
+
+export const AccessRuleListResponseSchema = z.array(AccessRuleSchema).default([])
+
+export const CheckAccessResponseSchema = z.object({
+  allowed: z.boolean(),
+  rule_type: z.enum(['allow', 'block']).nullable().optional(),
+  rule_id: z.number().nullable().optional(),
+  phone_number: z.string(),
+  instance_name: z.string().nullable().optional(),
+}).passthrough()
+
 export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
     data: z.array(itemSchema),
@@ -215,3 +240,6 @@ export type Contact = z.infer<typeof ContactSchema>
 export type Chat = z.infer<typeof ChatSchema>
 export type Message = z.infer<typeof MessageSchema>
 export type Trace = z.infer<typeof TraceSchema>
+export type AccessRule = z.infer<typeof AccessRuleSchema>
+export type CreateAccessRule = z.infer<typeof CreateAccessRuleSchema>
+export type CheckAccessResponse = z.infer<typeof CheckAccessResponseSchema>

@@ -141,4 +141,22 @@ export const registerOmniHandlers = () => {
   handle('omni:traces:analytics', async (params?: { instanceName?: string; startDate?: string; endDate?: string }) => {
     return await getClient().getTraceAnalytics(params)
   })
+
+  // ========== ACCESS RULES ==========
+  handle('omni:access:list', async (instanceName?: string, ruleType?: 'allow' | 'block') => {
+    return await getClient().listAccessRules({ instance_name: instanceName, rule_type: ruleType })
+  })
+
+  handle('omni:access:create', async (data: { phone_number: string; rule_type: 'allow' | 'block'; instance_name?: string }) => {
+    return await getClient().createAccessRule(data)
+  })
+
+  handle('omni:access:delete', async (ruleId: number) => {
+    await getClient().deleteAccessRule(ruleId)
+    return { success: true, message: `Access rule ${ruleId} deleted` }
+  })
+
+  handle('omni:access:check', async (phoneNumber: string, instanceName?: string) => {
+    return await getClient().checkPhoneAccess(phoneNumber, instanceName)
+  })
 }

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard,
   Server,
+  Shield,
   MessageSquare,
   Users,
   MessagesSquare,
@@ -14,6 +15,7 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Instances', href: '/instances', icon: Server },
+  { name: 'Access Rules', href: '/access-rules', icon: Shield },
   { name: 'Messages', href: '/messages', icon: MessageSquare },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Chats', href: '/chats', icon: MessagesSquare },
