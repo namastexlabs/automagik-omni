@@ -53,18 +53,18 @@ export function ContactsTable({
       header: 'Name',
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
-          {row.original.profile_picture_url ? (
+          {row.original.avatar_url ? (
             <img
-              src={row.original.profile_picture_url}
-              alt={row.original.name}
+              src={row.original.avatar_url}
+              alt={row.original.name || 'Contact'}
               className="w-8 h-8 rounded-full object-cover"
             />
           ) : (
             <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-sm">
-              {row.original.name.charAt(0).toUpperCase()}
+              {row.original.name?.charAt(0).toUpperCase() || '?'}
             </div>
           )}
-          <span className="font-medium">{row.original.name}</span>
+          <span className="font-medium">{row.original.name || 'Unknown'}</span>
         </div>
       ),
     },

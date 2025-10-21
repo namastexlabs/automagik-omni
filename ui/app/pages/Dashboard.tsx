@@ -13,6 +13,12 @@ export default function Dashboard() {
   const [showInfoBanner, setShowInfoBanner] = useState(true)
 
   const loadStatus = async () => {
+    // Skip if not in Electron context
+    if (!backend || !backend.status || !backend.health) {
+      setError('Backend controls only available in Electron app')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -27,6 +33,8 @@ export default function Dashboard() {
   }
 
   const handleStart = async () => {
+    if (!backend || !backend.start) return
+
     try {
       setLoading(true)
       setError(null)
@@ -46,6 +54,8 @@ export default function Dashboard() {
   }
 
   const handleStop = async () => {
+    if (!backend || !backend.stop) return
+
     try {
       setLoading(true)
       setError(null)
@@ -65,6 +75,8 @@ export default function Dashboard() {
   }
 
   const handleRestart = async () => {
+    if (!backend || !backend.restart) return
+
     try {
       setLoading(true)
       setError(null)

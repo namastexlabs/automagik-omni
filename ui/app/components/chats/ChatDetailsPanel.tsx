@@ -33,35 +33,37 @@ export function ChatDetailsPanel({ chat, onClose }: ChatDetailsPanelProps) {
         {/* Name */}
         <div>
           <label className="text-sm text-zinc-400 block mb-1">Name</label>
-          <p className="text-white">{chat.name}</p>
+          <p className="text-white">{chat.name || 'Unknown'}</p>
         </div>
 
         {/* Chat Type */}
-        <div>
-          <label className="text-sm text-zinc-400 block mb-1">Type</label>
-          <Badge variant="default">{chat.chat_type}</Badge>
-        </div>
+        {chat.chat_type && (
+          <div>
+            <label className="text-sm text-zinc-400 block mb-1">Type</label>
+            <Badge variant="default">{chat.chat_type}</Badge>
+          </div>
+        )}
 
         {/* Unread Count */}
         <div>
           <label className="text-sm text-zinc-400 block mb-1">Unread Messages</label>
-          <p className="text-white">{chat.unread_count}</p>
+          <p className="text-white">{chat.unread_count || 0}</p>
         </div>
 
         {/* Last Message */}
-        {chat.last_message && (
+        {chat.last_message_text && (
           <div>
             <label className="text-sm text-zinc-400 block mb-1">Last Message</label>
-            <p className="text-white text-sm">{chat.last_message}</p>
+            <p className="text-white text-sm">{chat.last_message_text}</p>
           </div>
         )}
 
         {/* Last Message Timestamp */}
-        {chat.last_message_timestamp && (
+        {chat.last_message_time && (
           <div>
             <label className="text-sm text-zinc-400 block mb-1">Last Activity</label>
             <p className="text-white text-sm">
-              {new Date(chat.last_message_timestamp).toLocaleString()}
+              {new Date(chat.last_message_time).toLocaleString()}
             </p>
           </div>
         )}
@@ -83,7 +85,7 @@ export function ChatDetailsPanel({ chat, onClose }: ChatDetailsPanelProps) {
         {/* Chat ID */}
         <div>
           <label className="text-sm text-zinc-400 block mb-1">ID</label>
-          <p className="text-xs text-zinc-500 font-mono break-all">{chat.id}</p>
+          <p className="text-xs text-zinc-500 font-mono break-all">{chat.chat_id}</p>
         </div>
       </div>
     </div>

@@ -61,9 +61,9 @@ export function ChatsTable({
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-sm">
-            {chatTypeIcons[row.original.chat_type] || '💬'}
+            {chatTypeIcons[row.original.chat_type || 'direct'] || '💬'}
           </div>
-          <span className="font-medium">{row.original.name}</span>
+          <span className="font-medium">{row.original.name || 'Unknown'}</span>
         </div>
       ),
     },
@@ -77,11 +77,11 @@ export function ChatsTable({
       ),
     },
     {
-      accessorKey: 'last_message',
+      accessorKey: 'last_message_text',
       header: 'Last Message',
       cell: ({ row }) => (
         <span className="text-sm text-zinc-400 truncate max-w-xs block">
-          {row.original.last_message || 'No messages'}
+          {row.original.last_message_text || 'No messages'}
         </span>
       ),
     },
@@ -90,7 +90,7 @@ export function ChatsTable({
       header: 'Unread',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          {row.original.unread_count > 0 ? (
+          {(row.original.unread_count || 0) > 0 ? (
             <Badge variant="destructive" className="rounded-full">
               {row.original.unread_count}
             </Badge>
@@ -101,12 +101,12 @@ export function ChatsTable({
       ),
     },
     {
-      accessorKey: 'last_message_timestamp',
+      accessorKey: 'last_message_time',
       header: 'Updated',
       cell: ({ row }) => (
         <span className="text-sm text-zinc-400">
-          {row.original.last_message_timestamp
-            ? new Date(row.original.last_message_timestamp).toLocaleDateString()
+          {row.original.last_message_time
+            ? new Date(row.original.last_message_time).toLocaleDateString()
             : 'N/A'}
         </span>
       ),
