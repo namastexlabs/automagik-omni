@@ -1,5 +1,5 @@
-appId: com.guasam.era
-productName: ElectronReactApp
+appId: com.namastex.automagik-omni
+productName: Automagik Omni
 directories:
   buildResources: resources/build
 files:
@@ -12,7 +12,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: ElectronReactApp
+  executableName: AutomagikOmni
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -33,8 +33,8 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
-  category: Utility
+  maintainer: Namastex Labs
+  category: Network
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
