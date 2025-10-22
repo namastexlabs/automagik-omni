@@ -412,6 +412,7 @@ async def list_instances(
             "agent_id": getattr(instance, "agent_id", None),
             "agent_type": getattr(instance, "agent_type", None),
             "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
+            "enable_auto_split": instance.enable_auto_split,
             # SECURITY FIX: Use boolean indicator instead of exposing token
             "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
             "discord_client_id": getattr(instance, "discord_client_id", None),
@@ -507,6 +508,7 @@ async def get_instance(
         "agent_id": getattr(instance, "agent_id", None),
         "agent_type": getattr(instance, "agent_type", None),
         "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
+        "enable_auto_split": instance.enable_auto_split,
         # SECURITY FIX: Use boolean indicator instead of exposing token
         "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
         "discord_client_id": getattr(instance, "discord_client_id", None),
