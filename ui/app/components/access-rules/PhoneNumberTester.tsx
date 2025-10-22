@@ -87,8 +87,8 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
   }
 
   return (
-    <Card className="p-6 bg-zinc-900 border-zinc-800">
-      <h3 className="text-lg font-semibold mb-4 text-white">Test Phone Number Access</h3>
+    <Card className="p-6 bg-zinc-800/50 border-zinc-700">
+      <h3 className="text-lg font-semibold mb-4 text-white">📱 Test Phone Number Access</h3>
 
       <div className="space-y-4">
         <div className="space-y-2">
