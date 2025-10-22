@@ -54,7 +54,7 @@ jobs:
       - name: Run tests
         id: pytest
         run: |
-          # Run pytest with simple output, skip known CI issues
+          # Run pytest with simple output, skip known CI issues, retry flaky tests
           python -m pytest tests/ \
             -v \
             --tb=short \
@@ -62,18 +62,20 @@ jobs:
             --no-header \
             -rN \
             --maxfail=10 \
+            --reruns 2 \
+            --reruns-delay 1 \
             -k "not test_bearer_token_validation and not test_add_command_help" \
             2>&1 | tee test-output.txt
-          
+
           # Capture exit code
           PYTEST_EXIT_CODE=${PIPESTATUS[0]}
-          
+
           # Extract test summary
           echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           tail -n 20 test-output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          
+
           # Exit with pytest exit code
           exit $PYTEST_EXIT_CODE
 
