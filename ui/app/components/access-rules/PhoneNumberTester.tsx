@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Card } from '@/app/components/ui/card'
 import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
 import {
@@ -87,7 +86,7 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
   }
 
   return (
-    <Card className="p-6 bg-zinc-800 border-zinc-600">
+    <div className="p-6 bg-zinc-800 border border-zinc-600 rounded-lg shadow-sm">
       <h3 className="text-xl font-bold mb-6 text-white">📱 Test Phone Number Access</h3>
 
       <div className="space-y-4">
@@ -153,6 +152,6 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
           </div>
         )}
       </div>
-    </Card>
+    </div>
   )
 }
