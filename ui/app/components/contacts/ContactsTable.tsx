@@ -247,24 +247,21 @@ export function ContactsTable({
       accessorKey: 'status',
       header: 'Status',
       cell: ({ row }) => {
-        const status = row.original.status || 'unknown'
-        const statusColors: Record<string, string> = {
-          online: 'text-green-400',
-          offline: 'text-zinc-400',
-          away: 'text-yellow-400',
-          dnd: 'text-red-400',
-          unknown: 'text-zinc-500',
+        const status = row.original.status || 'offline'
+        const statusConfig: Record<string, { color: string; Icon: typeof Circle }> = {
+          online: { color: 'text-green-400', Icon: Circle },
+          offline: { color: 'text-zinc-500', Icon: Minus },
+          away: { color: 'text-yellow-400', Icon: Clock },
+          dnd: { color: 'text-red-400', Icon: Ban },
+          unknown: { color: 'text-zinc-600', Icon: HelpCircle },
         }
-        const statusIcons: Record<string, string> = {
-          online: '🟢',
-          offline: '⚫',
-          away: '🟡',
-          dnd: '🔴',
-          unknown: '❓',
-        }
+        const config = statusConfig[status] || statusConfig.offline
+        const Icon = config.Icon
+
         return (
-          <span className={`text-sm ${statusColors[status] || 'text-zinc-400'}`}>
-            {statusIcons[status] || ''} {status}
+          <span className={`flex items-center gap-2 text-sm ${config.color}`}>
+            <Icon className="h-4 w-4" />
+            <span className="capitalize">{status}</span>
           </span>
         )
       },
