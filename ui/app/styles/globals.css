@@ -5,8 +5,16 @@
 /* Blanka Font */
 @font-face {
   font-family: 'Blanka';
-  src: url('@/resources/fonts/Blanka-Regular.otf') format('opentype'),
-       url('@/resources/fonts/Blanka-Regular.ttf') format('truetype');
+  src: url('@/resources/fonts/Blanka-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Noto Color Emoji - Bundled for Electron emoji support */
+@font-face {
+  font-family: 'Noto Color Emoji';
+  src: url('@/resources/fonts/NotoColorEmoji.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

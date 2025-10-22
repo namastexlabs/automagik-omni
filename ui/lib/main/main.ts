@@ -9,6 +9,12 @@ app.commandLine.appendSwitch('disable-gpu-compositing')
 app.commandLine.appendSwitch('disable-software-rasterizer')
 app.disableHardwareAcceleration()
 
+// Enable emoji rendering on Windows
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('enable-features', 'DirectWriteFontCache')
+  app.commandLine.appendSwitch('font-render-hinting', 'none')
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
