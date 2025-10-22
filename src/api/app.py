@@ -71,6 +71,7 @@ from src.api.routes.instances import router as instances_router
 from src.api.routes.omni import router as omni_router
 from src.api.routes.access import router as access_router
 from src.db.database import create_tables, SessionLocal
+from src.utils.datetime_utils import utcnow
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -507,6 +508,37 @@ async def _handle_evolution_webhook(instance_config, request: Request, db: Sessi
 
         # Start message tracing
         with get_trace_context(data, instance_config.name, db) as trace:
+            # Extract sender phone from webhook data for access control check
+            sender_phone = data.get("data", {}).get("key", {}).get("remoteJid", "").split("@")[0]
+
+            # Check access rules BEFORE processing the message
+            from src.services.access_control import access_control_service
+
+            has_access = access_control_service.check_access(
+                phone_number=sender_phone,
+                instance_name=instance_config.name,
+                db=db,
+            )
+
+            if not has_access:
+                # Message blocked by access rule
+                if trace:
+                    trace.update_trace_status(
+                        status="access_denied",
+                        blocked_by_access_rule=True,
+                        blocking_reason=f"Blocked by access rule for phone {sender_phone}",
+                        completed_at=utcnow(),
+                    )
+                logger.info(
+                    f"🚫 Message from {sender_phone} blocked by access rule for instance {instance_config.name}"
+                )
+                return {
+                    "status": "blocked",
+                    "reason": "access_denied",
+                    "phone": sender_phone,
+                    "trace_id": trace.trace_id if trace else None,
+                }
+
             # Update the Evolution API sender with the webhook data
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
