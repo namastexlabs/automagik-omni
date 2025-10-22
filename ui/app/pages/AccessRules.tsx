@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { Shield } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { Button } from '@/app/components/ui/button'
-import { AccessRulesTable } from '@/app/components/access-rules/AccessRulesTable'
+import { AccessRulesTable, type AccessRule } from '@/app/components/access-rules/AccessRulesTable'
 import { RuleFilters } from '@/app/components/access-rules/RuleFilters'
 import { PhoneNumberTester } from '@/app/components/access-rules/PhoneNumberTester'
 import { CreateRuleDialog } from '@/app/components/access-rules/CreateRuleDialog'
 import { DeleteRuleDialog } from '@/app/components/access-rules/DeleteRuleDialog'
-import type { AccessRule, Instance } from '@/lib/conveyor/schemas/omni-schema'
+import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
 
 export default function AccessRules() {
   const { omni } = useConveyor()
