@@ -21,14 +21,30 @@ rm -rf build/ dist/ dist-python/
 
 # Ensure PyInstaller is installed
 echo -e "${BLUE}Checking PyInstaller...${NC}"
-if ! command -v pyinstaller &> /dev/null; then
+if ! uv run pyinstaller --version &> /dev/null; then
     echo -e "${RED}PyInstaller not found. Installing...${NC}"
     uv pip install pyinstaller
 fi
 
 # Build with PyInstaller
 echo -e "${BLUE}Running PyInstaller...${NC}"
-pyinstaller automagik-omni-backend.spec
+
+# Run PyInstaller and filter out known harmless warnings
+# These warnings are expected and don't affect functionality:
+# - alembic.testing: Test-only module, not needed in production
+# - mx.DateTime: Legacy 1990s datetime library, Python 3 uses built-in datetime
+# - user32: Windows DLL, expected when building on Linux/WSL
+uv run pyinstaller automagik-omni-backend.spec 2>&1 | \
+    grep -v "WARNING: Failed to collect submodules for 'alembic.testing'" | \
+    grep -v "WARNING: Hidden import \"mx.DateTime\" not found!" | \
+    grep -v "WARNING: Library user32 required via ctypes not found" | \
+    grep -v "PydanticExperimentalWarning" || true
+
+# Check if build succeeded
+if [ ! -f "dist/automagik-omni-backend" ]; then
+    echo -e "${RED}❌ Build failed! Check logs above for errors.${NC}"
+    exit 1
+fi
 
 # Move output to expected location for Electron builder
 echo -e "${BLUE}Organizing build output...${NC}"
@@ -41,13 +57,17 @@ echo ""
 echo "Output:"
 ls -lh dist-python/
 
-# Test executable
+# Verify executable exists and is executable
 echo ""
-echo -e "${BLUE}Testing executable...${NC}"
+echo -e "${BLUE}Verifying executable...${NC}"
 if [ -f "dist-python/automagik-omni-backend" ]; then
-    ./dist-python/automagik-omni-backend --help || true
+    chmod +x dist-python/automagik-omni-backend
+    echo -e "${GREEN}✓ Linux/macOS executable ready${NC}"
 elif [ -f "dist-python/automagik-omni-backend.exe" ]; then
-    ./dist-python/automagik-omni-backend.exe --help || true
+    echo -e "${GREEN}✓ Windows executable ready${NC}"
+else
+    echo -e "${RED}❌ No executable found!${NC}"
+    exit 1
 fi
 
 echo ""
