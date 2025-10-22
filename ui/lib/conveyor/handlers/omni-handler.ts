@@ -99,6 +99,21 @@ export const registerOmniHandlers = () => {
   })
 
   // ========== MESSAGES ==========
+  handle('omni:messages:list', async (instanceName: string, chatId: string, page?: number, pageSize?: number) => {
+    const response = await getClient().getMessages(instanceName, chatId, page, pageSize)
+    // Transform PaginatedResponse to MessagesResponse format
+    return {
+      messages: response.data || [],
+      total_count: response.total_count || 0,
+      page: response.page || 1,
+      page_size: response.page_size || 50,
+      has_more: response.has_more || false,
+      instance_name: instanceName,
+      chat_id: chatId,
+      channel_type: response.data?.[0]?.channel_type as 'whatsapp' | 'discord' | undefined,
+    }
+  })
+
   handle('omni:messages:send-text', async (name: string, phone: string, message: string, quotedId?: string) => {
     return await getClient().sendTextMessage(name, phone, message, quotedId)
   })

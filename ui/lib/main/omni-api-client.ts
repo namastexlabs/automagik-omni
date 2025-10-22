@@ -346,6 +346,33 @@ export class OmniApiClient {
   // ============================================================================
 
   /**
+   * Get messages for a chat
+   */
+  async getMessages(
+    instanceName: string,
+    chatId: string,
+    page = 1,
+    pageSize = 50
+  ): Promise<PaginatedResponse<Message>> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    })
+
+    const response = await this.request<any>(
+      `/api/v1/instances/${instanceName}/chats/${chatId}/messages?${params}`
+    )
+
+    return {
+      data: response.messages || [],
+      total_count: response.total_count || 0,
+      page: response.page || page,
+      page_size: response.page_size || pageSize,
+      has_more: response.has_more || false,
+    }
+  }
+
+  /**
    * Send text message
    */
   async sendTextMessage(

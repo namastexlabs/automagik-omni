@@ -81,6 +81,11 @@ export const omniIpcSchema = {
   },
 
   // ========== MESSAGES ==========
+  'omni:messages:list': {
+    args: z.any(), // Bypass strict validation for complex optional args
+    return: z.any(), // Bypass validation due to Zod v4 issues with nested schemas
+  },
+
   'omni:messages:send-text': {
     args: z.tuple([
       z.string(), // instance_name
