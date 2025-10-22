@@ -27,9 +27,10 @@ interface InstanceTableProps {
   onRefresh: () => void
   onShowQR: (instanceName: string) => void
   onDelete: (instanceName: string) => void
+  onEdit: (instance: Instance) => void
 }
 
-export function InstanceTable({ instances, onRefresh, onShowQR, onDelete }: InstanceTableProps) {
+export function InstanceTable({ instances, onRefresh, onShowQR, onDelete, onEdit }: InstanceTableProps) {
   const { omni } = useConveyor()
   const [sorting, setSorting] = useState<SortingState>([])
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -242,7 +243,23 @@ export function InstanceTable({ instances, onRefresh, onShowQR, onDelete }: Inst
         <TableBody>
           {table.getRowModel().rows.length ? (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+              <TableRow
+                key={row.id}
+                data-state={row.getIsSelected() && 'selected'}
+                className="cursor-pointer hover:bg-zinc-800/50 transition-colors"
+                onClick={(e) => {
+                  // Don't trigger row click if clicking on buttons, badges, or other interactive elements
+                  const target = e.target as HTMLElement
+                  if (
+                    target.closest('button') ||
+                    target.closest('[role="button"]') ||
+                    target.closest('a')
+                  ) {
+                    return
+                  }
+                  onEdit(row.original)
+                }}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

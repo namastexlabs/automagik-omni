@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,14 +13,12 @@ import {
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select'
 import { Switch } from '@/app/components/ui/switch'
 import { MessageSquareText } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
 
-const createInstanceSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  channel_type: z.enum(['whatsapp', 'discord']),
+const editInstanceSchema = z.object({
   evolution_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   evolution_key: z.string().optional(),
   discord_bot_token: z.string().optional(),
@@ -32,19 +30,19 @@ const createInstanceSchema = z.object({
   enable_auto_split: z.boolean().optional(),
 })
 
-type CreateInstanceFormData = z.infer<typeof createInstanceSchema>
+type EditInstanceFormData = z.infer<typeof editInstanceSchema>
 
-interface CreateInstanceDialogProps {
+interface EditInstanceDialogProps {
+  instance: Instance | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: () => void
+  onUpdated: () => void
 }
 
-export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateInstanceDialogProps) {
+export function EditInstanceDialog({ instance, open, onOpenChange, onUpdated }: EditInstanceDialogProps) {
   const { omni } = useConveyor()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [channelType, setChannelType] = useState<'whatsapp' | 'discord'>('whatsapp')
 
   const {
     register,
@@ -53,21 +51,34 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
     reset,
     setValue,
     watch,
-  } = useForm<CreateInstanceFormData>({
-    resolver: zodResolver(createInstanceSchema),
-    defaultValues: {
-      channel_type: 'whatsapp',
-      evolution_url: 'http://localhost:8080',
-      evolution_key: 'namastex888',
-      agent_api_url: 'http://localhost:8886',
-      agent_api_key: 'hive_key_placeholder',
-      default_agent: 'template-agent',
-      agent_timeout: 30,
-      enable_auto_split: true,
-    },
+  } = useForm<EditInstanceFormData>({
+    resolver: zodResolver(editInstanceSchema),
   })
 
-  const onSubmit = async (data: CreateInstanceFormData) => {
+  // Reset form when instance changes
+  useEffect(() => {
+    if (instance) {
+      // Convert milliseconds to seconds for display
+      const timeoutValue = instance.agent_timeout || 30000
+      const timeoutSeconds = timeoutValue >= 1000 ? timeoutValue / 1000 : timeoutValue
+
+      reset({
+        evolution_url: instance.evolution_url || '',
+        evolution_key: instance.evolution_key || '',
+        discord_bot_token: instance.discord_bot_token || '',
+        discord_guild_id: instance.discord_guild_id || '',
+        agent_api_url: instance.agent_api_url || '',
+        agent_api_key: instance.agent_api_key || '',
+        agent_timeout: timeoutSeconds,
+        default_agent: instance.default_agent || '',
+        enable_auto_split: instance.enable_auto_split ?? true,
+      })
+    }
+  }, [instance, reset])
+
+  const onSubmit = async (data: EditInstanceFormData) => {
+    if (!instance) return
+
     try {
       setLoading(true)
       setError(null)
@@ -76,51 +87,46 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
       const timeoutMs = (data.agent_timeout || 30) * 1000
 
       const payload: any = {
-        name: data.name,
-        channel_type: data.channel_type,
         agent_api_url: data.agent_api_url,
-        agent_api_key: data.agent_api_key || '',
         agent_timeout: timeoutMs,
-        is_default: false,
         enable_auto_split: data.enable_auto_split ?? true,
+      }
+
+      if (data.agent_api_key) {
+        payload.agent_api_key = data.agent_api_key
       }
 
       if (data.default_agent) {
         payload.default_agent = data.default_agent
       }
 
-      if (data.channel_type === 'whatsapp') {
+      if (instance.channel_type === 'whatsapp') {
         if (data.evolution_url) payload.evolution_url = data.evolution_url
         if (data.evolution_key) payload.evolution_key = data.evolution_key
-        payload.whatsapp_instance = data.name
-      } else if (data.channel_type === 'discord') {
+      } else if (instance.channel_type === 'discord') {
         if (data.discord_bot_token) payload.discord_bot_token = data.discord_bot_token
         if (data.discord_guild_id) payload.discord_guild_id = data.discord_guild_id
       }
 
-      await omni.createInstance(payload)
-      reset()
-      onCreated()
+      await omni.updateInstance(instance.name, payload)
+      onUpdated()
       onOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create instance')
+      setError(err instanceof Error ? err.message : 'Failed to update instance')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleChannelTypeChange = (value: string) => {
-    setChannelType(value as 'whatsapp' | 'discord')
-    setValue('channel_type', value as 'whatsapp' | 'discord')
-  }
+  if (!instance) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Instance</DialogTitle>
+          <DialogTitle>Edit Instance: {instance.name}</DialogTitle>
           <DialogDescription>
-            Configure a new messaging instance for WhatsApp or Discord
+            Update configuration for this {instance.channel_type} instance
           </DialogDescription>
         </DialogHeader>
 
@@ -132,33 +138,19 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="name">Instance Name *</Label>
-            <Input
-              id="name"
-              placeholder="my-instance"
-              {...register('name')}
-              className="bg-zinc-800 border-zinc-700 text-white"
-            />
-            {errors.name && <p className="text-sm text-red-400">{errors.name.message}</p>}
+            <div className="flex items-center justify-between p-3 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+              <div>
+                <Label className="text-sm text-zinc-400">Instance Name</Label>
+                <p className="font-medium text-white">{instance.name}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-zinc-400">Channel Type</Label>
+                <p className="font-medium text-white capitalize">{instance.channel_type}</p>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="channel_type">Channel Type *</Label>
-            <Select value={channelType} onValueChange={handleChannelTypeChange}>
-              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                <SelectValue placeholder="Select channel type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                <SelectItem value="discord">Discord</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.channel_type && (
-              <p className="text-sm text-red-400">{errors.channel_type.message}</p>
-            )}
-          </div>
-
-          {channelType === 'whatsapp' && (
+          {instance.channel_type === 'whatsapp' && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="evolution_url">Evolution API URL</Label>
@@ -178,7 +170,7 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
                 <Input
                   id="evolution_key"
                   type="password"
-                  placeholder="API Key"
+                  placeholder="Leave blank to keep existing"
                   {...register('evolution_key')}
                   className="bg-zinc-800 border-zinc-700 text-white"
                 />
@@ -186,14 +178,14 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
             </>
           )}
 
-          {channelType === 'discord' && (
+          {instance.channel_type === 'discord' && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="discord_bot_token">Discord Bot Token</Label>
                 <Input
                   id="discord_bot_token"
                   type="password"
-                  placeholder="Bot Token"
+                  placeholder="Leave blank to keep existing"
                   {...register('discord_bot_token')}
                   className="bg-zinc-800 border-zinc-700 text-white"
                 />
@@ -229,7 +221,7 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
             <Input
               id="agent_api_key"
               type="password"
-              placeholder="API Key"
+              placeholder="Leave blank to keep existing"
               {...register('agent_api_key')}
               className="bg-zinc-800 border-zinc-700 text-white"
             />
@@ -294,7 +286,7 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Instance'}
+              {loading ? 'Updating...' : 'Update Instance'}
             </Button>
           </DialogFooter>
         </form>
