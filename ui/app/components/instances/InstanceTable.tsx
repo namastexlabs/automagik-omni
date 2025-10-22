@@ -58,6 +58,25 @@ export function InstanceTable({ instances, onRefresh, onShowQR, onDelete }: Inst
     }
   }
 
+  const handleToggleAutoSplit = async (instanceName: string, currentValue: boolean) => {
+    try {
+      setActionLoading(`autosplit-${instanceName}`)
+
+      // Update instance with toggled value
+      await omni.updateInstance(instanceName, {
+        enable_auto_split: !currentValue,
+      })
+
+      // Refresh to show updated value
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      onRefresh()
+    } catch (err) {
+      console.error('Failed to toggle auto-split:', err)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const columns: ColumnDef<Instance>[] = [
     {
       accessorKey: 'name',
@@ -90,20 +109,26 @@ export function InstanceTable({ instances, onRefresh, onShowQR, onDelete }: Inst
       header: 'Auto-Split',
       cell: ({ row }) => {
         const enabled = row.original.enable_auto_split ?? true
+        const isLoading = actionLoading === `autosplit-${row.original.name}`
+
         return (
           <Badge
             variant={enabled ? 'default' : 'outline'}
-            className={enabled ? 'bg-green-600 hover:bg-green-700 border-green-600' : 'text-zinc-400'}
+            className={`cursor-pointer transition-opacity ${
+              enabled ? 'bg-green-600 hover:bg-green-700 border-green-600' : 'text-zinc-400 hover:bg-zinc-800'
+            } ${isLoading ? 'opacity-50 cursor-wait' : ''}`}
+            onClick={() => !isLoading && handleToggleAutoSplit(row.original.name, enabled)}
+            title={`Click to turn ${enabled ? 'OFF' : 'ON'}`}
           >
             {enabled ? (
               <>
                 <MessageSquareText className="h-3 w-3" />
-                <span>ON</span>
+                <span>{isLoading ? '...' : 'ON'}</span>
               </>
             ) : (
               <>
                 <MessageSquareDashed className="h-3 w-3" />
-                <span>OFF</span>
+                <span>{isLoading ? '...' : 'OFF'}</span>
               </>
             )}
           </Badge>
