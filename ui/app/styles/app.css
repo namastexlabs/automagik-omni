@@ -14,12 +14,13 @@ body {
   font-family:
     system-ui,
     -apple-system,
-    "Segoe UI Emoji",
-    "Apple Color Emoji",
-    "Noto Color Emoji",
+    "Segoe UI",
     Arial,
     Helvetica,
-    sans-serif;
+    sans-serif,
+    "Noto Color Emoji",
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
   font-size: 14px;
   margin: 0;
   overflow: hidden;
