@@ -8,33 +8,25 @@ You are analyzing the current pull request status and repository state. Follow t
 
 Run the git status script to get comprehensive information:
 
-```bash
 ! ./.github/scripts/git-status-full.sh
-```
 
 ## 2. Fetch Detailed PR Data
 
 Get complete PR details including checks, reviews, and metadata:
 
-```bash
 ! gh pr view --json number,title,state,isDraft,url,baseRefName,headRefName,commits,additions,deletions,changedFiles,reviews,statusCheckRollup,mergeable,mergeStateStatus,reviewDecision,labels,milestone,assignees,author,createdAt,updatedAt
-```
 
 ## 3. Get PR Diff Summary
 
 Fetch a summary of changes:
 
-```bash
 ! gh pr diff --name-status
-```
 
 ## 4. Check CI/CD Status
 
 Get the status of checks and workflows:
 
-```bash
 ! gh pr checks
-```
 
 ## 5. Analyze and Report
 

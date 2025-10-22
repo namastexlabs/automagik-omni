@@ -5,9 +5,7 @@ appId: com.namastex.automagik-omni
 productName: Automagik Omni
 
 # Application metadata
-description: Multi-tenant omnichannel messaging hub - Desktop UI
 copyright: Copyright © 2025 Namastex Labs
-license: MIT
 
 directories:
   buildResources: resources/build
@@ -60,7 +58,8 @@ win:
         - arm64
   # Request admin privileges for backend process management
   requestedExecutionLevel: asInvoker
-  sign: false # Set to true when code signing certificates are available
+  # Code signing disabled (set signAndEditExecutable: true when certificates are available)
+  signAndEditExecutable: false
 
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
@@ -72,7 +71,7 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   # Include Visual C++ redistributables if needed by Python backend
-  include: resources/build/installer.nsh # Optional: custom NSIS script
+  # include: resources/build/installer.nsh # Optional: custom NSIS script (uncomment and create file if needed)
 
 # macOS Configuration
 mac:
@@ -132,9 +131,10 @@ linux:
     messaging across WhatsApp, Discord, and other channels.
   # Desktop integration
   desktop:
-    Name: Automagik Omni
-    Comment: Multi-tenant omnichannel messaging hub
-    Categories: Network;Chat;InstantMessaging;
+    entry:
+      Name: Automagik Omni
+      Comment: Multi-tenant omnichannel messaging hub
+      Categories: Network;Chat;InstantMessaging;
 
 appImage:
   artifactName: ${name}-${version}.${ext}
