@@ -157,6 +157,10 @@ export const registerOmniHandlers = () => {
     return await getClient().getTraceAnalytics(params)
   })
 
+  handle('omni:traces:payloads', async (traceId: string, includePayload: boolean) => {
+    return await getClient().getTracePayloads(traceId, includePayload)
+  })
+
   // ========== ACCESS RULES ==========
   handle('omni:access:list', async (instanceName?: string, ruleType?: 'allow' | 'block') => {
     return await getClient().listAccessRules({ instance_name: instanceName, rule_type: ruleType })

@@ -7,6 +7,8 @@ import {
 } from '@/app/components/ui/dialog'
 import { Badge } from '@/app/components/ui/badge'
 import { Button } from '@/app/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs'
+import { TracePayloadsPanel } from './TracePayloadsPanel'
 import type { Trace } from '@/lib/conveyor/schemas/omni-schema'
 import { format } from 'date-fns'
 
@@ -34,7 +36,7 @@ export function TraceDetailsDialog({ trace, open, onClose }: TraceDetailsDialogP
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl bg-zinc-900 border-zinc-800 text-white max-h-[80vh] overflow-auto">
+      <DialogContent className="max-w-4xl bg-zinc-900 border-zinc-800 text-white max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Trace Details</DialogTitle>
           <DialogDescription className="text-zinc-400">
@@ -42,7 +44,13 @@ export function TraceDetailsDialog({ trace, open, onClose }: TraceDetailsDialogP
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-4">
+        <Tabs defaultValue="details" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="mb-4">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="payloads">Payloads</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="flex-1 overflow-auto space-y-4 mt-0">
           {/* Basic Information */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -184,9 +192,14 @@ export function TraceDetailsDialog({ trace, open, onClose }: TraceDetailsDialogP
               )}
             </div>
           )}
-        </div>
+          </TabsContent>
 
-        <div className="flex justify-end mt-6">
+          <TabsContent value="payloads" className="flex-1 overflow-auto mt-0">
+            <TracePayloadsPanel traceId={trace.trace_id} />
+          </TabsContent>
+        </Tabs>
+
+        <div className="flex justify-end mt-4 pt-4 border-t border-zinc-800">
           <Button onClick={onClose} variant="outline">
             Close
           </Button>

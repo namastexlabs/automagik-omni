@@ -179,6 +179,10 @@ export class OmniApi extends ConveyorApi {
     return this.invoke('omni:traces:analytics', params)
   }
 
+  getTracePayloads = (traceId: string, includePayload: boolean = false): Promise<any[]> => {
+    return this.invoke('omni:traces:payloads', traceId, includePayload)
+  }
+
   // ========== ACCESS RULES ==========
 
   listAccessRules = (

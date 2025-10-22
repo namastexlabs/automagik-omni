@@ -164,6 +164,14 @@ export const omniIpcSchema = {
     }).passthrough(),
   },
 
+  'omni:traces:payloads': {
+    args: z.tuple([
+      z.string(), // trace_id
+      z.boolean().optional(), // include_payload
+    ]),
+    return: z.any(), // Bypass validation for complex payload objects
+  },
+
   // ========== ACCESS RULES ==========
   'omni:access:list': {
     args: z.tuple([
