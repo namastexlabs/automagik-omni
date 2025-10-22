@@ -13,6 +13,7 @@ from src.api.schemas.omni import (
     OmniContactsResponse,
     OmniChatsResponse,
     OmniChannelsResponse,
+    OmniMessagesResponse,
     OmniContact,
     OmniChat,
     ChannelType,
@@ -365,4 +366,68 @@ async def get_omni_chat_by_id(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch chat: {str(e)}",
+        )
+
+
+@router.get("/{instance_name}/chats/{chat_id}/messages", response_model=OmniMessagesResponse)
+async def get_omni_chat_messages(
+    instance_name: str,
+    chat_id: str,
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
+    before_message_id: Optional[str] = Query(
+        None, description="Message ID to fetch messages before (cursor pagination)"
+    ),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get messages from a chat in omni format.
+
+    Supports pagination and filtering across all channel types.
+    Returns messages in a consistent format regardless of the underlying channel.
+    """
+    try:
+        logger.info(
+            f"Fetching omni messages for chat '{chat_id}' in instance '{instance_name}' - page: {page}, size: {page_size}"
+        )
+
+        # Get instance configuration
+        instance = get_instance_by_name(instance_name, db)
+
+        # Get omni handler for instance channel type
+        handler = get_omni_handler(instance.channel_type)
+
+        # Fetch messages
+        messages, total_count = await handler.get_messages(
+            instance=instance, chat_id=chat_id, page=page, page_size=page_size, before_message_id=before_message_id
+        )
+
+        # Calculate pagination info
+        has_more = (page * page_size) < total_count
+
+        logger.info(
+            f"Successfully fetched {len(messages)} messages (total: {total_count}) for chat '{chat_id}' in instance '{instance_name}'"
+        )
+
+        return OmniMessagesResponse(
+            messages=messages,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            has_more=has_more,
+            instance_name=instance_name,
+            chat_id=chat_id,
+            channel_type=ChannelType(instance.channel_type),
+            partial_errors=[],
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (like instance not found)
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch omni messages for chat '{chat_id}' in instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch messages: {str(e)}",
         )

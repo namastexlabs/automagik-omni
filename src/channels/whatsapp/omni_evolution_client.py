@@ -75,10 +75,12 @@ class OmniEvolutionClient(EvolutionClient):
             Dictionary with paginated messages and metadata
         """
         # Fetch messages from Evolution API
-        # Evolution API v2.3.5: POST /chat/findMessages/{instance}
-        # Request body: {"where": {"key": {"remoteJid": "chat_id"}}, "limit": X}
-        payload = {"where": {"key": {"remoteJid": chat_id}}, "limit": limit}
-        response = await self._request("POST", f"/chat/findMessages/{quote(instance_name, safe='')}", json=payload)
+        # Evolution API: GET /chat/findMessages/{instance}/{chat_id}?limit=X
+        response = await self._request(
+            "GET",
+            f"/chat/findMessages/{quote(instance_name, safe='')}/{quote(chat_id, safe='')}",
+            params={"limit": limit},
+        )
 
         # Apply client-side pagination
         return self._apply_pagination(response, page, page_size)
@@ -105,16 +107,9 @@ class OmniEvolutionClient(EvolutionClient):
             total_count = len(all_items)
         elif isinstance(response, dict):
             # Dict response with nested data
-            # Check for contacts, chats, messages (nested with "records"), or generic data field
-            if "messages" in response and isinstance(response["messages"], dict):
-                # Evolution API v2.3.5 messages format: {"messages": {"total": X, "records": [...]}}
-                all_items = response["messages"].get("records", [])
-                total_count = response["messages"].get("total", len(all_items))
-            else:
-                # Other formats: contacts, chats, or generic data
-                all_items = response.get("contacts") or response.get("chats") or response.get("data") or []
-                # Use response total if available, otherwise count items
-                total_count = response.get("total", response.get("count", len(all_items))) or 0
+            all_items = response.get("contacts", response.get("chats", response.get("data", []))) or []
+            # Use response total if available, otherwise count items
+            total_count = response.get("total", response.get("count", len(all_items))) or 0
         else:
             # Unexpected response format
             logger.warning(f"Unexpected response format: {type(response)}")
@@ -140,13 +135,11 @@ class OmniEvolutionClient(EvolutionClient):
         else:
             # Preserve original structure for dict responses
             result = response.copy() if isinstance(response, dict) else {}
-            # Update with paginated data based on response type
+            # Update with paginated data
             if isinstance(response, dict) and "contacts" in response:
                 result["contacts"] = paginated_items
             elif isinstance(response, dict) and "chats" in response:
                 result["chats"] = paginated_items
-            elif isinstance(response, dict) and "messages" in response:
-                result["messages"] = paginated_items
             else:
                 result["data"] = paginated_items
 
