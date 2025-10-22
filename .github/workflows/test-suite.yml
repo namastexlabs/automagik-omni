@@ -39,6 +39,7 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -e .
           pip install -e ".[discord]"
+          pip install pytest-rerunfailures
           
       - name: Set up test environment
         run: |
