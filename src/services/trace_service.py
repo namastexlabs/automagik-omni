@@ -16,6 +16,7 @@ from sqlalchemy.exc import OperationalError
 from src.config import config
 from src.db.trace_models import MessageTrace, TracePayload
 from src.utils.datetime_utils import utcnow
+from src.utils.message_type_mapper import normalize_message_type
 
 if TYPE_CHECKING:
     from src.services.streaming_trace_context import StreamingTraceContext
@@ -112,15 +113,21 @@ class TraceContext:
         status: str,
         error_message: Optional[str] = None,
         error_stage: Optional[str] = None,
+        blocked_by_access_rule: bool = False,
+        access_rule_id: Optional[int] = None,
+        blocking_reason: Optional[str] = None,
         **kwargs,
     ) -> None:
         """
         Update the main trace record with status and metadata.
 
         Args:
-            status: New status (processing, completed, failed, etc.)
+            status: New status (processing, completed, failed, access_denied, etc.)
             error_message: Error message if status is failed
             error_stage: Stage where error occurred
+            blocked_by_access_rule: Whether message was blocked by access rule
+            access_rule_id: ID of the access rule that blocked the message
+            blocking_reason: Reason for blocking the message
             **kwargs: Additional fields to update on the trace
         """
         if not config.tracing.enabled:
@@ -136,13 +143,21 @@ class TraceContext:
                 if error_stage:
                     trace.error_stage = error_stage
 
+                # Update access rule tracking fields
+                if blocked_by_access_rule:
+                    trace.blocked_by_access_rule = blocked_by_access_rule
+                if access_rule_id is not None:
+                    trace.access_rule_id = access_rule_id
+                if blocking_reason:
+                    trace.blocking_reason = blocking_reason
+
                 # Update any additional fields passed as kwargs
                 for key, value in kwargs.items():
                     if hasattr(trace, key):
                         setattr(trace, key, value)
 
-                # Update total processing time if completing
-                if status in ["completed", "failed"]:
+                # Update total processing time if completing (including access_denied)
+                if status in ["completed", "failed", "access_denied"]:
                     trace.completed_at = utcnow()
                     if trace.received_at:
                         # Ensure both datetimes are timezone-aware for subtraction
@@ -574,20 +589,19 @@ class TraceService:
     @staticmethod
     def _determine_message_type(message_obj: Dict[str, Any]) -> str:
         """Determine message type from message object."""
-        if "conversation" in message_obj:
-            return "text"
-        elif "extendedTextMessage" in message_obj:
-            return "text"
-        elif "imageMessage" in message_obj:
-            return "image"
-        elif "videoMessage" in message_obj:
-            return "video"
-        elif "audioMessage" in message_obj:
-            return "audio"
-        elif "documentMessage" in message_obj:
-            return "document"
-        else:
-            return "unknown"
+        # Check for all known message types in the object
+        # WhatsApp message objects contain the message type as a key
+        for key in message_obj.keys():
+            # Skip non-message keys
+            if key in ["contextInfo", "messageContextInfo"]:
+                continue
+            # Use the normalizer to get the standard type
+            normalized = normalize_message_type(key)
+            if normalized != "unknown":
+                return normalized
+
+        # Fallback to unknown if no recognized type found
+        return "unknown"
 
     @staticmethod
     def _has_media(message_obj: Dict[str, Any]) -> bool:
