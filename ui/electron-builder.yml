@@ -1,7 +1,19 @@
+# Electron Builder Configuration
+# Automagik Omni Desktop Application
+
 appId: com.namastex.automagik-omni
 productName: Automagik Omni
+
+# Application metadata
+description: Multi-tenant omnichannel messaging hub - Desktop UI
+copyright: Copyright © 2025 Namastex Labs
+license: MIT
+
 directories:
   buildResources: resources/build
+  output: dist
+
+# Files to include in the application package
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -9,35 +21,172 @@ files:
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # Exclude documentation and summaries
+  - '!*.md'
+  - '!*.MD'
+  - '!*.txt'
+  - '!*.TXT'
+  # Exclude development scripts
+  - '!scripts/*'
+  - '!clean-start.sh'
+
+# Python Backend Integration
+# The Python backend is bundled as an external resource to avoid ASAR corruption
+# Built using PyInstaller, the backend executable lives in ../dist-python/
+extraResources:
+  # Include Python backend executable and dependencies
+  # Platform-specific executables are automatically selected by electron-builder
+  - from: ../dist-python/
+    to: backend
+    filter:
+      - '**/*'
+      # Exclude PyInstaller build artifacts
+      - '!build/**'
+      - '!*.spec'
+      - '!*.log'
+
+# ASAR configuration - unpack resources that need direct filesystem access
+# The Python backend must be unpacked to run as a subprocess
 asarUnpack:
   - resources/**
+
+# Windows Configuration
 win:
   executableName: AutomagikOmni
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+  # Request admin privileges for backend process management
+  requestedExecutionLevel: asInvoker
+  sign: false # Set to true when code signing certificates are available
+
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  createStartMenuShortcut: true
+  perMachine: false # Per-user installation (recommended for auto-updates)
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  # Include Visual C++ redistributables if needed by Python backend
+  include: resources/build/installer.nsh # Optional: custom NSIS script
+
+# macOS Configuration
 mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
   entitlementsInherit: resources/build/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
   extendInfo:
+    # Required permissions for messaging features
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
+  # Code signing - configure when certificates are available
+  identity: null # Replace with "Developer ID Application: Your Name (TEAM_ID)"
+  notarize: false # Set to true with Apple notarization credentials
+
 dmg:
   artifactName: ${name}-${version}.${ext}
+  title: ${productName} ${version}
+  icon: resources/build/icon.icns
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Linux Configuration
 linux:
   target:
-    - AppImage
-    - snap
-    - deb
-  maintainer: Namastex Labs
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+        - arm64
+    - target: rpm
+      arch:
+        - x64
+  maintainer: Namastex Labs <support@namastex.ai>
   category: Network
+  synopsis: Multi-tenant omnichannel messaging hub
+  description: |
+    Automagik Omni is a desktop application for managing multi-tenant
+    messaging across WhatsApp, Discord, and other channels.
+  # Desktop integration
+  desktop:
+    Name: Automagik Omni
+    Comment: Multi-tenant omnichannel messaging hub
+    Categories: Network;Chat;InstantMessaging;
+
 appImage:
   artifactName: ${name}-${version}.${ext}
+  license: LICENSE
+
+deb:
+  depends:
+    - gconf2
+    - gconf-service
+    - libnotify4
+    - libappindicator1
+    - libxtst6
+    - libnss3
+
+rpm:
+  depends:
+    - libXScrnSaver
+    - libappindicator
+    - libnotify
+
+# Build optimization
+compression: normal # Options: store, normal, maximum
 npmRebuild: false
+buildDependenciesFromSource: false
+
+# Auto-update configuration
+# Update publish settings when ready to deploy to GitHub releases
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: namastexlabs
+  repo: automagik-omni
+  private: false
+  releaseType: release # Options: draft, prerelease, release
+
+# Electron specific settings
+electronLanguages:
+  - en-US
+  - pt-BR
+
+# NOTE: Python Backend Integration
+# ================================
+# The Python backend is built separately using PyInstaller and copied to ../dist-python/
+# During Electron build, the backend is bundled into app.asar.unpacked/resources/backend/
+#
+# Runtime considerations:
+# - Main process spawns backend as child process on app startup
+# - Backend executable path: resources/backend/automagik-omni-backend(.exe on Windows)
+# - Backend runs on configurable port (default: 8000)
+# - Graceful shutdown: Backend terminates when Electron app closes
+#
+# Platform-specific executable names:
+# - Windows: automagik-omni-backend.exe
+# - macOS/Linux: automagik-omni-backend
+#
+# To rebuild backend: Run `pnpm run build:backend` from project root
