@@ -247,13 +247,15 @@ export function ContactsTable({
       accessorKey: 'status',
       header: 'Status',
       cell: ({ row }) => {
-        const status = row.original.status || 'offline'
+        // Treat 'unknown' as 'offline' for better UX (WhatsApp doesn't provide presence for all contacts)
+        const rawStatus = row.original.status || 'offline'
+        const status = rawStatus === 'unknown' ? 'offline' : rawStatus
+
         const statusConfig: Record<string, { color: string; Icon: typeof Circle }> = {
           online: { color: 'text-green-400', Icon: Circle },
           offline: { color: 'text-zinc-500', Icon: Minus },
           away: { color: 'text-yellow-400', Icon: Clock },
           dnd: { color: 'text-red-400', Icon: Ban },
-          unknown: { color: 'text-zinc-600', Icon: HelpCircle },
         }
         const config = statusConfig[status] || statusConfig.offline
         const Icon = config.Icon
