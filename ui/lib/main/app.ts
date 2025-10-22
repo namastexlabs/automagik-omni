@@ -69,7 +69,7 @@ export function createAppWindow(): void {
     maximizable: true,
     resizable: true,
     center: true,
-    alwaysOnTop: true, // Force on top temporarily
+    alwaysOnTop: false, // Don't force on top
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       sandbox: false,
