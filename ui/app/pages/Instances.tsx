@@ -3,6 +3,7 @@ import { useConveyor } from '@/app/hooks/use-conveyor'
 import { Button } from '@/app/components/ui/button'
 import { InstanceTable } from '@/app/components/instances/InstanceTable'
 import { CreateInstanceDialog } from '@/app/components/instances/CreateInstanceDialog'
+import { EditInstanceDialog } from '@/app/components/instances/EditInstanceDialog'
 import { QRCodeDialog } from '@/app/components/instances/QRCodeDialog'
 import { DeleteInstanceDialog } from '@/app/components/instances/DeleteInstanceDialog'
 import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
@@ -14,9 +15,11 @@ export default function Instances() {
   const [error, setError] = useState<string | null>(null)
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [qrDialogOpen, setQrDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedInstance, setSelectedInstance] = useState<string | null>(null)
+  const [selectedInstanceData, setSelectedInstanceData] = useState<Instance | null>(null)
 
   const loadInstances = async () => {
     try {
@@ -38,6 +41,11 @@ export default function Instances() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const handleEdit = (instance: Instance) => {
+    setSelectedInstanceData(instance)
+    setEditDialogOpen(true)
+  }
+
   const handleShowQR = (instanceName: string) => {
     setSelectedInstance(instanceName)
     setQrDialogOpen(true)
@@ -53,6 +61,10 @@ export default function Instances() {
   }
 
   const handleCreated = () => {
+    loadInstances()
+  }
+
+  const handleUpdated = () => {
     loadInstances()
   }
 
@@ -88,6 +100,7 @@ export default function Instances() {
               onRefresh={loadInstances}
               onShowQR={handleShowQR}
               onDelete={handleDelete}
+              onEdit={handleEdit}
             />
 
             <div className="mt-4 flex items-center justify-between">
@@ -107,6 +120,13 @@ export default function Instances() {
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onCreated={handleCreated}
+        />
+
+        <EditInstanceDialog
+          instance={selectedInstanceData}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onUpdated={handleUpdated}
         />
 
         <QRCodeDialog
