@@ -14,6 +14,8 @@ import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select'
+import { Switch } from '@/app/components/ui/switch'
+import { MessageSquareText } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 
 const createInstanceSchema = z.object({
@@ -27,6 +29,7 @@ const createInstanceSchema = z.object({
   agent_api_key: z.string().optional(),
   agent_timeout: z.number().min(1000).max(300000).optional(),
   default_agent: z.string().optional(),
+  enable_auto_split: z.boolean().optional(),
 })
 
 type CreateInstanceFormData = z.infer<typeof createInstanceSchema>
@@ -49,6 +52,7 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
     formState: { errors },
     reset,
     setValue,
+    watch,
   } = useForm<CreateInstanceFormData>({
     resolver: zodResolver(createInstanceSchema),
     defaultValues: {
@@ -59,6 +63,7 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
       agent_api_key: 'hive_key_placeholder',
       default_agent: 'template-agent',
       agent_timeout: 30000,
+      enable_auto_split: true,
     },
   })
 
@@ -74,6 +79,7 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
         agent_api_key: data.agent_api_key || '',
         agent_timeout: data.agent_timeout || 30000,
         is_default: false,
+        enable_auto_split: data.enable_auto_split ?? true,
       }
 
       if (data.default_agent) {
@@ -248,6 +254,29 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
             {errors.agent_timeout && (
               <p className="text-sm text-red-400">{errors.agent_timeout.message}</p>
             )}
+          </div>
+
+          <div className="space-y-3 border border-zinc-700 rounded-lg p-4 bg-zinc-800/50">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 text-zinc-400" />
+                <Label htmlFor="enable_auto_split" className="text-sm font-medium cursor-pointer">
+                  Auto-split messages
+                </Label>
+              </div>
+              <Switch
+                id="enable_auto_split"
+                checked={watch('enable_auto_split') ?? true}
+                onCheckedChange={(checked) => setValue('enable_auto_split', checked)}
+              />
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Split long messages at paragraph breaks (double newline).
+              <br />
+              <span className="text-zinc-500">
+                WhatsApp: Controls splitting behavior. Discord: Preferred split point (2000-char limit always applies).
+              </span>
+            </p>
           </div>
 
           <DialogFooter>

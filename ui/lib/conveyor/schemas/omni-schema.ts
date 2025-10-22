@@ -49,6 +49,7 @@ export const InstanceSchema = z.object({
   read_messages: z.boolean().nullable().optional(),
   read_status: z.boolean().nullable().optional(),
   sync_full_history: z.boolean().nullable().optional(),
+  enable_auto_split: z.boolean().nullable().optional(),
 
   // Webhooks
   webhook_url: z.string().nullable().optional(),
