@@ -607,6 +607,13 @@ export class OmniApiClient {
     }
   }
 
+  /**
+   * Get trace payloads
+   */
+  async getTracePayloads(traceId: string, includePayload: boolean = false): Promise<any[]> {
+    return this.request<any[]>(`/api/v1/traces/${traceId}/payloads?include_payload=${includePayload}`)
+  }
+
   // ============================================================================
   // ACCESS RULES
   // ============================================================================
