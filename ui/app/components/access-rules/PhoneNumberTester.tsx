@@ -87,25 +87,29 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
   }
 
   return (
-    <Card className="p-6 bg-zinc-800/50 border-zinc-700">
-      <h3 className="text-lg font-semibold mb-4 text-white">📱 Test Phone Number Access</h3>
+    <Card className="p-6 bg-zinc-800 border-zinc-600">
+      <h3 className="text-xl font-bold mb-6 text-white">📱 Test Phone Number Access</h3>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="test-phone">Phone Number</Label>
+          <Label htmlFor="test-phone" className="text-white text-sm font-medium">
+            Phone Number
+          </Label>
           <Input
             id="test-phone"
             placeholder="+1234567890"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
-            className="bg-zinc-800 border-zinc-700 text-white"
+            className="bg-zinc-900 border-zinc-600 text-white placeholder:text-zinc-500"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="test-instance">Instance (Optional)</Label>
+          <Label htmlFor="test-instance" className="text-white text-sm font-medium">
+            Instance (Optional)
+          </Label>
           <Select value={selectedInstance} onValueChange={setSelectedInstance}>
-            <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+            <SelectTrigger className="bg-zinc-900 border-zinc-600 text-white">
               <SelectValue placeholder="Any instance" />
             </SelectTrigger>
             <SelectContent>
@@ -119,7 +123,7 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
           </Select>
         </div>
 
-        <Button onClick={handleTest} disabled={!phoneNumber.trim() || testing} className="w-full">
+        <Button onClick={handleTest} disabled={!phoneNumber.trim() || testing} className="w-full bg-blue-600 hover:bg-blue-700">
           {testing ? 'Testing...' : 'Test Access'}
         </Button>
 
