@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Smartphone, CheckCircle2, XCircle } from 'lucide-react'
 import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
 import {
@@ -87,7 +88,10 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
 
   return (
     <div className="p-6 bg-zinc-800 border border-zinc-600 rounded-lg shadow-sm">
-      <h3 className="text-xl font-bold mb-6 text-white">📱 Test Phone Number Access</h3>
+      <div className="flex items-center gap-2 mb-6">
+        <Smartphone className="h-6 w-6 text-blue-400" />
+        <h3 className="text-xl font-bold text-white">Test Phone Number Access</h3>
+      </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
@@ -135,7 +139,11 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">{result.allowed ? '✅' : '🔴'}</span>
+              {result.allowed ? (
+                <CheckCircle2 className="h-6 w-6 text-green-400" />
+              ) : (
+                <XCircle className="h-6 w-6 text-red-400" />
+              )}
               <span className="font-semibold text-lg">
                 {result.allowed ? 'Allowed' : 'Blocked'}
               </span>
