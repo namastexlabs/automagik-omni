@@ -2,12 +2,12 @@ import { useEffect, useState, useRef } from 'react'
 import { Badge } from '@/app/components/ui/badge'
 import type { Chat, Message } from '@/lib/conveyor/schemas/omni-schema'
 import { FileIcon, DownloadIcon, PlayIcon, ImageIcon } from 'lucide-react'
+import { useConveyor } from '@/app/hooks/use-conveyor'
 
 interface EnhancedChatDetailsPanelProps {
   chat: Chat | null
   onClose: () => void
-  apiKey: string
-  apiUrl: string
+  instanceName: string
 }
 
 interface MessageItemProps {
@@ -169,9 +169,9 @@ function MessageItem({ message }: MessageItemProps) {
 export function EnhancedChatDetailsPanel({
   chat,
   onClose,
-  apiKey,
-  apiUrl,
+  instanceName,
 }: EnhancedChatDetailsPanelProps) {
+  const { omni } = useConveyor()
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -190,35 +190,16 @@ export function EnhancedChatDetailsPanel({
     setError(null)
 
     try {
-      const params = new URLSearchParams({
-        page: pageNum.toString(),
-        page_size: '50',
-      })
-
-      const response = await fetch(
-        `${apiUrl}/api/v1/omni/${chat.instance_name}/chats/${chat.id}/messages?${params}`,
-        {
-          headers: {
-            'x-api-key': apiKey,
-            'Content-Type': 'application/json',
-          },
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch messages: ${response.statusText}`)
-      }
-
-      const data = await response.json()
+      const result = await omni.listMessages(instanceName, chat.id, pageNum, 50)
 
       if (pageNum === 1) {
-        setMessages(data.messages || [])
+        setMessages(result.messages || [])
         scrollToBottom()
       } else {
-        setMessages((prev) => [...prev, ...(data.messages || [])])
+        setMessages((prev) => [...prev, ...(result.messages || [])])
       }
 
-      setHasMore(data.has_more || false)
+      setHasMore(result.has_more || false)
       setPage(pageNum)
     } catch (err) {
       console.error('Error fetching messages:', err)

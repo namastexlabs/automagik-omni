@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { ChatsTable } from '@/app/components/chats/ChatsTable'
 import { ChatTypeFilter } from '@/app/components/chats/ChatTypeFilter'
-import { ChatDetailsPanel } from '@/app/components/chats/ChatDetailsPanel'
+import { EnhancedChatDetailsPanel } from '@/app/components/chats/EnhancedChatDetailsPanel'
 import type { Chat, Instance } from '@/lib/conveyor/schemas/omni-schema'
 import {
   Select,
@@ -155,7 +155,11 @@ export default function Chats() {
         )}
       </div>
 
-      <ChatDetailsPanel chat={selectedChat} onClose={() => setSelectedChat(null)} />
+      <EnhancedChatDetailsPanel
+        chat={selectedChat}
+        onClose={() => setSelectedChat(null)}
+        instanceName={selectedInstance}
+      />
     </div>
   )
 }

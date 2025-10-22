@@ -11,11 +11,22 @@ import type {
 } from '@/lib/conveyor/schemas/omni-schema'
 
 export interface PaginatedResponse<T> {
-  data: T[]
+  data?: T[]
   total_count: number
   page: number
   page_size: number
   has_more: boolean
+}
+
+export interface MessagesResponse {
+  messages: Message[]
+  total_count: number
+  page: number
+  page_size: number
+  has_more: boolean
+  instance_name: string
+  chat_id: string
+  channel_type?: 'whatsapp' | 'discord'
 }
 
 /**
@@ -88,6 +99,15 @@ export class OmniApi extends ConveyorApi {
   }
 
   // ========== MESSAGES ==========
+
+  listMessages = (
+    instanceName: string,
+    chatId: string,
+    page?: number,
+    pageSize?: number
+  ): Promise<MessagesResponse> => {
+    return this.invoke('omni:messages:list', instanceName, chatId, page, pageSize)
+  }
 
   sendTextMessage = (
     instanceName: string,
