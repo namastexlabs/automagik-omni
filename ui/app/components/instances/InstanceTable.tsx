@@ -16,7 +16,9 @@ import {
   TableRow,
 } from '@/app/components/ui/table'
 import { Button } from '@/app/components/ui/button'
+import { Badge } from '@/app/components/ui/badge'
 import { InstanceStatusBadge } from './InstanceStatusBadge'
+import { MessageSquareText, MessageSquareDashed } from 'lucide-react'
 import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 
@@ -82,6 +84,31 @@ export function InstanceTable({ instances, onRefresh, onShowQR, onDelete }: Inst
       cell: ({ row }) => (
         <InstanceStatusBadge status={row.original.status} channelType={row.original.channel_type} />
       ),
+    },
+    {
+      accessorKey: 'enable_auto_split',
+      header: 'Auto-Split',
+      cell: ({ row }) => {
+        const enabled = row.original.enable_auto_split ?? true
+        return (
+          <Badge
+            variant={enabled ? 'default' : 'outline'}
+            className={enabled ? 'bg-green-600 hover:bg-green-700 border-green-600' : 'text-zinc-400'}
+          >
+            {enabled ? (
+              <>
+                <MessageSquareText className="h-3 w-3" />
+                <span>ON</span>
+              </>
+            ) : (
+              <>
+                <MessageSquareDashed className="h-3 w-3" />
+                <span>OFF</span>
+              </>
+            )}
+          </Badge>
+        )
+      },
     },
     {
       accessorKey: 'agent_api_url',
