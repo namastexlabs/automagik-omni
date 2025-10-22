@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Circle, Minus, Clock, Ban, HelpCircle } from 'lucide-react'
 import {
   useReactTable,
   getCoreRowModel,
