@@ -23,6 +23,7 @@ import {
 import { Button } from '@/app/components/ui/button'
 import { Skeleton } from '@/app/components/ui/skeleton'
 import type { Chat } from '@/lib/conveyor/schemas/omni-schema'
+import { format, isValid, isThisYear } from 'date-fns'
 
 interface ChatsTableProps {
   chats: Chat[]
@@ -127,13 +128,27 @@ export function ChatsTable({
     {
       accessorKey: 'last_message_at',
       header: 'Updated',
-      cell: ({ row }) => (
-        <span className="text-sm text-zinc-400">
-          {row.original.last_message_at
-            ? new Date(row.original.last_message_at).toLocaleDateString()
-            : 'N/A'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        if (!row.original.last_message_at) {
+          return <span className="text-sm text-zinc-400">N/A</span>
+        }
+
+        const date = new Date(row.original.last_message_at)
+
+        if (!isValid(date)) {
+          return <span className="text-sm text-zinc-400">N/A</span>
+        }
+
+        // Use "MMM d, yyyy" format (e.g., "Oct 22, 2025")
+        // or "MMM d" if it's the current year (e.g., "Oct 22")
+        const dateFormat = isThisYear(date) ? 'MMM d' : 'MMM d, yyyy'
+
+        return (
+          <span className="text-sm text-zinc-400">
+            {format(date, dateFormat)}
+          </span>
+        )
+      },
     },
   ]
 
