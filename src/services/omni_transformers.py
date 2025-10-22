@@ -61,6 +61,11 @@ class WhatsAppTransformer:
         elif whatsapp_chat.get("id", "").endswith("@broadcast"):
             chat_type = OmniChatType.CHANNEL
 
+        # Get last message timestamp from nested lastMessage object if available
+        last_message_time = whatsapp_chat.get("lastMessageTime")
+        if not last_message_time and whatsapp_chat.get("lastMessage"):
+            last_message_time = whatsapp_chat.get("lastMessage", {}).get("messageTimestamp")
+
         return OmniChat(
             id=whatsapp_chat.get("id", ""),
             name=whatsapp_chat.get("name") or whatsapp_chat.get("pushName") or "Unknown",
@@ -78,7 +83,7 @@ class WhatsAppTransformer:
                 "group_metadata": whatsapp_chat.get("groupMetadata"),
                 "raw_data": whatsapp_chat,
             },
-            last_message_at=WhatsAppTransformer._parse_datetime(whatsapp_chat.get("lastMessageTime")),
+            last_message_at=WhatsAppTransformer._parse_datetime(last_message_time),
         )
 
     @staticmethod
