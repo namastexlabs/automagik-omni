@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app'
-import { cleanupBackendMonitor } from '@/lib/conveyor/handlers/backend-handler'
+import { cleanupBackendMonitor, startBackendOnStartup } from '@/lib/conveyor/handlers/backend-handler'
 
 // WSL FIX: Disable GPU to make window visible in WSL2
 app.commandLine.appendSwitch('disable-gpu')
@@ -18,9 +18,20 @@ if (process.platform === 'win32') {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.automagik.omni')
+
+  try {
+    // Start backend before creating window
+    console.log('Starting backend...')
+    await startBackendOnStartup()
+    console.log('Backend started successfully')
+  } catch (error) {
+    console.error('Failed to start backend:', error)
+    // Continue anyway - user can manually start backend from UI
+  }
+
   // Create app window
   createAppWindow()
 
