@@ -107,12 +107,12 @@ export function PhoneNumberTester({ rules, instanceNames }: PhoneNumberTesterPro
           <Label htmlFor="test-instance" className="text-white text-sm font-medium">
             Instance (Optional)
           </Label>
-          <Select value={selectedInstance} onValueChange={setSelectedInstance}>
+          <Select value={selectedInstance || '__any__'} onValueChange={(val) => setSelectedInstance(val === '__any__' ? '' : val)}>
             <SelectTrigger className="bg-zinc-900 border-zinc-600 text-white">
               <SelectValue placeholder="Any instance" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Any instance</SelectItem>
+              <SelectItem value="__any__">Any instance</SelectItem>
               {instanceNames.map((name) => (
                 <SelectItem key={name} value={name}>
                   {name}
