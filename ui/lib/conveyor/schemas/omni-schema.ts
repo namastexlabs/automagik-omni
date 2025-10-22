@@ -143,12 +143,37 @@ export const ChatSchema = z.object({
 
 export const MessageSchema = z.object({
   id: z.string(),
-  from: z.string(),
-  to: z.string(),
-  content: z.string(),
+  chat_id: z.string(),
+  sender_id: z.string(),
+  sender_name: z.string().nullable().optional(),
+  message_type: z.enum(['text', 'image', 'video', 'audio', 'document', 'sticker', 'contact', 'location', 'reaction', 'system', 'unknown']),
+  text: z.string().nullable().optional(),
+  media_url: z.string().nullable().optional(),
+  media_mime_type: z.string().nullable().optional(),
+  media_size: z.number().nullable().optional(),
+  caption: z.string().nullable().optional(),
+  thumbnail_url: z.string().nullable().optional(),
+  is_from_me: z.boolean().optional(),
+  is_forwarded: z.boolean().optional(),
+  is_reply: z.boolean().optional(),
+  reply_to_message_id: z.string().nullable().optional(),
   timestamp: z.string(),
-  message_type: z.enum(['text', 'media', 'audio', 'sticker', 'contact', 'reaction']),
-  status: z.enum(['pending', 'sent', 'delivered', 'read', 'failed']),
+  edited_at: z.string().nullable().optional(),
+  channel_type: z.enum(['whatsapp', 'discord']),
+  instance_name: z.string(),
+  channel_data: z.record(z.any()).optional(),
+}).passthrough()
+
+export const MessagesResponseSchema = z.object({
+  messages: z.array(MessageSchema).default([]),
+  total_count: z.number().default(0),
+  page: z.number().default(1),
+  page_size: z.number().default(50),
+  has_more: z.boolean().default(false),
+  instance_name: z.string(),
+  chat_id: z.string(),
+  channel_type: z.enum(['whatsapp', 'discord']),
+  partial_errors: z.unknown().optional(),
 }).passthrough()
 
 export const TraceSchema = z.object({

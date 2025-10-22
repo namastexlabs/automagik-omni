@@ -86,6 +86,59 @@ class OmniChat(BaseModel):
     last_message_at: Optional[datetime] = Field(None, description="Last message timestamp")
 
 
+# Core Omni Message Model
+class OmniMessageType(str, Enum):
+    """Message types across channels."""
+
+    TEXT = "text"
+    IMAGE = "image"
+    VIDEO = "video"
+    AUDIO = "audio"
+    DOCUMENT = "document"
+    STICKER = "sticker"
+    CONTACT = "contact"
+    LOCATION = "location"
+    REACTION = "reaction"
+    SYSTEM = "system"
+    UNKNOWN = "unknown"
+
+
+class OmniMessage(BaseModel):
+    """Omni message representation across all channels."""
+
+    # Universal fields
+    id: str = Field(..., description="Unique message identifier within channel")
+    chat_id: str = Field(..., description="Chat/conversation this message belongs to")
+    sender_id: str = Field(..., description="Sender identifier")
+    sender_name: Optional[str] = Field(None, description="Sender display name")
+
+    # Message content
+    message_type: OmniMessageType = Field(..., description="Type of message")
+    text: Optional[str] = Field(None, description="Text content")
+
+    # Media fields
+    media_url: Optional[str] = Field(None, description="Media file URL")
+    media_mime_type: Optional[str] = Field(None, description="Media MIME type")
+    media_size: Optional[int] = Field(None, description="Media file size in bytes")
+    caption: Optional[str] = Field(None, description="Media caption")
+    thumbnail_url: Optional[str] = Field(None, description="Media thumbnail URL")
+
+    # Message metadata
+    is_from_me: bool = Field(False, description="Whether message is from the instance owner")
+    is_forwarded: bool = Field(False, description="Whether message is forwarded")
+    is_reply: bool = Field(False, description="Whether message is a reply")
+    reply_to_message_id: Optional[str] = Field(None, description="ID of message being replied to")
+
+    # Timestamps
+    timestamp: datetime = Field(..., description="Message timestamp")
+    edited_at: Optional[datetime] = Field(None, description="Edit timestamp if edited")
+
+    # Channel-specific data
+    channel_type: ChannelType = Field(..., description="Source channel type")
+    instance_name: str = Field(..., description="Instance this message belongs to")
+    channel_data: Dict[str, Any] = Field(default_factory=dict, description="Channel-specific message data")
+
+
 # Core Omni Channel Model
 class OmniChannelInfo(BaseModel):
     """Omni channel/instance information across all channels."""
@@ -162,6 +215,24 @@ class OmniChannelsResponse(BaseModel):
     channels: List[OmniChannelInfo] = Field(..., description="List of channel instances")
     total_count: int = Field(..., description="Total number of channels")
     healthy_count: int = Field(..., description="Number of healthy channels")
+
+    # Error handling
+    partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
+
+
+class OmniMessagesResponse(BaseModel):
+    """Response model for omni messages endpoint."""
+
+    messages: List[OmniMessage] = Field(..., description="List of messages")
+    total_count: int = Field(..., description="Total number of messages")
+    page: int = Field(1, description="Current page number")
+    page_size: int = Field(50, description="Items per page")
+    has_more: bool = Field(False, description="More pages available")
+
+    # Instance and chat information
+    instance_name: str = Field(..., description="Queried instance name")
+    chat_id: str = Field(..., description="Chat identifier")
+    channel_type: ChannelType = Field(..., description="Channel type")
 
     # Error handling
     partial_errors: List[Dict[str, str]] = Field(default_factory=list, description="Per-channel errors")
