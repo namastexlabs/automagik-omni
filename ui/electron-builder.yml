@@ -70,6 +70,7 @@ nsis:
   perMachine: false # Per-user installation (recommended for auto-updates)
   oneClick: false
   allowToChangeInstallationDirectory: true
+  allowElevation: false # Disable elevation to avoid AccessControl plugin requirement
 
   # License Agreement
   license: ../LICENSE
