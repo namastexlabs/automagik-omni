@@ -67,10 +67,8 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
   createStartMenuShortcut: true
+  oneClick: true # One-click installer bypasses AccessControl plugin requirement
   perMachine: false # Per-user installation (recommended for auto-updates)
-  allowElevation: false # Explicitly disable elevation to avoid AccessControl plugin requirement
-  oneClick: false
-  allowToChangeInstallationDirectory: true
 
   # License Agreement
   license: ../LICENSE
