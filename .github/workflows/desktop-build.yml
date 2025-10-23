@@ -3,10 +3,22 @@ name: Desktop Build
 on:
   push:
     branches: [main, dev]
+    paths:
+      - 'ui/**'
+      - 'scripts/build-backend.sh'
+      - 'build-hooks/**'
+      - 'automagik-omni-backend.spec'
+      - '.github/workflows/desktop-build.yml'
     tags:
       - 'v*'
   pull_request:
     branches: [main, dev]
+    paths:
+      - 'ui/**'
+      - 'scripts/build-backend.sh'
+      - 'build-hooks/**'
+      - 'automagik-omni-backend.spec'
+      - '.github/workflows/desktop-build.yml'
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -172,19 +184,19 @@ jobs:
           # Install required Linux dependencies
           sudo apt-get update
           sudo apt-get install -y rpm
-          pnpm run electron:build:linux
+          pnpm run build:linux
 
       - name: Build Electron app (Windows)
         if: runner.os == 'Windows'
         working-directory: ui
         run: |
-          pnpm run electron:build:win
+          pnpm run build:win
 
       - name: Build Electron app (macOS)
         if: runner.os == 'macOS'
         working-directory: ui
         run: |
-          pnpm run electron:build:mac
+          pnpm run build:mac
 
       - name: Upload installers (Linux)
         if: runner.os == 'Linux'
