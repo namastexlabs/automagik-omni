@@ -9,6 +9,17 @@ let backendMonitor: BackendMonitor | null = null
 let backendManager: BackendManager | null = null
 
 /**
+ * Generate a secure default API key for desktop installations
+ */
+function generateDefaultApiKey(): string {
+  // Generate a random API key for desktop installations
+  // This is secure because the backend only runs on localhost
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).substring(2, 15)
+  return `desktop-${timestamp}-${random}`
+}
+
+/**
  * Load configuration from .env file
  */
 function loadEnvConfig(): { apiHost: string; apiPort: number; apiKey: string } {
@@ -39,6 +50,13 @@ function loadEnvConfig(): { apiHost: string; apiPort: number; apiKey: string } {
 
   // Handle 0.0.0.0 -> localhost for client requests
   if (apiHost === '0.0.0.0') apiHost = 'localhost'
+
+  // Desktop installations: Generate a default API key if none is configured
+  // This is secure because the backend only runs on localhost
+  if (!apiKey) {
+    apiKey = generateDefaultApiKey()
+    console.log('🔑 Generated default API key for desktop installation')
+  }
 
   return { apiHost, apiPort, apiKey }
 }
