@@ -271,6 +271,8 @@ jobs:
 
     steps:
       - name: Generate summary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "## 🏗️ Desktop Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -299,6 +301,24 @@ jobs:
 
           if [ "${{ needs.build-backend.result }}" == "success" ] && [ "${{ needs.build-electron.result }}" == "success" ]; then
             echo "✅ **All builds successful!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📦 Download Artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Click the links below to download installers directly:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Get artifact URLs using GitHub CLI
+            RUN_ID="${{ github.run_id }}"
+            REPO="${{ github.repository }}"
+
+            # Fetch artifacts and create download links
+            echo "| Platform | Artifact | Download |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|----------|----------|" >> $GITHUB_STEP_SUMMARY
+
+            gh api repos/${REPO}/actions/runs/${RUN_ID}/artifacts --jq '.artifacts[] | "| " + (.name | gsub("installers-"; "🎁 ") | gsub("backend-"; "⚙️ ")) + " | `" + .name + "` | [📥 Download](https://github.com/${REPO}/actions/runs/${RUN_ID}/artifacts/" + (.id | tostring) + ") |"' >> $GITHUB_STEP_SUMMARY || true
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "💡 **Tip**: Click any download link to get the artifacts directly!" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Some builds failed - check logs above**" >> $GITHUB_STEP_SUMMARY
             exit 1
@@ -312,8 +332,27 @@ jobs:
             const runId = context.runId;
             const repo = context.repo;
 
-            // Build download URLs
-            const artifactsUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
+            // Fetch artifacts from this run
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: repo.owner,
+              repo: repo.repo,
+              run_id: runId,
+            });
+
+            // Build artifact download URLs
+            const getArtifactUrl = (name) => {
+              const artifact = artifacts.data.artifacts.find(a => a.name === name);
+              return artifact
+                ? `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}/artifacts/${artifact.id}`
+                : `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
+            };
+
+            const linuxUrl = getArtifactUrl('installers-linux');
+            const windowsUrl = getArtifactUrl('installers-windows');
+            const macosUrl = getArtifactUrl('installers-macos');
+            const backendLinuxUrl = getArtifactUrl('backend-linux');
+            const backendWindowsUrl = getArtifactUrl('backend-windows');
+            const backendMacosUrl = getArtifactUrl('backend-macos');
 
             const comment = `## 🎉 Desktop Builds Complete!
 
@@ -321,21 +360,21 @@ jobs:
 
             ### 📥 Download Installers
 
-            **Direct Downloads** (click to download):
+            **Direct Downloads** (click to download immediately):
 
             | Platform | Download | Command |
             |----------|----------|---------|
-            | 🐧 **Linux** | [Download All Linux Installers](${artifactsUrl}) | \`gh run download ${runId} -n installers-linux\` |
-            | 🪟 **Windows** | [Download Windows Installer](${artifactsUrl}) | \`gh run download ${runId} -n installers-windows\` |
-            | 🍎 **macOS** | [Download macOS Installers](${artifactsUrl}) | \`gh run download ${runId} -n installers-macos\` |
+            | 🐧 **Linux** | [📦 Download All Linux Installers](${linuxUrl}) | \`gh run download ${runId} -n installers-linux\` |
+            | 🪟 **Windows** | [📦 Download Windows Installer](${windowsUrl}) | \`gh run download ${runId} -n installers-windows\` |
+            | 🍎 **macOS** | [📦 Download macOS Installers](${macosUrl}) | \`gh run download ${runId} -n installers-macos\` |
 
             **Backend Executables** (for advanced users):
 
             | Platform | Download | Command |
             |----------|----------|---------|
-            | 🐧 Linux Backend | [Download](${artifactsUrl}) | \`gh run download ${runId} -n backend-linux\` |
-            | 🪟 Windows Backend | [Download](${artifactsUrl}) | \`gh run download ${runId} -n backend-windows\` |
-            | 🍎 macOS Backend | [Download](${artifactsUrl}) | \`gh run download ${runId} -n backend-macos\` |
+            | 🐧 Linux Backend | [📦 Download](${backendLinuxUrl}) | \`gh run download ${runId} -n backend-linux\` |
+            | 🪟 Windows Backend | [📦 Download](${backendWindowsUrl}) | \`gh run download ${runId} -n backend-windows\` |
+            | 🍎 macOS Backend | [📦 Download](${backendMacosUrl}) | \`gh run download ${runId} -n backend-macos\` |
 
             ### 📦 What's Included
 
