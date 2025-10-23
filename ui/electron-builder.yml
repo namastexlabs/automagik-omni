@@ -62,8 +62,14 @@ win:
   signAndEditExecutable: false
 
 nsis:
-  oneClick: true
-  perMachine: false
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  perMachine: false # Per-user installation (recommended for auto-updates)
+  oneClick: false
+  allowToChangeInstallationDirectory: true
 
 # macOS Configuration
 mac:
