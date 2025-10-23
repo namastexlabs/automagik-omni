@@ -97,12 +97,12 @@ export class BackendManager {
       let executablePath: string
 
       if (platform === 'win32') {
-        executablePath = join(projectRoot, 'automagik-omni.exe')
+        executablePath = join(projectRoot, 'automagik-omni-backend.exe')
       } else if (platform === 'darwin') {
-        executablePath = join(projectRoot, 'automagik-omni')
+        executablePath = join(projectRoot, 'automagik-omni-backend')
       } else {
         // Linux
-        executablePath = join(projectRoot, 'automagik-omni')
+        executablePath = join(projectRoot, 'automagik-omni-backend')
       }
 
       if (!existsSync(executablePath)) {
