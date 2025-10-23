@@ -266,6 +266,9 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
 
+    permissions:
+      pull-requests: write
+
     steps:
       - name: Generate summary
         run: |
@@ -300,3 +303,94 @@ jobs:
             echo "❌ **Some builds failed - check logs above**" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
+
+      - name: Comment PR with download links
+        if: github.event_name == 'pull_request' && needs.build-electron.result == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = context.runId;
+            const repo = context.repo;
+
+            // Build download URLs
+            const artifactsUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
+
+            const comment = `## 🎉 Desktop Builds Complete!
+
+            ✅ All desktop installers have been built successfully.
+
+            ### 📥 Download Installers
+
+            **Direct Downloads** (click to download):
+
+            | Platform | Download | Command |
+            |----------|----------|---------|
+            | 🐧 **Linux** | [Download All Linux Installers](${artifactsUrl}) | \`gh run download ${runId} -n installers-linux\` |
+            | 🪟 **Windows** | [Download Windows Installer](${artifactsUrl}) | \`gh run download ${runId} -n installers-windows\` |
+            | 🍎 **macOS** | [Download macOS Installers](${artifactsUrl}) | \`gh run download ${runId} -n installers-macos\` |
+
+            **Backend Executables** (for advanced users):
+
+            | Platform | Download | Command |
+            |----------|----------|---------|
+            | 🐧 Linux Backend | [Download](${artifactsUrl}) | \`gh run download ${runId} -n backend-linux\` |
+            | 🪟 Windows Backend | [Download](${artifactsUrl}) | \`gh run download ${runId} -n backend-windows\` |
+            | 🍎 macOS Backend | [Download](${artifactsUrl}) | \`gh run download ${runId} -n backend-macos\` |
+
+            ### 📦 What's Included
+
+            **Linux Installers:**
+            - \`automagik-omni-ui-1.0.0.AppImage\` (~183 MB) - Universal Linux installer
+            - \`automagik-omni-ui_1.0.0_amd64.deb\` (~144 MB) - Debian/Ubuntu (64-bit)
+            - \`automagik-omni-ui_1.0.0_arm64.deb\` (~139 MB) - Debian/Ubuntu (ARM64)
+
+            **Windows Installer:**
+            - \`automagik-omni-ui-1.0.0-setup.exe\` - NSIS installer (x64 + ARM64)
+            - ⚠️ **Note**: Windows SmartScreen warning expected (unsigned). Click "More info" → "Run anyway"
+
+            **macOS Installers:**
+            - \`automagik-omni-ui-1.0.0.dmg\` - macOS disk image
+            - \`Automagik Omni-1.0.0-mac.zip\` - Intel Mac ZIP
+            - \`Automagik Omni-1.0.0-arm64-mac.zip\` - Apple Silicon ZIP
+
+            ### 🔧 Installation Instructions
+
+            **Linux (AppImage):**
+            \`\`\`bash
+            chmod +x automagik-omni-ui-1.0.0.AppImage
+            ./automagik-omni-ui-1.0.0.AppImage
+            \`\`\`
+
+            **Linux (DEB):**
+            \`\`\`bash
+            sudo dpkg -i automagik-omni-ui_1.0.0_amd64.deb
+            \`\`\`
+
+            **Windows:**
+            1. Download the installer
+            2. Run \`automagik-omni-ui-1.0.0-setup.exe\`
+            3. If SmartScreen appears: Click "More info" → "Run anyway"
+
+            **macOS:**
+            1. Download the DMG
+            2. Open and drag to Applications
+            3. Right-click app → Open (first time only)
+
+            ### ⏰ Artifact Retention
+
+            - **Installers**: Available for 30 days
+            - **Backend binaries**: Available for 7 days
+
+            ---
+
+            📊 **Build Details**: [View Full Build Log](${artifactsUrl})
+
+            🐛 **Found an issue?** Please report it with logs from the app.`;
+
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: repo.owner,
+              repo: repo.repo,
+              body: comment
+            });
