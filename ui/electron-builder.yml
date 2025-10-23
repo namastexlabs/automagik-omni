@@ -70,8 +70,28 @@ nsis:
   perMachine: false # Per-user installation (recommended for auto-updates)
   oneClick: false
   allowToChangeInstallationDirectory: true
-  # Include Visual C++ redistributables if needed by Python backend
-  # include: resources/build/installer.nsh # Optional: custom NSIS script (uncomment and create file if needed)
+
+  # Custom Branding & Wizard Images
+  installerHeader: resources/build/installerHeader.bmp     # 150x57 header banner
+  installerSidebar: resources/build/installerSidebar.bmp   # 164x314 sidebar image
+  uninstallerHeader: resources/build/uninstallerHeader.bmp # 150x57 uninstaller header
+  uninstallerSidebar: resources/build/uninstallerSidebar.bmp # 164x314 uninstaller sidebar
+
+  # License Agreement
+  license: ../LICENSE
+
+  # Installer Behavior
+  runAfterFinish: true              # Checkbox to launch app after installation
+  deleteAppDataOnUninstall: false   # Keep user data when uninstalling
+  menuCategory: true                # Create submenu in Start Menu
+
+  # Custom NSIS Script for Advanced Behavior
+  include: resources/build/installer.nsh
+
+  # Language Support
+  installerLanguages:
+    - en_US
+    - pt_BR
 
 # macOS Configuration
 mac:
@@ -102,13 +122,31 @@ dmg:
   artifactName: ${name}-${version}.${ext}
   title: ${productName} ${version}
   icon: resources/build/icon.icns
+
+  # Custom DMG Background
+  background: resources/build/dmg-background.png
+  backgroundColor: '#1a1a2e'
+
+  # Window Configuration
+  window:
+    width: 540
+    height: 380
+    x: 400
+    y: 100
+
+  # Icon Positioning
   contents:
     - x: 130
       y: 220
+      type: file
     - x: 410
       y: 220
       type: link
       path: /Applications
+
+  # Icon Appearance
+  iconSize: 80
+  iconTextSize: 12
 
 # Linux Configuration
 linux:
@@ -138,7 +176,8 @@ linux:
 
 appImage:
   artifactName: ${name}-${version}.${ext}
-  license: LICENSE
+  license: ../LICENSE
+  category: Office
 
 deb:
   depends:
