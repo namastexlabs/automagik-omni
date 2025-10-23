@@ -24,6 +24,9 @@ export class BackendMonitor {
   private isStopping = false
   private backendManager?: BackendManager
 
+  // Cache PM2 availability check (checked once at initialization, not every 10 seconds)
+  private static pm2Available: boolean | null = null
+
   // Default configuration
   private config: BackendConfig = {
     apiHost: 'localhost',
@@ -174,15 +177,29 @@ export class BackendMonitor {
   }
 
   /**
-   * Check if a command exists in PATH
+   * Check if a command exists in PATH (cached for PM2)
    * Platform-specific: uses 'where' on Windows, 'which' on Unix
    */
   private async checkCommand(command: string): Promise<boolean> {
+    // Use cached result for PM2 checks to avoid spamming every 10 seconds
+    if (command === 'pm2' && BackendMonitor.pm2Available !== null) {
+      return BackendMonitor.pm2Available
+    }
+
     try {
       const checkCmd = process.platform === 'win32' ? 'where' : 'which'
       await execAsync(`${checkCmd} ${command}`)
+
+      // Cache PM2 availability
+      if (command === 'pm2') {
+        BackendMonitor.pm2Available = true
+      }
       return true
     } catch {
+      // Cache PM2 unavailability
+      if (command === 'pm2') {
+        BackendMonitor.pm2Available = false
+      }
       return false
     }
   }
@@ -220,12 +237,11 @@ export class BackendMonitor {
     Array<{ name: string; status: string; cpu: number; memory: number }>
   > {
     try {
-      // Check if PM2 is available
+      // Check if PM2 is available (cached after first check)
       const pm2Available = await this.checkCommand('pm2')
 
       if (!pm2Available) {
-        // PM2 not available - fallback to direct process status
-        console.log('PM2 not available, using direct process status')
+        // PM2 not available - fallback to direct process status (silently)
         return this.getDirectProcessStatus()
       }
 

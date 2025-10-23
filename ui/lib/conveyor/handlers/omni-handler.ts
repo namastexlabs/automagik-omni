@@ -23,53 +23,80 @@ const getClient = (): OmniApiClient => {
 }
 
 /**
+ * Wrap handler with error transformation for user-friendly messages
+ */
+const wrapHandler = <T extends (...args: any[]) => Promise<any>>(handler: T): T => {
+  return (async (...args: any[]) => {
+    try {
+      return await handler(...args)
+    } catch (error) {
+      // Transform circuit breaker errors into user-friendly messages
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase()
+
+        if (message.includes('circuit breaker is open') || message.includes('backend is starting')) {
+          throw new Error('Backend is starting up, please wait...')
+        }
+
+        if (message.includes('econnrefused') || message.includes('fetch failed')) {
+          throw new Error('Cannot connect to backend. Please check if the backend is running.')
+        }
+      }
+
+      // Re-throw original error
+      throw error
+    }
+  }) as T
+}
+
+/**
  * Register Omni IPC handlers
  */
 export const registerOmniHandlers = () => {
   // ========== INSTANCES ==========
-  handle('omni:instances:list', async () => {
+  handle('omni:instances:list', wrapHandler(async () => {
     return await getClient().getInstances()
-  })
+  }))
 
-  handle('omni:instances:get', async (name: string) => {
+  handle('omni:instances:get', wrapHandler(async (name: string) => {
     return await getClient().getInstance(name)
-  })
+  }))
 
-  handle('omni:instances:create', async (data: Partial<Instance>) => {
+  handle('omni:instances:create', wrapHandler(async (data: Partial<Instance>) => {
     return await getClient().createInstance(data)
-  })
+  }))
 
-  handle('omni:instances:update', async (name: string, data: Partial<Instance>) => {
+  handle('omni:instances:update', wrapHandler(async (name: string, data: Partial<Instance>) => {
     return await getClient().updateInstance(name, data)
-  })
+  }))
 
-  handle('omni:instances:delete', async (name: string) => {
+  handle('omni:instances:delete', wrapHandler(async (name: string) => {
     await getClient().deleteInstance(name)
     return { success: true, message: `Instance ${name} deleted` }
-  })
+  }))
 
-  handle('omni:instances:qr', async (name: string) => {
+  handle('omni:instances:qr', wrapHandler(async (name: string) => {
     return await getClient().getInstanceQR(name)
-  })
+  }))
 
-  handle('omni:instances:status', async (name: string) => {
+  handle('omni:instances:status', wrapHandler(async (name: string) => {
     return await getClient().getInstanceStatus(name)
-  })
+  }))
 
-  handle('omni:instances:connect', async (name: string) => {
+  handle('omni:instances:connect', wrapHandler(async (name: string) => {
     return await getClient().connectInstance(name)
-  })
+  }))
 
-  handle('omni:instances:disconnect', async (name: string) => {
+  handle('omni:instances:disconnect', wrapHandler(async (name: string) => {
     return await getClient().disconnectInstance(name)
-  })
+  }))
 
-  handle('omni:instances:restart', async (name: string) => {
+  handle('omni:instances:restart', wrapHandler(async (name: string) => {
     return await getClient().restartInstance(name)
-  })
+  }))
 
   // ========== CONTACTS ==========
-  handle('omni:contacts:list', async (name: string, page?: number, pageSize?: number, search?: string) => {
+  handle('omni:contacts:list', wrapHandler(async (name: string, page?: number, pageSize?: number, search?: string) => {
     const response = await getClient().getContacts(name, page, pageSize, search)
     // Transform PaginatedResponse to ContactsResponse format
     return {
@@ -81,10 +108,10 @@ export const registerOmniHandlers = () => {
       instance_name: name,
       channel_type: response.data?.[0]?.channel_type as 'whatsapp' | 'discord' | undefined,
     }
-  })
+  }))
 
   // ========== CHATS ==========
-  handle('omni:chats:list', async (name: string, page?: number, pageSize?: number, filter?: string) => {
+  handle('omni:chats:list', wrapHandler(async (name: string, page?: number, pageSize?: number, filter?: string) => {
     const response = await getClient().getChats(name, page, pageSize, filter)
     // Transform PaginatedResponse to ChatsResponse format
     return {
@@ -96,7 +123,7 @@ export const registerOmniHandlers = () => {
       instance_name: name,
       channel_type: response.data?.[0]?.channel_type as 'whatsapp' | 'discord' | undefined,
     }
-  })
+  }))
 
   // ========== MESSAGES ==========
   handle('omni:messages:list', async (instanceName: string, chatId: string, page?: number, pageSize?: number) => {

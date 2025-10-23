@@ -42,6 +42,21 @@ export function isBackendError(error: unknown): boolean {
 }
 
 /**
+ * Detects if an error is due to backend startup (circuit breaker)
+ */
+export function isBackendStarting(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+
+  const message = error.message.toLowerCase()
+
+  return (
+    message.includes('backend is starting') ||
+    message.includes('circuit breaker is open') ||
+    message.includes('please wait')
+  )
+}
+
+/**
  * Converts errors to user-friendly messages
  */
 export function getErrorMessage(error: unknown): string {
@@ -59,6 +74,11 @@ export function getErrorMessage(error: unknown): string {
   }
 
   const message = error.message
+
+  // Backend starting up (circuit breaker)
+  if (isBackendStarting(error)) {
+    return 'Backend is starting up, please wait...'
+  }
 
   // Backend connection errors
   if (isBackendError(error)) {
@@ -112,6 +132,7 @@ export function getErrorMessage(error: unknown): string {
  * Error message mapping for common scenarios
  */
 export const ErrorMessages = {
+  BACKEND_STARTING: 'Backend is starting up, please wait...',
   BACKEND_DOWN: 'Cannot connect to backend service. Please check if the backend is running from the Dashboard.',
   INSTANCE_NOT_FOUND: 'Instance not found. It may have been deleted or is not available.',
   LOAD_FAILED: 'Failed to load data. Please try again.',

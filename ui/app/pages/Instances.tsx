@@ -7,7 +7,7 @@ import { CreateInstanceDialog } from '@/app/components/instances/CreateInstanceD
 import { EditInstanceDialog } from '@/app/components/instances/EditInstanceDialog'
 import { QRCodeDialog } from '@/app/components/instances/QRCodeDialog'
 import { DeleteInstanceDialog } from '@/app/components/instances/DeleteInstanceDialog'
-import { getErrorMessage, isBackendError } from '@/lib/utils/error'
+import { getErrorMessage, isBackendError, isBackendStarting } from '@/lib/utils/error'
 import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
 
 export default function Instances() {
@@ -88,15 +88,15 @@ export default function Instances() {
         </div>
 
         {error && (
-          <Card className="border-red-500 bg-red-900/20 mb-6">
+          <Card className={`mb-6 ${isBackendStarting(new Error(error)) ? 'border-blue-500 bg-blue-900/20' : 'border-red-500 bg-red-900/20'}`}>
             <CardHeader>
-              <CardTitle className="text-red-400 text-xl flex items-center gap-2">
-                <span className="text-2xl">⚠️</span>
-                Failed to Load Instances
+              <CardTitle className={`text-xl flex items-center gap-2 ${isBackendStarting(new Error(error)) ? 'text-blue-400' : 'text-red-400'}`}>
+                <span className="text-2xl">{isBackendStarting(new Error(error)) ? '⏳' : '⚠️'}</span>
+                {isBackendStarting(new Error(error)) ? 'Backend Starting Up' : 'Failed to Load Instances'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-red-200">{error}</p>
+              <p className={isBackendStarting(new Error(error)) ? 'text-blue-200' : 'text-red-200'}>{error}</p>
               <div className="flex items-center gap-3">
                 <Button onClick={loadInstances} variant="outline" disabled={loading}>
                   {loading ? 'Retrying...' : 'Retry'}
@@ -105,7 +105,12 @@ export default function Instances() {
                   Dismiss
                 </Button>
               </div>
-              {isBackendError(new Error(error)) && (
+              {isBackendStarting(new Error(error)) && (
+                <p className="text-sm text-blue-300 mt-2">
+                  ⏱️ <strong>Auto-retrying:</strong> The backend is initializing. Instances will load automatically when ready.
+                </p>
+              )}
+              {isBackendError(new Error(error)) && !isBackendStarting(new Error(error)) && (
                 <p className="text-sm text-zinc-400 mt-2">
                   💡 <strong>Tip:</strong> Go to Dashboard and start the backend service
                 </p>
