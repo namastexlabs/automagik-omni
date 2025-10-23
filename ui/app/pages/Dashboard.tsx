@@ -148,9 +148,16 @@ export default function Dashboard() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex flex-col min-w-0">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Process Manager</h2>
-              <Badge variant={status?.pm2.running ? 'default' : 'destructive'}>
-                {status?.pm2.running ? `${status.pm2.processes.length} Running` : 'No PM2'}
-              </Badge>
+              <div className="flex gap-2">
+                {status?.pm2.mode && (
+                  <Badge variant="outline" className="text-xs">
+                    {status.pm2.mode === 'pm2' ? 'PM2' : 'Direct'}
+                  </Badge>
+                )}
+                <Badge variant={status?.pm2.running ? 'default' : 'destructive'}>
+                  {status?.pm2.running ? `${status.pm2.processes.length} Running` : 'Stopped'}
+                </Badge>
+              </div>
             </div>
             {status?.pm2.processes && status.pm2.processes.length > 0 ? (
               <div className="text-sm text-zinc-400 space-y-2">
@@ -215,12 +222,16 @@ export default function Dashboard() {
           </Button>
           <Button
             onClick={handleStop}
-            disabled={loading || !status?.pm2.running}
+            disabled={loading || !status?.api.running || status?.pm2.mode === 'direct'}
             variant="destructive"
           >
             Stop Backend
           </Button>
-          <Button onClick={handleRestart} disabled={loading || !status?.pm2.running} variant="outline">
+          <Button
+            onClick={handleRestart}
+            disabled={loading || !status?.api.running || status?.pm2.mode === 'direct'}
+            variant="outline"
+          >
             Restart Backend
           </Button>
           <Button onClick={loadStatus} disabled={loading} variant="outline">
@@ -228,18 +239,18 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {!status?.pm2.running && status?.api.running && showInfoBanner && (
-          <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg max-w-full relative">
+        {status?.pm2.mode === 'direct' && status?.api.running && showInfoBanner && (
+          <div className="mt-4 p-4 bg-blue-900/20 border border-blue-600/30 rounded-lg max-w-full relative">
             <button
               onClick={() => setShowInfoBanner(false)}
-              className="absolute top-2 right-2 text-yellow-200 hover:text-yellow-100 text-xl leading-none"
+              className="absolute top-2 right-2 text-blue-200 hover:text-blue-100 text-xl leading-none"
               aria-label="Dismiss"
             >
               ×
             </button>
-            <p className="text-sm text-yellow-200 break-words pr-6">
-              ℹ️ Backend is running as a direct process (not managed by PM2). Start/Stop/Restart
-              controls are disabled. Use your terminal to manage the process.
+            <p className="text-sm text-blue-200 break-words pr-6">
+              ℹ️ Backend is running in <strong>Direct Process</strong> mode (PM2 not available).
+              Process management is handled by the Electron application.
             </p>
           </div>
         )}

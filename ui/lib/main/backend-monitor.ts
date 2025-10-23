@@ -4,6 +4,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import type { BackendStatus, HealthCheck, BackendConfig } from '@/lib/conveyor/schemas/backend-schema'
+import type { BackendManager } from './backend-manager'
 
 const execAsync = promisify(exec)
 
@@ -21,6 +22,7 @@ export class BackendMonitor {
   private readonly healthCheckTimeoutMs = 30000 // 30 seconds
   private isStarting = false
   private isStopping = false
+  private backendManager?: BackendManager
 
   // Default configuration
   private config: BackendConfig = {
@@ -33,7 +35,8 @@ export class BackendMonitor {
     logLevel: 'INFO',
   }
 
-  constructor() {
+  constructor(backendManager?: BackendManager) {
+    this.backendManager = backendManager
     // Load configuration from .env file and environment
     this.loadConfig()
   }
@@ -129,6 +132,10 @@ export class BackendMonitor {
    */
   async getStatus(): Promise<BackendStatus> {
     try {
+      // Check if PM2 is available first
+      const pm2Available = await this.checkCommand('pm2')
+      const mode: 'pm2' | 'direct' = pm2Available ? 'pm2' : 'direct'
+
       const pm2Status = await this.getPM2Status()
       const apiHealth = await this.checkAPIHealth()
       const discordHealth = await this.checkDiscordHealth()
@@ -153,6 +160,7 @@ export class BackendMonitor {
         pm2: {
           running: pm2Status.length > 0,
           processes: pm2Status,
+          mode,
         },
       }
     } catch (_error) {
@@ -160,18 +168,68 @@ export class BackendMonitor {
       return {
         api: { running: false, healthy: false, port: this.config.apiPort, url: '' },
         discord: { running: false, healthy: false },
-        pm2: { running: false, processes: [] },
+        pm2: { running: false, processes: [], mode: 'direct' },
       }
     }
   }
 
   /**
-   * Get PM2 process status
+   * Check if a command exists in PATH
+   * Platform-specific: uses 'where' on Windows, 'which' on Unix
+   */
+  private async checkCommand(command: string): Promise<boolean> {
+    try {
+      const checkCmd = process.platform === 'win32' ? 'where' : 'which'
+      await execAsync(`${checkCmd} ${command}`)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Get status for direct process (non-PM2) backend
+   * Returns PM2-like status object for compatibility
+   */
+  private getDirectProcessStatus(): Array<{ name: string; status: string; cpu: number; memory: number }> {
+    if (!this.backendManager) {
+      return []
+    }
+
+    const processInfo = this.backendManager.getStatus()
+
+    // If backend process is running, return a PM2-like status entry
+    if (processInfo.status === 'running' && processInfo.pid) {
+      return [
+        {
+          name: 'automagik-omni-api',
+          status: 'online',
+          cpu: 0, // CPU/memory metrics not available for direct process
+          memory: 0,
+        }
+      ]
+    }
+
+    return []
+  }
+
+  /**
+   * Get PM2 process status with fallback to direct process
    */
   private async getPM2Status(): Promise<
     Array<{ name: string; status: string; cpu: number; memory: number }>
   > {
     try {
+      // Check if PM2 is available
+      const pm2Available = await this.checkCommand('pm2')
+
+      if (!pm2Available) {
+        // PM2 not available - fallback to direct process status
+        console.log('PM2 not available, using direct process status')
+        return this.getDirectProcessStatus()
+      }
+
+      // PM2 is available - try to get PM2 process list
       const { stdout } = await execAsync('pm2 jlist', {
         cwd: this.getProjectRoot(),
       })
@@ -187,7 +245,8 @@ export class BackendMonitor {
         }))
     } catch (_error) {
       console.error('Error getting PM2 status:', _error)
-      return []
+      // Fallback to direct process status on any error
+      return this.getDirectProcessStatus()
     }
   }
 

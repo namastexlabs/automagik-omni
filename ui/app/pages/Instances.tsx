@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { Button } from '@/app/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card'
 import { InstanceTable } from '@/app/components/instances/InstanceTable'
 import { CreateInstanceDialog } from '@/app/components/instances/CreateInstanceDialog'
 import { EditInstanceDialog } from '@/app/components/instances/EditInstanceDialog'
 import { QRCodeDialog } from '@/app/components/instances/QRCodeDialog'
 import { DeleteInstanceDialog } from '@/app/components/instances/DeleteInstanceDialog'
+import { getErrorMessage, isBackendError } from '@/lib/utils/error'
 import type { Instance } from '@/lib/conveyor/schemas/omni-schema'
 
 export default function Instances() {
@@ -28,7 +30,9 @@ export default function Instances() {
       const data = await omni.listInstances()
       setInstances(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load instances')
+      const errorMessage = getErrorMessage(err)
+      setError(errorMessage)
+      console.error('Failed to load instances:', err)
     } finally {
       setLoading(false)
     }
@@ -84,9 +88,30 @@ export default function Instances() {
         </div>
 
         {error && (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
+          <Card className="border-red-500 bg-red-900/20 mb-6">
+            <CardHeader>
+              <CardTitle className="text-red-400 text-xl flex items-center gap-2">
+                <span className="text-2xl">⚠️</span>
+                Failed to Load Instances
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-red-200">{error}</p>
+              <div className="flex items-center gap-3">
+                <Button onClick={loadInstances} variant="outline" disabled={loading}>
+                  {loading ? 'Retrying...' : 'Retry'}
+                </Button>
+                <Button onClick={() => setError(null)} variant="ghost">
+                  Dismiss
+                </Button>
+              </div>
+              {isBackendError(new Error(error)) && (
+                <p className="text-sm text-zinc-400 mt-2">
+                  💡 <strong>Tip:</strong> Go to Dashboard and start the backend service
+                </p>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {loading && instances.length === 0 ? (

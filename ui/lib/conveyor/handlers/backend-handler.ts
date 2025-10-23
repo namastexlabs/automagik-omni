@@ -66,7 +66,8 @@ function loadEnvConfig(): { apiHost: string; apiPort: number; apiKey: string } {
  */
 export const initBackendMonitor = () => {
   if (!backendMonitor) {
-    backendMonitor = new BackendMonitor()
+    // Pass backendManager reference for fallback status
+    backendMonitor = new BackendMonitor(backendManager || undefined)
   }
   return backendMonitor
 }
@@ -114,9 +115,9 @@ const getManager = (): BackendManager => {
  * Register backend IPC handlers
  */
 export const registerBackendHandlers = () => {
-  // Initialize both monitor (PM2-based) and manager (subprocess-based)
-  initBackendMonitor()
+  // Initialize manager first, then monitor (so monitor can reference manager)
   initBackendManager()
+  initBackendMonitor()
 
   // ==================== BackendManager (subprocess) handlers ====================
 
