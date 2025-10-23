@@ -70,6 +70,8 @@ nsis:
   perMachine: false # Per-user installation (recommended for auto-updates)
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # Include Visual C++ redistributables if needed by Python backend
+  # include: resources/build/installer.nsh # Optional: custom NSIS script (uncomment and create file if needed)
 
 # macOS Configuration
 mac:
@@ -100,12 +102,9 @@ dmg:
   artifactName: ${name}-${version}.${ext}
   title: ${productName} ${version}
   icon: resources/build/icon.icns
-
-  # Simple DMG layout - no custom background to avoid hdiutil issues
   contents:
     - x: 130
       y: 220
-      type: file
     - x: 410
       y: 220
       type: link
@@ -139,8 +138,7 @@ linux:
 
 appImage:
   artifactName: ${name}-${version}.${ext}
-  license: ../LICENSE
-  category: Office
+  license: LICENSE
 
 deb:
   depends:
