@@ -68,9 +68,9 @@ nsis:
   createDesktopShortcut: always
   createStartMenuShortcut: true
   perMachine: false # Per-user installation (recommended for auto-updates)
+  multiUserInstallMode: currentUser # Force per-user mode to avoid AccessControl plugin
   oneClick: false
   allowToChangeInstallationDirectory: true
-  allowElevation: false # Disable elevation to avoid AccessControl plugin requirement
 
   # License Agreement
   license: ../LICENSE
@@ -78,7 +78,6 @@ nsis:
   # Installer Behavior
   runAfterFinish: true              # Checkbox to launch app after installation
   deleteAppDataOnUninstall: false   # Keep user data when uninstalling
-  menuCategory: true                # Create submenu in Start Menu
 
 # macOS Configuration
 mac:
