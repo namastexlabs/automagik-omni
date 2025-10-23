@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createHashRouter, RouterProvider } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { MainLayout } from './layouts/MainLayout'
 import Dashboard from './pages/Dashboard'
@@ -9,7 +9,8 @@ import Contacts from './pages/Contacts'
 import Chats from './pages/Chats'
 import Traces from './pages/Traces'
 
-export const router = createBrowserRouter([
+// Use HashRouter for Electron compatibility (file:// protocol support)
+export const router = createHashRouter([
   {
     path: '/',
     element: <MainLayout />,
