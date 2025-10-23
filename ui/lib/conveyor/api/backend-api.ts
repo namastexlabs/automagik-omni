@@ -22,21 +22,21 @@ export class BackendApi extends ConveyorApi {
    * Start backend services
    */
   start = (): Promise<{ success: boolean; message: string }> => {
-    return this.invoke('backend:start')
+    return this.invoke('backend:manager:start')
   }
 
   /**
    * Stop backend services
    */
   stop = (): Promise<{ success: boolean; message: string }> => {
-    return this.invoke('backend:stop')
+    return this.invoke('backend:manager:stop')
   }
 
   /**
    * Restart backend services
    */
   restart = (): Promise<{ success: boolean; message: string }> => {
-    return this.invoke('backend:restart')
+    return this.invoke('backend:manager:restart')
   }
 
   /**
