@@ -68,6 +68,7 @@ nsis:
   createDesktopShortcut: always
   createStartMenuShortcut: true
   perMachine: false # Per-user installation (recommended for auto-updates)
+  allowElevation: false # Explicitly disable elevation to avoid AccessControl plugin requirement
   oneClick: false
   allowToChangeInstallationDirectory: true
 
