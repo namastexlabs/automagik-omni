@@ -74,8 +74,8 @@ nsis:
   # Custom Branding & Wizard Images
   installerHeader: resources/build/installerHeader.bmp     # 150x57 header banner
   installerSidebar: resources/build/installerSidebar.bmp   # 164x314 sidebar image
-  uninstallerHeader: resources/build/uninstallerHeader.bmp # 150x57 uninstaller header
-  uninstallerSidebar: resources/build/uninstallerSidebar.bmp # 164x314 uninstaller sidebar
+  # Note: uninstallerHeader and uninstallerSidebar are not supported by electron-builder
+  # The uninstaller uses the installer header/sidebar by default
 
   # License Agreement
   license: ../LICENSE
