@@ -71,12 +71,6 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
 
-  # Custom Branding & Wizard Images
-  installerHeader: resources/build/installerHeader.bmp     # 150x57 header banner
-  installerSidebar: resources/build/installerSidebar.bmp   # 164x314 sidebar image
-  # Note: uninstallerHeader and uninstallerSidebar are not supported by electron-builder
-  # The uninstaller uses the installer header/sidebar by default
-
   # License Agreement
   license: ../LICENSE
 
@@ -84,14 +78,6 @@ nsis:
   runAfterFinish: true              # Checkbox to launch app after installation
   deleteAppDataOnUninstall: false   # Keep user data when uninstalling
   menuCategory: true                # Create submenu in Start Menu
-
-  # Custom NSIS Script for Advanced Behavior
-  include: resources/build/installer.nsh
-
-  # Language Support
-  installerLanguages:
-    - en_US
-    - pt_BR
 
 # macOS Configuration
 mac:
@@ -123,18 +109,7 @@ dmg:
   title: ${productName} ${version}
   icon: resources/build/icon.icns
 
-  # Custom DMG Background
-  background: resources/build/dmg-background.png
-  # backgroundColor is not compatible with custom background image
-
-  # Window Configuration
-  window:
-    width: 540
-    height: 380
-    x: 400
-    y: 100
-
-  # Icon Positioning
+  # Simple DMG layout - no custom background to avoid hdiutil issues
   contents:
     - x: 130
       y: 220
@@ -143,10 +118,6 @@ dmg:
       y: 220
       type: link
       path: /Applications
-
-  # Icon Appearance
-  iconSize: 80
-  iconTextSize: 12
 
 # Linux Configuration
 linux:
