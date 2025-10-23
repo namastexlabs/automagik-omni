@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useInstanceStore } from '@/lib/store/instance-store'
 import { Button } from '@/app/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card'
 import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select'
@@ -11,6 +12,7 @@ import { MediaMessageForm } from '@/app/components/messages/MediaMessageForm'
 import { AudioMessageForm } from '@/app/components/messages/AudioMessageForm'
 import { ReactionForm } from '@/app/components/messages/ReactionForm'
 import { RecentMessagesList } from '@/app/components/messages/RecentMessagesList'
+import { getErrorMessage, isBackendError } from '@/lib/utils/error'
 import type { Message } from '@/lib/conveyor/schemas/omni-schema'
 
 export default function Messages() {
@@ -35,13 +37,15 @@ export default function Messages() {
       setError(null)
       const instancesList = await omni.listInstances()
       setInstances(instancesList)
-      
+
       // Auto-select first instance if none selected
       if (!selectedInstance && instancesList.length > 0) {
         setSelectedInstance(instancesList[0])
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load instances')
+      const errorMessage = getErrorMessage(err)
+      setError(errorMessage)
+      console.error('Failed to load instances:', err)
     } finally {
       setLoading(false)
     }
@@ -85,7 +89,9 @@ export default function Messages() {
       addToRecentMessages(result)
       showSuccess('Text message sent successfully!')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message')
+      const errorMessage = getErrorMessage(err)
+      setError(errorMessage)
+      console.error('Failed to send message:', err)
     } finally {
       setSending(false)
     }
@@ -114,7 +120,9 @@ export default function Messages() {
       addToRecentMessages(result)
       showSuccess('Media message sent successfully!')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send media')
+      const errorMessage = getErrorMessage(err)
+      setError(errorMessage)
+      console.error('Failed to send media:', err)
     } finally {
       setSending(false)
     }
@@ -133,7 +141,9 @@ export default function Messages() {
       addToRecentMessages(result)
       showSuccess('Audio message sent successfully!')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send audio')
+      const errorMessage = getErrorMessage(err)
+      setError(errorMessage)
+      console.error('Failed to send audio:', err)
     } finally {
       setSending(false)
     }
@@ -152,7 +162,9 @@ export default function Messages() {
       addToRecentMessages(result)
       showSuccess('Reaction sent successfully!')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send reaction')
+      const errorMessage = getErrorMessage(err)
+      setError(errorMessage)
+      console.error('Failed to send reaction:', err)
     } finally {
       setSending(false)
     }
@@ -172,17 +184,30 @@ export default function Messages() {
 
         {/* Error Message */}
         {useInstanceStore.getState().error && (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-4">
-            <div className="flex justify-between items-start">
-              <span>{useInstanceStore.getState().error}</span>
-              <button
-                onClick={() => setError(null)}
-                className="text-red-200 hover:text-red-100"
-              >
-                ×
-              </button>
-            </div>
-          </div>
+          <Card className="border-red-500 bg-red-900/20 mb-6">
+            <CardHeader>
+              <CardTitle className="text-red-400 text-xl flex items-center gap-2">
+                <span className="text-2xl">⚠️</span>
+                Operation Failed
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-red-200">{useInstanceStore.getState().error}</p>
+              <div className="flex items-center gap-3">
+                <Button onClick={loadInstances} variant="outline" size="sm">
+                  Retry Loading Instances
+                </Button>
+                <Button onClick={() => setError(null)} variant="ghost" size="sm">
+                  Dismiss
+                </Button>
+              </div>
+              {isBackendError(new Error(useInstanceStore.getState().error || '')) && (
+                <p className="text-sm text-zinc-400 mt-2">
+                  💡 <strong>Tip:</strong> Go to Dashboard and start the backend service
+                </p>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

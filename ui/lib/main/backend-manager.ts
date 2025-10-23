@@ -1,7 +1,8 @@
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, ChildProcess, execSync } from 'child_process'
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import { Socket } from 'net'
 
 /**
  * Backend process status enum
@@ -111,7 +112,10 @@ export class BackendManager {
 
       return {
         command: executablePath,
-        args: ['start', '--host', this.config.host, '--port', this.config.port.toString()],
+        // Force IPv4-only binding to avoid Windows dual-stack IPv6/IPv4 binding conflicts
+        // Windows resolves 'localhost' to both ::1 (IPv6) and 127.0.0.1 (IPv4), causing
+        // "address already in use" errors when IPv6 binding fails (Error 10048)
+        args: ['start', '--host', '127.0.0.1', '--port', this.config.port.toString()],
       }
     } else {
       // Development: Use uv run python
@@ -124,12 +128,155 @@ export class BackendManager {
           'src.cli.main_cli',
           'start',
           '--host',
-          this.config.host,
+          '127.0.0.1', // Force IPv4-only (same as production, see comment above)
           '--port',
           this.config.port.toString(),
         ],
       }
     }
+  }
+
+  /**
+   * Kill any existing backend processes on port 8882
+   * Platform-specific implementation:
+   * - Windows: Use tasklist + taskkill
+   * - macOS/Linux: Use lsof + kill
+   */
+  private async killExistingBackends(): Promise<void> {
+    console.log('🧹 Cleaning up existing backend processes...')
+
+    try {
+      if (process.platform === 'win32') {
+        // Windows: Use tasklist + taskkill
+        try {
+          const output = execSync(
+            'tasklist /FI "IMAGENAME eq automagik-omni-backend.exe" /FO CSV /NH',
+            { encoding: 'utf-8' }
+          )
+          const pids = output
+            .split('\n')
+            .filter((line) => line.includes('automagik-omni-backend.exe'))
+            .map((line) => {
+              const match = line.match(/"(\d+)"/)
+              return match ? match[1] : null
+            })
+            .filter(Boolean)
+
+          if (pids.length > 0) {
+            console.log(
+              `Found ${pids.length} existing backend process(es), killing: ${pids.join(', ')}`
+            )
+            for (const pid of pids) {
+              try {
+                // Try graceful termination first
+                execSync(`taskkill /PID ${pid} /T`, { timeout: 2000 })
+              } catch (err) {
+                // Force kill if graceful fails
+                try {
+                  execSync(`taskkill /PID ${pid} /T /F`)
+                } catch (killErr) {
+                  console.error(`Failed to kill PID ${pid}:`, killErr)
+                }
+              }
+            }
+            // Wait for processes to actually terminate
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+          } else {
+            console.log('No existing backend processes found')
+          }
+        } catch (err) {
+          // tasklist returns error if no processes found, that's OK
+          console.log('No existing backend processes found')
+        }
+      } else {
+        // macOS/Linux: Use lsof + kill
+        try {
+          const output = execSync(`lsof -ti :8882`, { encoding: 'utf-8' })
+          const pids = output.trim().split('\n').filter(Boolean)
+
+          if (pids.length > 0) {
+            console.log(
+              `Found ${pids.length} process(es) on port 8882, killing: ${pids.join(', ')}`
+            )
+            for (const pid of pids) {
+              try {
+                // Try SIGTERM first
+                execSync(`kill -TERM ${pid}`, { timeout: 2000 })
+                await new Promise((resolve) => setTimeout(resolve, 500))
+                // Check if still alive, force kill
+                try {
+                  execSync(`kill -0 ${pid}`)
+                  execSync(`kill -KILL ${pid}`)
+                } catch {
+                  // Process already dead, good
+                }
+              } catch (err) {
+                console.error(`Failed to kill PID ${pid}:`, err)
+              }
+            }
+          } else {
+            console.log('No processes found on port 8882')
+          }
+        } catch (err) {
+          // lsof returns error if no processes found, that's OK
+          console.log('No processes found on port 8882')
+        }
+      }
+    } catch (err) {
+      console.error('Error cleaning up backend processes:', err)
+      // Don't throw - continue with startup anyway
+    }
+  }
+
+  /**
+   * Wait for a port to be released (becomes available)
+   * Uses socket probe: ECONNREFUSED means port is free
+   */
+  private async waitForPortRelease(port: number, timeout: number): Promise<void> {
+    console.log(`⏳ Waiting for port ${port} to be released...`)
+
+    const startTime = Date.now()
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        // Try to connect to the port
+        await new Promise<void>((resolve, reject) => {
+          const socket = new Socket()
+          socket.setTimeout(200)
+
+          socket.on('connect', () => {
+            socket.destroy()
+            reject(new Error('Port still in use'))
+          })
+
+          socket.on('error', (err: any) => {
+            socket.destroy()
+            if (err.code === 'ECONNREFUSED') {
+              // Port is free!
+              resolve()
+            } else {
+              reject(err)
+            }
+          })
+
+          socket.on('timeout', () => {
+            socket.destroy()
+            reject(new Error('Connection timeout'))
+          })
+
+          socket.connect(port, '127.0.0.1')
+        })
+
+        // If we get here, port is free
+        console.log(`✅ Port ${port} is now available`)
+        return
+      } catch (err: any) {
+        // Port still in use or other error, wait and retry
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+    }
+
+    throw new Error(`Timeout waiting for port ${port} to be released`)
   }
 
   /**
@@ -149,6 +296,12 @@ export class BackendManager {
     this.setStatus(BackendProcessStatus.STARTING)
 
     try {
+      // Clean up any existing backend processes before starting
+      await this.killExistingBackends()
+
+      // Wait for port to be released
+      await this.waitForPortRelease(8882, 5000)
+
       const { command, args } = this.getBackendCommand()
       const projectRoot = this.getProjectRoot()
 
@@ -197,13 +350,24 @@ export class BackendManager {
         this.setStatus(BackendProcessStatus.ERROR)
       })
 
+      // NEW: Wait for uvicorn to confirm it's listening
+      // This prevents race condition where health check passes before uvicorn finishes initialization
+      const uvicornReady = await this.waitForUvicornLog(
+        /Uvicorn running on|Application startup complete/,
+        10000 // 10 second timeout
+      )
+
+      if (!uvicornReady) {
+        throw new Error('Backend failed to initialize (uvicorn did not start)')
+      }
+
       // Wait for backend to be healthy
       await this.waitForHealthy()
 
       this.setStatus(BackendProcessStatus.RUNNING)
       this.startHealthCheck()
 
-      console.log('Backend started successfully')
+      console.log('✅ Backend started successfully')
     } catch (error) {
       this.setStatus(BackendProcessStatus.ERROR)
       throw error
@@ -280,6 +444,83 @@ export class BackendManager {
     } catch (error) {
       return false
     }
+  }
+
+  /**
+   * Wait for uvicorn to confirm it's listening via log output
+   * This prevents race condition where HTTP health check passes but uvicorn
+   * hasn't finished binding all interfaces (IPv4/IPv6 dual-stack issue on Windows)
+   */
+  private async waitForUvicornLog(pattern: RegExp, timeout: number): Promise<boolean> {
+    console.log('⏳ Waiting for uvicorn to confirm startup...')
+
+    return new Promise((resolve) => {
+      const startTime = Date.now()
+      let logBuffer = ''
+
+      const checkTimeout = () => {
+        if (Date.now() - startTime > timeout) {
+          console.error('❌ Timeout waiting for uvicorn ready log')
+          resolve(false)
+          return true
+        }
+        return false
+      }
+
+      const timeoutId = setInterval(() => {
+        if (checkTimeout()) {
+          clearInterval(timeoutId)
+        }
+      }, 500)
+
+      // Listen to backend stdout
+      const stdoutHandler = (data: Buffer) => {
+        const output = data.toString()
+        logBuffer += output
+
+        // Check for uvicorn ready patterns
+        if (pattern.test(logBuffer)) {
+          console.log('✅ Uvicorn confirmed ready')
+          clearInterval(timeoutId)
+          this.process?.stdout?.removeListener('data', stdoutHandler)
+          this.process?.removeListener('exit', exitHandler)
+          resolve(true)
+        }
+
+        // Also check for fatal errors
+        if (
+          output.includes('error while attempting to bind') ||
+          output.includes('Address already in use') ||
+          output.includes('[Errno 10048]') ||
+          output.includes('WSAEADDRINUSE')
+        ) {
+          console.error('❌ Uvicorn binding error detected in logs')
+          clearInterval(timeoutId)
+          this.process?.stdout?.removeListener('data', stdoutHandler)
+          this.process?.removeListener('exit', exitHandler)
+          resolve(false)
+        }
+      }
+
+      // Attach listener
+      if (this.process?.stdout) {
+        this.process.stdout.on('data', stdoutHandler)
+      } else {
+        console.error('❌ Backend process has no stdout')
+        clearInterval(timeoutId)
+        resolve(false)
+      }
+
+      // Handle process exit during wait
+      const exitHandler = (code: number | null) => {
+        console.error(`❌ Backend exited with code ${code} before uvicorn ready`)
+        clearInterval(timeoutId)
+        this.process?.stdout?.removeListener('data', stdoutHandler)
+        resolve(false)
+      }
+
+      this.process?.once('exit', exitHandler)
+    })
   }
 
   /**

@@ -51,6 +51,7 @@ export const BackendStatusSchema = z.object({
         memory: z.number(),
       })
     ),
+    mode: z.enum(['pm2', 'direct']).optional(),
   }),
 })
 

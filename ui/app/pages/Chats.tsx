@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import { Button } from '@/app/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card'
 import { ChatsTable } from '@/app/components/chats/ChatsTable'
 import { ChatTypeFilter } from '@/app/components/chats/ChatTypeFilter'
 import { EnhancedChatDetailsPanel } from '@/app/components/chats/EnhancedChatDetailsPanel'
+import { getErrorMessage, isBackendError } from '@/lib/utils/error'
 import type { Chat, Instance } from '@/lib/conveyor/schemas/omni-schema'
 import {
   Select,
@@ -35,7 +38,9 @@ export default function Chats() {
           setSelectedInstance(instancesList[0].name)
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load instances')
+        const errorMessage = getErrorMessage(err)
+        setError(errorMessage)
+        console.error('Failed to load instances:', err)
       }
     }
     loadInstances()
@@ -60,7 +65,7 @@ export default function Chats() {
         setTotalCount(result.total_count)
         setHasMore(result.has_more)
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load chats'
+        const errorMessage = getErrorMessage(err)
 
         // Check if instance doesn't exist in Evolution API
         if (errorMessage.includes('does not exist')) {
@@ -70,6 +75,7 @@ export default function Chats() {
         } else {
           setError(errorMessage)
         }
+        console.error('Failed to load chats:', err)
         setChats([])
       } finally {
         setLoading(false)
@@ -121,9 +127,38 @@ export default function Chats() {
         </div>
 
         {error && (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
+          <Card className="border-red-500 bg-red-900/20 mb-6">
+            <CardHeader>
+              <CardTitle className="text-red-400 text-xl flex items-center gap-2">
+                <span className="text-2xl">⚠️</span>
+                Failed to Load Chats
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-red-200">{error}</p>
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={() => {
+                    setError(null)
+                    // Trigger reload by updating pagination state
+                    setPagination({ ...pagination })
+                  }}
+                  variant="outline"
+                  disabled={loading}
+                >
+                  {loading ? 'Retrying...' : 'Retry'}
+                </Button>
+                <Button onClick={() => setError(null)} variant="ghost">
+                  Dismiss
+                </Button>
+              </div>
+              {isBackendError(new Error(error)) && (
+                <p className="text-sm text-zinc-400 mt-2">
+                  💡 <strong>Tip:</strong> Go to Dashboard and start the backend service
+                </p>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {!selectedInstance && instances.length === 0 ? (
