@@ -62,21 +62,8 @@ win:
   signAndEditExecutable: false
 
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
-  shortcutName: ${productName}
-  uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
-  createStartMenuShortcut: true
-  oneClick: true # One-click installer bypasses AccessControl plugin requirement
-  perMachine: false # Per-user installation (recommended for auto-updates)
-
-  # License Agreement
-  license: ../LICENSE
-
-  # Installer Behavior
-  runAfterFinish: true              # Checkbox to launch app after installation
-  deleteAppDataOnUninstall: false   # Keep user data when uninstalling
-  menuCategory: false               # Disable menu category to avoid AccessControl plugin requirement
+  oneClick: true
+  perMachine: false
 
 # macOS Configuration
 mac:
