@@ -7,6 +7,29 @@ export interface OmniConfig {
   baseUrl: string
   apiKey: string
   timeout?: number
+  maxRetries?: number
+  retryDelayMs?: number
+  circuitBreakerThreshold?: number
+}
+
+/**
+ * Error types for retry logic
+ */
+enum ErrorType {
+  CONNECTION_REFUSED = 'ECONNREFUSED',
+  TIMEOUT = 'TIMEOUT',
+  NETWORK = 'NETWORK',
+  HTTP = 'HTTP',
+  UNKNOWN = 'UNKNOWN',
+}
+
+/**
+ * Circuit breaker states
+ */
+enum CircuitState {
+  CLOSED = 'closed', // Normal operation
+  OPEN = 'open', // Too many failures, stop retrying
+  HALF_OPEN = 'half_open', // Testing if backend is back
 }
 
 export interface Instance {
@@ -134,19 +157,197 @@ export interface PaginatedResponse<T> {
  * Omni API Client for backend communication
  */
 export class OmniApiClient {
-  private config: OmniConfig
+  private config: Required<OmniConfig>
+  private circuitState: CircuitState = CircuitState.CLOSED
+  private failureCount: number = 0
+  private lastFailureTime: number = 0
+  private halfOpenTestTime: number = 0
 
   constructor(config: OmniConfig) {
     this.config = {
       timeout: 30000,
+      maxRetries: 3,
+      retryDelayMs: 1000,
+      circuitBreakerThreshold: 5,
       ...config,
     }
   }
 
   /**
-   * Make HTTP request to API
+   * Classify error for retry logic
+   */
+  private classifyError(error: any): ErrorType {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase()
+
+      // Connection refused - backend not ready
+      if (error.cause && typeof error.cause === 'object') {
+        const cause = error.cause as any
+        if (cause.code === 'ECONNREFUSED' || message.includes('econnrefused')) {
+          return ErrorType.CONNECTION_REFUSED
+        }
+      }
+
+      // Timeout
+      if (error.name === 'AbortError' || message.includes('timeout')) {
+        return ErrorType.TIMEOUT
+      }
+
+      // Network errors
+      if (message.includes('fetch failed') || message.includes('network')) {
+        return ErrorType.NETWORK
+      }
+
+      // HTTP errors
+      if (message.includes('http')) {
+        return ErrorType.HTTP
+      }
+    }
+
+    return ErrorType.UNKNOWN
+  }
+
+  /**
+   * Check if error is retryable
+   */
+  private isRetryable(errorType: ErrorType): boolean {
+    // Only retry on connection refused (backend starting)
+    return errorType === ErrorType.CONNECTION_REFUSED
+  }
+
+  /**
+   * Calculate exponential backoff delay
+   */
+  private calculateBackoff(attempt: number): number {
+    // Exponential backoff: 1s, 2s, 4s, 8s...
+    return this.config.retryDelayMs * Math.pow(2, attempt)
+  }
+
+  /**
+   * Sleep for specified milliseconds
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Check circuit breaker state
+   */
+  private shouldAttemptRequest(): { allow: boolean; reason?: string } {
+    const now = Date.now()
+
+    switch (this.circuitState) {
+      case CircuitState.CLOSED:
+        // Normal operation
+        return { allow: true }
+
+      case CircuitState.OPEN:
+        // Check if we should transition to HALF_OPEN
+        const timeSinceLastFailure = now - this.lastFailureTime
+        if (timeSinceLastFailure > 30000) { // 30 seconds cooldown
+          this.circuitState = CircuitState.HALF_OPEN
+          this.halfOpenTestTime = now
+          console.log('Circuit breaker: OPEN -> HALF_OPEN (testing if backend is back)')
+          return { allow: true }
+        }
+        return { allow: false, reason: 'Backend is starting up, please wait...' }
+
+      case CircuitState.HALF_OPEN:
+        // Allow one test request
+        return { allow: true }
+    }
+  }
+
+  /**
+   * Record request success
+   */
+  private recordSuccess(): void {
+    if (this.circuitState === CircuitState.HALF_OPEN) {
+      console.log('Circuit breaker: HALF_OPEN -> CLOSED (backend is healthy)')
+      this.circuitState = CircuitState.CLOSED
+      this.failureCount = 0
+    } else if (this.circuitState === CircuitState.CLOSED) {
+      // Reset failure count on success
+      this.failureCount = 0
+    }
+  }
+
+  /**
+   * Record request failure
+   */
+  private recordFailure(errorType: ErrorType): void {
+    const now = Date.now()
+    this.lastFailureTime = now
+
+    // Only count connection refused errors towards circuit breaker
+    if (errorType === ErrorType.CONNECTION_REFUSED) {
+      this.failureCount++
+
+      if (this.circuitState === CircuitState.HALF_OPEN) {
+        console.log('Circuit breaker: HALF_OPEN -> OPEN (backend still not ready)')
+        this.circuitState = CircuitState.OPEN
+      } else if (this.failureCount >= this.config.circuitBreakerThreshold) {
+        console.log(`Circuit breaker: CLOSED -> OPEN (${this.failureCount} consecutive failures)`)
+        this.circuitState = CircuitState.OPEN
+      }
+    }
+  }
+
+  /**
+   * Make HTTP request to API with retry logic and circuit breaker
    */
   private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    // Check circuit breaker
+    const { allow, reason } = this.shouldAttemptRequest()
+    if (!allow) {
+      throw new Error(reason || 'Circuit breaker is open')
+    }
+
+    let lastError: any
+
+    // Attempt request with retries
+    for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
+      try {
+        const result = await this.performRequest<T>(endpoint, options)
+        this.recordSuccess()
+        return result
+      } catch (error) {
+        lastError = error
+        const errorType = this.classifyError(error)
+
+        // Log attempt
+        console.log(
+          `Request to ${endpoint} failed (attempt ${attempt + 1}/${this.config.maxRetries + 1}): ${errorType}`,
+          error
+        )
+
+        // Record failure for circuit breaker
+        this.recordFailure(errorType)
+
+        // Check if we should retry
+        if (attempt < this.config.maxRetries && this.isRetryable(errorType)) {
+          const backoffMs = this.calculateBackoff(attempt)
+          console.log(`Retrying in ${backoffMs}ms...`)
+          await this.sleep(backoffMs)
+          continue
+        }
+
+        // No more retries or non-retryable error
+        break
+      }
+    }
+
+    // All retries exhausted
+    throw lastError
+  }
+
+  /**
+   * Perform a single HTTP request (without retry logic)
+   */
+  private async performRequest<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {

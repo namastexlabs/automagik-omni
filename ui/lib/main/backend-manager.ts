@@ -56,6 +56,7 @@ export class BackendManager {
   private startTime?: number
   private restartCount = 0
   private isShuttingDown = false
+  private isStarting = false // Startup lock to prevent simultaneous starts
 
   // Event listeners
   private onStatusChange?: (status: BackendProcessStatus) => void
@@ -141,9 +142,17 @@ export class BackendManager {
    * Platform-specific implementation:
    * - Windows: Use tasklist + taskkill
    * - macOS/Linux: Use lsof + kill
+   *
+   * IMPORTANT: Excludes current process's backend child process to prevent self-termination
    */
   private async killExistingBackends(): Promise<void> {
     console.log('🧹 Cleaning up existing backend processes...')
+
+    // Protect current backend process from being killed
+    const currentPid = this.process?.pid
+    if (currentPid) {
+      console.log(`⚠️  Protecting current backend process PID ${currentPid} from cleanup`)
+    }
 
     try {
       if (process.platform === 'win32') {
@@ -161,29 +170,59 @@ export class BackendManager {
               return match ? match[1] : null
             })
             .filter(Boolean)
+            .filter((pid) => pid !== currentPid?.toString()) // Exclude current process
 
           if (pids.length > 0) {
             console.log(
               `Found ${pids.length} existing backend process(es), killing: ${pids.join(', ')}`
             )
-            for (const pid of pids) {
-              try {
-                // Try graceful termination first
-                execSync(`taskkill /PID ${pid} /T`, { timeout: 2000 })
-              } catch (err) {
-                // Force kill if graceful fails
-                try {
-                  execSync(`taskkill /PID ${pid} /T /F`)
-                } catch (killErr) {
-                  console.error(`Failed to kill PID ${pid}:`, killErr)
+
+            // Strategy 1: Kill by process name (safer, handles race conditions)
+            // This kills all instances regardless of PID changes during cleanup
+            try {
+              execSync('taskkill /F /IM automagik-omni-backend.exe', { timeout: 3000 })
+              console.log('✅ Killed all backend processes by name')
+            } catch (nameKillErr: any) {
+              // If kill by name fails, fall back to PID-based cleanup
+              // This can happen if processes already exited
+              if (nameKillErr.message && nameKillErr.message.includes('not found')) {
+                console.log('ℹ️ No backend processes found (already exited)')
+              } else {
+                console.warn('⚠️ Kill by name failed, attempting PID-based cleanup:', nameKillErr.message)
+
+                // Strategy 2: Kill by PID with proper error handling
+                for (const pid of pids) {
+                  try {
+                    // Try graceful termination first
+                    execSync(`taskkill /PID ${pid} /T`, { timeout: 2000 })
+                    console.log(`✅ Gracefully terminated PID ${pid}`)
+                  } catch (gracefulErr: any) {
+                    // If graceful fails, try force kill
+                    try {
+                      execSync(`taskkill /PID ${pid} /T /F`, { timeout: 2000 })
+                      console.log(`✅ Force killed PID ${pid}`)
+                    } catch (forceErr: any) {
+                      // Check if process is already gone (not an error)
+                      if (forceErr.message && forceErr.message.includes('not found')) {
+                        console.log(`ℹ️ PID ${pid} already exited (race condition handled)`)
+                      } else {
+                        console.error(`❌ Failed to kill PID ${pid}:`, forceErr.message)
+                      }
+                    }
+                  }
+
+                  // Small delay between kill attempts to let processes exit cleanly
+                  await new Promise((resolve) => setTimeout(resolve, 500))
                 }
               }
             }
-            // Wait for processes to actually terminate
+
+            // Wait for processes to actually terminate and release port
             await new Promise((resolve) => setTimeout(resolve, 1000))
           } else {
             console.log('No existing backend processes found')
           }
+
         } catch (err) {
           // tasklist returns error if no processes found, that's OK
           console.log('No existing backend processes found')
@@ -193,6 +232,7 @@ export class BackendManager {
         try {
           const output = execSync(`lsof -ti :8882`, { encoding: 'utf-8' })
           const pids = output.trim().split('\n').filter(Boolean)
+            .filter((pid) => pid !== currentPid?.toString()) // Exclude current process
 
           if (pids.length > 0) {
             console.log(
@@ -215,7 +255,7 @@ export class BackendManager {
               }
             }
           } else {
-            console.log('No processes found on port 8882')
+            console.log('No processes found on port 8882 (excluding current)')
           }
         } catch (err) {
           // lsof returns error if no processes found, that's OK
@@ -293,10 +333,18 @@ export class BackendManager {
       return
     }
 
+    // Startup lock: prevent simultaneous start() calls
+    if (this.isStarting) {
+      console.log('⚠️  Startup already in progress, ignoring duplicate start() call')
+      return
+    }
+
+    this.isStarting = true
     this.setStatus(BackendProcessStatus.STARTING)
 
     try {
       // Clean up any existing backend processes before starting
+      // NOTE: This will exclude this.process?.pid (protected from self-termination)
       await this.killExistingBackends()
 
       // Wait for port to be released
@@ -316,6 +364,8 @@ export class BackendManager {
           AUTOMAGIK_OMNI_API_HOST: this.config.host,
           AUTOMAGIK_OMNI_API_PORT: this.config.port.toString(),
           AUTOMAGIK_OMNI_API_KEY: this.config.apiKey,
+          // Skip legacy Hive API health check for packaged Omni-only deployments
+          AUTOMAGIK_OMNI_SKIP_LEGACY_HEALTH_CHECK: 'true',
           // Ensure Python output is not buffered
           PYTHONUNBUFFERED: '1',
         },
@@ -350,15 +400,15 @@ export class BackendManager {
         this.setStatus(BackendProcessStatus.ERROR)
       })
 
-      // NEW: Wait for uvicorn to confirm it's listening
-      // This prevents race condition where health check passes before uvicorn finishes initialization
-      const uvicornReady = await this.waitForUvicornLog(
-        /Uvicorn running on|Application startup complete/,
+      // NEW: Wait for backend API to confirm it's ready
+      // This prevents race condition where health check passes before API finishes initialization
+      const apiReady = await this.waitForUvicornLog(
+        /API ready - use \/api\/v1\/instances to create instances/,
         10000 // 10 second timeout
       )
 
-      if (!uvicornReady) {
-        throw new Error('Backend failed to initialize (uvicorn did not start)')
+      if (!apiReady) {
+        throw new Error('Backend failed to initialize (API did not become ready)')
       }
 
       // Wait for backend to be healthy
@@ -371,6 +421,9 @@ export class BackendManager {
     } catch (error) {
       this.setStatus(BackendProcessStatus.ERROR)
       throw error
+    } finally {
+      // Release startup lock
+      this.isStarting = false
     }
   }
 
@@ -452,7 +505,7 @@ export class BackendManager {
    * hasn't finished binding all interfaces (IPv4/IPv6 dual-stack issue on Windows)
    */
   private async waitForUvicornLog(pattern: RegExp, timeout: number): Promise<boolean> {
-    console.log('⏳ Waiting for uvicorn to confirm startup...')
+    console.log(`⏳ Waiting for backend ready log (pattern: ${pattern.source})...`)
 
     return new Promise((resolve) => {
       const startTime = Date.now()
@@ -478,9 +531,10 @@ export class BackendManager {
         const output = data.toString()
         logBuffer += output
 
-        // Check for uvicorn ready patterns
+        // Check for backend ready patterns
         if (pattern.test(logBuffer)) {
-          console.log('✅ Uvicorn confirmed ready')
+          console.log(`✅ Backend confirmed ready (matched pattern: ${pattern.source})`)
+          console.log(`   Detected in log: ${output.trim()}`)
           clearInterval(timeoutId)
           this.process?.stdout?.removeListener('data', stdoutHandler)
           this.process?.removeListener('exit', exitHandler)
