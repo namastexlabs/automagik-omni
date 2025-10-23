@@ -125,7 +125,7 @@ dmg:
 
   # Custom DMG Background
   background: resources/build/dmg-background.png
-  backgroundColor: '#1a1a2e'
+  # backgroundColor is not compatible with custom background image
 
   # Window Configuration
   window:

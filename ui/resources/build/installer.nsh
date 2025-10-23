@@ -95,9 +95,8 @@
 ; CUSTOM WELCOME PAGE
 ; ==========================================
 !macro customHeader
-  ; Add custom branding and welcome message
-  !system 'echo "Automagik Omni - Multi-channel Messaging Platform"'
-  !system 'echo "Copyright © 2025 Namastex Labs"'
+  ; Custom branding is handled by electron-builder configuration
+  ; MUI_WELCOMEPAGE and MUI_FINISHPAGE are configured via electron-builder.yml
 !macroend
 
 ; ==========================================
