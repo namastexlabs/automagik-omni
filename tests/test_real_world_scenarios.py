@@ -400,8 +400,10 @@ class TestRealWorldScenarios:
             )
 
             response = client.post("/api/v1/instances", json=invalid_instance, headers=api_headers)
-            # Should handle gracefully with proper error message
-            assert response.status_code in [400, 500]
+            # DESKTOP FIX: Now saves instance in disconnected state instead of failing
+            # Should return 201 (success) with instance marked as inactive
+            assert response.status_code == 201
+            assert response.json()["is_active"] is False  # Disconnected state
 
         # Test 2: Try to send message to non-existent instance
         message_data = {"phone_number": "+1234567890", "text": "This should fail"}
