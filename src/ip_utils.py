@@ -340,6 +340,9 @@ def ensure_ipv4_in_config(config_dict: dict, url_fields: Optional[list] = None) 
     This function ONLY replaces localhost-style URLs. Domain names and external IPs
     are preserved unchanged to support cloud-hosted and external agent APIs.
 
+    In desktop mode (AUTOMAGIK_OMNI_DESKTOP_MODE=true), localhost URLs are preserved
+    as-is to allow connections to local services.
+
     Args:
         config_dict: Dictionary containing configuration values
         url_fields: List of field names that contain URLs to process
@@ -354,6 +357,12 @@ def ensure_ipv4_in_config(config_dict: dict, url_fields: Optional[list] = None) 
         >>> ensure_ipv4_in_config({'agent_api_url': 'https://agentsapi.com:8080'})
         {'agent_api_url': 'https://agentsapi.com:8080'}  # Unchanged
     """
+    import os
+
+    # In desktop mode, preserve localhost URLs for local service connections
+    if os.getenv("AUTOMAGIK_OMNI_DESKTOP_MODE", "").lower() in ("true", "1", "yes"):
+        return config_dict.copy()
+
     if url_fields is None:
         # Common URL field names
         url_fields = ["evolution_url", "agent_api_url", "webhook_url", "api_url"]
