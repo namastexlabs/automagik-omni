@@ -61,9 +61,6 @@ win:
   requestedExecutionLevel: asInvoker
   # Code signing disabled (set signAndEditExecutable: true when certificates are available)
   signAndEditExecutable: false
-  # Force app user model ID for proper icon and process grouping
-  artifactName: ${name}-${version}-setup.${ext}
-  publisherName: Namastex Labs
 
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
