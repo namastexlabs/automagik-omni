@@ -219,7 +219,7 @@ export class BackendMonitor {
     if (processInfo.status === 'running' && processInfo.pid) {
       return [
         {
-          name: 'automagik-omni-api',
+          name: 'Omni Backend - API',
           status: 'online',
           cpu: 0, // CPU/memory metrics not available for direct process
           memory: 0,
@@ -252,7 +252,7 @@ export class BackendMonitor {
 
       const processes = JSON.parse(stdout)
       return processes
-        .filter((p: any) => p.name?.includes('automagik-omni'))
+        .filter((p: any) => p.name?.includes('Omni Backend'))
         .map((p: any) => ({
           name: p.name,
           status: p.pm2_env?.status || 'unknown',

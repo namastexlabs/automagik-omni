@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app'
 import { cleanupBackendMonitor, startBackendOnStartup } from '@/lib/conveyor/handlers/backend-handler'
+import { initializeProcessGrouping } from './process-grouping'
 
 // Detect if running in WSL (development environment)
 const isWSL = process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP
@@ -53,8 +54,29 @@ process.on('unhandledRejection', (reason) => {
 app.whenReady().then(async () => {
   console.log('✅ Electron app ready')
 
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.automagik.omni')
+  // Set app user model id for windows (must match electron-builder appId)
+  electronApp.setAppUserModelId('com.namastex.automagik-omni')
+
+  // Set descriptive process name for Windows Task Manager
+  if (process.platform === 'win32') {
+    try {
+      // Name the main process for better visibility in Task Manager
+      app.setName('Omni UI - Manager')
+      console.log('✅ Process renamed to: Omni UI - Manager')
+    } catch (error) {
+      console.warn('⚠️ Failed to rename process:', error)
+    }
+  }
+
+  // Initialize Windows process grouping for Task Manager
+  if (process.platform === 'win32') {
+    try {
+      await initializeProcessGrouping()
+      console.log('✅ Process grouping initialized')
+    } catch (error) {
+      console.warn('⚠️ Failed to initialize process grouping:', error)
+    }
+  }
 
   try {
     // Start backend before creating window

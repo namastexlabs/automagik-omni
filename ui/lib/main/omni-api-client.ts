@@ -241,7 +241,7 @@ export class OmniApiClient {
         // Normal operation
         return { allow: true }
 
-      case CircuitState.OPEN:
+      case CircuitState.OPEN: {
         // Check if we should transition to HALF_OPEN
         const timeSinceLastFailure = now - this.lastFailureTime
         if (timeSinceLastFailure > 30000) { // 30 seconds cooldown
@@ -251,6 +251,7 @@ export class OmniApiClient {
           return { allow: true }
         }
         return { allow: false, reason: 'Backend is starting up, please wait...' }
+      }
 
       case CircuitState.HALF_OPEN:
         // Allow one test request
