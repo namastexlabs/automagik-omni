@@ -1,65 +1,10 @@
 import { handle } from '@/lib/main/shared'
 import { BackendMonitor } from '@/lib/main/backend-monitor'
 import { BackendManager } from '@/lib/main/backend-manager'
-import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
-import { app } from 'electron'
+import { loadAppConfig } from '@/lib/main/config-loader'
 
 let backendMonitor: BackendMonitor | null = null
 let backendManager: BackendManager | null = null
-
-/**
- * Generate a secure default API key for desktop installations
- */
-function generateDefaultApiKey(): string {
-  // Generate a random API key for desktop installations
-  // This is secure because the backend only runs on localhost
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substring(2, 15)
-  return `desktop-${timestamp}-${random}`
-}
-
-/**
- * Load configuration from .env file
- */
-function loadEnvConfig(): { apiHost: string; apiPort: number; apiKey: string } {
-  const projectRoot = app.isPackaged
-    ? join(process.resourcesPath, 'backend')
-    : join(__dirname, '../../..')
-
-  const envPath = join(projectRoot, '.env')
-  let apiHost = 'localhost'
-  let apiPort = 8882 // Default to 8882 for Electron
-  let apiKey = ''
-
-  if (existsSync(envPath)) {
-    const envContent = readFileSync(envPath, 'utf-8')
-    envContent.split('\n').forEach((line) => {
-      const trimmed = line.trim()
-      if (trimmed && !trimmed.startsWith('#')) {
-        const [key, ...valueParts] = trimmed.split('=')
-        if (key && valueParts.length > 0) {
-          const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '')
-          if (key.trim() === 'AUTOMAGIK_OMNI_API_HOST') apiHost = value
-          if (key.trim() === 'AUTOMAGIK_OMNI_API_PORT') apiPort = parseInt(value, 10)
-          if (key.trim() === 'AUTOMAGIK_OMNI_API_KEY') apiKey = value
-        }
-      }
-    })
-  }
-
-  // Handle 0.0.0.0 -> localhost for client requests
-  if (apiHost === '0.0.0.0') apiHost = 'localhost'
-
-  // Desktop installations: Generate a default API key if none is configured
-  // This is secure because the backend only runs on localhost
-  if (!apiKey) {
-    apiKey = generateDefaultApiKey()
-    console.log('🔑 Generated default API key for desktop installation')
-  }
-
-  return { apiHost, apiPort, apiKey }
-}
 
 /**
  * Initialize backend monitor singleton (legacy PM2-based)
@@ -77,12 +22,12 @@ export const initBackendMonitor = () => {
  */
 export const initBackendManager = () => {
   if (!backendManager) {
-    const { apiHost, apiPort, apiKey } = loadEnvConfig()
+    const config = loadAppConfig()
     backendManager = new BackendManager({
-      host: apiHost,
-      port: apiPort,
-      apiKey,
-      healthCheckUrl: `http://${apiHost}:${apiPort}/health`,
+      host: config.apiHost,
+      port: config.apiPort,
+      apiKey: config.apiKey,
+      healthCheckUrl: `${config.apiUrl}/health`,
       startupTimeoutMs: 30000,
       healthCheckIntervalMs: 10000,
       maxRestartAttempts: 3,

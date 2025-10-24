@@ -1,50 +1,12 @@
 import { BrowserWindow, shell, app, Menu } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync } from 'fs'
 import appIcon from '@/resources/build/icon.png?asset'
 import { registerResourcesProtocol } from './protocols'
 import { registerWindowHandlers } from '@/lib/conveyor/handlers/window-handler'
 import { registerAppHandlers } from '@/lib/conveyor/handlers/app-handler'
 import { registerBackendHandlers } from '@/lib/conveyor/handlers/backend-handler'
 import { registerOmniHandlers, initOmniClient } from '@/lib/conveyor/handlers/omni-handler'
-
-/**
- * Load configuration from .env file
- */
-function loadEnvConfig(): { apiUrl: string; apiKey: string } {
-  const projectRoot = app.isPackaged
-    ? join(process.resourcesPath, 'backend')
-    : join(__dirname, '../../..')
-
-  const envPath = join(projectRoot, '.env')
-  let apiHost = 'localhost'
-  let apiPort = '8882' // Automagik Omni default port
-  let apiKey = ''
-
-  if (existsSync(envPath)) {
-    const envContent = readFileSync(envPath, 'utf-8')
-    envContent.split('\n').forEach((line) => {
-      const trimmed = line.trim()
-      if (trimmed && !trimmed.startsWith('#')) {
-        const [key, ...valueParts] = trimmed.split('=')
-        if (key && valueParts.length > 0) {
-          const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '')
-          if (key.trim() === 'AUTOMAGIK_OMNI_API_HOST') apiHost = value
-          if (key.trim() === 'AUTOMAGIK_OMNI_API_PORT') apiPort = value
-          if (key.trim() === 'AUTOMAGIK_OMNI_API_KEY') apiKey = value
-        }
-      }
-    })
-  }
-
-  // Handle 0.0.0.0 -> localhost for client requests
-  if (apiHost === '0.0.0.0') apiHost = 'localhost'
-
-  return {
-    apiUrl: `http://${apiHost}:${apiPort}`,
-    apiKey,
-  }
-}
+import { loadAppConfig } from './config-loader'
 
 export function createAppWindow(): void {
   // Register custom protocol for resources
@@ -53,9 +15,9 @@ export function createAppWindow(): void {
   // Remove default menu bar
   Menu.setApplicationMenu(null)
 
-  // Load config and initialize Omni client
-  const { apiUrl, apiKey } = loadEnvConfig()
-  initOmniClient(apiUrl, apiKey)
+  // Load config and initialize Omni client (uses shared cached config)
+  const config = loadAppConfig()
+  initOmniClient(config.apiUrl, config.apiKey)
 
   // Create the main window.
   const mainWindow = new BrowserWindow({
