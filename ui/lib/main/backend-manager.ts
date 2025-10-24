@@ -1,7 +1,7 @@
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { app } from 'electron'
-import { join } from 'path'
-import { existsSync } from 'fs'
+import { join, dirname } from 'path'
+import { existsSync, mkdirSync } from 'fs'
 import { Socket } from 'net'
 
 /**
@@ -356,6 +356,23 @@ export class BackendManager {
       console.log(`Starting backend: ${command} ${args.join(' ')}`)
       console.log(`Working directory: ${projectRoot}`)
 
+      // Get persistent data directory for SQLite database
+      // app.getPath('userData') provides OS-appropriate location:
+      // - Windows: C:\Users\<user>\AppData\Roaming\AutomagikOmni
+      // - macOS: ~/Library/Application Support/AutomagikOmni
+      // - Linux: ~/.config/AutomagikOmni
+      const userDataPath = app.getPath('userData')
+      const dbPath = join(userDataPath, 'data', 'automagik-omni.db')
+
+      // Ensure database directory exists
+      const dbDir = dirname(dbPath)
+      if (!existsSync(dbDir)) {
+        mkdirSync(dbDir, { recursive: true })
+        console.log(`📁 Created database directory: ${dbDir}`)
+      }
+
+      console.log(`📁 Using persistent database path: ${dbPath}`)
+
       // Spawn the backend process
       this.process = spawn(command, args, {
         cwd: projectRoot,
@@ -364,6 +381,8 @@ export class BackendManager {
           AUTOMAGIK_OMNI_API_HOST: this.config.host,
           AUTOMAGIK_OMNI_API_PORT: this.config.port.toString(),
           AUTOMAGIK_OMNI_API_KEY: this.config.apiKey,
+          // Use persistent SQLite database path in user's AppData/Library/config directory
+          AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH: dbPath,
           // Skip legacy Hive API health check for packaged Omni-only deployments
           AUTOMAGIK_OMNI_SKIP_LEGACY_HEALTH_CHECK: 'true',
           // Ensure Python output is not buffered
