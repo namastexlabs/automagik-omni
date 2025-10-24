@@ -353,6 +353,7 @@ jobs:
             const backendLinuxUrl = getArtifactUrl('backend-linux');
             const backendWindowsUrl = getArtifactUrl('backend-windows');
             const backendMacosUrl = getArtifactUrl('backend-macos');
+            const artifactsUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
 
             const comment = `## 🎉 Desktop Builds Complete!
 
