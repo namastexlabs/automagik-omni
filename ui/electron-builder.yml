@@ -103,6 +103,7 @@ dmg:
   artifactName: ${name}-${version}.${ext}
   title: ${productName} ${version}
   icon: resources/build/icon.icns
+  format: UDRW  # Read-write format (no compression) to avoid hdiutil conversion errors
   contents:
     - x: 130
       y: 220
