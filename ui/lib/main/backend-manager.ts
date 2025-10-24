@@ -429,6 +429,7 @@ export class BackendManager {
 
   /**
    * Stop the backend process
+   * Windows-specific: Uses taskkill for reliable process termination
    */
   async stop(): Promise<void> {
     if (!this.process || this.status === BackendProcessStatus.STOPPED) {
@@ -440,32 +441,70 @@ export class BackendManager {
     this.setStatus(BackendProcessStatus.STOPPING)
     this.stopHealthCheck()
 
+    const pid = this.process.pid
+
     try {
-      // Send SIGTERM for graceful shutdown
-      console.log('Sending SIGTERM to backend process...')
-      this.process.kill('SIGTERM')
+      // Platform-specific termination strategy
+      if (process.platform === 'win32' && pid) {
+        console.log(`Stopping backend process (PID: ${pid}) on Windows...`)
 
-      // Wait for process to exit (with timeout)
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          console.warn('Backend did not stop gracefully, forcing SIGKILL...')
-          this.process?.kill('SIGKILL')
-          reject(new Error('Backend process did not stop within timeout'))
-        }, 10000)
+        // Windows: Use taskkill with /T flag to terminate process tree
+        // This ensures all child processes are also terminated
+        try {
+          // Try graceful termination first (no /F flag)
+          console.log(`Attempting graceful termination of PID ${pid}...`)
+          execSync(`taskkill /PID ${pid} /T`, { timeout: 5000 })
 
-        this.process?.on('exit', () => {
-          clearTimeout(timeout)
-          resolve()
+          // Wait a moment for graceful shutdown
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+
+          // Check if process still exists
+          try {
+            execSync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`, { encoding: 'utf-8' })
+            // If we get here, process still exists - force kill
+            console.log(`Process ${pid} still running, forcing termination...`)
+            execSync(`taskkill /PID ${pid} /T /F`, { timeout: 3000 })
+          } catch {
+            // tasklist failed = process is gone, success!
+            console.log(`✅ Backend process ${pid} terminated gracefully`)
+          }
+        } catch (error: any) {
+          // If taskkill fails, process may already be gone
+          if (error.message && error.message.includes('not found')) {
+            console.log(`Process ${pid} already exited`)
+          } else {
+            console.warn(`taskkill error (may be harmless):`, error.message)
+          }
+        }
+      } else {
+        // Unix/macOS: Use SIGTERM then SIGKILL
+        console.log(`Sending SIGTERM to backend process (PID: ${pid})...`)
+        this.process.kill('SIGTERM')
+
+        // Wait for process to exit (with timeout)
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.warn('Backend did not stop gracefully, forcing SIGKILL...')
+            this.process?.kill('SIGKILL')
+            // Don't reject - force kill should work
+            setTimeout(() => resolve(), 1000)
+          }, 5000)
+
+          this.process?.once('exit', () => {
+            clearTimeout(timeout)
+            resolve()
+          })
         })
-      })
+      }
 
       this.process = undefined
       this.startTime = undefined
       this.setStatus(BackendProcessStatus.STOPPED)
 
-      console.log('Backend stopped successfully')
+      console.log('✅ Backend stopped successfully')
     } catch (error) {
-      console.error('Error stopping backend:', error)
+      console.error('❌ Error stopping backend:', error)
+      // Even on error, clean up references
       this.process = undefined
       this.startTime = undefined
       this.setStatus(BackendProcessStatus.STOPPED)

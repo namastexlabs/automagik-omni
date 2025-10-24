@@ -51,6 +51,7 @@ asarUnpack:
 # Windows Configuration
 win:
   executableName: AutomagikOmni
+  icon: resources/build/icon.ico
   target:
     - target: nsis
       arch:
@@ -112,6 +113,7 @@ dmg:
 
 # Linux Configuration
 linux:
+  icon: resources/build/icon.png
   target:
     - target: AppImage
       arch:
