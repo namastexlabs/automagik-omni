@@ -114,13 +114,43 @@ app.whenReady().then(async () => {
   }
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', async () => {
-  // Cleanup before quitting
-  await cleanupBackendMonitor()
+// CRITICAL FIX: Handle app cleanup on multiple quit scenarios
+// On Windows, the app can quit through multiple paths:
+// 1. User clicks X button → fires 'window-all-closed' → fires 'will-quit'
+// 2. User uses Alt+F4 → fires 'before-quit' directly
+// 3. System shutdown → fires 'before-quit' directly
+// We must ensure backend cleanup happens in ALL scenarios
 
+let isCleaningUp = false // Prevent duplicate cleanup calls
+
+// Handle graceful shutdown BEFORE app quits (most reliable for Windows)
+app.on('before-quit', async (event) => {
+  if (isCleaningUp) {
+    // Cleanup already in progress, let it finish
+    return
+  }
+
+  // Prevent app from quitting until cleanup completes
+  event.preventDefault()
+  isCleaningUp = true
+
+  console.log('🛑 App is quitting, cleaning up backend processes...')
+
+  try {
+    await cleanupBackendMonitor()
+    console.log('✅ Backend cleanup completed successfully')
+  } catch (error) {
+    console.error('❌ Error during backend cleanup:', error)
+  } finally {
+    // Now allow the app to quit
+    isCleaningUp = false
+    app.quit()
+  }
+})
+
+// Quit when all windows are closed, except on macOS
+// Note: Cleanup happens in 'before-quit', not here
+app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
