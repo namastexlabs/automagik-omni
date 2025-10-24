@@ -52,8 +52,27 @@ export function QRCodeDialog({ instanceName, open, onOpenChange }: QRCodeDialogP
       if (!silent) setLoading(true)
       setError(null)
       const result = await omni.getInstanceQR(instanceName)
+
+      // Check if backend returned an error status
+      if (result.status === 'error' && result.message) {
+        if (!silent) {
+          setError(result.message)
+        }
+        setQrCode(null)
+        return
+      }
+
       // Backend returns base64 data URL (e.g., data:image/png;base64,...)
       const qrImageData = result.qr_code || result.base64
+
+      if (!qrImageData) {
+        if (!silent) {
+          setError('No QR code available. Please check Evolution API connection.')
+        }
+        setQrCode(null)
+        return
+      }
+
       setQrCode(qrImageData)
     } catch (err) {
       if (!silent) {
