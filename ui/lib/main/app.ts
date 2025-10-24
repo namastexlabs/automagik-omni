@@ -18,7 +18,7 @@ function loadEnvConfig(): { apiUrl: string; apiKey: string } {
 
   const envPath = join(projectRoot, '.env')
   let apiHost = 'localhost'
-  let apiPort = '8000'
+  let apiPort = '8882' // Automagik Omni default port
   let apiKey = ''
 
   if (existsSync(envPath)) {
