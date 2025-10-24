@@ -311,17 +311,16 @@ def auto_migrate() -> bool:
             return run_migrations()
 
         elif current_revision is None and has_tables:
-            # Existing database without revision tracking - stamp it as current
-            logger.debug("Existing database without revision tracking detected, stamping as current...")
-            success = stamp_database(head_revision)
-            if success:
-                logger.debug("Database successfully stamped with current revision")
-            else:
-                logger.warning("Failed to stamp database, but continuing anyway (database is functional)")
-                # Return True to allow the application to continue
-                # The database is functional, just missing revision tracking
-                return True
-            return success
+            # Existing database without revision tracking - run migrations instead of stamping
+            # This is safer and avoids potential stamping hangs
+            logger.debug(
+                "Existing database without revision tracking detected, running migrations to establish version..."
+            )
+            # Running migrations will either:
+            # 1. Apply any missing schema changes (if schema is outdated)
+            # 2. Be a no-op if schema already matches (idempotent migrations)
+            # 3. Properly set the alembic_version table
+            return run_migrations()
 
         elif current_revision != head_revision:
             # Database needs updating
