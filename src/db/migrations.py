@@ -311,16 +311,26 @@ def auto_migrate() -> bool:
             return run_migrations()
 
         elif current_revision is None and has_tables:
-            # Existing database without revision tracking - run migrations instead of stamping
-            # This is safer and avoids potential stamping hangs
-            logger.debug(
-                "Existing database without revision tracking detected, running migrations to establish version..."
-            )
-            # Running migrations will either:
-            # 1. Apply any missing schema changes (if schema is outdated)
-            # 2. Be a no-op if schema already matches (idempotent migrations)
-            # 3. Properly set the alembic_version table
-            return run_migrations()
+            # Existing database without revision tracking - stamp directly
+            # Desktop installations create tables fresh but without alembic_version
+            logger.debug("Existing database without revision tracking detected, stamping as current (desktop mode)...")
+            # For desktop app: database schema matches code, just needs version tracking
+            # Use direct stamp to avoid Alembic thread hangs
+            logger.debug("Stamping database with head revision directly (no thread wrapper)")
+            try:
+                # Direct stamp without thread timeout - desktop app has exclusive DB access
+                config = get_alembic_config()
+                script_dir = ScriptDirectory.from_config(config)
+                head_revision = script_dir.get_current_head()
+
+                # Use Alembic directly without thread wrapping (faster, no hangs)
+                command.stamp(config, head_revision)
+                logger.debug(f"Database stamped successfully with revision: {head_revision}")
+                return True
+            except Exception as e:
+                logger.warning(f"Direct stamp failed: {e}, falling back to migrations")
+                # If direct stamp fails, try running migrations as last resort
+                return run_migrations()
 
         elif current_revision != head_revision:
             # Database needs updating
