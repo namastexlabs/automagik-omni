@@ -328,10 +328,13 @@ class WhatsAppChannelHandler(ChannelHandler):
                 "unknown": "error",
             }
 
+            mapped_status = status_map.get(evolution_state, "error")
+
             return ConnectionStatus(
                 instance_name=instance.name,
                 channel_type="whatsapp",
-                status=status_map.get(evolution_state, "error"),
+                status=mapped_status,
+                connected=(mapped_status == "connected"),  # Set boolean based on status
                 channel_data={
                     "evolution_state": evolution_state,
                     "evolution_data": state_response,
@@ -344,6 +347,7 @@ class WhatsAppChannelHandler(ChannelHandler):
                 instance_name=instance.name,
                 channel_type="whatsapp",
                 status="error",
+                connected=False,  # Not connected when there's an error
                 channel_data={"error": str(e)},
             )
 
