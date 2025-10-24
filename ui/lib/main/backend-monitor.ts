@@ -30,7 +30,7 @@ export class BackendMonitor {
   // Default configuration
   private config: BackendConfig = {
     apiHost: 'localhost',
-    apiPort: 8000,
+    apiPort: 8882, // Automagik Omni default port
     apiKey: '',
     databaseUrl: undefined,
     sqlitePath: undefined,
@@ -93,7 +93,7 @@ export class BackendMonitor {
           apiPort: parseInt(
             process.env.AUTOMAGIK_OMNI_API_PORT ||
               envVars.AUTOMAGIK_OMNI_API_PORT ||
-              '8000'
+              '8882'
           ),
           apiKey:
             process.env.AUTOMAGIK_OMNI_API_KEY || envVars.AUTOMAGIK_OMNI_API_KEY || '',
@@ -120,7 +120,7 @@ export class BackendMonitor {
       // Fallback to environment variables only
       this.config = {
         apiHost: process.env.AUTOMAGIK_OMNI_API_HOST || 'localhost',
-        apiPort: parseInt(process.env.AUTOMAGIK_OMNI_API_PORT || '8000'),
+        apiPort: parseInt(process.env.AUTOMAGIK_OMNI_API_PORT || '8882'),
         apiKey: process.env.AUTOMAGIK_OMNI_API_KEY || '',
         databaseUrl: process.env.AUTOMAGIK_OMNI_DATABASE_URL,
         sqlitePath: process.env.AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH,
