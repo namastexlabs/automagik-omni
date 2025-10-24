@@ -164,7 +164,7 @@ export default function Dashboard() {
                 {status.pm2.processes.map((proc) => (
                   <div key={proc.name} className="flex items-center justify-between gap-2 min-w-0">
                     <span className="truncate flex-1 font-mono text-xs">
-                      {proc.name.replace('automagik-omni-', '')}
+                      {proc.name}
                     </span>
                     <Badge
                       variant={proc.status === 'online' ? 'default' : 'destructive'}

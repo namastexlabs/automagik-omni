@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, app, Menu } from 'electron'
+import { BrowserWindow, shell, app, Menu, ipcMain } from 'electron'
 import { join } from 'path'
 import appIcon from '@/resources/build/icon.png?asset'
 import { registerResourcesProtocol } from './protocols'
@@ -27,7 +27,7 @@ export function createAppWindow(): void {
     backgroundColor: '#000000',
     icon: appIcon,
     frame: false, // Frameless for custom titlebar
-    title: 'Automagik Omni',
+    title: 'Omni UI - Main Window', // Descriptive title for Task Manager
     maximizable: true,
     resizable: true,
     center: true,
@@ -35,7 +35,16 @@ export function createAppWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       sandbox: false,
+      // Enable proper icon display in Windows
+      affinity: 'main-window',
     },
+  })
+
+  // Set descriptive process name for renderer process (Windows Task Manager)
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (process.platform === 'win32') {
+      mainWindow.setTitle('Omni UI - Renderer')
+    }
   })
 
   // Register IPC events for the main window.
@@ -45,7 +54,6 @@ export function createAppWindow(): void {
   registerOmniHandlers()
 
   // Handle window controls
-  const { ipcMain } = require('electron')
   ipcMain.on('window-minimize', () => mainWindow.minimize())
   ipcMain.on('window-maximize', () => {
     if (mainWindow.isMaximized()) {

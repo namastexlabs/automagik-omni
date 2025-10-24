@@ -69,13 +69,30 @@ if (!fs.existsSync(scriptsDir)) {
 
 const version = extractVersionFromPyproject(PROJECT_ROOT);
 
+// Windows Process Grouping: Set App User Model ID for Task Manager grouping
+// This ensures all PM2 processes (api, discord, wait) appear under single "Automagik Omni" entry
+if (process.platform === 'win32') {
+  try {
+    // Set AUMID for PM2 parent process using environment variable
+    // Child processes will inherit this and appear grouped in Task Manager
+    process.env.ELECTRON_AUMID = 'com.namastex.automagik-omni';
+
+    // Also set as regular env var for Python processes
+    envVars.ELECTRON_AUMID = 'com.namastex.automagik-omni';
+
+    console.log('🔗 Windows process grouping enabled (AUMID: com.namastex.automagik-omni)');
+  } catch (error) {
+    console.warn('⚠️ Failed to set Windows process grouping:', error.message);
+  }
+}
+
 module.exports = {
   apps: [
     // ===================================================================
     // 🚀 Automagik-Omni API Server (Priority 1 - Starts First)
     // ===================================================================
     {
-      name: 'automagik-omni-api',
+      name: 'Omni Backend - API',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/uvicorn',
       args: 'src.api.app:app --host 0.0.0.0 --port ' + (envVars.AUTOMAGIK_OMNI_API_PORT || '8882'),
@@ -87,7 +104,9 @@ module.exports = {
         API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
         API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || '0.0.0.0',
         API_KEY: envVars.AUTOMAGIK_OMNI_API_KEY || '',
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        // Set process title for Windows Task Manager
+        PROCESS_TITLE: 'Omni Backend - API'
       },
       instances: 1,
       exec_mode: 'fork',
@@ -110,7 +129,7 @@ module.exports = {
     // ⏳ API Health Check Wait Script (Priority 2 - Waits for API)
     // ===================================================================
     {
-      name: 'automagik-omni-wait',
+      name: 'Omni Backend - Health Check',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/python',
       args: 'scripts/wait_for_api.py',
@@ -122,7 +141,9 @@ module.exports = {
         AUTOMAGIK_OMNI_API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || 'localhost',
         AUTOMAGIK_OMNI_API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
         DISCORD_HEALTH_CHECK_TIMEOUT: '120',
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        // Set process title for Windows Task Manager
+        PROCESS_TITLE: 'Omni Backend - Health Check'
       },
       instances: 1,
       exec_mode: 'fork',
@@ -142,7 +163,7 @@ module.exports = {
     // 🤖 Automagik-Omni Discord Service Manager (Priority 3 - Manages ALL Discord Bots)
     // ===================================================================
     {
-      name: 'automagik-omni-discord',
+      name: 'Omni Backend - Discord',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/python',
       args: 'src/commands/discord_service_manager.py',
@@ -154,7 +175,9 @@ module.exports = {
         AUTOMAGIK_OMNI_API_HOST: envVars.AUTOMAGIK_OMNI_API_HOST || 'localhost',
         AUTOMAGIK_OMNI_API_PORT: envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
         DISCORD_HEALTH_CHECK_TIMEOUT: '60',
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        // Set process title for Windows Task Manager
+        PROCESS_TITLE: 'Omni Backend - Discord'
       },
       instances: 1,
       exec_mode: 'fork',
