@@ -78,10 +78,9 @@ nsis:
 mac:
   category: public.app-category.productivity
   target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
+    # Skip DMG to avoid background image and compression issues in CI
+    # DMG format has recurring hdiutil and dmgbuild failures
+    # ZIP is the recommended distribution format for macOS
     - target: zip
       arch:
         - x64
@@ -98,19 +97,6 @@ mac:
   # Code signing - configure when certificates are available
   identity: null # Replace with "Developer ID Application: Your Name (TEAM_ID)"
   notarize: false # Set to true with Apple notarization credentials
-
-dmg:
-  artifactName: ${name}-${version}.${ext}
-  title: ${productName} ${version}
-  icon: resources/build/icon.icns
-  format: UDRW  # Read-write format (no compression) to avoid hdiutil conversion errors
-  contents:
-    - x: 130
-      y: 220
-    - x: 410
-      y: 220
-      type: link
-      path: /Applications
 
 # Linux Configuration
 linux:
