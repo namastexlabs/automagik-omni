@@ -28,13 +28,9 @@ class WhatsAppChannelHandler(ChannelHandler):
     def _get_evolution_client(self, instance: InstanceConfig) -> EvolutionClient:
         """Get Evolution client for this specific instance."""
         # Use instance-specific credentials if available, otherwise fall back to global
-        evolution_url = instance.evolution_url or config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
-
-        # Only replace localhost with IPv4 if not explicitly set in instance config
-        # This preserves localhost for local development and desktop apps
-        if not instance.evolution_url:
-            evolution_url = replace_localhost_with_ipv4(evolution_url)
-
+        evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
+            config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
+        )
         evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
 
         logger.debug(

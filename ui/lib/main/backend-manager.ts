@@ -385,6 +385,8 @@ export class BackendManager {
           AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH: dbPath,
           // Skip legacy Hive API health check for packaged Omni-only deployments
           AUTOMAGIK_OMNI_SKIP_LEGACY_HEALTH_CHECK: 'true',
+          // Enable desktop mode to preserve localhost URLs for local Evolution API
+          AUTOMAGIK_OMNI_DESKTOP_MODE: 'true',
           // Ensure Python output is not buffered
           PYTHONUNBUFFERED: '1',
         },
