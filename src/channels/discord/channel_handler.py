@@ -664,6 +664,7 @@ class DiscordChannelHandler(ChannelHandler):
                     instance_name=instance.name,
                     channel_type="discord",
                     status="not_found",
+                    connected=False,
                 )
             bot_instance = self._bot_instances[instance.name]
 
@@ -687,6 +688,7 @@ class DiscordChannelHandler(ChannelHandler):
                 instance_name=instance.name,
                 channel_type="discord",
                 status=bot_instance.status,
+                connected=(bot_instance.status == "connected"),
                 channel_data=channel_data,
             )
         except Exception as e:
@@ -695,6 +697,7 @@ class DiscordChannelHandler(ChannelHandler):
                 instance_name=instance.name,
                 channel_type="discord",
                 status="error",
+                connected=False,
                 channel_data={"error": str(e)},
             )
 
