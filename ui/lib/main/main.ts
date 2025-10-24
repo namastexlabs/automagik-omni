@@ -142,9 +142,9 @@ app.on('before-quit', async (event) => {
   } catch (error) {
     console.error('❌ Error during backend cleanup:', error)
   } finally {
-    // Now allow the app to quit
+    // Now force exit the app (app.quit() would trigger before-quit again!)
     isCleaningUp = false
-    app.quit()
+    app.exit(0) // Use exit() instead of quit() to avoid infinite loop
   }
 })
 

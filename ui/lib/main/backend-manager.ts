@@ -472,29 +472,27 @@ export class BackendManager {
         // Windows: Use taskkill with /T flag to terminate process tree
         // This ensures all child processes are also terminated
         try {
-          // Try graceful termination first (no /F flag)
-          console.log(`Attempting graceful termination of PID ${pid}...`)
-          execSync(`taskkill /PID ${pid} /T`, { timeout: 5000 })
-
-          // Wait a moment for graceful shutdown
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-
-          // Check if process still exists
-          try {
-            execSync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`, { encoding: 'utf-8' })
-            // If we get here, process still exists - force kill
-            console.log(`Process ${pid} still running, forcing termination...`)
-            execSync(`taskkill /PID ${pid} /T /F`, { timeout: 3000 })
-          } catch {
-            // tasklist failed = process is gone, success!
-            console.log(`✅ Backend process ${pid} terminated gracefully`)
-          }
+          // Force kill immediately with /F flag (more reliable for app quit)
+          console.log(`Force killing PID ${pid} and all children...`)
+          execSync(`taskkill /PID ${pid} /T /F`, { timeout: 3000 })
+          console.log(`✅ Backend process ${pid} force killed`)
         } catch (error: any) {
           // If taskkill fails, process may already be gone
           if (error.message && error.message.includes('not found')) {
             console.log(`Process ${pid} already exited`)
           } else {
             console.warn(`taskkill error (may be harmless):`, error.message)
+          }
+        }
+
+        // Also kill all instances by name to catch any orphaned processes
+        try {
+          execSync('taskkill /F /IM automagik-omni-backend.exe', { timeout: 2000 })
+          console.log('✅ Killed all backend processes by name (cleanup)')
+        } catch (err: any) {
+          // Ignore errors - processes may already be gone
+          if (!err.message?.includes('not found')) {
+            console.log('ℹ️ No additional backend processes to clean up')
           }
         }
       } else {
