@@ -2,7 +2,7 @@
 from abc import abstractmethod
 from typing import List, Optional, Tuple
 from src.channels.base import ChannelHandler
-from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo
+from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, OmniMessage
 from src.db.models import InstanceConfig
 
 
@@ -98,6 +98,30 @@ class OmniChannelHandler(ChannelHandler):
         """
         # Default implementation returns None - handlers can override
         return None
+
+    async def get_messages(
+        self,
+        instance: InstanceConfig,
+        chat_id: str,
+        page: int = 1,
+        page_size: int = 50,
+        before_message_id: Optional[str] = None,
+    ) -> Tuple[List[OmniMessage], int]:
+        """
+        Get messages from a chat in omni format.
+
+        Args:
+            instance: The instance configuration
+            chat_id: The chat identifier
+            page: Page number for pagination (1-based)
+            page_size: Number of items per page
+            before_message_id: Optional message ID to fetch messages before (for cursor-based pagination)
+
+        Returns:
+            Tuple of (messages_list, total_count)
+        """
+        # Default implementation returns empty list - handlers must override
+        return [], 0
 
 
 # Type alias for backward compatibility and clarity
