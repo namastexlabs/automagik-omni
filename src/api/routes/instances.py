@@ -347,13 +347,24 @@ async def create_instance(
             detail=f"Invalid configuration: {str(e)}",
         )
     except Exception as e:
-        # Rollback database if external service creation fails
-        db.delete(db_instance)
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create {instance_data.channel_type} instance: {str(e)}",
+        # DESKTOP FIX: Don't delete instance if Evolution API is unreachable
+        # Keep the config in database so users can retry connection later
+        # Mark instance as inactive (disconnected state)
+        logger.warning(
+            f"Failed to connect to {instance_data.channel_type} service for '{instance_data.name}': {str(e)}"
         )
+        logger.warning(
+            f"Instance '{instance_data.name}' saved to database in disconnected state. User can retry connection later."
+        )
+
+        # Keep instance in DB but mark as inactive
+        db_instance.is_active = False
+        db.commit()
+        db.refresh(db_instance)
+
+        # Return instance with warning instead of failing completely
+        # This allows desktop users to save configs even when Evolution API is unreachable
+        return db_instance
 
     return db_instance
 
