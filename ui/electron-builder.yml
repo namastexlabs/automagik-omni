@@ -2,7 +2,7 @@
 # Automagik Omni Desktop Application
 
 appId: com.namastex.automagik-omni
-productName: Automagik Omni
+productName: Omni
 
 # Application metadata
 copyright: Copyright © 2025 Namastex Labs
@@ -50,7 +50,7 @@ asarUnpack:
 
 # Windows Configuration
 win:
-  executableName: AutomagikOmni
+  executableName: Omni
   icon: resources/build/icon.ico
   target:
     - target: nsis
@@ -71,8 +71,9 @@ nsis:
   perMachine: false # Per-user installation (recommended for auto-updates)
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # Custom installation directory via NSIS script
+  include: resources/build/installer.nsh
   # Include Visual C++ redistributables if needed by Python backend
-  # include: resources/build/installer.nsh # Optional: custom NSIS script (uncomment and create file if needed)
 
 # macOS Configuration
 mac:
