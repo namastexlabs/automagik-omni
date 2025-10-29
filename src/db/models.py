@@ -58,7 +58,7 @@ class InstanceConfig(Base):
     # slack_workspace = Column(String, nullable=True)
 
     # Unified Agent API configuration (supports Automagik and Hive via agent_* fields)
-    agent_instance_type = Column(String, default="automagik", nullable=False)  # "automagik" or "hive"
+    agent_instance_type = Column(String, default="hive", nullable=False)  # "automagik" or "hive"
     agent_api_url = Column(String, nullable=False)
     agent_api_key = Column(String, nullable=False)
     agent_id = Column(

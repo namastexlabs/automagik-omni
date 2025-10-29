@@ -413,10 +413,18 @@ class WhatsAppMessageHandler:
                         hasattr(instance_config, "agent_instance_type")
                         and instance_config.agent_instance_type == "hive"
                     ):
+                        # Determine agent identifier (use agent_id if it's not "default", otherwise use default_agent)
+                        # This matches the logic in models.py for backward compatibility
+                        agent_identifier = (
+                            instance_config.agent_id
+                            if (instance_config.agent_id and instance_config.agent_id != "default")
+                            else (instance_config.default_agent or "default")
+                        )
+
                         # Use unified fields for Hive configuration
                         agent_config = {
-                            "name": instance_config.agent_id or instance_config.default_agent,
-                            "agent_id": instance_config.agent_id or instance_config.default_agent,
+                            "name": agent_identifier,
+                            "agent_id": agent_identifier,
                             "type": "whatsapp",
                             "api_url": instance_config.agent_api_url,
                             "api_key": instance_config.agent_api_key,
@@ -427,13 +435,21 @@ class WhatsAppMessageHandler:
                             "instance_config": instance_config,  # Pass the full config for routing decisions
                         }
                         logger.info(
-                            f"Using Hive configuration: {instance_config.name} -> {instance_config.agent_instance_type}:{instance_config.agent_id} (type: {instance_config.agent_type})"
+                            f"Using Hive configuration: {instance_config.name} -> {instance_config.agent_instance_type}:{agent_identifier} (type: {instance_config.agent_type})"
                         )
                     else:
+                        # Determine agent identifier (use agent_id if it's not "default", otherwise use default_agent)
+                        # This matches the logic in models.py for backward compatibility
+                        agent_identifier = (
+                            instance_config.agent_id
+                            if (instance_config.agent_id and instance_config.agent_id != "default")
+                            else (instance_config.default_agent or "default")
+                        )
+
                         # Use legacy fields for Automagik
                         agent_config = {
-                            "name": instance_config.agent_id or instance_config.default_agent,
-                            "agent_id": instance_config.agent_id or instance_config.default_agent,
+                            "name": agent_identifier,
+                            "agent_id": agent_identifier,
                             "type": "whatsapp",
                             "api_url": instance_config.agent_api_url,
                             "api_key": instance_config.agent_api_key,
@@ -443,7 +459,7 @@ class WhatsAppMessageHandler:
                             "instance_config": instance_config,  # Pass the full config for routing decisions
                         }
                         logger.info(
-                            f"Using Automagik configuration: {instance_config.name} -> {instance_config.agent_id or instance_config.default_agent}"
+                            f"Using Automagik configuration: {instance_config.name} -> {agent_identifier}"
                         )
                 else:
                     # No instance configuration available - use defaults

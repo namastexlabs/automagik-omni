@@ -600,12 +600,14 @@ export class OmniApiClient {
     // Transform API response to Message format for UI
     return {
       id: response.message_id || crypto.randomUUID(),
-      from: 'me',
-      to: phone,
-      content: message,
+      chat_id: phone,  // Fixed: was 'to'
+      sender_id: 'me',  // Fixed: was 'from'
+      text: message,  // Fixed: was 'content'
       timestamp: new Date().toISOString(),
       message_type: 'text',
-      status: response.success ? 'sent' : 'failed',
+      channel_type: 'whatsapp',  // Added required field
+      instance_name: instanceName,  // Added required field
+      is_from_me: true,  // Added standard field
     }
   }
 
@@ -645,12 +647,16 @@ export class OmniApiClient {
     // Transform API response to Message format for UI
     return {
       id: response.message_id || crypto.randomUUID(),
-      from: 'me',
-      to: phone,
-      content: caption || `[${mediaType}]`,
+      chat_id: phone,  // Fixed: was 'to'
+      sender_id: 'me',  // Fixed: was 'from'
+      text: caption || `[${mediaType}]`,  // Fixed: was 'content'
       timestamp: new Date().toISOString(),
-      message_type: 'media',
-      status: response.success ? 'sent' : 'failed',
+      message_type: mediaType as 'image' | 'video' | 'document',  // Fixed: use specific type
+      channel_type: 'whatsapp',  // Added required field
+      instance_name: instanceName,  // Added required field
+      is_from_me: true,  // Added standard field
+      media_url: mediaUrl,  // Added media field
+      caption,  // Added caption field
     }
   }
 
@@ -678,12 +684,15 @@ export class OmniApiClient {
     // Transform API response to Message format for UI
     return {
       id: response.message_id || crypto.randomUUID(),
-      from: 'me',
-      to: phone,
-      content: '[audio]',
+      chat_id: phone,  // Fixed: was 'to'
+      sender_id: 'me',  // Fixed: was 'from'
+      text: '[audio]',  // Fixed: was 'content'
       timestamp: new Date().toISOString(),
       message_type: 'audio',
-      status: response.success ? 'sent' : 'failed',
+      channel_type: 'whatsapp',  // Added required field
+      instance_name: instanceName,  // Added required field
+      is_from_me: true,  // Added standard field
+      media_url: audioUrl,  // Added audio field
     }
   }
 
@@ -713,12 +722,15 @@ export class OmniApiClient {
     // Transform API response to Message format for UI
     return {
       id: response.message_id || crypto.randomUUID(),
-      from: 'me',
-      to: phone,
-      content: emoji,
+      chat_id: phone,  // Fixed: was 'to'
+      sender_id: 'me',  // Fixed: was 'from'
+      text: emoji,  // Fixed: was 'content'
       timestamp: new Date().toISOString(),
       message_type: 'reaction',
-      status: response.success ? 'sent' : 'failed',
+      channel_type: 'whatsapp',  // Added required field
+      instance_name: instanceName,  // Added required field
+      is_from_me: true,  // Added standard field
+      reply_to_message_id: messageId,  // Added for context
     }
   }
 

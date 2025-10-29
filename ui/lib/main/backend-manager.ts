@@ -113,10 +113,9 @@ export class BackendManager {
 
       return {
         command: executablePath,
-        // Force IPv4-only binding to avoid Windows dual-stack IPv6/IPv4 binding conflicts
-        // Windows resolves 'localhost' to both ::1 (IPv6) and 127.0.0.1 (IPv4), causing
-        // "address already in use" errors when IPv6 binding fails (Error 10048)
-        args: ['start', '--host', '127.0.0.1', '--port', this.config.port.toString()],
+        // Listen on all interfaces (0.0.0.0) to allow WSL/Docker to reach the backend
+        // This is required when Evolution API runs in WSL Docker and needs to send webhooks
+        args: ['start', '--host', '0.0.0.0', '--port', this.config.port.toString()],
       }
     } else {
       // Development: Use uv run python
@@ -378,7 +377,7 @@ export class BackendManager {
         cwd: projectRoot,
         env: {
           ...process.env,
-          AUTOMAGIK_OMNI_API_HOST: this.config.host,
+          AUTOMAGIK_OMNI_API_HOST: '0.0.0.0', // Force listen on all interfaces for WSL/Docker access
           AUTOMAGIK_OMNI_API_PORT: this.config.port.toString(),
           AUTOMAGIK_OMNI_API_KEY: this.config.apiKey,
           // Use persistent SQLite database path in user's AppData/Library/config directory

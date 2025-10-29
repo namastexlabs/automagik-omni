@@ -5,7 +5,7 @@
 
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 
 export interface AppConfig {
   apiHost: string
@@ -25,6 +25,46 @@ function generateDefaultApiKey(): string {
   const timestamp = Date.now().toString(36)
   const random = Math.random().toString(36).substring(2, 15)
   return `desktop-${timestamp}-${random}`
+}
+
+/**
+ * Get or create a persistent API key for desktop installations
+ * Stores the key in userData directory so it persists across app restarts
+ */
+function getOrCreatePersistentApiKey(): string {
+  const userDataPath = app.getPath('userData')
+  const apiKeyPath = join(userDataPath, 'data', 'api-key.txt')
+  const apiKeyDir = join(userDataPath, 'data')
+
+  // Ensure directory exists
+  if (!existsSync(apiKeyDir)) {
+    mkdirSync(apiKeyDir, { recursive: true })
+    console.log('📁 Created API key directory:', apiKeyDir)
+  }
+
+  // Try to read existing API key
+  if (existsSync(apiKeyPath)) {
+    try {
+      const existingKey = readFileSync(apiKeyPath, 'utf-8').trim()
+      if (existingKey) {
+        console.log('🔑 Loaded persistent API key from:', apiKeyPath)
+        return existingKey
+      }
+    } catch (error) {
+      console.warn('⚠️  Failed to read API key file:', error)
+    }
+  }
+
+  // Generate new API key and persist it
+  const newKey = generateDefaultApiKey()
+  try {
+    writeFileSync(apiKeyPath, newKey, 'utf-8')
+    console.log('🔑 Generated and saved new persistent API key to:', apiKeyPath)
+  } catch (error) {
+    console.warn('⚠️  Failed to save API key file:', error)
+  }
+
+  return newKey
 }
 
 /**
@@ -69,11 +109,10 @@ export function loadAppConfig(): AppConfig {
   // Handle 0.0.0.0 -> localhost for client requests
   if (apiHost === '0.0.0.0') apiHost = 'localhost'
 
-  // Desktop installations: Generate a default API key if none is configured
+  // Desktop installations: Use persistent API key if none is configured
   // This is secure because the backend only runs on localhost
   if (!apiKey) {
-    apiKey = generateDefaultApiKey()
-    console.log('🔑 Generated default API key for desktop installation')
+    apiKey = getOrCreatePersistentApiKey()
   }
 
   // Cache the config
