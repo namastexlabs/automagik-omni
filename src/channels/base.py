@@ -26,6 +26,7 @@ class ConnectionStatus(BaseModel):
     instance_name: str
     channel_type: str
     status: str  # connected|disconnected|connecting|error
+    connected: bool = False  # Convenience boolean for UI (True if status == "connected")
     channel_data: Optional[Dict[str, Any]] = None
 
 

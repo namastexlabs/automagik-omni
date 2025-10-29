@@ -193,3 +193,9 @@ webhook_debug/
 # Generated API documentation
 API_DOCUMENTATION.md
 .mcp.json
+
+# TypeScript / Node.js
+node_modules/
+*.tsbuildinfo
+dist/
+out/

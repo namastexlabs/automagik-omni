@@ -5,6 +5,8 @@ from src.api.schemas.omni import (
     OmniContact,
     OmniChat,
     OmniChannelInfo,
+    OmniMessage,
+    OmniMessageType,
     ChannelType,
     OmniContactStatus,
     OmniChatType,
@@ -61,6 +63,11 @@ class WhatsAppTransformer:
         elif whatsapp_chat.get("id", "").endswith("@broadcast"):
             chat_type = OmniChatType.CHANNEL
 
+        # Get last message timestamp from nested lastMessage object if available
+        last_message_time = whatsapp_chat.get("lastMessageTime")
+        if not last_message_time and whatsapp_chat.get("lastMessage"):
+            last_message_time = whatsapp_chat.get("lastMessage", {}).get("messageTimestamp")
+
         return OmniChat(
             id=whatsapp_chat.get("id", ""),
             name=whatsapp_chat.get("name") or whatsapp_chat.get("pushName") or "Unknown",
@@ -78,7 +85,7 @@ class WhatsAppTransformer:
                 "group_metadata": whatsapp_chat.get("groupMetadata"),
                 "raw_data": whatsapp_chat,
             },
-            last_message_at=WhatsAppTransformer._parse_datetime(whatsapp_chat.get("lastMessageTime")),
+            last_message_at=WhatsAppTransformer._parse_datetime(last_message_time),
         )
 
     @staticmethod
@@ -109,6 +116,111 @@ class WhatsAppTransformer:
             },
             connected_at=WhatsAppTransformer._parse_datetime(status_data.get("connectedAt")),
             last_activity_at=WhatsAppTransformer._parse_datetime(status_data.get("lastActivity")),
+        )
+
+    @staticmethod
+    def message_to_omni(whatsapp_message: Dict[str, Any], instance_name: str) -> OmniMessage:
+        """Transform WhatsApp message to omni format."""
+        # Determine message type
+        message_type = OmniMessageType.TEXT
+        media_url = None
+        media_mime_type = None
+        media_size = None
+        caption = None
+        thumbnail_url = None
+        text = None
+
+        # Check for media types
+        if whatsapp_message.get("message"):
+            msg = whatsapp_message["message"]
+
+            if msg.get("imageMessage"):
+                message_type = OmniMessageType.IMAGE
+                media = msg["imageMessage"]
+                media_url = media.get("url") or media.get("directPath")
+                media_mime_type = media.get("mimetype")
+                media_size = media.get("fileLength")
+                caption = media.get("caption")
+                thumbnail_url = media.get("thumbnailUrl")
+            elif msg.get("videoMessage"):
+                message_type = OmniMessageType.VIDEO
+                media = msg["videoMessage"]
+                media_url = media.get("url") or media.get("directPath")
+                media_mime_type = media.get("mimetype")
+                media_size = media.get("fileLength")
+                caption = media.get("caption")
+                thumbnail_url = media.get("thumbnailUrl")
+            elif msg.get("audioMessage") or msg.get("ptt"):
+                message_type = OmniMessageType.AUDIO
+                media = msg.get("audioMessage") or msg.get("ptt", {})
+                media_url = media.get("url") or media.get("directPath")
+                media_mime_type = media.get("mimetype")
+                media_size = media.get("fileLength")
+            elif msg.get("documentMessage"):
+                message_type = OmniMessageType.DOCUMENT
+                media = msg["documentMessage"]
+                media_url = media.get("url") or media.get("directPath")
+                media_mime_type = media.get("mimetype")
+                media_size = media.get("fileLength")
+                caption = media.get("caption") or media.get("fileName")
+            elif msg.get("stickerMessage"):
+                message_type = OmniMessageType.STICKER
+                media = msg["stickerMessage"]
+                media_url = media.get("url") or media.get("directPath")
+                media_mime_type = media.get("mimetype")
+            elif msg.get("contactMessage"):
+                message_type = OmniMessageType.CONTACT
+            elif msg.get("locationMessage"):
+                message_type = OmniMessageType.LOCATION
+            elif msg.get("reactionMessage"):
+                message_type = OmniMessageType.REACTION
+            elif msg.get("conversation"):
+                text = msg.get("conversation")
+            elif msg.get("extendedTextMessage"):
+                text = msg.get("extendedTextMessage", {}).get("text")
+
+        # Fallback to body if no text found
+        if text is None and not caption:
+            text = whatsapp_message.get("body") or whatsapp_message.get("text")
+
+        # Extract sender info
+        sender_id = whatsapp_message.get("key", {}).get("remoteJid") or whatsapp_message.get("from", "")
+        is_from_me = whatsapp_message.get("key", {}).get("fromMe", False)
+
+        return OmniMessage(
+            id=whatsapp_message.get("key", {}).get("id") or whatsapp_message.get("id", ""),
+            chat_id=whatsapp_message.get("key", {}).get("remoteJid") or whatsapp_message.get("chatId", ""),
+            sender_id=sender_id,
+            sender_name=whatsapp_message.get("pushName") or whatsapp_message.get("sender"),
+            message_type=message_type,
+            text=text or caption,
+            media_url=media_url,
+            media_mime_type=media_mime_type,
+            media_size=media_size,
+            caption=caption,
+            thumbnail_url=thumbnail_url,
+            is_from_me=is_from_me,
+            is_forwarded=whatsapp_message.get("message", {})
+            .get("extendedTextMessage", {})
+            .get("contextInfo", {})
+            .get("isForwarded", False),
+            is_reply=bool(
+                whatsapp_message.get("message", {})
+                .get("extendedTextMessage", {})
+                .get("contextInfo", {})
+                .get("quotedMessage")
+            ),
+            reply_to_message_id=whatsapp_message.get("message", {})
+            .get("extendedTextMessage", {})
+            .get("contextInfo", {})
+            .get("stanzaId"),
+            timestamp=WhatsAppTransformer._parse_datetime(
+                whatsapp_message.get("messageTimestamp") or whatsapp_message.get("timestamp")
+            )
+            or datetime.now(),
+            channel_type=ChannelType.WHATSAPP,
+            instance_name=instance_name,
+            channel_data={"raw_message": whatsapp_message},
         )
 
     @staticmethod
@@ -244,6 +356,79 @@ class DiscordTransformer:
             return datetime.fromtimestamp(timestamp)
         except Exception:
             return None
+
+    @staticmethod
+    def message_to_omni(discord_message: Dict[str, Any], instance_name: str) -> OmniMessage:
+        """Transform Discord message to omni format."""
+        # Determine message type
+        message_type = OmniMessageType.TEXT
+        media_url = None
+        media_mime_type = None
+        media_size = None
+        caption = None
+        thumbnail_url = None
+
+        # Check for attachments (images, videos, documents)
+        attachments = discord_message.get("attachments", [])
+        if attachments:
+            attachment = attachments[0]  # Use first attachment
+            content_type = attachment.get("content_type", "")
+            if content_type.startswith("image/"):
+                message_type = OmniMessageType.IMAGE
+            elif content_type.startswith("video/"):
+                message_type = OmniMessageType.VIDEO
+            elif content_type.startswith("audio/"):
+                message_type = OmniMessageType.AUDIO
+            else:
+                message_type = OmniMessageType.DOCUMENT
+
+            media_url = attachment.get("url") or attachment.get("proxy_url")
+            media_mime_type = content_type
+            media_size = attachment.get("size")
+            caption = attachment.get("filename")
+
+        # Check for stickers
+        elif discord_message.get("sticker_items"):
+            message_type = OmniMessageType.STICKER
+            sticker = discord_message["sticker_items"][0]
+            media_url = f"https://cdn.discordapp.com/stickers/{sticker.get('id')}.png"
+
+        # Extract text content
+        text = discord_message.get("content")
+
+        # Check if it's a reply
+        referenced_message = discord_message.get("referenced_message")
+        is_reply = bool(referenced_message)
+        reply_to_message_id = referenced_message.get("id") if referenced_message else None
+
+        return OmniMessage(
+            id=str(discord_message.get("id", "")),
+            chat_id=str(discord_message.get("channel_id", "")),
+            sender_id=str(discord_message.get("author", {}).get("id", "")),
+            sender_name=discord_message.get("author", {}).get("username"),
+            message_type=message_type,
+            text=text,
+            media_url=media_url,
+            media_mime_type=media_mime_type,
+            media_size=media_size,
+            caption=caption,
+            thumbnail_url=thumbnail_url,
+            is_from_me=discord_message.get("author", {}).get("bot", False),  # Bot messages are "from us"
+            is_forwarded=False,  # Discord doesn't have native forwarding
+            is_reply=is_reply,
+            reply_to_message_id=str(reply_to_message_id) if reply_to_message_id else None,
+            timestamp=DiscordTransformer._parse_datetime(discord_message.get("timestamp")) or datetime.now(),
+            edited_at=DiscordTransformer._parse_datetime(discord_message.get("edited_timestamp")),
+            channel_type=ChannelType.DISCORD,
+            instance_name=instance_name,
+            channel_data={
+                "embeds": discord_message.get("embeds", []),
+                "mentions": discord_message.get("mentions", []),
+                "mention_roles": discord_message.get("mention_roles", []),
+                "reactions": discord_message.get("reactions", []),
+                "raw_message": discord_message,
+            },
+        )
 
     @staticmethod
     def _parse_datetime(timestamp: Any) -> Optional[datetime]:

@@ -21,7 +21,7 @@
   <a href="#-key-features">Features</a> •
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-architecture">Architecture</a> •
-  <a href="https://github.com/orgs/namastexlabs/projects/9/views/1?filterQuery=project%3Aomni">Roadmap</a> •
+  <a href="https://github.com/orgs/namastexlabs/projects/9/views/1?filterQuery=project%3Aomni">🗺️ Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
 
@@ -157,12 +157,39 @@ make dev
 
 ### Your First Message in 60 Seconds
 
+#### Quick Start with Defaults
+
+Use this curl command to create your first instance with sensible defaults:
+
+```bash
+# Create instance with default settings (Evolution on localhost:8080, Hive on localhost:8886)
+curl -X POST http://localhost:8000/api/v1/instances \
+  -H "x-api-key: your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-first-bot",
+    "channel_type": "whatsapp",
+    "evolution_url": "http://localhost:8080",
+    "evolution_key": "namastex888",
+    "agent_api_url": "http://localhost:8886",
+    "agent_api_key": "your-agent-key",
+    "default_agent": "template-agent"
+  }'
+```
+
+This assumes you have:
+- Evolution API running on `localhost:8080` with API key `namastex888`
+- Automagik Hive running on `localhost:8886`
+- Default agent template: `template-agent`
+
+#### Full Example with Custom Settings
+
 ```bash
 # Check health
 curl http://localhost:8000/health
 # {"status": "healthy"}
 
-# Create a WhatsApp instance
+# Create a WhatsApp instance with custom settings
 curl -X POST http://localhost:8000/api/v1/instances \
   -H "x-api-key: your-api-key-here" \
   -H "Content-Type: application/json" \
@@ -170,8 +197,8 @@ curl -X POST http://localhost:8000/api/v1/instances \
     "name": "my-first-bot",
     "channel_type": "whatsapp",
     "evolution_url": "https://your-evolution-instance.com",
-    "evolution_api_key": "your-evolution-key",
-    "agent_url": "https://your-agent-endpoint.com/chat",
+    "evolution_key": "your-evolution-key",
+    "agent_api_url": "https://your-agent-endpoint.com/chat",
     "agent_api_key": "optional-agent-key"
   }'
 

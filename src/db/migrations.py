@@ -311,17 +311,54 @@ def auto_migrate() -> bool:
             return run_migrations()
 
         elif current_revision is None and has_tables:
-            # Existing database without revision tracking - stamp it as current
-            logger.debug("Existing database without revision tracking detected, stamping as current...")
-            success = stamp_database(head_revision)
-            if success:
-                logger.debug("Database successfully stamped with current revision")
-            else:
-                logger.warning("Failed to stamp database, but continuing anyway (database is functional)")
-                # Return True to allow the application to continue
-                # The database is functional, just missing revision tracking
-                return True
-            return success
+            # Existing database without revision tracking - bypass Alembic completely
+            # Desktop installations create tables fresh but without alembic_version
+            logger.debug("Existing database without revision tracking detected, stamping via SQL (desktop mode)...")
+            # Alembic command.stamp() hangs in PyInstaller/Windows desktop environment
+            # Bypass Alembic and write directly to alembic_version table
+            logger.debug("Bypassing Alembic - writing directly to alembic_version table")
+            try:
+                # Get the head revision we need to write
+                config = get_alembic_config()
+                script_dir = ScriptDirectory.from_config(config)
+                head_revision = script_dir.get_current_head()
+
+                # Write directly to alembic_version table (bypass Alembic completely)
+                from src.db.database import get_db
+                from sqlalchemy import text
+
+                db = next(get_db())
+                try:
+                    # Create alembic_version table if it doesn't exist
+                    db.execute(
+                        text(
+                            "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+                        )
+                    )
+
+                    # Insert the current head revision
+                    db.execute(
+                        text("INSERT INTO alembic_version (version_num) VALUES (:version)"), {"version": head_revision}
+                    )
+                    db.commit()
+                    logger.debug(f"Database stamped successfully with revision: {head_revision} (direct SQL)")
+                    return True
+                except Exception as db_err:
+                    db.rollback()
+                    logger.error(f"Failed to stamp via direct SQL: {db_err}")
+                    raise
+                finally:
+                    db.close()
+            except Exception as e:
+                logger.warning(f"Direct SQL stamp failed: {e}, falling back to Alembic stamp")
+                # Last resort: try Alembic stamp (will probably hang)
+                try:
+                    command.stamp(config, head_revision)
+                    logger.debug(f"Database stamped via Alembic: {head_revision}")
+                    return True
+                except Exception as stamp_err:
+                    logger.error(f"Alembic stamp also failed: {stamp_err}")
+                    return False
 
         elif current_revision != head_revision:
             # Database needs updating
