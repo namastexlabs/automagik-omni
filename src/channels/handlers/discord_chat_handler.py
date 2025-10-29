@@ -7,7 +7,7 @@ import logging
 from typing import List, Optional, Tuple
 from src.channels.omni_base import OmniChannelHandler
 from src.channels.discord.channel_handler import DiscordChannelHandler
-from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo
+from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, OmniMessage
 from src.services.omni_transformers import DiscordTransformer
 from src.db.models import InstanceConfig
 
@@ -420,3 +420,91 @@ class DiscordChatHandler(DiscordChannelHandler, OmniChannelHandler):
         except Exception as e:
             logger.error(f"Failed to fetch Discord chat {chat_id} for instance {instance.name}: {e}")
             return None
+
+    async def get_messages(
+        self,
+        instance: InstanceConfig,
+        chat_id: str,
+        page: int = 1,
+        page_size: int = 50,
+        before_message_id: Optional[str] = None,
+    ) -> Tuple[List[OmniMessage], int]:
+        """Get messages from a Discord channel in omni format."""
+        try:
+            logger.debug(
+                f"Fetching Discord messages for channel {chat_id} in instance {instance.name} - page: {page}, size: {page_size}"
+            )
+
+            if (
+                instance.name not in self._bot_instances
+                or self._bot_instances[instance.name].status != "connected"
+                or not self._bot_instances[instance.name].client
+            ):
+                logger.warning(f"Discord bot not connected for instance {instance.name}")
+                return [], 0
+
+            client = self._bot_instances[instance.name].client
+            channel = client.get_channel(int(chat_id))
+            if not channel:
+                channel = await client.fetch_channel(int(chat_id))
+
+            if not channel or not hasattr(channel, "history"):
+                logger.warning(f"Channel {chat_id} not found or does not support message history")
+                return [], 0
+
+            messages = []
+            limit = page_size
+            before = None
+
+            if before_message_id:
+                try:
+                    before = await channel.fetch_message(int(before_message_id))
+                except Exception:
+                    pass
+
+            async for message in channel.history(limit=limit, before=before):
+                try:
+                    message_data = {
+                        "id": str(message.id),
+                        "channel_id": str(message.channel.id),
+                        "content": message.content,
+                        "timestamp": message.created_at.isoformat(),
+                        "edited_timestamp": message.edited_at.isoformat() if message.edited_at else None,
+                        "author": {
+                            "id": str(message.author.id),
+                            "username": message.author.name,
+                            "bot": message.author.bot,
+                        },
+                        "attachments": [
+                            {
+                                "url": att.url,
+                                "proxy_url": att.proxy_url,
+                                "filename": att.filename,
+                                "size": att.size,
+                                "content_type": att.content_type,
+                            }
+                            for att in message.attachments
+                        ],
+                        "sticker_items": [{"id": str(sticker.id)} for sticker in message.stickers],
+                        "referenced_message": (
+                            {"id": str(message.reference.message_id)} if message.reference else None
+                        ),
+                    }
+
+                    omni_message = DiscordTransformer.message_to_omni(message_data, instance.name)
+                    messages.append(omni_message)
+                except Exception as transform_error:
+                    logger.warning(f"Failed to transform Discord message: {transform_error}")
+                    continue
+
+            total_count = len(messages)
+
+            logger.info(
+                f"Successfully fetched {len(messages)} messages for channel {chat_id} in instance {instance.name}"
+            )
+
+            return messages, total_count
+
+        except Exception as e:
+            logger.error(f"Failed to fetch Discord messages for channel {chat_id} in instance {instance.name}: {e}")
+            return [], 0

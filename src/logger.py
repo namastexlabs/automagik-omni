@@ -194,7 +194,14 @@ def setup_logging(
         root_logger.removeHandler(handler)
 
     # Add console handler with the custom formatter
+    # On Windows, ensure UTF-8 encoding for console to handle emojis
     console_handler = logging.StreamHandler(sys.stdout)
+    # Set encoding with error handling for Windows console compatibility
+    if hasattr(console_handler.stream, "reconfigure"):
+        try:
+            console_handler.stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass  # Silently continue if reconfiguration fails
     console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
 

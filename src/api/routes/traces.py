@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 from src.api.deps import get_database, verify_api_key
 from src.db.trace_models import MessageTrace
 from src.services.trace_service import TraceService
+from src.utils.message_type_mapper import get_display_name
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,6 +31,7 @@ class TraceResponse(BaseModel):
     sender_phone: Optional[str]
     sender_name: Optional[str]
     message_type: Optional[str]
+    message_type_display: Optional[str] = None
     has_media: bool
     has_quoted_message: bool
     session_name: Optional[str]
@@ -157,7 +159,14 @@ async def list_traces(
         # Apply pagination
         traces = query.offset(offset).limit(limit).all()
 
-        return [TraceResponse(**trace.to_dict()) for trace in traces]
+        # Add display names to traces
+        result = []
+        for trace in traces:
+            trace_dict = trace.to_dict()
+            trace_dict["message_type_display"] = get_display_name(trace_dict.get("message_type", "unknown"))
+            result.append(TraceResponse(**trace_dict))
+
+        return result
 
     except Exception as e:
         logger.error(f"Error listing traces: {e}")
@@ -183,7 +192,9 @@ async def get_trace(
                 detail=f"Trace '{trace_id}' not found",
             )
 
-        return TraceResponse(**trace.to_dict())
+        trace_dict = trace.to_dict()
+        trace_dict["message_type_display"] = get_display_name(trace_dict.get("message_type", "unknown"))
+        return TraceResponse(**trace_dict)
 
     except HTTPException:
         raise
@@ -273,7 +284,8 @@ async def get_trace_analytics(
 
         # Calculate basic metrics
         total_messages = len(traces)
-        successful_messages = len([t for t in traces if t.status == "completed"])
+        # Success = completed OR access_denied (system correctly blocked the message)
+        successful_messages = len([t for t in traces if t.status in ["completed", "access_denied"]])
         failed_messages = len([t for t in traces if t.status == "failed"])
         success_rate = (successful_messages / total_messages * 100) if total_messages > 0 else 0
 
@@ -339,7 +351,12 @@ async def get_traces_by_phone(
 
     try:
         traces = TraceService.get_traces_by_phone(phone_number, db, limit)
-        return [TraceResponse(**trace.to_dict()) for trace in traces]
+        result = []
+        for trace in traces:
+            trace_dict = trace.to_dict()
+            trace_dict["message_type_display"] = get_display_name(trace_dict.get("message_type", "unknown"))
+            result.append(TraceResponse(**trace_dict))
+        return result
 
     except Exception as e:
         logger.error(f"Error getting traces for phone {phone_number}: {e}")

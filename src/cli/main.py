@@ -42,12 +42,18 @@ def handle_shutdown(signal_number, frame):
 
 def check_api_availability() -> bool:
     """Check if required APIs are available."""
+    # Skip legacy health check if configured (Omni-only deployments)
+    if config.legacy.skip_health_check:
+        logger.debug("Legacy Agent API health check skipped (AUTOMAGIK_OMNI_SKIP_LEGACY_HEALTH_CHECK=true)")
+        return True
+
     api_healthy = agent_api_client.health_check()
 
     if api_healthy:
         logger.info("Agent API is available")
     else:
-        logger.error("Agent API is not available. Service may not function correctly.")
+        # Downgrade to warning since Omni can function without legacy Hive API
+        logger.warning("Agent API is not available. Legacy Hive features may not work.")
 
     return api_healthy
 
