@@ -89,7 +89,66 @@ if (process.platform === 'win32') {
 module.exports = {
   apps: [
     // ===================================================================
-    // 🚀 Automagik-Omni API Server (Priority 1 - Starts First)
+    // 🐘 Evolution API (SQLite) - WhatsApp Gateway (Priority 0 - Starts First)
+    // ===================================================================
+    {
+      name: 'Evolution API (SQLite)',
+      cwd: envVars.EVOLUTION_API_PATH ? path.join(PROJECT_ROOT, envVars.EVOLUTION_API_PATH) : path.join(PROJECT_ROOT, 'resources/evolution-api'),
+      script: 'npm',
+      args: 'run start',
+      interpreter: 'none',
+      version: '2.3.6',
+      env: {
+        NODE_ENV: 'production',
+        // Use env vars from .env with EVOLUTION_ prefix
+        SERVER_PORT: envVars.EVOLUTION_API_PORT || '18082',
+        SERVER_URL: envVars.EVOLUTION_API_URL || 'http://localhost:18082',
+        SERVER_DISABLE_MANAGER: 'true',
+        SERVER_DISABLE_DOCS: 'true',
+        // Database - Fixed for SQLite local setup
+        DATABASE_ENABLED: 'true',
+        DATABASE_PROVIDER: 'sqlite',
+        DATABASE_CONNECTION_URI: `file:${path.join(envVars.EVOLUTION_API_PATH ? path.join(PROJECT_ROOT, envVars.EVOLUTION_API_PATH) : path.join(PROJECT_ROOT, 'resources/evolution-api'), 'prisma/evolution-desktop.db')}`,
+        DATABASE_SAVE_DATA_INSTANCE: 'true',
+        DATABASE_SAVE_DATA_NEW_MESSAGE: 'true',
+        DATABASE_SAVE_MESSAGE_UPDATE: 'true',
+        DATABASE_SAVE_DATA_CONTACTS: 'true',
+        DATABASE_SAVE_DATA_CHATS: 'true',
+        // Cache - Fixed for local (no Redis)
+        CACHE_REDIS_ENABLED: 'false',
+        CACHE_LOCAL_ENABLED: 'true',
+        // Auth from .env
+        AUTHENTICATION_API_KEY: envVars.EVOLUTION_API_KEY || '',
+        // Disable integrations - Fixed for local
+        TELEMETRY_ENABLED: 'false',
+        PROVIDER_ENABLED: 'false',
+        RABBITMQ_ENABLED: 'false',
+        WEBSOCKET_ENABLED: 'false',
+        // Logging from .env
+        LOG_LEVEL: envVars.EVOLUTION_LOG_LEVEL || 'ERROR,WARN',
+        LOG_COLOR: 'false',
+        LOG_BAILEYS: envVars.EVOLUTION_LOG_BAILEYS || 'error',
+        PROCESS_TITLE: 'Evolution API (SQLite)'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 3000,
+      kill_timeout: 5000,
+      error_file: path.join(PROJECT_ROOT, 'logs/evolution-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/evolution-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/evolution-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+
+    // ===================================================================
+    // 🚀 Automagik-Omni API Server (Priority 1 - Starts Second)
     // ===================================================================
     {
       name: 'Omni Backend - API',
