@@ -47,6 +47,18 @@ extraResources:
       - '!*.spec'
       - '!*.log'
 
+  # Evolution API - WhatsApp integration service
+  # Built from resources/evolution-api submodule
+  # NOTE: node_modules is copied via afterPack hook (electron-builder excludes it by default)
+  - from: ../dist-evolution/
+    to: evolution
+    filter:
+      - '**/*'
+      - '!*.log'
+      - '!*.md'
+      - '!test/**'
+      - '!*.test.ts'
+
 # ASAR configuration - unpack resources that need direct filesystem access
 # The Python backend must be unpacked to run as a subprocess
 asarUnpack:
@@ -70,6 +82,12 @@ win:
   requestedExecutionLevel: asInvoker
   # Code signing disabled (set signAndEditExecutable: true when certificates are available)
   signAndEditExecutable: false
+  # Windows-specific resources - Node.js runtime for Evolution API
+  extraResources:
+    - from: resources/nodejs/nodejs-win/
+      to: nodejs
+      filter:
+        - '**/*'
 
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
@@ -107,6 +125,12 @@ mac:
   # Code signing - configure when certificates are available
   identity: null # Replace with "Developer ID Application: Your Name (TEAM_ID)"
   notarize: false # Set to true with Apple notarization credentials
+  # macOS-specific resources - Node.js runtime for Evolution API
+  extraResources:
+    - from: resources/nodejs/nodejs-mac/
+      to: nodejs
+      filter:
+        - '**/*'
 
 # Linux Configuration
 linux:
@@ -134,6 +158,12 @@ linux:
       Name: Automagik Omni
       Comment: Multi-tenant omnichannel messaging hub
       Categories: Network;Chat;InstantMessaging;
+  # Linux-specific resources - Node.js runtime for Evolution API
+  extraResources:
+    - from: resources/nodejs/nodejs-linux/
+      to: nodejs
+      filter:
+        - '**/*'
 
 appImage:
   artifactName: ${name}-${version}.${ext}
@@ -173,19 +203,39 @@ electronLanguages:
   - en-US
   - pt-BR
 
-# NOTE: Python Backend Integration
-# ================================
-# The Python backend is built separately using PyInstaller and copied to ../dist-python/
-# During Electron build, the backend is bundled into app.asar.unpacked/resources/backend/
+# NOTE: Backend Services Integration
+# ====================================
+# The desktop app bundles TWO backend services:
 #
-# Runtime considerations:
-# - Main process spawns backend as child process on app startup
-# - Backend executable path: resources/backend/automagik-omni-backend(.exe on Windows)
-# - Backend runs on configurable port (default: 8000)
-# - Graceful shutdown: Backend terminates when Electron app closes
+# 1. Python Backend (Automagik Omni API)
+#    - Built using PyInstaller → ../dist-python/
+#    - Bundled into: app.asar.unpacked/resources/backend/
+#    - Executable: automagik-omni-backend(.exe on Windows)
+#    - Port: 8882 (configurable via AUTOMAGIK_OMNI_API_PORT)
 #
-# Platform-specific executable names:
-# - Windows: automagik-omni-backend.exe
-# - macOS/Linux: automagik-omni-backend
+# 2. Evolution API (WhatsApp Service)
+#    - Built using tsup → ../dist-evolution/
+#    - Bundled into: app.asar.unpacked/resources/evolution/
+#    - Runs via Node.js: resources/nodejs/node(.exe) resources/evolution/dist/main.js
+#    - Port: 8080 (configurable via SERVER_PORT)
+#    - Database: SQLite in user data directory
 #
-# To rebuild backend: Run `pnpm run build:backend` from project root
+# Node.js Runtime:
+# ================
+# Node.js v20.18.0 binaries are included per platform:
+# - Windows: resources/nodejs-win/ → resources/nodejs/
+# - macOS: resources/nodejs-mac/ → resources/nodejs/
+# - Linux: resources/nodejs-linux/ → resources/nodejs/
+#
+# Build Process:
+# ==============
+# 1. ui/scripts/download-nodejs.js - Downloads Node.js binaries
+# 2. ui/scripts/build-evolution.js - Builds Evolution API
+# 3. electron-builder packages everything
+#
+# Runtime Process Management:
+# ===========================
+# - Main process spawns both backends on app startup
+# - Health checks ensure both services are ready before showing UI
+# - Graceful shutdown terminates both processes
+# - Configuration stored in user data directory

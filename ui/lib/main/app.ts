@@ -5,6 +5,7 @@ import { registerResourcesProtocol } from './protocols'
 import { registerWindowHandlers } from '@/lib/conveyor/handlers/window-handler'
 import { registerAppHandlers } from '@/lib/conveyor/handlers/app-handler'
 import { registerBackendHandlers } from '@/lib/conveyor/handlers/backend-handler'
+import { registerEvolutionHandlers } from '@/lib/conveyor/handlers/evolution-handler'
 import { registerOmniHandlers, initOmniClient } from '@/lib/conveyor/handlers/omni-handler'
 import { loadAppConfig } from './config-loader'
 
@@ -51,6 +52,7 @@ export function createAppWindow(): void {
   registerWindowHandlers(mainWindow)
   registerAppHandlers(app)
   registerBackendHandlers()
+  registerEvolutionHandlers()
   registerOmniHandlers()
 
   // Handle window controls

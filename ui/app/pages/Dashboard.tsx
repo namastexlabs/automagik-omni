@@ -3,13 +3,17 @@ import { useConveyor } from '@/app/hooks/use-conveyor'
 import { Button } from '@/app/components/ui/button'
 import { Badge } from '@/app/components/ui/badge'
 import type { BackendStatus, HealthCheck } from '@/lib/conveyor/schemas/backend-schema'
+import type { EvolutionProcessInfo } from '@/lib/conveyor/api/evolution-api'
 
 export default function Dashboard() {
-  const { backend } = useConveyor()
+  const { backend, evolution } = useConveyor()
   const [status, setStatus] = useState<BackendStatus | null>(null)
   const [health, setHealth] = useState<HealthCheck | null>(null)
+  const [evolutionStatus, setEvolutionStatus] = useState<EvolutionProcessInfo | null>(null)
   const [loading, setLoading] = useState(false)
+  const [evolutionLoading, setEvolutionLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [evolutionError, setEvolutionError] = useState<string | null>(null)
   const [showInfoBanner, setShowInfoBanner] = useState(true)
 
   const loadStatus = async () => {
@@ -29,6 +33,21 @@ export default function Dashboard() {
       setError(err instanceof Error ? err.message : 'Failed to load status')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadEvolutionStatus = async () => {
+    if (!evolution || !evolution.status) {
+      setEvolutionError('Evolution API controls only available in Electron app')
+      return
+    }
+
+    try {
+      setEvolutionError(null)
+      const evolutionData = await evolution.status()
+      setEvolutionStatus(evolutionData)
+    } catch (err) {
+      setEvolutionError(err instanceof Error ? err.message : 'Failed to load Evolution API status')
     }
   }
 
@@ -95,9 +114,73 @@ export default function Dashboard() {
     }
   }
 
+  const handleEvolutionStart = async () => {
+    if (!evolution || !evolution.start) return
+
+    try {
+      setEvolutionLoading(true)
+      setEvolutionError(null)
+      const result = await evolution.start()
+      if (result.success) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await loadEvolutionStatus()
+      } else {
+        setEvolutionError(result.message)
+      }
+    } catch (err) {
+      setEvolutionError(err instanceof Error ? err.message : 'Failed to start Evolution API')
+    } finally {
+      setEvolutionLoading(false)
+    }
+  }
+
+  const handleEvolutionStop = async () => {
+    if (!evolution || !evolution.stop) return
+
+    try {
+      setEvolutionLoading(true)
+      setEvolutionError(null)
+      const result = await evolution.stop()
+      if (result.success) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await loadEvolutionStatus()
+      } else {
+        setEvolutionError(result.message)
+      }
+    } catch (err) {
+      setEvolutionError(err instanceof Error ? err.message : 'Failed to stop Evolution API')
+    } finally {
+      setEvolutionLoading(false)
+    }
+  }
+
+  const handleEvolutionRestart = async () => {
+    if (!evolution || !evolution.restart) return
+
+    try {
+      setEvolutionLoading(true)
+      setEvolutionError(null)
+      const result = await evolution.restart()
+      if (result.success) {
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        await loadEvolutionStatus()
+      } else {
+        setEvolutionError(result.message)
+      }
+    } catch (err) {
+      setEvolutionError(err instanceof Error ? err.message : 'Failed to restart Evolution API')
+    } finally {
+      setEvolutionLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadStatus()
-    const interval = setInterval(loadStatus, 10000) // Poll every 10s
+    loadEvolutionStatus()
+    const interval = setInterval(() => {
+      loadStatus()
+      loadEvolutionStatus()
+    }, 10000) // Poll every 10s
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -109,7 +192,13 @@ export default function Dashboard() {
 
         {error && (
           <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-4">
-            {error}
+            <strong>Backend Error:</strong> {error}
+          </div>
+        )}
+
+        {evolutionError && (
+          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-4">
+            <strong>Evolution API Error:</strong> {evolutionError}
           </div>
         )}
 
@@ -142,6 +231,43 @@ export default function Dashboard() {
                   : 'Stopped'}
               </Badge>
             </div>
+          </div>
+
+          {/* Evolution API Card */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Evolution API</h2>
+              <Badge
+                variant={
+                  evolutionStatus?.status === 'running'
+                    ? 'default'
+                    : evolutionStatus?.status === 'error'
+                      ? 'destructive'
+                      : 'outline'
+                }
+              >
+                {evolutionStatus?.status === 'running'
+                  ? 'Running'
+                  : evolutionStatus?.status === 'starting'
+                    ? 'Starting...'
+                    : evolutionStatus?.status === 'stopping'
+                      ? 'Stopping...'
+                      : evolutionStatus?.status === 'error'
+                        ? 'Error'
+                        : 'Stopped'}
+              </Badge>
+            </div>
+            {evolutionStatus && (
+              <div className="text-sm text-zinc-400 mt-auto space-y-1">
+                <p>Port: {evolutionStatus.port}</p>
+                <p className="truncate">API Key: ***{evolutionStatus.apiKey.slice(-6)}</p>
+                {evolutionStatus.uptime && (
+                  <p>
+                    Uptime: {Math.floor(evolutionStatus.uptime / 1000 / 60)}m
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* PM2 Status Card */}
@@ -216,27 +342,65 @@ export default function Dashboard() {
         )}
 
         {/* Control Buttons */}
-        <div className="flex gap-4 flex-wrap">
-          <Button onClick={handleStart} disabled={loading || status?.api.running}>
-            {status?.api.running ? '✓ Backend Running' : 'Start Backend'}
-          </Button>
-          <Button
-            onClick={handleStop}
-            disabled={loading || !status?.api.running || status?.pm2.mode === 'direct'}
-            variant="destructive"
-          >
-            Stop Backend
-          </Button>
-          <Button
-            onClick={handleRestart}
-            disabled={loading || !status?.api.running || status?.pm2.mode === 'direct'}
-            variant="outline"
-          >
-            Restart Backend
-          </Button>
-          <Button onClick={loadStatus} disabled={loading} variant="outline">
-            Refresh Status
-          </Button>
+        <div className="space-y-6">
+          {/* Backend Controls */}
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-400 mb-3">Python Backend Controls</h3>
+            <div className="flex gap-4 flex-wrap">
+              <Button onClick={handleStart} disabled={loading || status?.api.running}>
+                {status?.api.running ? '✓ Backend Running' : 'Start Backend'}
+              </Button>
+              <Button
+                onClick={handleStop}
+                disabled={loading || !status?.api.running || status?.pm2.mode === 'direct'}
+                variant="destructive"
+              >
+                Stop Backend
+              </Button>
+              <Button
+                onClick={handleRestart}
+                disabled={loading || !status?.api.running || status?.pm2.mode === 'direct'}
+                variant="outline"
+              >
+                Restart Backend
+              </Button>
+              <Button onClick={loadStatus} disabled={loading} variant="outline">
+                Refresh Status
+              </Button>
+            </div>
+          </div>
+
+          {/* Evolution API Controls */}
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-400 mb-3">Evolution API Controls (WhatsApp)</h3>
+            <div className="flex gap-4 flex-wrap">
+              <Button
+                onClick={handleEvolutionStart}
+                disabled={evolutionLoading || evolutionStatus?.status === 'running'}
+              >
+                {evolutionStatus?.status === 'running'
+                  ? '✓ Evolution Running'
+                  : 'Start Evolution API'}
+              </Button>
+              <Button
+                onClick={handleEvolutionStop}
+                disabled={evolutionLoading || evolutionStatus?.status !== 'running'}
+                variant="destructive"
+              >
+                Stop Evolution API
+              </Button>
+              <Button
+                onClick={handleEvolutionRestart}
+                disabled={evolutionLoading || evolutionStatus?.status !== 'running'}
+                variant="outline"
+              >
+                Restart Evolution API
+              </Button>
+              <Button onClick={loadEvolutionStatus} disabled={evolutionLoading} variant="outline">
+                Refresh Evolution Status
+              </Button>
+            </div>
+          </div>
         </div>
 
         {status?.pm2.mode === 'direct' && status?.api.running && showInfoBanner && (

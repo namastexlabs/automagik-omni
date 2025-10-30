@@ -206,5 +206,7 @@ package.json
 
 # Desktop build artifacts
 dist-python/
+dist-evolution/
+ui/resources/nodejs/
 ui/fake-wine.sh
 build-hooks/__pycache__/
