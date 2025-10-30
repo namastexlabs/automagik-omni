@@ -252,9 +252,10 @@ function prepareProductionPackage() {
     { recursive: true }
   )
 
-  // Clean unnecessary files from node_modules
-  // DISABLED: cleanup was too aggressive, production deps are already optimized
-  // cleanNodeModules()
+  // Optimize node_modules by removing dev dependencies and unnecessary files
+  console.log('   Optimizing node_modules...')
+  const optimizeScript = path.join(__dirname, 'optimize-evolution-deps.js')
+  execSync(`node "${optimizeScript}"`, { stdio: 'inherit' })
 
   // Copy prisma/ (schema + generated client)
   console.log('   Copying prisma/...')
