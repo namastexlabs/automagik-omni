@@ -1,5 +1,6 @@
 {
   "name": "automagik-omni-ui",
+  "productName": "Omni",
   "version": "1.0.0",
   "description": "Desktop UI for Automagik Omni - Multi-tenant omnichannel messaging hub",
   "main": "./out/main/main.js",
