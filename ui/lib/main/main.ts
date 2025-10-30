@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app'
 import { cleanupBackendMonitor, startBackendOnStartup } from '@/lib/conveyor/handlers/backend-handler'
+import { cleanupEvolutionManager, startEvolutionOnStartup } from '@/lib/conveyor/handlers/evolution-handler'
 import { initializeProcessGrouping } from './process-grouping'
 
 // Detect if running in WSL (development environment)
@@ -79,16 +80,29 @@ app.whenReady().then(async () => {
   }
 
   try {
-    // Start backend before creating window
-    console.log('🚀 Starting backend...')
+    // Start Python backend before creating window
+    console.log('🚀 Starting Python backend...')
     await startBackendOnStartup()
-    console.log('✅ Backend started successfully')
+    console.log('✅ Python backend started successfully')
   } catch (error) {
-    console.error('❌ Failed to start backend:', error)
+    console.error('❌ Failed to start Python backend:', error)
     if (isDev) {
       console.error('Stack:', error)
     }
     // Continue anyway - user can manually start backend from UI
+  }
+
+  try {
+    // Start Evolution API (WhatsApp service)
+    console.log('🚀 Starting Evolution API...')
+    await startEvolutionOnStartup()
+    console.log('✅ Evolution API started successfully')
+  } catch (error) {
+    console.error('❌ Failed to start Evolution API:', error)
+    if (isDev) {
+      console.error('Stack:', error)
+    }
+    // Continue anyway - Evolution API can be started manually
   }
 
   // Create app window
@@ -159,7 +173,11 @@ app.on('before-quit', async (event) => {
   console.log('🛑 App is quitting, cleaning up backend processes...')
 
   try {
-    await cleanupBackendMonitor()
+    // Cleanup both backends in parallel
+    await Promise.all([
+      cleanupBackendMonitor(),
+      cleanupEvolutionManager()
+    ])
     console.log('✅ Backend cleanup completed successfully')
   } catch (error) {
     console.error('❌ Error during backend cleanup:', error)

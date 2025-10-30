@@ -13,12 +13,34 @@ const fs = require('fs')
 const execFileAsync = promisify(execFile)
 
 exports.default = async function (context) {
-  // Only run on Windows platform
+  const appOutDir = context.appOutDir
+
+  // Copy Evolution API node_modules (cross-platform)
+  console.log(`\n📦 Copying Evolution API node_modules...`)
+  const evolutionSrc = path.join(__dirname, '..', '..', 'dist-evolution', 'node_modules')
+  const evolutionDest = path.join(appOutDir, 'resources', 'evolution', 'node_modules')
+
+  if (fs.existsSync(evolutionSrc)) {
+    console.log(`   Source: ${evolutionSrc}`)
+    console.log(`   Destination: ${evolutionDest}`)
+    console.log(`   This may take a moment...`)
+
+    try {
+      fs.cpSync(evolutionSrc, evolutionDest, { recursive: true })
+      console.log(`   ✅ Evolution API node_modules copied successfully`)
+    } catch (error) {
+      console.error(`   ❌ Failed to copy Evolution API node_modules:`, error)
+      throw error
+    }
+  } else {
+    console.warn(`   ⚠️  Evolution API node_modules not found at ${evolutionSrc}`)
+  }
+
+  // Only run Windows-specific tasks on Windows platform
   if (context.electronPlatformName !== 'win32') {
     return
   }
 
-  const appOutDir = context.appOutDir
   const executableName = context.packager.appInfo.productFilename + '.exe'
   const executablePath = path.join(appOutDir, executableName)
 

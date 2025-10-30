@@ -3,6 +3,7 @@ import { windowIpcSchema } from './window-schema'
 import { appIpcSchema } from './app-schema'
 import { backendIpcSchema } from './backend-ipc-schema'
 import { omniIpcSchema } from './omni-ipc-schema'
+import { evolutionIpcSchema } from './evolution-ipc-schema'
 
 // Define all IPC channel schemas in one place
 export const ipcSchemas = {
@@ -10,6 +11,7 @@ export const ipcSchemas = {
   ...appIpcSchema,
   ...backendIpcSchema,
   ...omniIpcSchema,
+  ...evolutionIpcSchema,
 } as const
 
 // Extract types from Zod schemas
