@@ -49,9 +49,14 @@ asarUnpack:
   - resources/**
 
 # Windows Configuration
+# Version strings are derived from root productName and package.json author:
+# - FileDescription (Task Manager name) = productName ("Omni")
+# - CompanyName = author.name ("Namastex Labs")
+# - ProductName = productName ("Omni")
 win:
   executableName: Omni
   icon: resources/build/icon.ico
+  legalTrademarks: Namastex Labs
   target:
     - target: nsis
       arch:
