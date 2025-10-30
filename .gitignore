@@ -201,9 +201,10 @@ node_modules/
 *.tsbuildinfo
 dist/
 out/
+package-lock.json
+package.json
 
 # Desktop build artifacts
 dist-python/
-*.tar.gz
 ui/fake-wine.sh
 build-hooks/__pycache__/

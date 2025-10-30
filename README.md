@@ -130,86 +130,87 @@ Works seamlessly with the Automagik ecosystem:
 
 - **Python 3.12+** (3.11+ supported)
 - **PostgreSQL** (recommended) or **SQLite** (for development)
-- **Evolution API instance** (for WhatsApp) - [Deploy with docker](https://github.com/namastexlabs/automagik-evolution)
-- **Discord Bot Token** (for Discord) - [Create here](https://discord.com/developers/applications)
+- **Node.js 20+** (for Evolution API - WhatsApp integration)
+- **Discord Bot Token** (optional, for Discord) - [Create here](https://discord.com/developers/applications)
 
-### Installation in 3 Commands
+> **Note**: Evolution API (WhatsApp) is included as a git submodule with SQLite support - no Docker required!
+
+### Installation
 
 ```bash
-# 1. Clone and enter directory
-git clone https://github.com/namastexlabs/automagik-omni.git
+# 1. Clone with submodules (includes Evolution API for WhatsApp)
+git clone --recurse-submodules https://github.com/namastexlabs/automagik-omni.git
 cd automagik-omni
 
-# 2. Install with UV (fast Python package manager)
-make install
+# 2. Run the setup script (installs everything)
+./update-automagik-omni.sh
+# This installs Python deps, Evolution API deps, and runs migrations
 
-# 3. Set up environment
+# 3. Configure your API keys
 cp .env.example .env
-# Edit .env with your settings
+nano .env  # Set EVOLUTION_API_KEY and AUTOMAGIK_OMNI_API_KEY
 
-# 4. Initialize database
-make migrate
+# 4. Start all services with PM2
+pm2 start ecosystem.config.js
 
-# 5. Start the server!
-make dev
-# API running at http://localhost:8000
+# ✅ Done! Services running:
+# - Omni API: http://localhost:8882
+# - Evolution API (WhatsApp): http://localhost:18082
 ```
+
+**What gets installed:**
+- ✅ **Omni Backend** - Multi-tenant messaging hub (Python/FastAPI)
+- ✅ **Evolution API** - WhatsApp integration with SQLite (no Docker!)
+- ✅ **Health Checks** - Ensures services start in correct order
+- ✅ **Discord Manager** - Multi-bot Discord integration (optional)
 
 ### Your First Message in 60 Seconds
 
 #### Quick Start with Defaults
 
-Use this curl command to create your first instance with sensible defaults:
+Use this curl command to create your first instance with local Evolution API:
 
 ```bash
-# Create instance with default settings (Evolution on localhost:8080, Hive on localhost:8886)
-curl -X POST http://localhost:8000/api/v1/instances \
-  -H "x-api-key: your-api-key-here" \
+# Create instance with local Evolution API (started via PM2)
+curl -X POST http://localhost:8882/api/v1/instances \
+  -H "x-api-key: YOUR_OMNI_API_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "my-first-bot",
     "channel_type": "whatsapp",
-    "evolution_url": "http://localhost:8080",
-    "evolution_key": "namastex888",
+    "evolution_url": "http://localhost:18082",
+    "evolution_key": "YOUR_EVOLUTION_API_KEY_HERE",
     "agent_api_url": "http://localhost:8886",
-    "agent_api_key": "your-agent-key",
+    "agent_api_key": "YOUR_AGENT_API_KEY_HERE",
     "default_agent": "template-agent"
   }'
 ```
 
-This assumes you have:
-- Evolution API running on `localhost:8080` with API key `namastex888`
-- Automagik Hive running on `localhost:8886`
-- Default agent template: `template-agent`
+**Replace the placeholders:**
+- `YOUR_OMNI_API_KEY_HERE` → Value from `AUTOMAGIK_OMNI_API_KEY` in your `.env`
+- `YOUR_EVOLUTION_API_KEY_HERE` → Value from `EVOLUTION_API_KEY` in your `.env`
+- `YOUR_AGENT_API_KEY_HERE` → Your AI agent's API key (e.g., Automagik Hive)
 
-#### Full Example with Custom Settings
+**Default ports:**
+- **Evolution API** (WhatsApp): `localhost:18082`
+- **Omni API**: `localhost:8882`
+- **Automagik Hive** (optional): `localhost:8886`
+
+#### Complete Example
 
 ```bash
 # Check health
-curl http://localhost:8000/health
+curl http://localhost:8882/health
 # {"status": "healthy"}
 
-# Create a WhatsApp instance with custom settings
-curl -X POST http://localhost:8000/api/v1/instances \
-  -H "x-api-key: your-api-key-here" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "my-first-bot",
-    "channel_type": "whatsapp",
-    "evolution_url": "https://your-evolution-instance.com",
-    "evolution_key": "your-evolution-key",
-    "agent_api_url": "https://your-agent-endpoint.com/chat",
-    "agent_api_key": "optional-agent-key"
-  }'
-
 # Get QR code to connect WhatsApp
-curl http://localhost:8000/api/v1/instances/my-first-bot/qr \
-  -H "x-api-key: your-api-key-here"
+curl http://localhost:8882/api/v1/instances/my-first-bot/qr \
+  -H "x-api-key: YOUR_OMNI_API_KEY_HERE"
 # Scan with WhatsApp → Connected!
 
 # Send a test message
-curl -X POST http://localhost:8000/api/v1/instances/my-first-bot/send-text \
-  -H "x-api-key: your-api-key-here" \
+curl -X POST http://localhost:8882/api/v1/instances/my-first-bot/send-text \
+  -H "x-api-key: YOUR_OMNI_API_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "phone": "+1234567890",
@@ -218,6 +219,8 @@ curl -X POST http://localhost:8000/api/v1/instances/my-first-bot/send-text \
 ```
 
 **That's it!** Your agent is now live and responding on WhatsApp.
+
+> **Security Note**: Always use strong, unique API keys in production. Never commit real keys to git.
 
 ---
 
@@ -730,26 +733,31 @@ pm2 stop all
 Key configuration options (see `.env.example` for complete list):
 
 ```env
-# API Configuration
-OMNI_API_KEY=your-secret-key
-HOST=0.0.0.0
-PORT=8000
+# Omni API Configuration
+AUTOMAGIK_OMNI_API_HOST=0.0.0.0
+AUTOMAGIK_OMNI_API_PORT=8882
+AUTOMAGIK_OMNI_API_KEY=CHANGE-THIS-TO-SECURE-KEY
 
-# Database
-DATABASE_URL=postgresql://user:pass@localhost/omni
-# Or SQLite for development:
-# DATABASE_URL=sqlite:///./omni.db
+# Database (SQLite for development)
+AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH=./data/automagik-omni.db
+# Or PostgreSQL for production:
+# AUTOMAGIK_OMNI_DATABASE_URL=postgresql://user:pass@localhost:5432/automagik_omni
 
-# Evolution API (for WhatsApp)
-DEFAULT_EVOLUTION_URL=https://your-evolution.com
-DEFAULT_EVOLUTION_API_KEY=your-key
+# Evolution API (WhatsApp - runs locally via PM2)
+EVOLUTION_API_PATH=resources/evolution-api
+EVOLUTION_API_URL=http://localhost:18082
+EVOLUTION_API_PORT=18082
+EVOLUTION_API_KEY=CHANGE-THIS-TO-SECURE-KEY
+EVOLUTION_LOG_LEVEL=ERROR,WARN
 
-# Discord
-DEFAULT_DISCORD_TOKEN=your-bot-token
+# Discord (optional)
+DISCORD_TOKEN=YOUR-DISCORD-BOT-TOKEN-HERE
 
 # Logging
-LOG_LEVEL=INFO  # DEBUG for development
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 ```
+
+> **Important**: Generate strong, unique API keys for production. Never use default values!
 
 ---
 
