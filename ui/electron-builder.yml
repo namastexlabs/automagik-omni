@@ -53,7 +53,25 @@ extraResources:
   - from: ../dist-evolution/
     to: evolution
     filter:
-      - '**/*'
+      # Only include essential files, not the entire unbundled source tree
+      - 'package.json'
+      - 'prisma/**/*'
+      # Only copy bundled entry points, not the entire dist tree
+      - 'dist/main.mjs'
+      - 'dist/main.mjs.map'
+      - 'dist/main.js'
+      - 'dist/main.js.map'
+      - 'dist/translations/**/*'
+      - 'dist/*.json'
+      # Exclude everything else in dist/ (api/, exceptions/, utils/, etc.)
+      - '!dist/api/**'
+      - '!dist/exceptions/**'
+      - '!dist/utils/**'
+      - '!dist/cache/**'
+      - '!dist/config/**'
+      - '!dist/validate/**'
+      - '!dist/@types/**'
+      - '!dist/railway*'
       - '!*.log'
       - '!*.md'
       - '!test/**'
