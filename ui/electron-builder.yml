@@ -7,6 +7,10 @@ productName: Omni
 # Application metadata
 copyright: Copyright © 2025 Namastex Labs
 
+# Build hooks
+# afterPack: Manually set Windows exe version info to fix Task Manager display
+afterPack: build/afterPack.js
+
 directories:
   buildResources: resources/build
   output: dist
@@ -55,7 +59,7 @@ asarUnpack:
 # - ProductName = productName ("Omni")
 win:
   executableName: Omni
-  icon: resources/build/icon.ico
+  # icon: resources/build/icon.ico  # Commented out - icon is set by afterPack hook instead
   legalTrademarks: Namastex Labs
   target:
     - target: nsis

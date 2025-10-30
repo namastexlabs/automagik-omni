@@ -186,4 +186,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='ui/resources/build/icon.ico' if is_windows else None,  # Add Omni icon on Windows
 )
