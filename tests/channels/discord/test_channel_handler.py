@@ -57,7 +57,17 @@ def _patch_infrastructure(monkeypatch):
 @pytest.mark.asyncio
 async def test_handler_logs_agent_response(monkeypatch):
     handler = DiscordChannelHandler()
-    instance = SimpleNamespace(name="qa-instance")
+    instance = SimpleNamespace(
+        name="qa-instance",
+        agent_id="test-agent",
+        default_agent="default",
+        agent_api_url="http://test.api",
+        agent_api_key="test-key",
+        agent_timeout=60,
+        agent_instance_type="automagik",
+        agent_type="agent",
+        agent_stream_mode=False,
+    )
     client_user = MagicMock()
     client_user.id = 123456789
     client_user.mentioned_in.return_value = True
@@ -78,7 +88,17 @@ async def test_handler_logs_agent_response(monkeypatch):
 @pytest.mark.asyncio
 async def test_handler_sends_fallback_on_route_error(monkeypatch):
     handler = DiscordChannelHandler()
-    instance = SimpleNamespace(name="qa-instance")
+    instance = SimpleNamespace(
+        name="qa-instance",
+        agent_id="test-agent",
+        default_agent="default",
+        agent_api_url="http://test.api",
+        agent_api_key="test-key",
+        agent_timeout=60,
+        agent_instance_type="automagik",
+        agent_type="agent",
+        agent_stream_mode=False,
+    )
     client_user = MagicMock()
     client_user.id = 222333444
     client_user.mentioned_in.return_value = True

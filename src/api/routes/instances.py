@@ -98,6 +98,12 @@ class InstanceConfigCreate(BaseModel):
         description="Enable automatic message splitting on \\n\\n (WhatsApp: full control, Discord: preference only)",
     )
 
+    # Trigger configuration
+    trigger_keywords: Optional[str] = Field(
+        default=None,
+        description="Trigger keywords (comma-separated or JSON array). Respond on keyword match or mention",
+    )
+
 
 class InstanceConfigUpdate(BaseModel):
     """Schema for updating instance configuration."""
@@ -133,6 +139,12 @@ class InstanceConfigUpdate(BaseModel):
 
     # Message splitting control
     enable_auto_split: Optional[bool] = None
+
+    # Trigger configuration
+    trigger_keywords: Optional[str] = Field(
+        default=None,
+        description="Trigger keywords (comma-separated or JSON array). Respond on keyword match or mention",
+    )
 
 
 class EvolutionStatusInfo(BaseModel):
@@ -193,6 +205,9 @@ class InstanceConfigResponse(BaseModel):
     # Message splitting control
     enable_auto_split: Optional[bool] = None
 
+    # Trigger configuration
+    trigger_keywords: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -227,6 +242,38 @@ async def create_instance(
     if "discord_bot_token" in payload_data and payload_data["discord_bot_token"]:
         payload_data["discord_bot_token"] = "***"
     logger.debug(f"Instance creation payload: {payload_data}")
+
+    # Normalize and validate trigger_keywords
+    if instance_data.trigger_keywords:
+        import json
+
+        # Normalize trigger_keywords: accept both "jack, bot" and ["jack", "bot"]
+        trigger_input = instance_data.trigger_keywords.strip()
+
+        # If it starts with '[', treat as JSON array
+        if trigger_input.startswith("["):
+            try:
+                keywords = json.loads(trigger_input)
+                if not isinstance(keywords, list):
+                    raise ValueError("Must be an array")
+                if not all(isinstance(k, str) for k in keywords):
+                    raise ValueError("All keywords must be strings")
+            except (json.JSONDecodeError, ValueError) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid trigger_keywords JSON array: {str(e)}"
+                )
+        else:
+            # Treat as comma-separated or single keyword
+            if "," in trigger_input:
+                # Split by comma and clean up
+                keywords = [k.strip() for k in trigger_input.split(",") if k.strip()]
+            else:
+                # Single keyword
+                keywords = [trigger_input]
+
+            # Convert to JSON array string
+            instance_data.trigger_keywords = json.dumps(keywords)
+            logger.info(f"Normalized trigger_keywords from '{trigger_input}' to {instance_data.trigger_keywords}")
 
     # Validate input data for common issues
     if instance_data.name.lower() in ["string", "null", "undefined", ""]:
@@ -584,6 +631,38 @@ async def update_instance(
 
     # Get only provided fields (exclude None values from update)
     update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
+
+    # Normalize and validate trigger_keywords if being updated
+    if "trigger_keywords" in update_dict and update_dict["trigger_keywords"]:
+        import json
+
+        # Normalize trigger_keywords: accept both "jack, bot" and ["jack", "bot"]
+        trigger_input = update_dict["trigger_keywords"].strip()
+
+        # If it starts with '[', treat as JSON array
+        if trigger_input.startswith("["):
+            try:
+                keywords = json.loads(trigger_input)
+                if not isinstance(keywords, list):
+                    raise ValueError("Must be an array")
+                if not all(isinstance(k, str) for k in keywords):
+                    raise ValueError("All keywords must be strings")
+            except (json.JSONDecodeError, ValueError) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid trigger_keywords JSON array: {str(e)}"
+                )
+        else:
+            # Treat as comma-separated or single keyword
+            if "," in trigger_input:
+                # Split by comma and clean up
+                keywords = [k.strip() for k in trigger_input.split(",") if k.strip()]
+            else:
+                # Single keyword
+                keywords = [trigger_input]
+
+            # Convert to JSON array string
+            update_dict["trigger_keywords"] = json.dumps(keywords)
+            logger.info(f"Normalized trigger_keywords from '{trigger_input}' to {update_dict['trigger_keywords']}")
 
     # Replace localhost with actual IPv4 addresses in URLs
     if update_dict:

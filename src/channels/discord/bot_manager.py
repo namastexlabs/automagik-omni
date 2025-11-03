@@ -750,6 +750,14 @@ class DiscordBotManager:
             except Exception as e:
                 logger.error(f"Failed to initialise Discord identity resolution session: {e}", exc_info=True)
 
+            # Build channel metadata for trigger matching
+            channel_metadata = {
+                "mentions": [{"id": str(mention.id), "username": mention.name} for mention in message.mentions],
+                "is_dm": message.guild is None,
+                "bot_id": str(bot.user.id) if bot.user else None,
+                "guild_id": str(message.guild.id) if message.guild else None,
+            }
+
             # Route message to MessageRouter (synchronous call from async context)
             # Since we're in an async context and route_message is sync, use executor
             import asyncio
@@ -770,8 +778,16 @@ class DiscordBotManager:
                     agent_config=agent_config,  # Pass agent configuration
                     media_contents=None,  # TODO: Handle Discord attachments if needed
                     trace_context=None,
+                    channel_metadata=channel_metadata,  # ADD: Discord metadata
                 )
                 agent_response = await loop.run_in_executor(None, route_func)
+
+                # Check for sentinel before processing response
+                if isinstance(agent_response, str) and agent_response.startswith("AUTOMAGIK:"):
+                    logger.info(
+                        f"Suppressing sentinel response for Discord user {message.author.name}: {agent_response}"
+                    )
+                    return  # Don't send anything
 
                 # Send response back to Discord if we got one
                 if agent_response:
@@ -798,6 +814,13 @@ class DiscordBotManager:
                     agent_config=agent_config,
                 )
                 agent_response = await loop.run_in_executor(None, route_func_fallback)
+
+                # Check for sentinel before processing response
+                if isinstance(agent_response, str) and agent_response.startswith("AUTOMAGIK:"):
+                    logger.info(
+                        f"Suppressing sentinel response for Discord user {message.author.name}: {agent_response}"
+                    )
+                    return  # Don't send anything
 
                 if agent_response:
                     # Use unified response extraction

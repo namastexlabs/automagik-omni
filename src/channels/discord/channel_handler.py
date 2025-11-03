@@ -358,6 +358,31 @@ class DiscordChannelHandler(ChannelHandler):
 
             cached_agent_user_id = self._get_cached_agent_user_id(instance.name, str(message.author.id))
 
+            # Build channel metadata for trigger matching
+            bot_id = None
+            if instance.name in self._bot_instances:
+                bot_id = str(self._bot_instances[instance.name].client.user.id)
+
+            channel_metadata = {
+                "mentions": [{"id": str(mention.id), "username": mention.name} for mention in message.mentions],
+                "is_dm": message.guild is None,
+                "bot_id": bot_id,
+                "guild_id": str(message.guild.id) if message.guild else None,
+            }
+
+            # Build agent_config with instance (CRITICAL for trigger matching)
+            agent_config = {
+                "name": instance.agent_id or instance.default_agent or "default",
+                "agent_id": instance.agent_id or instance.default_agent or "default",
+                "api_url": instance.agent_api_url,
+                "api_key": instance.agent_api_key,
+                "timeout": instance.agent_timeout or 60,
+                "instance_type": instance.agent_instance_type or "automagik",
+                "agent_type": instance.agent_type or "agent",
+                "stream_mode": instance.agent_stream_mode or False,
+                "instance_config": instance,  # CRITICAL: Include instance_config
+            }
+
             # Send typing indicator
             async with message.channel.typing():
                 # Route message to MessageRouter (same as WhatsApp)
@@ -370,8 +395,10 @@ class DiscordChannelHandler(ChannelHandler):
                         message_type="text",
                         session_origin="discord",
                         whatsapp_raw_payload=None,  # Discord doesn't use WhatsApp payload
+                        agent_config=agent_config,  # ADD: agent_config
                         media_contents=None,  # TODO: Handle Discord attachments if needed
                         trace_context=trace_context,
+                        channel_metadata=channel_metadata,  # ADD: Discord metadata
                     )
 
                     logger.info(
@@ -391,6 +418,13 @@ class DiscordChannelHandler(ChannelHandler):
                         whatsapp_raw_payload=None,
                         trace_context=trace_context,
                     )
+
+                    # Check for sentinel before processing response
+                    if isinstance(agent_response, str) and agent_response.startswith("AUTOMAGIK:"):
+                        logger.info(
+                            f"Suppressing sentinel response for Discord user {message.author.name}: {agent_response}"
+                        )
+                        return  # Don't send anything
 
                     if agent_response:
                         response_text = extract_response_text(agent_response)
@@ -428,6 +462,13 @@ class DiscordChannelHandler(ChannelHandler):
                     )
 
                 else:
+                    # Check for sentinel before processing response
+                    if isinstance(agent_response, str) and agent_response.startswith("AUTOMAGIK:"):
+                        logger.info(
+                            f"Suppressing sentinel response for Discord user {message.author.name}: {agent_response}"
+                        )
+                        return  # Don't send anything
+
                     if agent_response:
                         response_text = extract_response_text(agent_response)
                         await self._send_response_to_discord(

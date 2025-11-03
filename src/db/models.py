@@ -89,6 +89,9 @@ class InstanceConfig(Base):
     # Message splitting control
     enable_auto_split = Column(Boolean, default=True, nullable=False)  # Auto-split messages on \n\n
 
+    # Trigger configuration
+    trigger_keywords = Column(String, nullable=True)  # JSON array: '["keyword1", "keyword2"]'
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)

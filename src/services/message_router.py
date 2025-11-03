@@ -52,6 +52,7 @@ class MessageRouter:
         agent_config: Optional[Dict[str, Any]] = None,
         media_contents: Optional[List[Dict[str, Any]]] = None,
         trace_context=None,
+        channel_metadata: Optional[Dict[str, Any]] = None,
     ) -> Union[str, Dict[str, Any]]:
         """Route a message to the appropriate handler.
         Args:
@@ -65,6 +66,7 @@ class MessageRouter:
             agent_config: Agent configuration (optional)
             media_contents: List of media content objects (optional)
             trace_context: TraceContext for message lifecycle tracking (optional)
+            channel_metadata: Channel-specific metadata for trigger matching (Discord mentions, DM status)
         Returns:
             Response from the handler
         """
@@ -131,6 +133,38 @@ class MessageRouter:
         except Exception as acl_err:
             # Never fail routing due to ACL errors; default to allow and log
             logger.error(f"Access control check failed, allowing by default: {acl_err}")
+
+        # ------------------------------------------------------------------
+        # Trigger check (determines if agent should respond)
+        # Runs after access control, before agent routing
+        # ------------------------------------------------------------------
+        try:
+            from src.services.trigger_matcher import trigger_matcher
+
+            # Extract instance_config from agent_config if available
+            instance_config_obj = None
+            if isinstance(agent_config, dict):
+                instance_config_obj = agent_config.get("instance_config")
+
+            # Check trigger configuration
+            should_respond = trigger_matcher.should_respond(
+                message_text=message_text,
+                instance_config=instance_config_obj,
+                channel_payload=whatsapp_raw_payload,  # WhatsApp payload (unchanged)
+                channel_type=session_origin,
+                channel_metadata=channel_metadata,  # NEW: Dedicated metadata parameter
+            )
+
+            if not should_respond:
+                instance_name_log = (
+                    getattr(instance_config_obj, "name", "unknown") if instance_config_obj else "unknown"
+                )
+                logger.info(f"Message ignored - trigger condition not met for instance {instance_name_log}")
+                return "AUTOMAGIK:TRIGGER_NOT_MET"
+
+        except Exception as trigger_err:
+            # Never fail routing due to trigger check errors; default to respond and log
+            logger.error(f"Trigger check failed, allowing by default: {trigger_err}", exc_info=True)
 
         # Determine the agent name to use
         agent_name = None
@@ -510,6 +544,7 @@ class MessageRouter:
         session_origin: str = "whatsapp",
         media_contents: Optional[List[Dict[str, Any]]] = None,
         trace_context=None,
+        channel_metadata: Optional[Dict[str, Any]] = None,
     ) -> Union[str, Dict[str, Any], bool]:
         """
         Smart routing that automatically chooses between traditional API and streaming.
@@ -526,11 +561,35 @@ class MessageRouter:
             session_origin: Session origin (default: "whatsapp")
             media_contents: List of media content objects (optional)
             trace_context: TraceContext for message lifecycle tracking (optional)
+            channel_metadata: Channel-specific metadata for trigger matching (Discord mentions, DM status)
 
         Returns:
             For streaming: True if successful, False if failed
             For traditional API: Response string or dict from the handler
         """
+        # ------------------------------------------------------------------
+        # Trigger check (determines if agent should respond)
+        # Runs before routing decision
+        # ------------------------------------------------------------------
+        try:
+            from src.services.trigger_matcher import trigger_matcher
+
+            # Check trigger configuration
+            should_respond = trigger_matcher.should_respond(
+                message_text=message_text,
+                instance_config=instance_config,
+                channel_payload=whatsapp_raw_payload,  # WhatsApp payload (unchanged)
+                channel_type=session_origin,
+                channel_metadata=channel_metadata,  # NEW: Dedicated metadata parameter
+            )
+
+            if not should_respond:
+                logger.info(f"Smart routing: trigger not met for instance {instance_config.name}")
+                return False  # Return False for streaming, consistent with failure
+
+        except Exception as trigger_err:
+            logger.error(f"Trigger check in smart routing failed, allowing: {trigger_err}", exc_info=True)
+
         if self.should_use_streaming(instance_config):
             logger.info(f"Using AutomagikHive streaming for {recipient}")
             return await self.route_message_streaming(
@@ -580,6 +639,7 @@ class MessageRouter:
                 agent_config=agent_config,
                 media_contents=media_contents,
                 trace_context=trace_context,
+                channel_metadata=channel_metadata,
             )
 
 
