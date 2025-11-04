@@ -217,7 +217,8 @@ export class BackendManager {
             }
 
             // Wait for processes to actually terminate and release port
-            await new Promise((resolve) => setTimeout(resolve, 1000))
+            // Increased wait time to ensure processes fully exit
+            await new Promise((resolve) => setTimeout(resolve, 2000))
           } else {
             console.log('No existing backend processes found')
           }
@@ -381,7 +382,8 @@ export class BackendManager {
       await this.killExistingBackends()
 
       // Wait for port to be released
-      await this.waitForPortRelease(8882, 5000)
+      // Increased timeout to ensure orphaned processes are fully terminated
+      await this.waitForPortRelease(8882, 10000)
 
       const { command, args } = this.getBackendCommand()
       const projectRoot = this.getProjectRoot()
