@@ -85,9 +85,7 @@ class InstanceConfigCreate(BaseModel):
     automagik_instance_name: Optional[str] = Field(None, description="Automagik instance name")
 
     # Unified agent fields (optional for creation, use defaults if not provided)
-    agent_instance_type: Optional[str] = Field(
-        default="hive", description="Agent instance type: automagik or hive"
-    )
+    agent_instance_type: Optional[str] = Field(default="hive", description="Agent instance type: automagik or hive")
     agent_id: Optional[str] = Field(default=None, description="Agent or team ID")
     agent_type: Optional[str] = Field(default="agent", description="Agent type: agent or team")
     agent_stream_mode: Optional[bool] = Field(default=False, description="Enable streaming mode")

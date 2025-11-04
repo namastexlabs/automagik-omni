@@ -43,7 +43,7 @@ def extract_response_text(response: Union[str, Dict[str, Any]]) -> str:
     # Pattern: "message[punct]Immediate uppercase" -> "message[punct]\n\nImmediate uppercase"
     # This happens when agent sends multiple tool calls with intermediate messages
     # Covers ALL punctuation: "Installing:Now" "Done.Another" "Restart!Success" "message)Next" etc.
-    text = re.sub(r'([a-zà-ÿ])([\.,:;\!\?\)]+)\s*([A-ZÀ-Ÿ🎉🔧✅❌⚠️💀🚀])', r'\1\2\n\n\3', text)
+    text = re.sub(r"([a-zà-ÿ])([\.,:;\!\?\)]+)\s*([A-ZÀ-Ÿ🎉🔧✅❌⚠️💀🚀])", r"\1\2\n\n\3", text)
 
     return text
 
@@ -69,11 +69,11 @@ def split_message_for_discord(text: str, max_length: int = 2000) -> List[str]:
     current_chunk = ""
 
     # First, try splitting on double newlines (paragraphs)
-    paragraphs = text.split('\n\n')
+    paragraphs = text.split("\n\n")
 
     for para_idx, paragraph in enumerate(paragraphs):
         # If adding this paragraph would exceed limit, save current chunk
-        test_chunk = current_chunk + ('\n\n' if current_chunk else '') + paragraph
+        test_chunk = current_chunk + ("\n\n" if current_chunk else "") + paragraph
 
         if len(test_chunk) > max_length:
             # Save current chunk if it exists
@@ -84,9 +84,9 @@ def split_message_for_discord(text: str, max_length: int = 2000) -> List[str]:
             # If paragraph itself is too long, split it further
             if len(paragraph) > max_length:
                 # Try splitting on single newlines first
-                lines = paragraph.split('\n')
+                lines = paragraph.split("\n")
                 for line in lines:
-                    test_chunk = current_chunk + ('\n' if current_chunk else '') + line
+                    test_chunk = current_chunk + ("\n" if current_chunk else "") + line
 
                     if len(test_chunk) > max_length:
                         if current_chunk:
@@ -95,7 +95,7 @@ def split_message_for_discord(text: str, max_length: int = 2000) -> List[str]:
 
                         # If line is still too long, split on sentences
                         if len(line) > max_length:
-                            sentences = re.split(r'([.!?]+\s+)', line)
+                            sentences = re.split(r"([.!?]+\s+)", line)
                             for i in range(0, len(sentences), 2):
                                 sentence = sentences[i]
                                 if i + 1 < len(sentences):
@@ -109,7 +109,7 @@ def split_message_for_discord(text: str, max_length: int = 2000) -> List[str]:
 
                                     # Last resort: split on words
                                     if len(sentence) > max_length:
-                                        words = sentence.split(' ')
+                                        words = sentence.split(" ")
                                         temp_chunk = ""
                                         for word in words:
                                             if len(temp_chunk) + len(word) + 1 > max_length:
@@ -117,7 +117,7 @@ def split_message_for_discord(text: str, max_length: int = 2000) -> List[str]:
                                                     chunks.append(temp_chunk.strip())
                                                 temp_chunk = word
                                             else:
-                                                temp_chunk += (' ' if temp_chunk else '') + word
+                                                temp_chunk += (" " if temp_chunk else "") + word
                                         current_chunk = temp_chunk
                                     else:
                                         current_chunk = sentence
@@ -140,8 +140,8 @@ def split_message_for_discord(text: str, max_length: int = 2000) -> List[str]:
     if len(chunks) > 1:
         for i in range(len(chunks)):
             if i < len(chunks) - 1:
-                chunks[i] = chunks[i] + f"\n\n_[{i+1}/{len(chunks)}]_"
+                chunks[i] = chunks[i] + f"\n\n_[{i + 1}/{len(chunks)}]_"
             else:
-                chunks[i] = chunks[i] + f"\n\n_[{i+1}/{len(chunks)} - Final]_"
+                chunks[i] = chunks[i] + f"\n\n_[{i + 1}/{len(chunks)} - Final]_"
 
     return chunks

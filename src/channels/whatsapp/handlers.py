@@ -458,9 +458,7 @@ class WhatsAppMessageHandler:
                             "agent_type": getattr(instance_config, "agent_type", "agent"),
                             "instance_config": instance_config,  # Pass the full config for routing decisions
                         }
-                        logger.info(
-                            f"Using Automagik configuration: {instance_config.name} -> {agent_identifier}"
-                        )
+                        logger.info(f"Using Automagik configuration: {instance_config.name} -> {agent_identifier}")
                 else:
                     # No instance configuration available - use defaults
                     agent_config = {"name": "", "type": "whatsapp"}
