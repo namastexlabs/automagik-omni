@@ -48,31 +48,14 @@ extraResources:
       - '!*.log'
 
   # Evolution API - WhatsApp integration service
-  # Built from resources/evolution-api submodule
-  # NOTE: node_modules is copied via afterPack hook (electron-builder excludes it by default)
+  # Pre-built and optimized by ui/scripts/build-evolution.js
+  # Includes bundled TypeScript, optimized node_modules, Prisma client, and pre-initialized database
+  # The build script already strips dev dependencies and unnecessary files for fast installation
   - from: ../dist-evolution/
     to: evolution
     filter:
-      # Only include essential files, not the entire unbundled source tree
-      - 'package.json'
-      - 'prisma/**/*'
-      - 'evolution-template.db'  # Pre-built database template for fast initialization
-      # Only copy bundled entry points, not the entire dist tree
-      - 'dist/main.mjs'
-      - 'dist/main.mjs.map'
-      - 'dist/main.js'
-      - 'dist/main.js.map'
-      - 'dist/translations/**/*'
-      - 'dist/*.json'
-      # Exclude everything else in dist/ (api/, exceptions/, utils/, etc.)
-      - '!dist/api/**'
-      - '!dist/exceptions/**'
-      - '!dist/utils/**'
-      - '!dist/cache/**'
-      - '!dist/config/**'
-      - '!dist/validate/**'
-      - '!dist/@types/**'
-      - '!dist/railway*'
+      - '**/*'
+      # Exclude logs and development artifacts (if any slip through)
       - '!*.log'
       - '!*.md'
       - '!test/**'
