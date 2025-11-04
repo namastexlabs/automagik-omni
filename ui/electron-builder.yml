@@ -56,6 +56,7 @@ extraResources:
       # Only include essential files, not the entire unbundled source tree
       - 'package.json'
       - 'prisma/**/*'
+      - 'evolution-template.db'  # Pre-built database template for fast initialization
       # Only copy bundled entry points, not the entire dist tree
       - 'dist/main.mjs'
       - 'dist/main.mjs.map'
@@ -106,6 +107,9 @@ win:
       to: nodejs
       filter:
         - '**/*'
+    # Backend configuration template
+    - from: resources/backend/.env.example
+      to: backend/.env.example
 
 nsis:
   artifactName: ${name}-${version}-setup.${ext}

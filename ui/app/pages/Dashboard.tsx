@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [evolutionError, setEvolutionError] = useState<string | null>(null)
   const [showInfoBanner, setShowInfoBanner] = useState(true)
+  const [showApiKey, setShowApiKey] = useState(false)
 
   const loadStatus = async () => {
     // Skip if not in Electron context
@@ -260,7 +261,29 @@ export default function Dashboard() {
             {evolutionStatus && (
               <div className="text-sm text-zinc-400 mt-auto space-y-1">
                 <p>Port: {evolutionStatus.port}</p>
-                <p className="truncate">API Key: ***{evolutionStatus.apiKey.slice(-6)}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-mono text-xs">
+                    API Key: {showApiKey ? evolutionStatus.apiKey : `***${evolutionStatus.apiKey.slice(-6)}`}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? 'Hide' : 'Show'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      navigator.clipboard.writeText(evolutionStatus.apiKey)
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
                 {evolutionStatus.uptime && (
                   <p>
                     Uptime: {Math.floor(evolutionStatus.uptime / 1000 / 60)}m

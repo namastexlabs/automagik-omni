@@ -185,8 +185,8 @@ export class EvolutionManager {
       LOG_COLOR: 'true',
       LOG_BAILEYS: 'error',
 
-      // CORS - Allow local connections
-      CORS_ORIGIN: 'http://localhost:*,http://127.0.0.1:*',
+      // CORS - Allow all origins for desktop app (Python backend communicates from null origin)
+      CORS_ORIGIN: '*',
       CORS_METHODS: 'GET,POST,PUT,DELETE',
       CORS_CREDENTIALS: 'true',
 
@@ -305,8 +305,115 @@ export class EvolutionManager {
   }
 
   /**
+   * Initialize Prisma database schema for SQLite
+   * Uses pre-built template database for faster initialization
+   */
+  private async initializeDatabase(): Promise<void> {
+    const evolutionDir = this.getEvolutionDir()
+    const templateDb = join(evolutionDir, 'evolution-template.db')
+    const targetDb = this.config.databasePath
+
+    console.log('🗄️  Initializing Evolution API database...')
+    console.log('   Database:', targetDb)
+
+    // Check if database already exists and is valid
+    if (existsSync(targetDb)) {
+      try {
+        const fs = require('fs')
+        const stats = fs.statSync(targetDb)
+        if (stats.size > 0) {
+          console.log('   ✅ Database already exists, skipping initialization')
+          return
+        }
+      } catch (error) {
+        console.warn('   ⚠️  Existing database appears corrupt, reinitializing...')
+      }
+    }
+
+    // Ensure database directory exists
+    const dbDir = require('path').dirname(targetDb)
+    mkdirSync(dbDir, { recursive: true })
+
+    // Copy template database if it exists
+    if (existsSync(templateDb)) {
+      try {
+        const fs = require('fs')
+        fs.copyFileSync(templateDb, targetDb)
+        console.log('   ✅ Database initialized from template')
+        return
+      } catch (error: any) {
+        console.warn('   ⚠️  Failed to copy template database:', error.message)
+        console.warn('   Falling back to Prisma migration...')
+      }
+    }
+
+    // Fallback: Run prisma db push if template doesn't exist
+    console.log('   Running Prisma migration (first-time setup)...')
+    const prismaPath = join(evolutionDir, 'node_modules', '.bin', 'prisma')
+    const { env } = this.getEvolutionCommand()
+
+    try {
+      const pushProcess = spawn(
+        prismaPath,
+        ['db', 'push', '--schema', join(evolutionDir, 'prisma', 'sqlite-schema.prisma'), '--accept-data-loss'],
+        {
+          cwd: evolutionDir,
+          env,
+          stdio: 'inherit',
+        }
+      )
+
+      await new Promise<void>((resolve, reject) => {
+        pushProcess.on('exit', (code) => {
+          if (code === 0) {
+            console.log('   ✅ Database schema initialized via Prisma')
+            resolve()
+          } else {
+            reject(new Error(`Prisma db push failed with code ${code}`))
+          }
+        })
+        pushProcess.on('error', reject)
+      })
+    } catch (error: any) {
+      console.error('   ❌ Failed to initialize database:', error.message)
+      throw error
+    }
+  }
+
+  /**
    * Start Evolution API process
    */
+  /**
+   * Check if port is available
+   */
+  private async isPortAvailable(port: number): Promise<boolean> {
+    const net = require('net')
+    return new Promise((resolve) => {
+      const tester = net
+        .createServer()
+        .once('error', () => resolve(false))
+        .once('listening', () => {
+          tester.close(() => resolve(true))
+        })
+        .listen(port, '127.0.0.1')
+    })
+  }
+
+  /**
+   * Wait for port to be released
+   */
+  private async waitForPortRelease(port: number, timeoutMs: number = 5000): Promise<void> {
+    const startTime = Date.now()
+    while (Date.now() - startTime < timeoutMs) {
+      if (await this.isPortAvailable(port)) {
+        console.log(`✅ Port ${port} is now available`)
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+    throw new Error(`Port ${port} is still in use after ${timeoutMs}ms`)
+  }
+
   async start(): Promise<void> {
     if (this.isStarting) {
       throw new Error('Evolution API is already starting')
@@ -321,8 +428,15 @@ export class EvolutionManager {
     this.setStatus(EvolutionProcessStatus.STARTING)
 
     try {
+      // Initialize database schema (idempotent - safe to run every time)
+      await this.initializeDatabase()
+
       // Kill any existing Evolution API processes
       await this.killExistingEvolutionProcesses()
+
+      // Wait for port to be released
+      console.log(`⏳ Waiting for port ${this.config.port} to be available...`)
+      await this.waitForPortRelease(this.config.port)
 
       // Get command and spawn process
       const { command, args, env } = this.getEvolutionCommand()
@@ -374,26 +488,45 @@ export class EvolutionManager {
   }
 
   /**
-   * Wait for Evolution API to be ready via health check
+   * Wait for Evolution API to be ready by checking if port is accepting connections
    */
   private async waitForReady(): Promise<void> {
     const startTime = Date.now()
     const timeout = this.config.startupTimeoutMs
+    const net = require('net')
 
     console.log(`⏳ Waiting for Evolution API to be ready (timeout: ${timeout}ms)...`)
 
     while (Date.now() - startTime < timeout) {
       try {
-        const response = await fetch(this.config.healthCheckUrl, {
-          signal: AbortSignal.timeout(5000),
+        // Try to connect to Evolution API port
+        await new Promise<void>((resolve, reject) => {
+          const socket = new net.Socket()
+          const timer = setTimeout(() => {
+            socket.destroy()
+            reject(new Error('Connection timeout'))
+          }, 2000)
+
+          socket.on('connect', () => {
+            clearTimeout(timer)
+            socket.destroy()
+            resolve()
+          })
+
+          socket.on('error', (err) => {
+            clearTimeout(timer)
+            reject(err)
+          })
+
+          socket.connect(this.config.port, 'localhost')
         })
 
-        if (response.ok) {
-          console.log('✅ Evolution API health check passed')
-          return
-        }
+        console.log('✅ Evolution API is accepting connections')
+        // Give it an extra second to fully initialize
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        return
       } catch (error) {
-        // Health check failed, retry
+        // Connection failed, retry
       }
 
       // Wait 1 second before retry

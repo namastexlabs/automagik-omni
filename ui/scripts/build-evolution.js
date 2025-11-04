@@ -252,18 +252,22 @@ function prepareProductionPackage() {
     { recursive: true }
   )
 
-  // Optimize node_modules by removing dev dependencies and unnecessary files
-  console.log('   Optimizing node_modules...')
-  const optimizeScript = path.join(__dirname, 'optimize-evolution-deps.js')
-  execSync(`node "${optimizeScript}"`, { stdio: 'inherit' })
-
-  // Copy prisma/ (schema + generated client)
+  // Copy prisma/ (schema + generated client) - needed for db initialization
   console.log('   Copying prisma/...')
   fs.cpSync(
     path.join(EVOLUTION_DIR, 'prisma'),
     path.join(DIST_DIR, 'prisma'),
     { recursive: true }
   )
+
+  // Pre-initialize database schema BEFORE optimization (needs Prisma CLI)
+  console.log('   Pre-initializing Evolution API database schema...')
+  initializeDatabaseSchema()
+
+  // Optimize node_modules by removing dev dependencies and unnecessary files
+  console.log('   Optimizing node_modules...')
+  const optimizeScript = path.join(__dirname, 'optimize-evolution-deps.js')
+  execSync(`node "${optimizeScript}"`, { stdio: 'inherit' })
 
   // Copy package.json
   console.log('   Copying package.json...')
@@ -363,6 +367,41 @@ LANGUAGE=en
 
   fs.writeFileSync(path.join(DIST_DIR, '.env.desktop'), defaultEnv)
   console.log('   ✅ Default .env.desktop created')
+}
+
+/**
+ * Pre-initialize SQLite database schema
+ * This eliminates the need to run prisma db push on first startup
+ */
+function initializeDatabaseSchema() {
+  const prismaSchemaPath = path.join(DIST_DIR, 'prisma', 'sqlite-schema.prisma')
+  const templateDbPath = path.join(DIST_DIR, 'evolution-template.db')
+
+  console.log('   Running prisma db push to create schema...')
+
+  try {
+    // Create a .env file in dist-evolution for Prisma to pick up
+    const tempEnvPath = path.join(DIST_DIR, '.env')
+    const tempEnv = `DATABASE_PROVIDER=sqlite\nDATABASE_CONNECTION_URI=file:${templateDbPath}\n`
+    fs.writeFileSync(tempEnvPath, tempEnv)
+
+    // Run prisma db push with a template database
+    execSync(`npx prisma db push --schema "${prismaSchemaPath}" --accept-data-loss`, {
+      cwd: DIST_DIR,
+      stdio: 'inherit'
+    })
+
+    // Clean up .env (the template will be included in the package)
+    if (fs.existsSync(tempEnvPath)) {
+      fs.unlinkSync(tempEnvPath)
+    }
+
+    console.log('   ✅ Template database created successfully')
+    console.log(`   Template database: ${templateDbPath}`)
+  } catch (error) {
+    console.error('   ⚠️  Failed to pre-initialize database, will initialize on first run')
+    console.error(`   Error: ${error.message}`)
+  }
 }
 
 /**

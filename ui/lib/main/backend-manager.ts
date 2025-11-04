@@ -319,6 +319,37 @@ export class BackendManager {
   }
 
   /**
+   * Ensure .env file exists by copying from .env.example if needed
+   */
+  private ensureEnvFile(): void {
+    const projectRoot = this.getProjectRoot()
+    const envPath = join(projectRoot, '.env')
+    const envExamplePath = join(projectRoot, '.env.example')
+
+    // If .env already exists, don't overwrite it
+    if (existsSync(envPath)) {
+      console.log('📁 Loading configuration from:', envPath)
+      return
+    }
+
+    // Copy .env.example to .env if example exists
+    if (existsSync(envExamplePath)) {
+      try {
+        const fs = require('fs')
+        fs.copyFileSync(envExamplePath, envPath)
+        console.log('✅ Created .env from .env.example')
+        console.log('📁 Configuration file:', envPath)
+      } catch (error: any) {
+        console.warn('⚠️ Failed to copy .env.example:', error.message)
+        console.warn('   Backend will use environment variables and defaults')
+      }
+    } else {
+      console.log('ℹ️  No .env file found, using defaults')
+      console.log('   Expected location:', envExamplePath)
+    }
+  }
+
+  /**
    * Start the backend process
    */
   async start(): Promise<void> {
@@ -342,6 +373,9 @@ export class BackendManager {
     this.setStatus(BackendProcessStatus.STARTING)
 
     try {
+      // Ensure .env file exists (copy from .env.example if needed)
+      this.ensureEnvFile()
+
       // Clean up any existing backend processes before starting
       // NOTE: This will exclude this.process?.pid (protected from self-termination)
       await this.killExistingBackends()
