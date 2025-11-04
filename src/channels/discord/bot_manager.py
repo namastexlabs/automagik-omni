@@ -23,7 +23,7 @@ from discord.ext import commands
 from src.services.message_router import MessageRouter
 from ...core.exceptions import AutomagikError
 from src.db.models import InstanceConfig
-from src.channels.message_utils import extract_response_text
+from src.channels.message_utils import extract_response_text, split_message_for_discord
 from .voice_manager import DiscordVoiceManager
 from ...utils.rate_limiter import RateLimiter
 from ...utils.health_monitor import HealthMonitor
@@ -777,7 +777,13 @@ class DiscordBotManager:
                 if agent_response:
                     # Use unified response extraction
                     response_text = extract_response_text(agent_response)
-                    await message.channel.send(response_text)
+
+                    # Split message if it exceeds Discord's 2000 char limit
+                    message_chunks = split_message_for_discord(response_text)
+
+                    # Send all chunks
+                    for chunk in message_chunks:
+                        await message.channel.send(chunk)
                 else:
                     await message.channel.send(
                         "I'm sorry, I couldn't process your message right now. Please try again later."
@@ -802,7 +808,13 @@ class DiscordBotManager:
                 if agent_response:
                     # Use unified response extraction
                     response_text = extract_response_text(agent_response)
-                    await message.channel.send(response_text)
+
+                    # Split message if it exceeds Discord's 2000 char limit
+                    message_chunks = split_message_for_discord(response_text)
+
+                    # Send all chunks
+                    for chunk in message_chunks:
+                        await message.channel.send(chunk)
                 else:
                     await message.channel.send(
                         "I'm sorry, I couldn't process your message right now. Please try again later."
