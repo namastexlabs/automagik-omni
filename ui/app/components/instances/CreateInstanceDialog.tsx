@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/app/components/ui/switch'
 import { MessageSquareText } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import type { EvolutionProcessInfo } from '@/lib/conveyor/api/evolution-api'
 
 const createInstanceSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -41,10 +42,11 @@ interface CreateInstanceDialogProps {
 }
 
 export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateInstanceDialogProps) {
-  const { omni } = useConveyor()
+  const { omni, evolution } = useConveyor()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [channelType, setChannelType] = useState<'whatsapp' | 'discord'>('whatsapp')
+  const [evolutionStatus, setEvolutionStatus] = useState<EvolutionProcessInfo | null>(null)
 
   const {
     register,
@@ -57,8 +59,8 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
     resolver: zodResolver(createInstanceSchema),
     defaultValues: {
       channel_type: 'whatsapp',
-      evolution_url: 'http://localhost:8080',
-      evolution_key: 'namastex888',
+      evolution_url: '',
+      evolution_key: '',
       agent_api_url: 'http://localhost:8886',
       agent_api_key: 'hive_key_placeholder',
       default_agent: 'template-agent',
@@ -66,6 +68,22 @@ export function CreateInstanceDialog({ open, onOpenChange, onCreated }: CreateIn
       enable_auto_split: true,
     },
   })
+
+  // Load Evolution API status on dialog open
+  useEffect(() => {
+    if (open && evolution && evolution.status) {
+      evolution.status().then((status) => {
+        setEvolutionStatus(status)
+        // Pre-fill Evolution API settings if running
+        if (status.status === 'running') {
+          setValue('evolution_url', `http://localhost:${status.port}`)
+          setValue('evolution_key', status.apiKey)
+        }
+      }).catch((err) => {
+        console.error('Failed to load Evolution API status:', err)
+      })
+    }
+  }, [open, evolution, setValue])
 
   const onSubmit = async (data: CreateInstanceFormData) => {
     try {
