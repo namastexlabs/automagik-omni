@@ -51,6 +51,12 @@ class DiscordChannelHandler(ChannelHandler):
         """
         Split message into chunks that respect Discord's character limit.
 
+        Smart splitting strategy:
+        1. First, try to split at major section boundaries (double newline + header)
+        2. Then at double newlines (\n\n) for natural paragraphs
+        3. Then at single newlines
+        4. Finally at sentence/word boundaries
+
         Args:
             message: Message text to split
             max_length: Maximum length per chunk (Discord hard limit: 2000)
@@ -73,27 +79,50 @@ class DiscordChannelHandler(ChannelHandler):
             # Try to split at a reasonable point
             chunk = remaining[:max_length]
 
-            # Find the last newline, sentence end, or word boundary
-            # If prefer_double_newline is False, skip \n\n as preferred split point
-            if prefer_double_newline:
-                split_points = ["\n\n", "\n", ". ", "! ", "? ", " "]
-            else:
-                split_points = ["\n", ". ", "! ", "? ", " "]
-
+            # Smart split point detection with priority order
             split_at = -1
 
-            for split_point in split_points:
-                last_occurrence = chunk.rfind(split_point)
-                if last_occurrence > max_length * 0.5:  # Don't split too early
-                    split_at = last_occurrence + len(split_point)
-                    break
+            # Priority 1: Split before markdown headers (### or ##) with double newline
+            if prefer_double_newline:
+                # Look for pattern: \n\n### or \n\n##
+                for header_pattern in ["\n\n### ", "\n\n## "]:
+                    header_pos = chunk.rfind(header_pattern)
+                    if header_pos > max_length * 0.3:  # At least 30% into the chunk
+                        split_at = header_pos + 2  # Keep the \n\n at end of previous chunk
+                        break
 
+            # Priority 2: Split at double newlines (paragraph boundaries)
+            if split_at == -1 and prefer_double_newline:
+                double_nl = chunk.rfind("\n\n")
+                if double_nl > max_length * 0.4:  # At least 40% into the chunk
+                    split_at = double_nl + 2  # Include both newlines
+
+            # Priority 3: Split at single newlines
             if split_at == -1:
-                # No good split point found, just cut at max length
+                single_nl = chunk.rfind("\n")
+                if single_nl > max_length * 0.5:  # At least 50% into the chunk
+                    split_at = single_nl + 1
+
+            # Priority 4: Split at sentence boundaries
+            if split_at == -1:
+                for sentence_end in [". ", "! ", "? "]:
+                    last_occurrence = chunk.rfind(sentence_end)
+                    if last_occurrence > max_length * 0.6:  # At least 60% into the chunk
+                        split_at = last_occurrence + len(sentence_end)
+                        break
+
+            # Priority 5: Split at word boundary
+            if split_at == -1:
+                last_space = chunk.rfind(" ")
+                if last_space > max_length * 0.7:  # At least 70% into the chunk
+                    split_at = last_space + 1
+
+            # Last resort: hard cut at max length
+            if split_at == -1:
                 split_at = max_length
 
-            chunks.append(remaining[:split_at])
-            remaining = remaining[split_at:]
+            chunks.append(remaining[:split_at].rstrip())
+            remaining = remaining[split_at:].lstrip()
 
         return chunks
 
