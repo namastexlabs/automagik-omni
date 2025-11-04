@@ -127,7 +127,8 @@ help: ## Show this help message
 	@echo ""
 	@echo -e "$(FONT_BOLD)Development:$(FONT_RESET)"
 	@echo -e "  $(FONT_CYAN)install        $(FONT_RESET) Install Omni core deps (WhatsApp/Evolution) with optional Discord prompt"
-	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install only Omni core dependencies"
+	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install only Omni core dependencies (Python)"
+	@echo -e "  $(FONT_CYAN)install-evolution$(FONT_RESET) Install Evolution API dependencies (Node.js)"
 	@echo -e "  $(FONT_CYAN)install-discord $(FONT_RESET) Install optional Discord extras"
 	@echo -e "  $(FONT_CYAN)dev            $(FONT_RESET) Start development server with auto-reload"
 	@echo -e "  $(FONT_CYAN)test           $(FONT_RESET) Run the test suite"
@@ -223,9 +224,10 @@ discord-list: ## List all Discord instances
 # ===========================================
 # 🏗️ Development Commands
 # ===========================================
-.PHONY: install install-omni install-discord
+.PHONY: install install-omni install-discord install-evolution
 install: ## Install Omni core dependencies with optional Discord extras
 	$(MAKE) install-omni
+	$(MAKE) install-evolution
 	@read -r -p "Install optional Discord extras? [y/N] " choice; \
 	if [ "$$choice" = "y" ] || [ "$$choice" = "Y" ]; then \
 		$(MAKE) install-discord; \
@@ -251,6 +253,29 @@ install-discord: ## Install optional Discord extras
 	$(call print_status,Installing optional Discord dependencies)
 	@$(UV) pip install -e '.[discord]'
 	$(call print_success,Discord dependencies installed)
+
+install-evolution: ## Install Evolution API dependencies (Node.js)
+	$(call print_status,Checking Evolution API submodule)
+	@if [ ! -d "resources/evolution-api" ] || [ ! -f "resources/evolution-api/package.json" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Evolution API submodule not initialized$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) Initializing Evolution API submodule...$(FONT_RESET)"; \
+		git submodule update --init --recursive resources/evolution-api; \
+	fi
+	$(call print_status,Installing Evolution API dependencies)
+	@cd resources/evolution-api && { \
+		if command -v pnpm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using pnpm for Evolution API installation$(FONT_RESET)"; \
+			pnpm install; \
+		elif command -v npm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using npm for Evolution API installation$(FONT_RESET)"; \
+			npm install; \
+		else \
+			echo -e "$(FONT_RED)$(ERROR) Neither pnpm nor npm found!$(FONT_RESET)"; \
+			echo -e "$(FONT_YELLOW)💡 Install Node.js and npm/pnpm first$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
+	}
+	$(call print_success,Evolution API dependencies installed)
 
 .PHONY: dev
 dev: ## Start development server with auto-reload
