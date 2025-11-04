@@ -7,6 +7,7 @@ Provides CRUD operations for allow/block rules with in-memory cache updates.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
@@ -39,6 +40,8 @@ class AccessRuleOut(BaseModel):
     instance_name: Optional[str]
     phone_number: str
     rule_type: str
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

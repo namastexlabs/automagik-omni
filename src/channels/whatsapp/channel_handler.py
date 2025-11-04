@@ -328,10 +328,13 @@ class WhatsAppChannelHandler(ChannelHandler):
                 "unknown": "error",
             }
 
+            mapped_status = status_map.get(evolution_state, "error")
+
             return ConnectionStatus(
                 instance_name=instance.name,
                 channel_type="whatsapp",
-                status=status_map.get(evolution_state, "error"),
+                status=mapped_status,
+                connected=(mapped_status == "connected"),  # Set boolean based on status
                 channel_data={
                     "evolution_state": evolution_state,
                     "evolution_data": state_response,
@@ -344,8 +347,25 @@ class WhatsAppChannelHandler(ChannelHandler):
                 instance_name=instance.name,
                 channel_type="whatsapp",
                 status="error",
+                connected=False,  # Not connected when there's an error
                 channel_data={"error": str(e)},
             )
+
+    async def connect_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
+        """Connect/reconnect WhatsApp instance."""
+        try:
+            evolution_client = self._get_evolution_client(instance)
+            result = await evolution_client.connect_instance(instance.name)
+
+            return {
+                "status": "success",
+                "message": f"WhatsApp instance '{instance.name}' connection initiated",
+                "evolution_response": result,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to connect instance {instance.name}: {e}")
+            raise Exception(f"WhatsApp instance connection failed: {str(e)}")
 
     async def restart_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Restart WhatsApp instance."""
@@ -362,6 +382,22 @@ class WhatsAppChannelHandler(ChannelHandler):
         except Exception as e:
             logger.error(f"Failed to restart instance {instance.name}: {e}")
             raise Exception(f"WhatsApp instance restart failed: {str(e)}")
+
+    async def disconnect_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
+        """Disconnect WhatsApp instance (same as logout)."""
+        try:
+            evolution_client = self._get_evolution_client(instance)
+            result = await evolution_client.logout_instance(instance.name)
+
+            return {
+                "status": "success",
+                "message": f"WhatsApp instance '{instance.name}' disconnected",
+                "evolution_response": result,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to disconnect instance {instance.name}: {e}")
+            raise Exception(f"WhatsApp instance disconnect failed: {str(e)}")
 
     async def logout_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Logout WhatsApp instance."""

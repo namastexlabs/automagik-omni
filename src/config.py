@@ -146,6 +146,14 @@ class CorsConfig(BaseModel):
     allow_headers: list[str] = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_CORS_HEADERS", "*").split(","))
 
 
+class LegacyConfig(BaseModel):
+    """Legacy Hive API compatibility configuration."""
+
+    skip_health_check: bool = Field(
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_SKIP_LEGACY_HEALTH_CHECK", "false").lower() == "true"
+    )
+
+
 class Config(BaseModel):
     """Main application configuration."""
 
@@ -156,6 +164,7 @@ class Config(BaseModel):
     tracing: TracingConfig = TracingConfig()
     timezone: TimezoneConfig = TimezoneConfig()
     cors: CorsConfig = CorsConfig()
+    legacy: LegacyConfig = LegacyConfig()
 
     @property
     def is_valid(self) -> bool:
