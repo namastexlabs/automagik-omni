@@ -130,7 +130,8 @@ help: ## Show this help message
 	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install only Omni core dependencies (Python)"
 	@echo -e "  $(FONT_CYAN)install-evolution$(FONT_RESET) Install Evolution API dependencies (Node.js)"
 	@echo -e "  $(FONT_CYAN)install-discord $(FONT_RESET) Install optional Discord extras"
-	@echo -e "  $(FONT_CYAN)dev            $(FONT_RESET) Start development server with auto-reload"
+	@echo -e "  $(FONT_CYAN)dev            $(FONT_RESET) Start Omni development server with auto-reload"
+	@echo -e "  $(FONT_CYAN)dev-all        $(FONT_RESET) Start Omni + Evolution API in development mode"
 	@echo -e "  $(FONT_CYAN)test           $(FONT_RESET) Run the test suite"
 	@echo -e "  $(FONT_CYAN)test-coverage  $(FONT_RESET) Run tests with coverage report"
 	@echo -e "  $(FONT_CYAN)lint           $(FONT_RESET) Run code linting with ruff"
@@ -153,11 +154,19 @@ help: ## Show this help message
 	@echo ""
 	@echo -e "$(FONT_BOLD)Discord Bot Management:$(FONT_RESET)"
 	@echo -e "  $(FONT_PURPLE)discord-start  $(FONT_RESET) Start Discord bot (INSTANCE=name)"
-	@echo -e "  $(FONT_PURPLE)discord-stop   $(FONT_RESET) Stop Discord bot (INSTANCE=name)"  
+	@echo -e "  $(FONT_PURPLE)discord-stop   $(FONT_RESET) Stop Discord bot (INSTANCE=name)"
 	@echo -e "  $(FONT_PURPLE)discord-restart$(FONT_RESET) Restart Discord bot (INSTANCE=name)"
 	@echo -e "  $(FONT_PURPLE)discord-status $(FONT_RESET) Show Discord bot status"
 	@echo -e "  $(FONT_PURPLE)discord-logs   $(FONT_RESET) Show Discord service logs"
 	@echo -e "  $(FONT_PURPLE)discord-list   $(FONT_RESET) List all Discord instances"
+	@echo ""
+	@echo -e "$(FONT_BOLD)Evolution API Management:$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)evo-start      $(FONT_RESET) Start Evolution API server"
+	@echo -e "  $(FONT_GREEN)evo-stop       $(FONT_RESET) Stop Evolution API server"
+	@echo -e "  $(FONT_GREEN)evo-restart    $(FONT_RESET) Restart Evolution API server"
+	@echo -e "  $(FONT_GREEN)evo-status     $(FONT_RESET) Show Evolution API status"
+	@echo -e "  $(FONT_GREEN)evo-logs       $(FONT_RESET) Show Evolution API logs"
+	@echo -e "  $(FONT_GREEN)evo            $(FONT_RESET) Alias for evo-start"
 	@echo ""	@echo -e "$(FONT_BOLD)Database & CLI:$(FONT_RESET)"
 	@echo -e "  $(FONT_YELLOW)db-init        $(FONT_RESET) Initialize database with default instance"
 	@echo -e "  $(FONT_YELLOW)cli-instances  $(FONT_RESET) List all instances via CLI"
@@ -222,6 +231,56 @@ discord-list: ## List all Discord instances
 	@uv run python -m src.cli.main_cli discord list
 
 # ===========================================
+# 🐘 Evolution API Management
+# ===========================================
+.PHONY: evo-start evo-stop evo-restart evo-status evo-logs evo
+
+evo-start: ## Start Evolution API server in development mode
+	$(call ensure_env_file)
+	$(call print_status,Starting Evolution API server in development mode)
+	@cd resources/evolution-api && { \
+		if command -v pnpm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using pnpm to start Evolution API$(FONT_RESET)"; \
+			pnpm run dev:server; \
+		elif command -v npm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using npm to start Evolution API$(FONT_RESET)"; \
+			npm run dev:server; \
+		else \
+			echo -e "$(FONT_RED)$(ERROR) Neither pnpm nor npm found!$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
+	}
+
+evo-stop: ## Stop Evolution API server
+	$(call print_status,Stopping Evolution API server)
+	@pkill -f "node.*evolution-api" || echo -e "$(FONT_YELLOW)$(WARNING) Evolution API not running$(FONT_RESET)"
+	$(call print_success,Evolution API server stopped)
+
+evo-restart: evo-stop evo-start ## Restart Evolution API server
+
+evo-status: ## Show Evolution API server status
+	$(call print_status,Checking Evolution API status)
+	@if pgrep -f "node.*evolution-api" > /dev/null; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution API is running$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)PIDs: $$(pgrep -f 'node.*evolution-api' | tr '\n' ' ')$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_RED)$(ERROR) Evolution API is not running$(FONT_RESET)"; \
+	fi
+
+evo-logs: ## Show Evolution API logs
+	$(call print_status,Showing Evolution API logs)
+	@if [ -f logs/evolution-combined.log ]; then \
+		tail -f logs/evolution-combined.log; \
+	elif [ -f resources/evolution-api/logs/app.log ]; then \
+		tail -f resources/evolution-api/logs/app.log; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) No Evolution API logs found$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Start Evolution with: make evo-start$(FONT_RESET)"; \
+	fi
+
+evo: evo-start ## Quick alias to start Evolution API
+
+# ===========================================
 # 🏗️ Development Commands
 # ===========================================
 .PHONY: install install-omni install-discord install-evolution
@@ -277,11 +336,36 @@ install-evolution: ## Install Evolution API dependencies (Node.js)
 	}
 	$(call print_success,Evolution API dependencies installed)
 
-.PHONY: dev
-dev: ## Start development server with auto-reload
+.PHONY: dev dev-all
+dev: ## Start Omni development server with auto-reload
 	$(call check_prerequisites)
 	$(call ensure_env_file)
-	$(call print_status,Starting development server with auto-reload)
+	$(call print_status,Starting Omni development server with auto-reload)
+	@if [ -f .env ]; then \
+		export $$(cat .env | grep -v '^#' | xargs) && \
+		$(UV) run automagik-omni start --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload; \
+	else \
+		$(UV) run automagik-omni start --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload; \
+	fi
+
+dev-all: ## Start both Omni and Evolution API in development mode (parallel)
+	$(call check_prerequisites)
+	$(call ensure_env_file)
+	$(call print_status,Starting Omni + Evolution API in development mode)
+	@echo -e "$(FONT_CYAN)$(INFO) Starting Evolution API in background...$(FONT_RESET)"
+	@cd resources/evolution-api && { \
+		if command -v pnpm >/dev/null 2>&1; then \
+			pnpm run dev:server > ../../logs/evolution-dev.log 2>&1 & \
+		elif command -v npm >/dev/null 2>&1; then \
+			npm run dev:server > ../../logs/evolution-dev.log 2>&1 & \
+		else \
+			echo -e "$(FONT_RED)$(ERROR) Neither pnpm nor npm found!$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
+	}
+	@sleep 2
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution API started (logs: logs/evolution-dev.log)$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)$(INFO) Starting Omni API server...$(FONT_RESET)"
 	@if [ -f .env ]; then \
 		export $$(cat .env | grep -v '^#' | xargs) && \
 		$(UV) run automagik-omni start --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload; \
