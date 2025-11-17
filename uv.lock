@@ -186,6 +186,7 @@ name = "automagik-omni"
 version = "0.5.2"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "alembic" },
     { name = "boto3" },
     { name = "fastapi" },
@@ -242,6 +243,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.12.15" },
     { name = "aiohttp", marker = "extra == 'discord'", specifier = ">=3.8.0" },
     { name = "aiohttp", marker = "extra == 'discord-voice'", specifier = ">=3.8.0" },
     { name = "aiohttp", marker = "extra == 'discord-voice-ai'", specifier = ">=3.8.0" },

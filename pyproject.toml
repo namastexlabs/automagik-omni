@@ -26,6 +26,7 @@ dependencies = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "pytz>=2025.2",
+    "aiohttp>=3.12.15",
 ]
 
 [project.scripts]
