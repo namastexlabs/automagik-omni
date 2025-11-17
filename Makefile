@@ -927,3 +927,56 @@ finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$FINAL_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
+
+# ===========================================
+# 🎨 Frontend / UI Targets
+# ===========================================
+
+UI_DIR := resources/ui
+UI_PORT ?= 9882
+UI_HOST ?= 0.0.0.0
+
+.PHONY: ui-install ui-dev ui-build ui-preview frontend ui-clean
+
+ui-install: ## Install UI dependencies
+	$(call print_status,Installing UI dependencies...)
+	@cd $(UI_DIR) && npm install
+	$(call print_success,UI dependencies installed)
+
+ui-dev: ## Run UI development server (standalone)
+	$(call print_status,Starting UI dev server on http://$(UI_HOST):$(UI_PORT)...)
+	@cd $(UI_DIR) && npm run dev -- --host $(UI_HOST) --port $(UI_PORT)
+
+ui-build: ## Build UI for production
+	$(call print_status,Building UI for production...)
+	@cd $(UI_DIR) && npm run build
+	$(call print_success,UI built successfully → $(UI_DIR)/dist/)
+
+ui-preview: ui-build ## Preview production build
+	$(call print_status,Starting UI preview server...)
+	@cd $(UI_DIR) && npm run preview -- --host $(UI_HOST) --port $(UI_PORT)
+
+ui-clean: ## Clean UI build artifacts
+	$(call print_status,Cleaning UI build artifacts...)
+	@rm -rf $(UI_DIR)/dist $(UI_DIR)/node_modules
+	$(call print_success,UI artifacts cleaned)
+
+frontend: ui-dev ## Alias for ui-dev (run frontend standalone)
+
+# ===========================================
+# 🚀 Integrated Setup (API + UI)
+# ===========================================
+
+.PHONY: install-all dev-all
+
+install-all: install ui-install ## Install both API and UI dependencies
+	$(call print_success_with_logo,All dependencies installed (API + UI))
+
+dev-all: ## Start both API and UI in PM2
+	$(call print_status,Starting Omni API + UI services via PM2...)
+	@pm2 start ecosystem.config.js
+	@pm2 save
+	$(call print_success,Services started!)
+	$(call print_info,API: http://$(AUTOMAGIK_OMNI_API_HOST):$(AUTOMAGIK_OMNI_API_PORT))
+	$(call print_info,UI:  http://$(UI_HOST):$(UI_PORT))
+	$(call print_info,Monitor: pm2 monit)
