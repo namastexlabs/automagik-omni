@@ -1,0 +1,35 @@
+@import './globals.css';
+@import './window.css';
+
+/* Custom titlebar styles */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Arial,
+    Helvetica,
+    sans-serif,
+    "Noto Color Emoji",
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
+  font-size: 14px;
+  margin: 0;
+  overflow: hidden;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  line-height: 1.4;
+}

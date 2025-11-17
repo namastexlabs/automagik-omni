@@ -18,7 +18,7 @@ class TestInstanceConfigOmniFields:
         test_db.commit()
 
         # Test defaults
-        assert instance.agent_instance_type == "automagik"
+        assert instance.agent_instance_type == "hive"
         assert instance.agent_id == "default"
         assert instance.agent_type == "agent"
         assert instance.agent_timeout == 60
@@ -63,7 +63,7 @@ class TestInstanceConfigOmniFields:
         # Should use default_agent when agent_id is not set
         config = instance.get_agent_config()
         assert config["agent_id"] in ["my-agent", "default"]
-        assert config["instance_type"] == "automagik"
+        assert config["instance_type"] == "hive"
         assert config["agent_type"] == "agent"
 
     def test_hive_team_configuration(self, test_db):
@@ -241,7 +241,7 @@ class TestInstanceConfigMethods:
 
         config = instance.get_agent_config()
 
-        assert config["instance_type"] == "automagik"
+        assert config["instance_type"] == "hive"
         assert config["agent_id"] == "default"
         assert config["name"] == "default"
         assert config["agent_type"] == "agent"

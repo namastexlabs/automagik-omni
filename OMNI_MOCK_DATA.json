@@ -1,0 +1,877 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "description": "PII-safe mock data for Automagik Omni frontend development. All phone numbers, names, and URLs are fictional.",
+  "metadata": {
+    "version": "1.0.0",
+    "generated": "2025-11-08",
+    "base_url": "http://localhost:8882",
+    "api_key": "your-api-key-here"
+  },
+  "instances": [
+    {
+      "id": 1,
+      "name": "production-whatsapp",
+      "channel_type": "whatsapp",
+      "evolution_url": "http://192.168.1.100:8080",
+      "evolution_key": "B6D9C7E8A1F234567890ABCDEF123456",
+      "whatsapp_instance": "production-whatsapp",
+      "session_id_prefix": "prod-wa-",
+      "webhook_base64": true,
+      "has_discord_bot_token": false,
+      "discord_client_id": null,
+      "discord_guild_id": null,
+      "discord_default_channel_id": null,
+      "discord_voice_enabled": null,
+      "discord_slash_commands_enabled": null,
+      "agent_api_url": "https://api.example.com/v1",
+      "agent_api_key": "sk-1234567890abcdef",
+      "default_agent": "sales-agent",
+      "agent_timeout": 60,
+      "is_default": true,
+      "is_active": true,
+      "automagik_instance_id": "inst_abc123xyz789",
+      "automagik_instance_name": "Production WhatsApp Bot",
+      "profile_name": "Acme Corp Support",
+      "profile_pic_url": "https://placehold.co/400x400/4A5568/FFF?text=AC",
+      "owner_jid": "551199000001@s.whatsapp.net",
+      "created_at": "2025-01-15T10:30:00Z",
+      "updated_at": "2025-01-15T15:45:00Z",
+      "agent_instance_type": "automagik",
+      "agent_id": "sales-agent",
+      "agent_type": "agent",
+      "agent_stream_mode": false,
+      "enable_auto_split": true,
+      "status": "connected",
+      "evolution_status": {
+        "state": "open",
+        "owner_jid": "551199000001@s.whatsapp.net",
+        "profile_name": "Acme Corp Support",
+        "profile_picture_url": "https://placehold.co/400x400/4A5568/FFF?text=AC",
+        "last_updated": "2025-01-15T16:00:00Z",
+        "error": null
+      }
+    },
+    {
+      "id": 2,
+      "name": "support-whatsapp",
+      "channel_type": "whatsapp",
+      "evolution_url": "http://localhost:8080",
+      "evolution_key": "F3E8D9C7B6A54321098765432109ABCD",
+      "whatsapp_instance": "support-whatsapp",
+      "session_id_prefix": "support-wa-",
+      "webhook_base64": true,
+      "has_discord_bot_token": false,
+      "discord_client_id": null,
+      "discord_guild_id": null,
+      "agent_api_url": "https://api.example.com/v1",
+      "agent_api_key": "sk-fedcba0987654321",
+      "default_agent": "support-agent",
+      "agent_timeout": 90,
+      "is_default": false,
+      "is_active": true,
+      "automagik_instance_id": "inst_def456uvw012",
+      "automagik_instance_name": "Support WhatsApp Bot",
+      "profile_name": "Acme Support Team",
+      "profile_pic_url": "https://placehold.co/400x400/10B981/FFF?text=AS",
+      "owner_jid": "551199000002@s.whatsapp.net",
+      "created_at": "2025-01-10T08:00:00Z",
+      "updated_at": "2025-01-14T12:30:00Z",
+      "agent_instance_type": "automagik",
+      "agent_id": "support-agent",
+      "agent_type": "agent",
+      "agent_stream_mode": false,
+      "enable_auto_split": true,
+      "status": "connecting",
+      "evolution_status": {
+        "state": "connecting",
+        "owner_jid": null,
+        "profile_name": null,
+        "profile_picture_url": null,
+        "last_updated": "2025-01-15T16:05:00Z",
+        "error": null
+      }
+    },
+    {
+      "id": 3,
+      "name": "community-discord",
+      "channel_type": "discord",
+      "evolution_url": null,
+      "evolution_key": null,
+      "whatsapp_instance": null,
+      "has_discord_bot_token": true,
+      "discord_client_id": "1234567890123456789",
+      "discord_guild_id": "9876543210987654321",
+      "discord_default_channel_id": "1122334455667788990",
+      "discord_voice_enabled": false,
+      "discord_slash_commands_enabled": true,
+      "agent_api_url": "https://api.example.com/v1",
+      "agent_api_key": "sk-discord123abc456",
+      "default_agent": "community-agent",
+      "agent_timeout": 45,
+      "is_default": false,
+      "is_active": true,
+      "automagik_instance_id": "inst_ghi789rst345",
+      "automagik_instance_name": "Community Discord Bot",
+      "created_at": "2025-01-12T14:00:00Z",
+      "updated_at": "2025-01-15T10:00:00Z",
+      "agent_instance_type": "automagik",
+      "agent_id": "community-agent",
+      "agent_type": "agent",
+      "agent_stream_mode": false,
+      "enable_auto_split": false,
+      "status": "connected",
+      "evolution_status": null
+    },
+    {
+      "id": 4,
+      "name": "testing-whatsapp",
+      "channel_type": "whatsapp",
+      "evolution_url": "http://localhost:8080",
+      "evolution_key": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6",
+      "whatsapp_instance": "testing-whatsapp",
+      "session_id_prefix": "test-wa-",
+      "webhook_base64": true,
+      "has_discord_bot_token": false,
+      "agent_api_url": "https://api.example.com/v1",
+      "agent_api_key": "sk-testing999888777",
+      "default_agent": "test-agent",
+      "agent_timeout": 30,
+      "is_default": false,
+      "is_active": false,
+      "automagik_instance_id": "inst_jkl012mno678",
+      "automagik_instance_name": "Testing Instance",
+      "created_at": "2025-01-08T09:00:00Z",
+      "updated_at": "2025-01-08T09:15:00Z",
+      "agent_instance_type": "automagik",
+      "agent_id": "test-agent",
+      "agent_type": "agent",
+      "agent_stream_mode": false,
+      "enable_auto_split": true,
+      "status": "disconnected",
+      "evolution_status": {
+        "state": "close",
+        "owner_jid": null,
+        "profile_name": null,
+        "profile_picture_url": null,
+        "last_updated": "2025-01-08T09:20:00Z",
+        "error": "Instance not initialized"
+      }
+    }
+  ],
+  "qr_codes": {
+    "whatsapp_connecting": {
+      "instance_name": "support-whatsapp",
+      "channel_type": "whatsapp",
+      "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "auth_url": null,
+      "invite_url": null,
+      "status": "connecting",
+      "message": "Scan QR code with WhatsApp to connect"
+    },
+    "discord_disconnected": {
+      "instance_name": "community-discord",
+      "channel_type": "discord",
+      "qr_code": null,
+      "auth_url": null,
+      "invite_url": "https://discord.com/oauth2/authorize?client_id=1234567890123456789&scope=bot&permissions=8",
+      "status": "disconnected",
+      "message": "Use the invite URL to add bot to your Discord server"
+    }
+  },
+  "contacts": {
+    "whatsapp": [
+      {
+        "id": "551199000101@s.whatsapp.net",
+        "name": "Alice Johnson",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "avatar_url": "https://placehold.co/200x200/EC4899/FFF?text=AJ",
+        "status": "online",
+        "is_verified": true,
+        "is_business": false,
+        "channel_data": {
+          "pushName": "Alice Johnson",
+          "isGroup": false,
+          "isBusiness": false,
+          "phone_number": "+5511990000101"
+        },
+        "created_at": "2025-01-10T08:00:00Z",
+        "last_seen": "2025-01-15T16:30:00Z"
+      },
+      {
+        "id": "551199000102@s.whatsapp.net",
+        "name": "Bob Martinez",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "avatar_url": "https://placehold.co/200x200/3B82F6/FFF?text=BM",
+        "status": "offline",
+        "is_verified": false,
+        "is_business": true,
+        "channel_data": {
+          "pushName": "Bob Martinez - Acme Inc",
+          "isGroup": false,
+          "isBusiness": true,
+          "verifiedName": "Acme Inc",
+          "phone_number": "+5511990000102"
+        },
+        "created_at": "2025-01-11T10:30:00Z",
+        "last_seen": "2025-01-15T14:00:00Z"
+      },
+      {
+        "id": "551199000103@s.whatsapp.net",
+        "name": "Carol Smith",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "avatar_url": "https://placehold.co/200x200/8B5CF6/FFF?text=CS",
+        "status": "away",
+        "is_verified": false,
+        "is_business": false,
+        "channel_data": {
+          "pushName": "Carol Smith",
+          "isGroup": false,
+          "isBusiness": false,
+          "phone_number": "+5511990000103"
+        },
+        "created_at": "2025-01-12T14:15:00Z",
+        "last_seen": "2025-01-15T12:00:00Z"
+      },
+      {
+        "id": "551199000104@s.whatsapp.net",
+        "name": "David Lee",
+        "channel_type": "whatsapp",
+        "instance_name": "support-whatsapp",
+        "avatar_url": "https://placehold.co/200x200/F59E0B/FFF?text=DL",
+        "status": "dnd",
+        "is_verified": true,
+        "is_business": false,
+        "channel_data": {
+          "pushName": "David Lee",
+          "isGroup": false,
+          "isBusiness": false,
+          "phone_number": "+5511990000104"
+        },
+        "created_at": "2025-01-13T09:00:00Z",
+        "last_seen": "2025-01-15T16:00:00Z"
+      },
+      {
+        "id": "551199000105@s.whatsapp.net",
+        "name": "Eva Chen",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "avatar_url": "https://placehold.co/200x200/10B981/FFF?text=EC",
+        "status": "unknown",
+        "is_verified": false,
+        "is_business": false,
+        "channel_data": {
+          "pushName": "Eva Chen",
+          "isGroup": false,
+          "isBusiness": false,
+          "phone_number": "+5511990000105"
+        },
+        "created_at": "2025-01-14T11:30:00Z",
+        "last_seen": null
+      }
+    ],
+    "discord": [
+      {
+        "id": "987654321012345001",
+        "name": "GamerPro",
+        "channel_type": "discord",
+        "instance_name": "community-discord",
+        "avatar_url": "https://placehold.co/200x200/5865F2/FFF?text=GP",
+        "status": "online",
+        "is_verified": false,
+        "is_business": null,
+        "channel_data": {
+          "username": "gamerpro",
+          "discriminator": "1234",
+          "bot": false
+        },
+        "created_at": "2025-01-12T15:00:00Z",
+        "last_seen": "2025-01-15T16:45:00Z"
+      },
+      {
+        "id": "987654321012345002",
+        "name": "TechWizard",
+        "channel_type": "discord",
+        "instance_name": "community-discord",
+        "avatar_url": "https://placehold.co/200x200/57F287/000?text=TW",
+        "status": "away",
+        "is_verified": false,
+        "is_business": null,
+        "channel_data": {
+          "username": "techwizard",
+          "discriminator": "5678",
+          "bot": false
+        },
+        "created_at": "2025-01-13T10:00:00Z",
+        "last_seen": "2025-01-15T14:30:00Z"
+      }
+    ]
+  },
+  "contacts_response": {
+    "contacts": [],
+    "total_count": 142,
+    "page": 1,
+    "page_size": 50,
+    "has_more": true,
+    "instance_name": "production-whatsapp",
+    "channel_type": "whatsapp",
+    "partial_errors": []
+  },
+  "chats": {
+    "whatsapp": [
+      {
+        "id": "551199000101@s.whatsapp.net",
+        "name": "Alice Johnson",
+        "chat_type": "direct",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "participant_count": 2,
+        "is_muted": false,
+        "is_archived": false,
+        "is_pinned": true,
+        "description": null,
+        "avatar_url": "https://placehold.co/200x200/EC4899/FFF?text=AJ",
+        "unread_count": 3,
+        "last_message_text": "Thanks for the quick response!",
+        "last_message_at": "2025-01-15T16:45:00Z",
+        "channel_data": {
+          "isGroup": false,
+          "labels": []
+        },
+        "created_at": "2025-01-10T08:00:00Z"
+      },
+      {
+        "id": "120363123456789001@g.us",
+        "name": "Sales Team",
+        "chat_type": "group",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "participant_count": 15,
+        "is_muted": false,
+        "is_archived": false,
+        "is_pinned": false,
+        "description": "Internal sales team coordination",
+        "avatar_url": "https://placehold.co/200x200/3B82F6/FFF?text=ST",
+        "unread_count": 0,
+        "last_message_text": "Meeting at 3 PM today",
+        "last_message_at": "2025-01-15T15:30:00Z",
+        "channel_data": {
+          "isGroup": true,
+          "participants": 15
+        },
+        "created_at": "2025-01-05T12:00:00Z"
+      },
+      {
+        "id": "120363123456789002@g.us",
+        "name": "Product Updates",
+        "chat_type": "group",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "participant_count": 87,
+        "is_muted": true,
+        "is_archived": false,
+        "is_pinned": false,
+        "description": "Announcements and product updates",
+        "avatar_url": "https://placehold.co/200x200/8B5CF6/FFF?text=PU",
+        "unread_count": 12,
+        "last_message_text": "New feature released: Dark mode!",
+        "last_message_at": "2025-01-15T14:00:00Z",
+        "channel_data": {
+          "isGroup": true,
+          "participants": 87,
+          "isAnnounce": true
+        },
+        "created_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "551199000102@s.whatsapp.net",
+        "name": "Bob Martinez",
+        "chat_type": "direct",
+        "channel_type": "whatsapp",
+        "instance_name": "production-whatsapp",
+        "participant_count": 2,
+        "is_muted": false,
+        "is_archived": true,
+        "is_pinned": false,
+        "description": null,
+        "avatar_url": "https://placehold.co/200x200/3B82F6/FFF?text=BM",
+        "unread_count": 0,
+        "last_message_text": "Order #12345 has been shipped",
+        "last_message_at": "2025-01-10T09:30:00Z",
+        "channel_data": {
+          "isGroup": false,
+          "labels": ["customer"]
+        },
+        "created_at": "2025-01-09T14:00:00Z"
+      }
+    ],
+    "discord": [
+      {
+        "id": "1122334455667788001",
+        "name": "general",
+        "chat_type": "channel",
+        "channel_type": "discord",
+        "instance_name": "community-discord",
+        "participant_count": 523,
+        "is_muted": false,
+        "is_archived": false,
+        "is_pinned": true,
+        "description": "General discussion channel",
+        "avatar_url": null,
+        "unread_count": 42,
+        "last_message_text": "Welcome to the community!",
+        "last_message_at": "2025-01-15T16:50:00Z",
+        "channel_data": {
+          "type": 0,
+          "nsfw": false
+        },
+        "created_at": "2025-01-12T14:00:00Z"
+      },
+      {
+        "id": "1122334455667788002",
+        "name": "support",
+        "chat_type": "channel",
+        "channel_type": "discord",
+        "instance_name": "community-discord",
+        "participant_count": 523,
+        "is_muted": false,
+        "is_archived": false,
+        "is_pinned": false,
+        "description": "Get help from the community",
+        "avatar_url": null,
+        "unread_count": 7,
+        "last_message_text": "How do I reset my password?",
+        "last_message_at": "2025-01-15T16:20:00Z",
+        "channel_data": {
+          "type": 0,
+          "nsfw": false
+        },
+        "created_at": "2025-01-12T14:05:00Z"
+      }
+    ]
+  },
+  "chats_response": {
+    "chats": [],
+    "total_count": 87,
+    "page": 1,
+    "page_size": 50,
+    "has_more": true,
+    "instance_name": "production-whatsapp",
+    "channel_type": "whatsapp",
+    "partial_errors": []
+  },
+  "messages": [
+    {
+      "id": "3EB0ABCDEF123456001",
+      "chat_id": "551199000101@s.whatsapp.net",
+      "sender_id": "551199000101@s.whatsapp.net",
+      "sender_name": "Alice Johnson",
+      "message_type": "text",
+      "text": "Hello, I need help with my order #12345",
+      "media_url": null,
+      "media_mime_type": null,
+      "media_size": null,
+      "caption": null,
+      "thumbnail_url": null,
+      "is_from_me": false,
+      "is_forwarded": false,
+      "is_reply": false,
+      "reply_to_message_id": null,
+      "timestamp": "2025-01-15T16:45:00Z",
+      "edited_at": null,
+      "channel_type": "whatsapp",
+      "instance_name": "production-whatsapp",
+      "channel_data": {
+        "key": {
+          "remoteJid": "551199000101@s.whatsapp.net",
+          "fromMe": false,
+          "id": "3EB0ABCDEF123456001"
+        }
+      }
+    },
+    {
+      "id": "3EB0123456ABCDEF002",
+      "chat_id": "551199000101@s.whatsapp.net",
+      "sender_id": "me",
+      "sender_name": "Acme Corp Support",
+      "message_type": "text",
+      "text": "Sure! Let me look up your order details. One moment please.",
+      "media_url": null,
+      "media_mime_type": null,
+      "media_size": null,
+      "caption": null,
+      "thumbnail_url": null,
+      "is_from_me": true,
+      "is_forwarded": false,
+      "is_reply": true,
+      "reply_to_message_id": "3EB0ABCDEF123456001",
+      "timestamp": "2025-01-15T16:45:15Z",
+      "edited_at": null,
+      "channel_type": "whatsapp",
+      "instance_name": "production-whatsapp",
+      "channel_data": {}
+    },
+    {
+      "id": "3EB0FEDCBA654321003",
+      "chat_id": "551199000101@s.whatsapp.net",
+      "sender_id": "551199000101@s.whatsapp.net",
+      "sender_name": "Alice Johnson",
+      "message_type": "image",
+      "text": null,
+      "media_url": "https://placehold.co/800x600/6366F1/FFF?text=Order+Issue",
+      "media_mime_type": "image/jpeg",
+      "media_size": 245678,
+      "caption": "Here's a screenshot of the issue I'm experiencing",
+      "thumbnail_url": "https://placehold.co/200x150/6366F1/FFF?text=Thumb",
+      "is_from_me": false,
+      "is_forwarded": false,
+      "is_reply": false,
+      "reply_to_message_id": null,
+      "timestamp": "2025-01-15T16:46:00Z",
+      "edited_at": null,
+      "channel_type": "whatsapp",
+      "instance_name": "production-whatsapp",
+      "channel_data": {
+        "mimetype": "image/jpeg",
+        "filesize": 245678
+      }
+    },
+    {
+      "id": "3EB0987654FEDCBA004",
+      "chat_id": "551199000101@s.whatsapp.net",
+      "sender_id": "me",
+      "sender_name": "Acme Corp Support",
+      "message_type": "text",
+      "text": "Thank you for the screenshot. I can see the issue. Your order is currently in transit and should arrive tomorrow by 5 PM.",
+      "media_url": null,
+      "media_mime_type": null,
+      "media_size": null,
+      "caption": null,
+      "thumbnail_url": null,
+      "is_from_me": true,
+      "is_forwarded": false,
+      "is_reply": true,
+      "reply_to_message_id": "3EB0FEDCBA654321003",
+      "timestamp": "2025-01-15T16:47:30Z",
+      "edited_at": null,
+      "channel_type": "whatsapp",
+      "instance_name": "production-whatsapp",
+      "channel_data": {}
+    },
+    {
+      "id": "3EB0AAAAAA111111005",
+      "chat_id": "551199000102@s.whatsapp.net",
+      "sender_id": "me",
+      "sender_name": "Acme Corp Support",
+      "message_type": "document",
+      "text": null,
+      "media_url": "https://example.com/documents/invoice-12345.pdf",
+      "media_mime_type": "application/pdf",
+      "media_size": 89234,
+      "caption": "Your invoice for order #12345",
+      "thumbnail_url": null,
+      "is_from_me": true,
+      "is_forwarded": false,
+      "is_reply": false,
+      "reply_to_message_id": null,
+      "timestamp": "2025-01-15T10:30:00Z",
+      "edited_at": null,
+      "channel_type": "whatsapp",
+      "instance_name": "production-whatsapp",
+      "channel_data": {
+        "mimetype": "application/pdf",
+        "filesize": 89234,
+        "fileName": "invoice-12345.pdf"
+      }
+    }
+  ],
+  "messages_response": {
+    "messages": [],
+    "total_count": 156,
+    "page": 1,
+    "page_size": 50,
+    "has_more": true,
+    "instance_name": "production-whatsapp",
+    "chat_id": "551199000101@s.whatsapp.net",
+    "channel_type": "whatsapp",
+    "partial_errors": []
+  },
+  "traces": [
+    {
+      "trace_id": "550e8400-e29b-41d4-a716-446655440001",
+      "instance_name": "production-whatsapp",
+      "whatsapp_message_id": "3EB0ABCDEF123456001",
+      "sender_phone": "+5511990000101",
+      "sender_name": "Alice Johnson",
+      "message_type": "conversation",
+      "message_type_display": "Text Message",
+      "has_media": false,
+      "has_quoted_message": false,
+      "session_name": "alice-johnson-session",
+      "agent_session_id": "sess_abc123xyz789",
+      "status": "completed",
+      "error_message": null,
+      "error_stage": null,
+      "received_at": "2025-01-15T16:45:00.123Z",
+      "completed_at": "2025-01-15T16:45:02.456Z",
+      "agent_processing_time_ms": 1823,
+      "total_processing_time_ms": 2333,
+      "agent_response_success": true,
+      "evolution_success": true
+    },
+    {
+      "trace_id": "550e8400-e29b-41d4-a716-446655440002",
+      "instance_name": "production-whatsapp",
+      "whatsapp_message_id": "3EB0FEDCBA654321003",
+      "sender_phone": "+5511990000101",
+      "sender_name": "Alice Johnson",
+      "message_type": "imageMessage",
+      "message_type_display": "Image",
+      "has_media": true,
+      "has_quoted_message": false,
+      "session_name": "alice-johnson-session",
+      "agent_session_id": "sess_abc123xyz789",
+      "status": "completed",
+      "error_message": null,
+      "error_stage": null,
+      "received_at": "2025-01-15T16:46:00.234Z",
+      "completed_at": "2025-01-15T16:46:03.567Z",
+      "agent_processing_time_ms": 2456,
+      "total_processing_time_ms": 3333,
+      "agent_response_success": true,
+      "evolution_success": true
+    },
+    {
+      "trace_id": "550e8400-e29b-41d4-a716-446655440003",
+      "instance_name": "support-whatsapp",
+      "whatsapp_message_id": "3EB0999999888888001",
+      "sender_phone": "+5511990000104",
+      "sender_name": "David Lee",
+      "message_type": "conversation",
+      "message_type_display": "Text Message",
+      "has_media": false,
+      "has_quoted_message": false,
+      "session_name": "david-lee-session",
+      "agent_session_id": "sess_def456uvw012",
+      "status": "failed",
+      "error_message": "Agent API timeout after 90000ms",
+      "error_stage": "agent_request",
+      "received_at": "2025-01-15T16:50:00.789Z",
+      "completed_at": "2025-01-15T16:51:30.123Z",
+      "agent_processing_time_ms": null,
+      "total_processing_time_ms": 90334,
+      "agent_response_success": false,
+      "evolution_success": false
+    },
+    {
+      "trace_id": "550e8400-e29b-41d4-a716-446655440004",
+      "instance_name": "production-whatsapp",
+      "whatsapp_message_id": "3EB0777777666666001",
+      "sender_phone": "+5511990000999",
+      "sender_name": "Spam Number",
+      "message_type": "conversation",
+      "message_type_display": "Text Message",
+      "has_media": false,
+      "has_quoted_message": false,
+      "session_name": null,
+      "agent_session_id": null,
+      "status": "access_denied",
+      "error_message": "Phone number +5511990000999 is blocked",
+      "error_stage": "access_check",
+      "received_at": "2025-01-15T15:30:00.456Z",
+      "completed_at": "2025-01-15T15:30:00.789Z",
+      "agent_processing_time_ms": null,
+      "total_processing_time_ms": 333,
+      "agent_response_success": null,
+      "evolution_success": null
+    },
+    {
+      "trace_id": "550e8400-e29b-41d4-a716-446655440005",
+      "instance_name": "production-whatsapp",
+      "whatsapp_message_id": "3EB0555555444444001",
+      "sender_phone": "+5511990000102",
+      "sender_name": "Bob Martinez",
+      "message_type": "audioMessage",
+      "message_type_display": "Audio",
+      "has_media": true,
+      "has_quoted_message": false,
+      "session_name": "bob-martinez-session",
+      "agent_session_id": "sess_ghi789rst345",
+      "status": "completed",
+      "error_message": null,
+      "error_stage": null,
+      "received_at": "2025-01-15T14:20:00.111Z",
+      "completed_at": "2025-01-15T14:20:04.888Z",
+      "agent_processing_time_ms": 3234,
+      "total_processing_time_ms": 4777,
+      "agent_response_success": true,
+      "evolution_success": true
+    }
+  ],
+  "traces_response": {
+    "data": [],
+    "total_count": 1247,
+    "offset": 0,
+    "limit": 50,
+    "filters": {
+      "instance_name": null,
+      "phone": null,
+      "status": null,
+      "message_type": null,
+      "start_date": null,
+      "end_date": null
+    }
+  },
+  "analytics": {
+    "total_messages": 1247,
+    "successful_messages": 1189,
+    "failed_messages": 58,
+    "success_rate": 95.35,
+    "avg_processing_time_ms": 2145.67,
+    "avg_agent_time_ms": 1823.45,
+    "message_types": {
+      "conversation": 856,
+      "imageMessage": 234,
+      "audioMessage": 87,
+      "videoMessage": 45,
+      "documentMessage": 25
+    },
+    "error_stages": {
+      "agent_request": 32,
+      "evolution_send": 18,
+      "webhook_parse": 8
+    },
+    "instances": {
+      "production-whatsapp": 983,
+      "support-whatsapp": 264
+    },
+    "messages_over_time": [
+      {"date": "2025-01-09", "count": 142},
+      {"date": "2025-01-10", "count": 189},
+      {"date": "2025-01-11", "count": 156},
+      {"date": "2025-01-12", "count": 201},
+      {"date": "2025-01-13", "count": 178},
+      {"date": "2025-01-14", "count": 167},
+      {"date": "2025-01-15", "count": 214}
+    ],
+    "success_vs_failed": [
+      {"name": "Success", "value": 1189},
+      {"name": "Failed", "value": 58}
+    ],
+    "top_contacts": [
+      {"phone": "+5511990000101", "name": "Alice Johnson", "count": 87},
+      {"phone": "+5511990000102", "name": "Bob Martinez", "count": 64},
+      {"phone": "+5511990000103", "name": "Carol Smith", "count": 52},
+      {"phone": "+5511990000104", "name": "David Lee", "count": 43},
+      {"phone": "+5511990000105", "name": "Eva Chen", "count": 38},
+      {"phone": "+5511990000106", "name": "Frank Wilson", "count": 29},
+      {"phone": "+5511990000107", "name": "Grace Taylor", "count": 24},
+      {"phone": "+5511990000108", "name": "Henry Brown", "count": 19},
+      {"phone": "+5511990000109", "name": "Isabel Garcia", "count": 15},
+      {"phone": "+5511990000110", "name": "Jack Miller", "count": 12}
+    ]
+  },
+  "access_rules": [
+    {
+      "id": 1,
+      "instance_name": "production-whatsapp",
+      "phone_number": "+5511990000101",
+      "rule_type": "allow",
+      "created_at": "2025-01-10T10:00:00Z",
+      "updated_at": "2025-01-10T10:00:00Z"
+    },
+    {
+      "id": 2,
+      "instance_name": null,
+      "phone_number": "+5511990000999",
+      "rule_type": "block",
+      "created_at": "2025-01-12T14:30:00Z",
+      "updated_at": "2025-01-12T14:30:00Z"
+    },
+    {
+      "id": 3,
+      "instance_name": "production-whatsapp",
+      "phone_number": "+5511990000888",
+      "rule_type": "block",
+      "created_at": "2025-01-14T09:15:00Z",
+      "updated_at": "2025-01-14T09:15:00Z"
+    },
+    {
+      "id": 4,
+      "instance_name": null,
+      "phone_number": "+55119900*",
+      "rule_type": "allow",
+      "created_at": "2025-01-08T08:00:00Z",
+      "updated_at": "2025-01-08T08:00:00Z"
+    }
+  ],
+  "access_check_response": {
+    "allowed": true,
+    "reason": "Phone number matches allow rule",
+    "matched_rule": {
+      "id": 1,
+      "rule_type": "allow",
+      "phone_number": "+5511990000101",
+      "instance_name": "production-whatsapp"
+    }
+  },
+  "error_responses": {
+    "unauthorized": {
+      "detail": "Invalid or missing API key"
+    },
+    "not_found": {
+      "detail": "Instance 'my-bot' not found"
+    },
+    "validation_error": {
+      "detail": [
+        {
+          "loc": ["body", "phone_number"],
+          "msg": "field required",
+          "type": "value_error.missing"
+        }
+      ]
+    },
+    "backend_error": {
+      "detail": "Backend service unavailable. Please start the backend from Dashboard."
+    },
+    "evolution_error": {
+      "detail": "Failed to connect to Evolution API at http://localhost:8080"
+    },
+    "access_denied": {
+      "status": "blocked",
+      "reason": "access_denied",
+      "phone": "+5511990000999",
+      "message": "Phone number is blocked by access rules"
+    }
+  },
+  "health_check": {
+    "status": "healthy",
+    "version": "1.0.0",
+    "timestamp": "2025-01-15T16:55:00Z"
+  },
+  "backend_status": {
+    "api": {
+      "running": true,
+      "host": "0.0.0.0",
+      "port": 8882,
+      "pid": 12345
+    },
+    "discord": {
+      "running": false,
+      "error": "No Discord instances configured"
+    },
+    "pm2": {
+      "enabled": false,
+      "processes": []
+    }
+  },
+  "evolution_status": {
+    "running": true,
+    "port": 8080,
+    "api_key": "B6D9C7E8A1F234567890ABCDEF123456",
+    "uptime_minutes": 1234,
+    "database_status": "healthy"
+  }
+}

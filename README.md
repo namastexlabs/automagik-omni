@@ -244,6 +244,55 @@ curl -X POST http://localhost:8882/api/v1/instances/my-first-bot/send-text \
 
 ---
 
+## 🖥️ Desktop UI
+
+Automagik Omni includes a native **Electron desktop application** for visual management of your messaging instances.
+
+### Features
+
+- 📊 **Real-Time Dashboard**: Monitor API, Discord bot, and PM2 process status
+- 🔄 **Service Control**: Start/stop/restart backend services with one click
+- ⚡ **Health Monitoring**: Auto-refresh status every 10 seconds
+- 🎯 **PM2 Integration**: Full process management with resource monitoring
+- 🔐 **Auto-Configuration**: Reads from parent `.env` file automatically
+
+### Quick Start
+
+```bash
+cd ui
+pnpm install
+pnpm run dev
+```
+
+The UI automatically connects to your running backend on `http://localhost:8882`.
+
+### What's Included (Phase 1 ✅)
+
+- **Backend Integration**: Complete HTTP client for FastAPI endpoints
+- **Type-Safe IPC**: Conveyor system with Zod runtime validation
+- **Dashboard**: Real-time status cards for all services
+- **Process Manager**: View and control PM2 processes
+- **API Integration**: Full support for instances, messages, contacts, chats, traces
+
+### Coming Soon (Phase 2)
+
+- Instance management page (CRUD, QR codes)
+- Message composer (all message types)
+- Contact & chat viewers
+- Trace analytics dashboard
+- Real-time log viewer
+
+### Technology
+
+- **Electron 37.7** + **React 19.2** + **TypeScript 5.9**
+- **Vite 7.1** for instant HMR
+- **Tailwind CSS 4** + **Shadcn UI** components
+- **Zod** for runtime validation
+
+See [`ui/AUTOMAGIK_OMNI_README.md`](ui/AUTOMAGIK_OMNI_README.md) for complete documentation.
+
+---
+
 ## 🏗️ Architecture
 
 ### How Omni Works

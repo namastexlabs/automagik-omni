@@ -268,6 +268,10 @@ async def get_trace_analytics(
                 start_date = utcnow() - timedelta(hours=24)
             if not end_date:
                 end_date = utcnow()
+            else:
+                # If end_date was provided, ensure it includes the entire day
+                # by setting time to 23:59:59.999999
+                end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
             query = db.query(MessageTrace).filter(
                 and_(

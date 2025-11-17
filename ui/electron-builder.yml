@@ -1,0 +1,246 @@
+# Electron Builder Configuration
+# Automagik Omni Desktop Application
+
+appId: com.namastex.automagik-omni
+productName: Omni
+
+# Application metadata
+copyright: Copyright © 2025 Namastex Labs
+
+# Build hooks
+# afterPack: Manually set Windows exe version info to fix Task Manager display
+afterPack: build/afterPack.js
+
+directories:
+  buildResources: resources/build
+  output: dist
+
+# Files to include in the application package
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # Exclude documentation and summaries
+  - '!*.md'
+  - '!*.MD'
+  - '!*.txt'
+  - '!*.TXT'
+  # Exclude development scripts
+  - '!scripts/*'
+  - '!clean-start.sh'
+
+# Python Backend Integration
+# The Python backend is bundled as an external resource to avoid ASAR corruption
+# Built using PyInstaller, the backend executable lives in ../dist-python/
+extraResources:
+  # Include Python backend executable and dependencies
+  # Platform-specific executables are automatically selected by electron-builder
+  - from: ../dist-python/
+    to: backend
+    filter:
+      - '**/*'
+      # Exclude PyInstaller build artifacts
+      - '!build/**'
+      - '!*.spec'
+      - '!*.log'
+
+  # Evolution API - WhatsApp integration service
+  # Pre-built and optimized by ui/scripts/build-evolution.js
+  # Includes bundled TypeScript, optimized node_modules, Prisma client, and pre-initialized database
+  # The build script already strips dev dependencies and unnecessary files for fast installation
+  - from: ../dist-evolution/
+    to: evolution
+    filter:
+      - '**/*'
+      # Exclude logs and development artifacts (if any slip through)
+      - '!*.log'
+      - '!*.md'
+      - '!test/**'
+      - '!*.test.ts'
+
+# ASAR configuration - unpack resources that need direct filesystem access
+# The Python backend must be unpacked to run as a subprocess
+asarUnpack:
+  - resources/**
+
+# Windows Configuration
+# Version strings are derived from root productName and package.json author:
+# - FileDescription (Task Manager name) = productName ("Omni")
+# - CompanyName = author.name ("Namastex Labs")
+# - ProductName = productName ("Omni")
+win:
+  executableName: Omni
+  # icon: resources/build/icon.ico  # Commented out - icon is set by afterPack hook instead
+  legalTrademarks: Namastex Labs
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+  # Request admin privileges for backend process management
+  requestedExecutionLevel: asInvoker
+  # Code signing disabled (set signAndEditExecutable: true when certificates are available)
+  signAndEditExecutable: false
+  # Windows-specific resources - Node.js runtime for Evolution API
+  extraResources:
+    - from: resources/nodejs/nodejs-win/
+      to: nodejs
+      filter:
+        - '**/*'
+    # Backend configuration template
+    - from: resources/backend/.env.example
+      to: backend/.env.example
+
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  perMachine: false # Per-user installation (recommended for auto-updates)
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  # Custom installation directory via NSIS script
+  include: resources/build/installer.nsh
+  # Include Visual C++ redistributables if needed by Python backend
+
+# macOS Configuration
+mac:
+  category: public.app-category.productivity
+  target:
+    # Skip DMG to avoid background image and compression issues in CI
+    # DMG format has recurring hdiutil and dmgbuild failures
+    # ZIP is the recommended distribution format for macOS
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  entitlementsInherit: resources/build/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  extendInfo:
+    # Required permissions for messaging features
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  # Code signing - configure when certificates are available
+  identity: null # Replace with "Developer ID Application: Your Name (TEAM_ID)"
+  notarize: false # Set to true with Apple notarization credentials
+  # macOS-specific resources - Node.js runtime for Evolution API
+  extraResources:
+    - from: resources/nodejs/nodejs-mac/
+      to: nodejs
+      filter:
+        - '**/*'
+
+# Linux Configuration
+linux:
+  icon: resources/build/icon.png
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+        - arm64
+    - target: rpm
+      arch:
+        - x64
+  maintainer: Namastex Labs <support@namastex.ai>
+  category: Network
+  synopsis: Multi-tenant omnichannel messaging hub
+  description: |
+    Automagik Omni is a desktop application for managing multi-tenant
+    messaging across WhatsApp, Discord, and other channels.
+  # Desktop integration
+  desktop:
+    entry:
+      Name: Automagik Omni
+      Comment: Multi-tenant omnichannel messaging hub
+      Categories: Network;Chat;InstantMessaging;
+  # Linux-specific resources - Node.js runtime for Evolution API
+  extraResources:
+    - from: resources/nodejs/nodejs-linux/
+      to: nodejs
+      filter:
+        - '**/*'
+
+appImage:
+  artifactName: ${name}-${version}.${ext}
+  license: LICENSE
+
+deb:
+  depends:
+    - gconf2
+    - gconf-service
+    - libnotify4
+    - libappindicator1
+    - libxtst6
+    - libnss3
+
+rpm:
+  depends:
+    - libXScrnSaver
+    - libappindicator
+    - libnotify
+
+# Build optimization
+compression: normal # Options: store, normal, maximum
+npmRebuild: false
+buildDependenciesFromSource: false
+
+# Auto-update configuration
+# Update publish settings when ready to deploy to GitHub releases
+publish:
+  provider: github
+  owner: namastexlabs
+  repo: automagik-omni
+  private: false
+  releaseType: release # Options: draft, prerelease, release
+
+# Electron specific settings
+electronLanguages:
+  - en-US
+  - pt-BR
+
+# NOTE: Backend Services Integration
+# ====================================
+# The desktop app bundles TWO backend services:
+#
+# 1. Python Backend (Automagik Omni API)
+#    - Built using PyInstaller → ../dist-python/
+#    - Bundled into: app.asar.unpacked/resources/backend/
+#    - Executable: automagik-omni-backend(.exe on Windows)
+#    - Port: 8882 (configurable via AUTOMAGIK_OMNI_API_PORT)
+#
+# 2. Evolution API (WhatsApp Service)
+#    - Built using tsup → ../dist-evolution/
+#    - Bundled into: app.asar.unpacked/resources/evolution/
+#    - Runs via Node.js: resources/nodejs/node(.exe) resources/evolution/dist/main.js
+#    - Port: 8080 (configurable via SERVER_PORT)
+#    - Database: SQLite in user data directory
+#
+# Node.js Runtime:
+# ================
+# Node.js v20.18.0 binaries are included per platform:
+# - Windows: resources/nodejs-win/ → resources/nodejs/
+# - macOS: resources/nodejs-mac/ → resources/nodejs/
+# - Linux: resources/nodejs-linux/ → resources/nodejs/
+#
+# Build Process:
+# ==============
+# 1. ui/scripts/download-nodejs.js - Downloads Node.js binaries
+# 2. ui/scripts/build-evolution.js - Builds Evolution API
+# 3. electron-builder packages everything
+#
+# Runtime Process Management:
+# ===========================
+# - Main process spawns both backends on app startup
+# - Health checks ensure both services are ready before showing UI
+# - Graceful shutdown terminates both processes
+# - Configuration stored in user data directory

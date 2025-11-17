@@ -266,18 +266,18 @@ jobs:
 
                 comparisonMessage = `## ${changeEmoji} Coverage Report
 
-  | Branch | Coverage | Change |
-  |--------|----------|--------|
-  | **${targetBranch}** (baseline) | ${targetCoverage} | - |
-  | **Current PR** | ${currentCoverage}% | ${changeText} |
+            | Branch | Coverage | Change |
+            |--------|----------|--------|
+            | **${targetBranch}** (baseline) | ${targetCoverage} | - |
+            | **Current PR** | ${currentCoverage}% | ${changeText} |
 
-  ${coverageDetails}`;
+            ${coverageDetails}`;
               } else {
                 comparisonMessage = `## 📊 Coverage Report
 
-  **Coverage data not available**
+            **Coverage data not available**
 
-  > Note: Coverage file may not have been generated or could not be parsed.`;
+            > Note: Coverage file may not have been generated or could not be parsed.`;
               }
 
               const body = comparisonMessage;

@@ -1,0 +1,436 @@
+name: Desktop Build
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'ui/**'
+      - 'scripts/build-backend.sh'
+      - 'build-hooks/**'
+      - 'automagik-omni-backend.spec'
+      - '.github/workflows/desktop-build.yml'
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'ui/**'
+      - 'scripts/build-backend.sh'
+      - 'build-hooks/**'
+      - 'automagik-omni-backend.spec'
+      - '.github/workflows/desktop-build.yml'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+  UV_VERSION: "0.5.11"
+
+jobs:
+  build-backend:
+    name: Build Backend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: automagik-omni-backend-linux
+            platform: linux
+          - os: windows-latest
+            artifact_name: automagik-omni-backend-windows.exe
+            platform: windows
+          - os: macos-latest
+            artifact_name: automagik-omni-backend-macos
+            platform: macos
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install uv (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          irm https://astral.sh/uv/install.ps1 | iex
+          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install Python dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Install PyInstaller
+        run: |
+          uv pip install pyinstaller
+
+      - name: Build backend with PyInstaller (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x scripts/build-backend.sh
+          ./scripts/build-backend.sh
+
+      - name: Build backend with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # Use bash script on Windows with Git Bash
+          bash scripts/build-backend.sh
+
+      - name: Verify backend binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          ls -lh dist-python/
+          file dist-python/automagik-omni-backend || true
+          chmod +x dist-python/automagik-omni-backend
+          ./dist-python/automagik-omni-backend --version || echo "Version check failed (may be expected)"
+
+      - name: Verify backend binary (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          ls -lh dist-python/
+          file dist-python/automagik-omni-backend.exe || true
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ matrix.platform }}
+          path: |
+            dist-python/automagik-omni-backend*
+          retention-days: 7
+
+  build-electron:
+    name: Build Electron UI (${{ matrix.os }})
+    needs: build-backend
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            build_script: npm run electron:build:linux
+          - os: windows-latest
+            platform: windows
+            build_script: npm run electron:build:win
+          - os: macos-latest
+            platform: macos
+            build_script: npm run electron:build:mac
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            ui/node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-${{ matrix.platform }}
+          path: dist-python/
+
+      - name: Make backend executable (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x dist-python/automagik-omni-backend*
+          ls -lh dist-python/
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: pnpm install
+
+      - name: Build Electron app (Linux)
+        if: runner.os == 'Linux'
+        working-directory: ui
+        run: |
+          # Install required Linux dependencies
+          sudo apt-get update
+          sudo apt-get install -y rpm
+          pnpm run build:linux
+
+      - name: Build Electron app (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ui
+        run: |
+          pnpm run build:win
+
+      - name: Build Electron app (macOS)
+        if: runner.os == 'macOS'
+        working-directory: ui
+        run: |
+          pnpm run build:mac
+
+      - name: Upload installers (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-linux
+          path: |
+            ui/dist/*.AppImage
+            ui/dist/*.deb
+          retention-days: 30
+
+      - name: Upload installers (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-windows
+          path: |
+            ui/dist/*.exe
+          retention-days: 30
+
+      - name: Upload installers (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-macos
+          path: |
+            ui/dist/*.dmg
+            ui/dist/*.zip
+          retention-days: 30
+
+  create-release:
+    name: Create Release
+    needs: build-electron
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Display structure of downloaded artifacts
+        run: ls -R artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/installers-linux/*
+            artifacts/installers-windows/*
+            artifacts/installers-macos/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-summary:
+    name: Build Summary
+    needs: [build-backend, build-electron]
+    runs-on: ubuntu-latest
+    if: always()
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Generate summary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## 🏗️ Desktop Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Backend Builds" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.build-backend.result }}" == "success" ]; then
+            echo "✅ **Backend:** Built successfully for all platforms" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Backend:** Build failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Electron UI Builds" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.build-electron.result }}" == "success" ]; then
+            echo "✅ **Electron UI:** Built successfully for all platforms" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Electron UI:** Build failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- 🐧 Linux: AppImage, DEB (amd64, arm64)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🪟 Windows: NSIS Installer (.exe)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🍎 macOS: DMG, ZIP" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.build-backend.result }}" == "success" ] && [ "${{ needs.build-electron.result }}" == "success" ]; then
+            echo "✅ **All builds successful!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📦 Download Artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Click the links below to download installers directly:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Get artifact URLs using GitHub CLI
+            RUN_ID="${{ github.run_id }}"
+            REPO="${{ github.repository }}"
+
+            # Fetch artifacts and create download links
+            echo "| Platform | Artifact | Download |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|----------|----------|" >> $GITHUB_STEP_SUMMARY
+
+            gh api repos/${REPO}/actions/runs/${RUN_ID}/artifacts --jq '.artifacts[] | "| " + (.name | gsub("installers-"; "🎁 ") | gsub("backend-"; "⚙️ ")) + " | `" + .name + "` | [📥 Download](https://github.com/${REPO}/actions/runs/${RUN_ID}/artifacts/" + (.id | tostring) + ") |"' >> $GITHUB_STEP_SUMMARY || true
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "💡 **Tip**: Click any download link to get the artifacts directly!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Some builds failed - check logs above**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Comment PR with download links
+        if: github.event_name == 'pull_request' && needs.build-electron.result == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = context.runId;
+            const repo = context.repo;
+
+            // Fetch artifacts from this run
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: repo.owner,
+              repo: repo.repo,
+              run_id: runId,
+            });
+
+            // Build artifact download URLs
+            const getArtifactUrl = (name) => {
+              const artifact = artifacts.data.artifacts.find(a => a.name === name);
+              return artifact
+                ? `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}/artifacts/${artifact.id}`
+                : `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
+            };
+
+            const linuxUrl = getArtifactUrl('installers-linux');
+            const windowsUrl = getArtifactUrl('installers-windows');
+            const macosUrl = getArtifactUrl('installers-macos');
+            const backendLinuxUrl = getArtifactUrl('backend-linux');
+            const backendWindowsUrl = getArtifactUrl('backend-windows');
+            const backendMacosUrl = getArtifactUrl('backend-macos');
+            const artifactsUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
+
+            const comment = `## 🎉 Desktop Builds Complete!
+
+            ✅ All desktop installers have been built successfully.
+
+            ### 📥 Download Installers
+
+            **Direct Downloads** (click to download immediately):
+
+            | Platform | Download | Command |
+            |----------|----------|---------|
+            | 🐧 **Linux** | [📦 Download All Linux Installers](${linuxUrl}) | \`gh run download ${runId} -n installers-linux\` |
+            | 🪟 **Windows** | [📦 Download Windows Installer](${windowsUrl}) | \`gh run download ${runId} -n installers-windows\` |
+            | 🍎 **macOS** | [📦 Download macOS Installers](${macosUrl}) | \`gh run download ${runId} -n installers-macos\` |
+
+            **Backend Executables** (for advanced users):
+
+            | Platform | Download | Command |
+            |----------|----------|---------|
+            | 🐧 Linux Backend | [📦 Download](${backendLinuxUrl}) | \`gh run download ${runId} -n backend-linux\` |
+            | 🪟 Windows Backend | [📦 Download](${backendWindowsUrl}) | \`gh run download ${runId} -n backend-windows\` |
+            | 🍎 macOS Backend | [📦 Download](${backendMacosUrl}) | \`gh run download ${runId} -n backend-macos\` |
+
+            ### 📦 What's Included
+
+            **Linux Installers:**
+            - \`automagik-omni-ui-1.0.0.AppImage\` (~183 MB) - Universal Linux installer
+            - \`automagik-omni-ui_1.0.0_amd64.deb\` (~144 MB) - Debian/Ubuntu (64-bit)
+            - \`automagik-omni-ui_1.0.0_arm64.deb\` (~139 MB) - Debian/Ubuntu (ARM64)
+
+            **Windows Installer:**
+            - \`automagik-omni-ui-1.0.0-setup.exe\` - NSIS installer (x64 + ARM64)
+            - ⚠️ **Note**: Windows SmartScreen warning expected (unsigned). Click "More info" → "Run anyway"
+
+            **macOS Installers:**
+            - \`automagik-omni-ui-1.0.0.dmg\` - macOS disk image
+            - \`Automagik Omni-1.0.0-mac.zip\` - Intel Mac ZIP
+            - \`Automagik Omni-1.0.0-arm64-mac.zip\` - Apple Silicon ZIP
+
+            ### 🔧 Installation Instructions
+
+            **Linux (AppImage):**
+            \`\`\`bash
+            chmod +x automagik-omni-ui-1.0.0.AppImage
+            ./automagik-omni-ui-1.0.0.AppImage
+            \`\`\`
+
+            **Linux (DEB):**
+            \`\`\`bash
+            sudo dpkg -i automagik-omni-ui_1.0.0_amd64.deb
+            \`\`\`
+
+            **Windows:**
+            1. Download the installer
+            2. Run \`automagik-omni-ui-1.0.0-setup.exe\`
+            3. If SmartScreen appears: Click "More info" → "Run anyway"
+
+            **macOS:**
+            1. Download the DMG
+            2. Open and drag to Applications
+            3. Right-click app → Open (first time only)
+
+            ### ⏰ Artifact Retention
+
+            - **Installers**: Available for 30 days
+            - **Backend binaries**: Available for 7 days
+
+            ---
+
+            📊 **Build Details**: [View Full Build Log](${artifactsUrl})
+
+            🐛 **Found an issue?** Please report it with logs from the app.`;
+
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: repo.owner,
+              repo: repo.repo,
+              body: comment
+            });

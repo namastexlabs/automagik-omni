@@ -1,0 +1,9 @@
+node_modules
+dist
+out
+.DS_Store
+*.log*
+temp
+
+# Large font files - download at build time
+resources/fonts/NotoColorEmoji.ttf
