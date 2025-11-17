@@ -253,6 +253,38 @@ module.exports = {
       merge_logs: true,
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+
+    // ===================================================================
+    // 🎨 Omni UI (Frontend Dashboard)
+    // ===================================================================
+    {
+      name: 'omni-ui',
+      cwd: path.join(PROJECT_ROOT, 'resources/ui'),
+      script: 'npm',
+      args: 'run dev -- --host 0.0.0.0 --port 9882 --strictPort false',
+      interpreter: 'none',
+      env: {
+        NODE_ENV: 'development',
+        VITE_API_URL: `http://localhost:${envVars.AUTOMAGIK_OMNI_API_PORT || '8882'}`,
+        VITE_API_KEY: envVars.AUTOMAGIK_OMNI_API_KEY || 'your-secret-api-key-here',
+        PROCESS_TITLE: 'Omni UI (Vite)'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 10,
+      min_uptime: '5s',
+      restart_delay: 2000,
+      kill_timeout: 3000,
+      error_file: path.join(PROJECT_ROOT, 'logs/omni-ui-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/omni-ui-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/omni-ui-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ],
 
