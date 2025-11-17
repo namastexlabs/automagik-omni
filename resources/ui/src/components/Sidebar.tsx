@@ -7,6 +7,7 @@ import {
   Settings,
   Activity,
   LogOut,
+  Sparkles,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,31 +26,29 @@ export function Sidebar({ onLogout }: SidebarProps) {
   const location = useLocation();
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-card">
+    <div className="flex h-full w-64 flex-col bg-card border-r border-border elevation-sm">
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-6">
-        <div className="flex items-center space-x-2">
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-            <svg
-              className="h-5 w-5 text-primary-foreground"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-              />
-            </svg>
+      <div className="flex h-20 items-center border-b border-border px-6">
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center elevation-md">
+              <Sparkles className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div className="absolute -top-1 -right-1 h-3 w-3 bg-success rounded-full border-2 border-card">
+              <div className="h-full w-full bg-success/80 rounded-full animate-pulse"></div>
+            </div>
           </div>
-          <span className="text-xl font-bold">Omni</span>
+          <div>
+            <span className="text-xl font-bold text-foreground">
+              Omni
+            </span>
+            <p className="text-xs text-muted-foreground">Messaging Hub</p>
+          </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 px-3 py-6">
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
           return (
@@ -57,26 +56,44 @@ export function Sidebar({ onLogout }: SidebarProps) {
               key={item.name}
               to={item.href}
               className={cn(
-                'flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'group flex items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200',
                 isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  ? 'bg-primary text-primary-foreground elevation-md'
+                  : 'text-foreground hover:bg-accent hover:text-accent-foreground'
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className={cn(
+                'h-5 w-5 transition-transform group-hover:scale-110',
+                isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-accent-foreground'
+              )} />
               <span>{item.name}</span>
+              {isActive && (
+                <div className="ml-auto h-2 w-2 rounded-full bg-primary-foreground/80 animate-pulse"></div>
+              )}
             </Link>
           );
         })}
       </nav>
 
+      {/* Stats/Info Section */}
+      <div className="px-3 py-4 space-y-3">
+        <div className="rounded-lg bg-success/10 p-4 border border-success/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-success">API Status</span>
+            <div className="h-2 w-2 bg-success rounded-full animate-pulse"></div>
+          </div>
+          <p className="text-sm font-semibold text-success">Connected</p>
+          <p className="text-xs text-success/80 mt-1">All systems operational</p>
+        </div>
+      </div>
+
       {/* Footer */}
-      <div className="border-t p-4">
+      <div className="border-t border-border p-4">
         <button
           onClick={onLogout}
-          className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className="flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 transition-all group focus-ring"
         >
-          <LogOut className="h-5 w-5" />
+          <LogOut className="h-5 w-5 group-hover:scale-110 transition-transform" />
           <span>Logout</span>
         </button>
       </div>
