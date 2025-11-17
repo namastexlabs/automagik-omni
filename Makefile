@@ -367,7 +367,7 @@ setup: ## Complete setup for fresh deployment (install all deps + migrations + P
 	@if command -v pm2 >/dev/null 2>&1; then \
 		pm2 stop all 2>/dev/null || true; \
 		pm2 delete all 2>/dev/null || true; \
-		$(call print_success,PM2 processes cleaned); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 processes cleaned$(FONT_RESET)"; \
 	else \
 		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed - will skip service management$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)$(INFO) Install PM2 with: npm install -g pm2$(FONT_RESET)"; \
@@ -409,11 +409,11 @@ setup: ## Complete setup for fresh deployment (install all deps + migrations + P
 	$(call print_success,Database migrations completed)
 	@echo ""
 	@if command -v pm2 >/dev/null 2>&1; then \
-		$(call print_status,Phase 7: Starting PM2 services); \
+		echo -e "$(FONT_PURPLE)$(HUB) Phase 7: Starting PM2 services$(FONT_RESET)"; \
 		pm2 start ecosystem.config.js; \
 		sleep 3; \
 		echo ""; \
-		$(call print_success,PM2 services started); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 services started$(FONT_RESET)"; \
 		echo ""; \
 		echo -e "$(FONT_CYAN)$(INFO) Checking service health...$(FONT_RESET)"; \
 		pm2 list; \
@@ -430,7 +430,7 @@ setup: ## Complete setup for fresh deployment (install all deps + migrations + P
 		echo ""; \
 	else \
 		echo ""; \
-		$(call print_success,Setup complete - PM2 not installed); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Setup complete - PM2 not installed$(FONT_RESET)"; \
 		echo ""; \
 		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not found - services not started$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)To install PM2: npm install -g pm2$(FONT_RESET)"; \
