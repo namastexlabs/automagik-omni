@@ -5,7 +5,7 @@ This script will be used in PM2 configuration to enforce startup order.
 """
 import sys
 import os
-import time
+import asyncio
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
@@ -20,20 +20,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def main():
+async def main():
     """Main entry point for PM2 wait script."""
     logger.info("🚀 PM2 Wait Script: Ensuring API is healthy before Discord startup")
-    
+
     # Get configuration from environment
     api_host = os.getenv("AUTOMAGIK_OMNI_API_HOST", "localhost")
     api_port = int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882"))
     timeout = int(os.getenv("DISCORD_HEALTH_CHECK_TIMEOUT", "120"))
-    
-    logger.info(f"📡 Waiting for API at {api_host}:{api_port}")
+
+    api_url = f"http://{api_host}:{api_port}"
+    logger.info(f"📡 Waiting for API at {api_url}")
     logger.info(f"⏰ Timeout: {timeout} seconds")
-    
-    # Wait for API to become healthy
-    if wait_for_api_health(api_host, api_port, timeout):
+
+    # Wait for API to become healthy (await the async function)
+    if await wait_for_api_health(api_url, timeout):
         logger.info("✅ API is healthy - Discord bot can now start!")
         sys.exit(0)
     else:
@@ -42,4 +43,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
