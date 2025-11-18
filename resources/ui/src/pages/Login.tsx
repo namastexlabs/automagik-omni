@@ -17,16 +17,30 @@ export default function Login() {
     setError('');
     setLoading(true);
 
+    console.log('[Login] Starting login with key:', apiKey.substring(0, 8) + '...');
+
     try {
+      // Save API key first
       setApiKey(apiKey);
+      console.log('[Login] API key saved to localStorage');
+
+      // Give a tiny delay to ensure localStorage is written
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Now test authentication
+      console.log('[Login] Testing authentication...');
       const isValid = await api.testAuth();
+      console.log('[Login] Auth test result:', isValid);
 
       if (isValid) {
+        console.log('[Login] Success! Navigating to dashboard...');
         navigate('/dashboard');
       } else {
+        console.error('[Login] Auth failed - invalid key');
         setError('Invalid API key. Please check and try again.');
       }
     } catch (err) {
+      console.error('[Login] Exception during login:', err);
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
       setLoading(false);
