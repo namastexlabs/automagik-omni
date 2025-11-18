@@ -231,6 +231,19 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             return chats, total_count
 
         except Exception as e:
+            # Check if this is the known Evolution API SQL bug
+            error_message = str(e)
+            if 'near "ON": syntax error' in error_message or 'prisma.$queryRaw' in error_message:
+                logger.warning(
+                    f"Evolution API SQL bug detected for instance {instance.name}. "
+                    f"Returning empty chats list as workaround. "
+                    f"This is a known issue in Evolution API's Prisma SQLite query. "
+                    f"Error: {error_message}"
+                )
+                # Return empty results instead of crashing
+                return [], 0
+
+            # For other errors, re-raise
             logger.error(f"Failed to fetch WhatsApp chats for instance {instance.name}: {e}")
             raise
 

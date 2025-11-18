@@ -41,7 +41,7 @@ export default function Contacts() {
   } = useQuery({
     queryKey: ['contacts', selectedInstance, page, searchQuery, statusFilter],
     queryFn: () =>
-      api.omni.getContacts(selectedInstance, {
+      api.contacts.list(selectedInstance, {
         page,
         page_size: pageSize,
         search_query: searchQuery || undefined,

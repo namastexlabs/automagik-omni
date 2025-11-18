@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -98,6 +99,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     mutationFn: (data: InstanceCreateRequest) => api.instances.create(data),
     onSuccess: (createdInstance) => {
       queryClient.invalidateQueries({ queryKey: ['instances'] });
+      toast.success(`Instance "${createdInstance.name}" created successfully`);
       onOpenChange(false);
       // Notify parent to show QR code if WhatsApp
       if (onInstanceCreated && createdInstance.channel_type === 'whatsapp') {
@@ -106,18 +108,21 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     },
     onError: (error: Error) => {
       setError(error.message);
+      toast.error(`Failed to create instance: ${error.message}`);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ name, data }: { name: string; data: InstanceUpdateRequest }) =>
       api.instances.update(name, data),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['instances'] });
+      toast.success(`Instance "${variables.name}" updated successfully`);
       onOpenChange(false);
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       setError(error.message);
+      toast.error(`Failed to update instance "${variables.name}": ${error.message}`);
     },
   });
 
