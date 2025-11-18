@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ForgeInspector as AutomagikForgeWebCompanion } from './lib/forge-inspector';
+import { ForgeInspector as AutomagikForgeWebCompanion } from 'forge-inspector';
 import { ThemeProvider } from './components/ThemeProvider';
 import { isAuthenticated } from './lib/api';
 import Login from './pages/Login';
@@ -26,6 +26,10 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  console.log('[App] Rendering App component with ForgeInspector');
+  console.log('[App] NODE_ENV:', process.env.NODE_ENV);
+  console.log('[App] In iframe:', window.self !== window.top);
+
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
