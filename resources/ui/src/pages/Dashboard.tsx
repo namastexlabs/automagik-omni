@@ -3,13 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { type Instance } from '@/lib/types';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { MetricCard } from '@/components/MetricCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Activity, MessageSquare, Users, Zap, Plus, Eye, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
-  const { data: instances, isLoading, error } = useQuery({
+  const { data: instances, isLoading, error } = useQuery<Instance[]>({
     queryKey: ['instances'],
     queryFn: () => api.instances.list({ limit: 100, include_status: true }),
   });

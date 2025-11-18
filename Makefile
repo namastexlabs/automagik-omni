@@ -940,21 +940,21 @@ UI_HOST ?= 0.0.0.0
 
 ui-install: ## Install UI dependencies
 	$(call print_status,Installing UI dependencies...)
-	@cd $(UI_DIR) && npm install
+	@cd $(UI_DIR) && pnpm install
 	$(call print_success,UI dependencies installed)
 
 ui-dev: ## Run UI development server (standalone)
-	$(call print_status,Starting UI dev server on http://$(UI_HOST):$(UI_PORT)...)
-	@cd $(UI_DIR) && npm run dev -- --host $(UI_HOST) --port $(UI_PORT)
+	$(call print_status,Starting UI dev server...)
+	@cd $(UI_DIR) && pnpm run dev
 
 ui-build: ## Build UI for production
 	$(call print_status,Building UI for production...)
-	@cd $(UI_DIR) && npm run build
+	@cd $(UI_DIR) && pnpm run build
 	$(call print_success,UI built successfully → $(UI_DIR)/dist/)
 
 ui-preview: ui-build ## Preview production build
 	$(call print_status,Starting UI preview server...)
-	@cd $(UI_DIR) && npm run preview -- --host $(UI_HOST) --port $(UI_PORT)
+	@cd $(UI_DIR) && pnpm run preview
 
 ui-clean: ## Clean UI build artifacts
 	$(call print_status,Cleaning UI build artifacts...)
@@ -962,6 +962,10 @@ ui-clean: ## Clean UI build artifacts
 	$(call print_success,UI artifacts cleaned)
 
 frontend: ui-dev ## Alias for ui-dev (run frontend standalone)
+
+frontend-build: ui-build ## Build frontend for production
+
+frontend-prod: ui-preview ## Run frontend production preview server
 
 # ===========================================
 # 🚀 Integrated Setup (API + UI)
