@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { MetricCard } from '@/components/MetricCard';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Activity, MessageSquare, Users, Zap, Plus, Eye, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
@@ -48,19 +49,17 @@ export default function Dashboard() {
         {/* Header */}
         <div className="border-b border-border bg-card">
           <div className="flex h-20 items-center px-8">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">
-                Dashboard
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">Welcome back! Here's what's happening.</p>
-            </div>
-            <div className="ml-auto flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-foreground">
+              Dashboard
+            </h1>
+            <div className="ml-auto flex items-center space-x-3">
               <div className="px-4 py-2 bg-muted rounded-lg elevation-sm border border-border">
                 <span className="text-xs text-muted-foreground">API Status: </span>
                 <span className={`text-sm font-semibold ${health?.status === 'healthy' ? 'text-success' : 'text-destructive'}`}>
                   {health?.status === 'healthy' ? '● Online' : '● Offline'}
                 </span>
               </div>
+              <ThemeToggle />
               <Button className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift">
                 <Plus className="h-4 w-4 mr-2" />
                 New Instance

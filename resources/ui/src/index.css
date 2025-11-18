@@ -1,162 +1,214 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
-  /* ===================================================================
-   * LIGHT MODE - Professional Purple Theme
-   * Based on shadcn/ui best practices with semantic color tokens
-   * ================================================================ */
+@layer base {
+  :root {
+    /* Light Mode - Clean & Bright */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
 
-  /* Base colors */
-  --color-background: 0 0% 100%;           /* Pure white */
-  --color-foreground: 240 10% 3.9%;       /* Almost black for text */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-  /* Card surfaces */
-  --color-card: 0 0% 100%;
-  --color-card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-  /* Popover surfaces */
-  --color-popover: 0 0% 100%;
-  --color-popover-foreground: 240 10% 3.9%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
 
-  /* Primary - Beautiful purple (main brand color) */
-  --color-primary: 263 70% 50%;            /* Rich purple */
-  --color-primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 98%;
+    --secondary-foreground: 222 47% 11%;
 
-  /* Secondary - Subtle purple tint */
-  --color-secondary: 240 4.8% 95.9%;      /* Very light gray with purple tint */
-  --color-secondary-foreground: 240 5.9% 10%;
+    --muted: 220 13% 97%;
+    --muted-foreground: 215 16% 47%;
 
-  /* Muted - Neutral backgrounds */
-  --color-muted: 240 4.8% 95.9%;
-  --color-muted-foreground: 240 3.8% 46.1%;
+    --accent: 262 90% 97%;
+    --accent-foreground: 262 83% 58%;
 
-  /* Accent - Lighter purple for highlights */
-  --color-accent: 240 4.8% 95.9%;
-  --color-accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-  /* Destructive - Red for errors/warnings */
-  --color-destructive: 0 72% 51%;
-  --color-destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 262 83% 58%;
 
-  /* Borders and inputs */
-  --color-border: 240 5.9% 90%;
-  --color-input: 240 5.9% 90%;
-  --color-ring: 263 70% 50%;
+    --radius: 0.5rem;
 
-  /* Chart colors - Vibrant but harmonious */
-  --color-chart-1: 263 70% 50%;     /* Purple */
-  --color-chart-2: 200 98% 39%;     /* Cyan */
-  --color-chart-3: 142 76% 36%;     /* Green */
-  --color-chart-4: 43 96% 56%;      /* Amber */
-  --color-chart-5: 0 72% 51%;       /* Red */
+    --chart-1: 262 83% 58%;
+    --chart-2: 200 98% 39%;
+    --chart-3: 142 76% 36%;
+    --chart-4: 43 96% 56%;
+    --chart-5: 0 84% 60%;
+  }
 
-  /* Radius tokens */
-  --radius-lg: 0.5rem;
-  --radius-md: 0.375rem;
-  --radius-sm: 0.25rem;
-}
+  .dark {
+    /* Dark Mode - Deep & Dramatic */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    /* ===================================================================
-     * DARK MODE - Professional Purple Theme
-     * Carefully calibrated for readability and visual comfort
-     * ================================================================ */
+    --card: 222 47% 15%;
+    --card-foreground: 210 40% 98%;
 
-    /* Base colors - Deep but not pure black */
-    --color-background: 240 10% 3.9%;
-    --color-foreground: 0 0% 98%;
+    --popover: 222 47% 15%;
+    --popover-foreground: 210 40% 98%;
 
-    /* Card surfaces - Slightly lighter than background */
-    --color-card: 240 10% 3.9%;
-    --color-card-foreground: 0 0% 98%;
+    --primary: 262 83% 68%;
+    --primary-foreground: 222 47% 11%;
 
-    /* Popover surfaces */
-    --color-popover: 240 10% 3.9%;
-    --color-popover-foreground: 0 0% 98%;
+    --secondary: 222 47% 20%;
+    --secondary-foreground: 210 40% 98%;
 
-    /* Primary - Brighter purple for dark mode */
-    --color-primary: 263 70% 60%;
-    --color-primary-foreground: 0 0% 100%;
+    --muted: 222 47% 20%;
+    --muted-foreground: 215 20% 65%;
 
-    /* Secondary - Subtle elevation */
-    --color-secondary: 240 3.7% 15.9%;
-    --color-secondary-foreground: 0 0% 98%;
+    --accent: 262 50% 25%;
+    --accent-foreground: 262 90% 80%;
 
-    /* Muted - For less prominent elements */
-    --color-muted: 240 3.7% 15.9%;
-    --color-muted-foreground: 240 5% 64.9%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* Accent - Elevated surfaces */
-    --color-accent: 240 3.7% 15.9%;
-    --color-accent-foreground: 0 0% 98%;
+    --border: 222 47% 24%;
+    --input: 222 47% 24%;
+    --ring: 262 83% 68%;
 
-    /* Destructive */
-    --color-destructive: 0 62.8% 60%;
-    --color-destructive-foreground: 0 0% 100%;
-
-    /* Borders and inputs - Subtle but visible */
-    --color-border: 240 3.7% 15.9%;
-    --color-input: 240 3.7% 15.9%;
-    --color-ring: 263 70% 60%;
-
-    /* Chart colors - Adjusted for dark mode visibility */
-    --color-chart-1: 263 70% 65%;
-    --color-chart-2: 200 98% 50%;
-    --color-chart-3: 142 76% 45%;
-    --color-chart-4: 43 96% 65%;
-    --color-chart-5: 0 72% 60%;
+    --chart-1: 262 83% 70%;
+    --chart-2: 200 98% 50%;
+    --chart-3: 142 76% 45%;
+    --chart-4: 43 96% 65%;
+    --chart-5: 0 84% 65%;
   }
 }
 
-/* ===================================================================
- * Semantic Color Classes
- * Use these for consistent theming across components
- * ================================================================ */
-
-/* Success colors */
-.text-success {
-  color: hsl(142 76% 36%);
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
-.bg-success {
-  background-color: hsl(142 76% 36%);
+/* Custom semantic colors */
+@layer utilities {
+  .text-success {
+    color: hsl(142 76% 36%);
+  }
+
+  .bg-success {
+    background-color: hsl(142 76% 36%);
+  }
+
+  .dark .text-success {
+    color: hsl(142 76% 50%);
+  }
+
+  .dark .bg-success {
+    background-color: hsl(142 76% 50%);
+  }
+
+  .text-warning {
+    color: hsl(43 96% 56%);
+  }
+
+  .bg-warning {
+    background-color: hsl(43 96% 56%);
+  }
+
+  .text-info {
+    color: hsl(200 98% 39%);
+  }
+
+  .bg-info {
+    background-color: hsl(200 98% 39%);
+  }
+
+  .dark .text-info {
+    color: hsl(200 98% 55%);
+  }
+
+  .dark .bg-info {
+    background-color: hsl(200 98% 55%);
+  }
 }
 
-.border-success {
-  border-color: hsl(142 76% 36%);
+/* Gradient utilities */
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(262 83% 58%) 0%, hsl(250 70% 60%) 100%);
+  }
+
+  .gradient-success {
+    background: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(158 64% 52%) 100%);
+  }
+
+  .gradient-warning {
+    background: linear-gradient(135deg, hsl(32 95% 44%) 0%, hsl(43 96% 56%) 100%);
+  }
+
+  .gradient-danger {
+    background: linear-gradient(135deg, hsl(0 84% 60%) 0%, hsl(0 72% 51%) 100%);
+  }
+
+  .gradient-info {
+    background: linear-gradient(135deg, hsl(200 98% 39%) 0%, hsl(210 100% 50%) 100%);
+  }
 }
 
-/* Warning colors */
-.text-warning {
-  color: hsl(43 96% 56%);
+/* Elevation system */
+@layer utilities {
+  .elevation-sm {
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  .elevation-md {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  .elevation-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  .elevation-xl {
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  }
+
+  .dark .elevation-sm {
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  }
+
+  .dark .elevation-md {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  }
+
+  .dark .elevation-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+  }
+
+  .dark .elevation-xl {
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+  }
 }
 
-.bg-warning {
-  background-color: hsl(43 96% 56%);
-}
+/* Animations */
+@layer utilities {
+  .animate-slide-in {
+    animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-.border-warning {
-  border-color: hsl(43 96% 56%);
-}
+  .animate-fade-in {
+    animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-/* Info colors */
-.text-info {
-  color: hsl(200 98% 39%);
-}
+  .hover-lift {
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-.bg-info {
-  background-color: hsl(200 98% 39%);
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
 }
-
-.border-info {
-  border-color: hsl(200 98% 39%);
-}
-
-/* ===================================================================
- * Custom Animations
- * Smooth, purposeful motion
- * ================================================================ */
 
 @keyframes slideIn {
   from {
@@ -176,122 +228,4 @@
   to {
     opacity: 1;
   }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.animate-slide-in {
-  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-shimmer {
-  animation: shimmer 2s linear infinite;
-  background: linear-gradient(90deg, transparent, hsl(var(--color-primary) / 0.1), transparent);
-  background-size: 200% 100%;
-}
-
-/* ===================================================================
- * Gradient Utilities
- * Consistent gradients using theme colors
- * ================================================================ */
-
-.gradient-primary {
-  background: linear-gradient(135deg, hsl(263 70% 50%) 0%, hsl(250 80% 55%) 100%);
-}
-
-.gradient-success {
-  background: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(158 64% 52%) 100%);
-}
-
-.gradient-warning {
-  background: linear-gradient(135deg, hsl(32 95% 44%) 0%, hsl(43 96% 56%) 100%);
-}
-
-.gradient-danger {
-  background: linear-gradient(135deg, hsl(0 72% 51%) 0%, hsl(0 84% 60%) 100%);
-}
-
-.gradient-info {
-  background: linear-gradient(135deg, hsl(200 98% 39%) 0%, hsl(210 100% 50%) 100%);
-}
-
-/* ===================================================================
- * Elevation System
- * Consistent depth through shadows
- * ================================================================ */
-
-.elevation-sm {
-  box-shadow: 0 1px 2px 0 hsl(240 10% 3.9% / 0.05);
-}
-
-.elevation-md {
-  box-shadow: 0 4px 6px -1px hsl(240 10% 3.9% / 0.1),
-              0 2px 4px -2px hsl(240 10% 3.9% / 0.1);
-}
-
-.elevation-lg {
-  box-shadow: 0 10px 15px -3px hsl(240 10% 3.9% / 0.1),
-              0 4px 6px -4px hsl(240 10% 3.9% / 0.1);
-}
-
-.elevation-xl {
-  box-shadow: 0 20px 25px -5px hsl(240 10% 3.9% / 0.1),
-              0 8px 10px -6px hsl(240 10% 3.9% / 0.1);
-}
-
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  .elevation-sm {
-    box-shadow: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
-  }
-
-  .elevation-md {
-    box-shadow: 0 4px 6px -1px hsl(0 0% 0% / 0.3),
-                0 2px 4px -2px hsl(0 0% 0% / 0.3);
-  }
-
-  .elevation-lg {
-    box-shadow: 0 10px 15px -3px hsl(0 0% 0% / 0.3),
-                0 4px 6px -4px hsl(0 0% 0% / 0.3);
-  }
-
-  .elevation-xl {
-    box-shadow: 0 20px 25px -5px hsl(0 0% 0% / 0.3),
-                0 8px 10px -6px hsl(0 0% 0% / 0.3);
-  }
-}
-
-/* ===================================================================
- * Utility Classes
- * Common patterns
- * ================================================================ */
-
-.glass-effect {
-  background: hsl(var(--color-background) / 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.hover-lift {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.hover-lift:hover {
-  transform: translateY(-2px);
-}
-
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
 }
