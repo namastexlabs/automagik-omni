@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ForgeInspector as AutomagikForgeWebCompanion } from 'forge-inspector';
 import { ThemeProvider } from './components/ThemeProvider';
 import { isAuthenticated } from './lib/api';
 import Login from './pages/Login';
@@ -28,6 +29,7 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
+        <AutomagikForgeWebCompanion />
         <BrowserRouter>
           <Routes>
             <Route
