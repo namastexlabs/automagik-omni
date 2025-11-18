@@ -1,18 +1,33 @@
-import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
-import { type Instance } from '@/lib/types';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { MetricCard } from '@/components/MetricCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Activity, MessageSquare, Users, Zap, Plus, Eye, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
+import { InstanceDialog } from '@/components/InstanceDialog';
+import { QRCodeDialog } from '@/components/QRCodeDialog';
+import { InstanceCard } from '@/components/InstanceCard';
+import { Activity, MessageSquare, Users, Zap, Plus, TrendingUp } from 'lucide-react';
+import type { InstanceConfig } from '@/lib/types';
 
 export default function Dashboard() {
-  const { data: instances, isLoading, error } = useQuery<Instance[]>({
+  const queryClient = useQueryClient();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editingInstance, setEditingInstance] = useState<InstanceConfig | null>(null);
+  const [qrInstance, setQrInstance] = useState<string | null>(null);
+
+  const { data: instances, isLoading, error } = useQuery({
     queryKey: ['instances'],
     queryFn: () => api.instances.list({ limit: 100, include_status: true }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (name: string) => api.instances.delete(name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['instances'] });
+    },
   });
 
   const { data: health } = useQuery({
@@ -21,19 +36,17 @@ export default function Dashboard() {
     refetchInterval: 30000,
   });
 
-  const getStatusBadge = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case 'open':
-      case 'connected':
-        return <Badge className="gradient-success border-0">Connected</Badge>;
-      case 'close':
-      case 'disconnected':
-        return <Badge className="gradient-danger border-0">Disconnected</Badge>;
-      case 'connecting':
-        return <Badge className="gradient-warning border-0">Connecting</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
+  const handleShowQR = (instanceName: string) => {
+    setQrInstance(instanceName);
+  };
+
+  const handleEdit = (instance: InstanceConfig) => {
+    setEditingInstance(instance);
+  };
+
+  const handleDelete = (name: string) => {
+    // Confirmation is now handled by InstanceCard's AlertDialog
+    deleteMutation.mutate(name);
   };
 
   // Calculate metrics
@@ -61,7 +74,10 @@ export default function Dashboard() {
                 </span>
               </div>
               <ThemeToggle />
-              <Button className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift">
+              <Button
+                className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"
+                onClick={() => setCreateDialogOpen(true)}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 New Instance
               </Button>
@@ -153,7 +169,10 @@ export default function Dashboard() {
                         <p className="text-lg font-semibold text-foreground mb-2">No instances yet</p>
                         <p className="text-sm text-muted-foreground mb-6">Get started by creating your first messaging instance</p>
                       </div>
-                      <Button className="gradient-primary elevation-md hover:elevation-lg hover-lift">
+                      <Button
+                        className="gradient-primary elevation-md hover:elevation-lg hover-lift"
+                        onClick={() => setCreateDialogOpen(true)}
+                      >
                         <Plus className="h-4 w-4 mr-2" />
                         Create First Instance
                       </Button>
@@ -165,57 +184,14 @@ export default function Dashboard() {
               {instances && instances.length > 0 && (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {instances.map((instance) => (
-                    <Card key={instance.id} className="group border-border elevation-md hover:elevation-lg transition-all hover-lift overflow-hidden bg-card">
-                      <CardHeader className="relative">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 space-y-1">
-                            <CardTitle className="text-xl flex items-center gap-2 text-foreground">
-                              {instance.name}
-                              {instance.is_default && (
-                                <Badge className="gradient-primary text-xs border-0">Default</Badge>
-                              )}
-                            </CardTitle>
-                            <CardDescription className="capitalize flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-primary"></span>
-                              {instance.channel_type}
-                            </CardDescription>
-                          </div>
-                          {getStatusBadge(instance.evolution_status?.state || (instance.is_active ? 'active' : 'inactive'))}
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="relative space-y-4">
-                        <div className="space-y-2 text-sm">
-                          {instance.profile_name && (
-                            <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
-                              <span className="text-muted-foreground">Profile</span>
-                              <span className="font-medium text-foreground">{instance.profile_name}</span>
-                            </div>
-                          )}
-                          {instance.automagik_instance_name && (
-                            <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
-                              <span className="text-muted-foreground">Agent</span>
-                              <span className="font-medium text-foreground">{instance.automagik_instance_name}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
-                            <span className="text-muted-foreground">Created</span>
-                            <span className="font-medium text-foreground">{new Date(instance.created_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 pt-2">
-                          <Button variant="outline" size="sm" className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary transition-colors">
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary transition-colors">
-                            <SettingsIcon className="h-4 w-4 mr-1" />
-                            Manage
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <InstanceCard
+                      key={instance.id}
+                      instance={instance}
+                      onShowQR={handleShowQR}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      isDeleting={deleteMutation.isPending}
+                    />
                   ))}
                 </div>
               )}
@@ -223,6 +199,33 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Create/Edit Instance Dialog */}
+      <InstanceDialog
+        open={createDialogOpen || editingInstance !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateDialogOpen(false);
+            setEditingInstance(null);
+          }
+        }}
+        instance={editingInstance}
+        onInstanceCreated={(instanceName, channelType) => {
+          // Auto-show QR code for WhatsApp instances
+          if (channelType === 'whatsapp') {
+            setQrInstance(instanceName);
+          }
+        }}
+      />
+
+      {/* QR Code Dialog */}
+      {qrInstance && (
+        <QRCodeDialog
+          open={qrInstance !== null}
+          onOpenChange={(open) => !open && setQrInstance(null)}
+          instanceName={qrInstance}
+        />
+      )}
     </DashboardLayout>
   );
 }
