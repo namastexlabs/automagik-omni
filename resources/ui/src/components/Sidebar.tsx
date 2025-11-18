@@ -7,7 +7,6 @@ import {
   Settings,
   Activity,
   LogOut,
-  Sparkles,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,24 +26,13 @@ export function Sidebar({ onLogout }: SidebarProps) {
 
   return (
     <div className="flex h-full w-64 flex-col bg-card border-r border-border elevation-sm">
-      {/* Logo */}
-      <div className="flex h-20 items-center border-b border-border px-6">
-        <div className="flex items-center space-x-3">
-          <div className="relative">
-            <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center elevation-md">
-              <Sparkles className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div className="absolute -top-1 -right-1 h-3 w-3 bg-success rounded-full border-2 border-card">
-              <div className="h-full w-full bg-success/80 rounded-full animate-pulse"></div>
-            </div>
-          </div>
-          <div>
-            <span className="text-xl font-bold text-foreground">
-              Omni
-            </span>
-            <p className="text-xs text-muted-foreground">Messaging Hub</p>
-          </div>
-        </div>
+      {/* Logo - Match dashboard header height exactly */}
+      <div className="flex items-center justify-center border-b border-border px-6 py-3">
+        <img
+          src="/omni-logo.svg"
+          alt="Omni"
+          className="h-14 w-auto"
+        />
       </div>
 
       {/* Navigation */}
