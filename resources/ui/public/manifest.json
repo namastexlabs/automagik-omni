@@ -1,0 +1,17 @@
+{
+  "name": "Automagik Omni",
+  "short_name": "Omni",
+  "description": "Multi-channel messaging hub dashboard for WhatsApp, Discord, and more",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#8B5CF6",
+  "icons": [
+    {
+      "src": "/omni-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
