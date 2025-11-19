@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 /**
  * ForgeInspector (AutomagikForgeWebCompanion)
@@ -10,6 +11,8 @@ import { useEffect, useState } from 'react';
  * - State monitoring and reporting
  */
 export function ForgeInspector() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isInIframe, setIsInIframe] = useState(false);
   const [forgeConnected, setForgeConnected] = useState(false);
 
@@ -47,8 +50,8 @@ export function ForgeInspector() {
           if (payload?.apiKey) {
             localStorage.setItem('omni_api_key', payload.apiKey);
             // Trigger navigation to dashboard if on login page
-            if (window.location.pathname === '/login') {
-              window.location.href = '/dashboard';
+            if (location.pathname === '/login') {
+              navigate('/dashboard', { replace: true });
             }
           }
           break;
@@ -56,7 +59,7 @@ export function ForgeInspector() {
         case 'NAVIGATE':
           console.log('[ForgeInspector] Navigation request:', payload?.path);
           if (payload?.path) {
-            window.location.href = payload.path;
+            navigate(payload.path, { replace: true });
           }
           break;
 
@@ -73,29 +76,18 @@ export function ForgeInspector() {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, []);
+  }, [navigate, location.pathname]);
 
   // Report navigation changes to Forge
   useEffect(() => {
     if (!isInIframe || !forgeConnected) return;
 
-    const reportNavigation = () => {
-      window.parent.postMessage({
-        type: 'NAVIGATION_CHANGED',
-        payload: { path: window.location.pathname },
-      }, '*');
-    };
-
-    // Report initial navigation
-    reportNavigation();
-
-    // Listen for popstate (back/forward navigation)
-    window.addEventListener('popstate', reportNavigation);
-
-    return () => {
-      window.removeEventListener('popstate', reportNavigation);
-    };
-  }, [isInIframe, forgeConnected]);
+    // Report navigation to parent
+    window.parent.postMessage({
+      type: 'NAVIGATION_CHANGED',
+      payload: { path: location.pathname },
+    }, '*');
+  }, [isInIframe, forgeConnected, location.pathname]);
 
   // This component doesn't render anything visible
   return null;
