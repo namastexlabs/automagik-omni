@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { McpConfigCopy } from '@/components/McpConfigCopy';
 import { AlertCircle, Search, Users as UsersIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -101,6 +102,7 @@ export default function Contacts() {
               </p>
             </div>
             <div className="ml-auto flex items-center space-x-3">
+              <McpConfigCopy />
               <ThemeToggle />
             </div>
           </div>

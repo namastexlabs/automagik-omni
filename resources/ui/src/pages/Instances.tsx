@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { McpConfigCopy } from '@/components/McpConfigCopy';
 import { InstanceDialog } from '@/components/InstanceDialog';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { InstanceCard } from '@/components/InstanceCard';
@@ -63,6 +64,7 @@ export default function Instances() {
               </p>
             </div>
             <div className="ml-auto flex items-center space-x-3">
+              <McpConfigCopy />
               <ThemeToggle />
               <Button
                 className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"

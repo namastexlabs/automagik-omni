@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { MetricCard } from '@/components/MetricCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { McpConfigCopy } from '@/components/McpConfigCopy';
 import { InstanceDialog } from '@/components/InstanceDialog';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { InstanceCard } from '@/components/InstanceCard';
@@ -78,6 +79,7 @@ export default function Dashboard() {
                   {health?.status === 'healthy' ? '● Online' : '● Offline'}
                 </span>
               </div>
+              <McpConfigCopy />
               <ThemeToggle />
               <Button
                 className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"

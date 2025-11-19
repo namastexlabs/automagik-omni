@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { api, getApiKey } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { McpConfigCopy } from '@/components/McpConfigCopy';
 import { Settings as SettingsIcon, Key, Info, Moon, Sun } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
@@ -33,6 +34,7 @@ export default function Settings() {
               </p>
             </div>
             <div className="ml-auto flex items-center space-x-3">
+              <McpConfigCopy />
               <ThemeToggle />
             </div>
           </div>
