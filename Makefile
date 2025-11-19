@@ -950,7 +950,7 @@ ui-install: ## Install UI dependencies
 
 ui-dev: ## Run UI development server (standalone)
 	$(call print_status,Starting UI dev server...)
-	@cd $(UI_DIR) && pnpm run dev
+	@cd $(UI_DIR) && UI_HOST=$(UI_HOST) UI_PORT=$(UI_PORT) VITE_API_URL=http://$(AUTOMAGIK_OMNI_API_HOST):$(AUTOMAGIK_OMNI_API_PORT) pnpm run dev
 
 ui-build: ## Build UI for production
 	$(call print_status,Building UI for production...)
@@ -976,12 +976,12 @@ frontend-prod: ui-preview ## Run frontend production preview server
 # 🚀 Integrated Setup (API + UI)
 # ===========================================
 
-.PHONY: install-all dev-all
+.PHONY: install-all dev-pm2
 
 install-all: install ui-install ## Install both API and UI dependencies
 	$(call print_success_with_logo,All dependencies installed (API + UI))
 
-dev-all: ## Start both API and UI in PM2
+dev-pm2: ## Start both API and UI in PM2
 	$(call print_status,Starting Omni API + UI services via PM2...)
 	@pm2 start ecosystem.config.js
 	@pm2 save

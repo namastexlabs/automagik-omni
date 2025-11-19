@@ -262,10 +262,12 @@ module.exports = {
       name: 'omni-ui',
       cwd: path.join(PROJECT_ROOT, 'resources/ui'),
       script: 'npm',
-      args: 'run dev -- --host 0.0.0.0 --port 9882 --strictPort false',
+      args: 'run dev',
       interpreter: 'none',
       env: {
         NODE_ENV: 'development',
+        UI_HOST: envVars.UI_HOST || '0.0.0.0',
+        UI_PORT: envVars.UI_PORT || '9882',
         VITE_API_URL: `http://localhost:${envVars.AUTOMAGIK_OMNI_API_PORT || '8882'}`,
         VITE_API_KEY: envVars.AUTOMAGIK_OMNI_API_KEY || 'your-secret-api-key-here',
         PROCESS_TITLE: 'Omni UI (Vite)'
