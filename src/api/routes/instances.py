@@ -554,23 +554,23 @@ async def get_instance(
 
             evolution_client = EvolutionClient(instance.evolution_url, instance.evolution_key)
 
-            # Get connection state
-            state_response = await evolution_client.get_connection_state(instance.name)
-            logger.debug(f"Evolution status for {instance.name}: {state_response}")
+            # Get connection state using fetch_instances (more accurate than get_connection_state)
+            evolution_instances = await evolution_client.fetch_instances(instance.name)
+            logger.debug(f"Evolution status for {instance.name}: {evolution_instances}")
 
             # Parse the response
-            if isinstance(state_response, dict) and "instance" in state_response:
-                instance_info = state_response["instance"]
+            if evolution_instances and len(evolution_instances) > 0:
+                evolution_instance = evolution_instances[0]
                 instance_dict["evolution_status"] = EvolutionStatusInfo(
-                    state=instance_info.get("state"),
-                    owner_jid=instance_info.get("ownerJid"),
-                    profile_name=instance_info.get("profileName"),
-                    profile_picture_url=instance_info.get("profilePictureUrl"),
+                    state=evolution_instance.status,
+                    owner_jid=evolution_instance.ownerJid,
+                    profile_name=evolution_instance.profileName,
+                    profile_picture_url=evolution_instance.profilePicUrl,
                     last_updated=datetime.now(),
                 )
             else:
                 instance_dict["evolution_status"] = EvolutionStatusInfo(
-                    error="Invalid response format", last_updated=datetime.now()
+                    error="Instance not found in Evolution API", last_updated=datetime.now()
                 )
 
         except Exception as e:
