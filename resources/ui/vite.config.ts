@@ -11,15 +11,16 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
-    port: 9882,
+    host: process.env.UI_HOST || '0.0.0.0',
+    port: parseInt(process.env.UI_PORT || '9882', 10),
+    strictPort: false, // Allow Vite to use a different port if the specified one is busy
     proxy: {
       '/api': {
-        target: 'http://localhost:8882',
+        target: process.env.VITE_API_URL || 'http://localhost:8882',
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://localhost:8882',
+        target: process.env.VITE_API_URL || 'http://localhost:8882',
         changeOrigin: true,
       },
     },
