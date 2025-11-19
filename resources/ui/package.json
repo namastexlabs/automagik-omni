@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Web dashboard for Automagik Omni - Multi-channel messaging hub for WhatsApp, Discord, and more",
+  "author": "Namastex Labs",
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
