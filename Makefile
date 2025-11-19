@@ -321,7 +321,11 @@ install-evolution: ## Install Evolution API dependencies (Node.js)
 	@if [ ! -d "resources/evolution-api" ] || [ ! -f "resources/evolution-api/package.json" ]; then \
 		echo -e "$(FONT_YELLOW)$(WARNING) Evolution API submodule not initialized$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)$(INFO) Initializing Evolution API submodule...$(FONT_RESET)"; \
-		git submodule update --init --recursive resources/evolution-api; \
+		if ! git ls-tree HEAD resources/evolution-api | grep -q '^160000'; then \
+			echo -e "$(FONT_YELLOW)$(WARNING) Submodule gitlink missing - restoring from repository$(FONT_RESET)"; \
+			git checkout c59bddf -- resources/evolution-api 2>/dev/null || true; \
+		fi; \
+		git submodule sync && git submodule update --init --recursive; \
 	fi
 	$(call print_status,Installing Evolution API dependencies)
 	@cd resources/evolution-api && { \
@@ -350,6 +354,7 @@ setup: ## Complete setup for fresh deployment (install all deps + migrations + P
 	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)║  $(ROCKET) Automagik Omni - Complete Environment Setup        ║$(FONT_RESET)"
 	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)╚═══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
 	@echo ""
+	$(call check_prerequisites)
 	$(call print_info,This will set up everything needed for clean PM2 startup)
 	@echo ""
 	@echo -e "$(FONT_CYAN)Steps to be performed:$(FONT_RESET)"
