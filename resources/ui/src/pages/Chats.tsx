@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { McpConfigCopy } from '@/components/McpConfigCopy';
 import {
   AlertCircle,
   Search,
@@ -114,6 +115,7 @@ export default function Chats() {
               </p>
             </div>
             <div className="ml-auto flex items-center space-x-3">
+              <McpConfigCopy />
               <ThemeToggle />
             </div>
           </div>
