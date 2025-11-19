@@ -9,7 +9,10 @@ export function McpConfigCopy() {
 
   const getMcpConfig = () => {
     const apiKey = getApiKey();
-    const omniUrl = window.location.origin;
+
+    // Construct the API URL - default to localhost:8882 for development
+    // In production, this would typically be the same origin but could be different
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8882';
 
     return {
       mcpServers: {
@@ -17,7 +20,7 @@ export function McpConfigCopy() {
           command: 'uvx',
           args: ['--from', 'automagik-omni', 'mcp-server-omni'],
           env: {
-            OMNI_URL: omniUrl,
+            OMNI_URL: apiUrl,
             OMNI_API_KEY: apiKey || 'your-api-key-here',
           },
         },

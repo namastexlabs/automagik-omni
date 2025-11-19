@@ -8,8 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { McpConfigCopy } from '@/components/McpConfigCopy';
+import { PageHeader } from '@/components/PageHeader';
 import { AlertCircle, Search, Users as UsersIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -89,24 +88,11 @@ export default function Contacts() {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="border-b border-border bg-card">
-          <div className="flex h-20 items-center px-8">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                <UsersIcon className="h-6 w-6 text-primary" />
-                Contacts
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                View contacts across all channels
-              </p>
-            </div>
-            <div className="ml-auto flex items-center space-x-3">
-              <McpConfigCopy />
-              <ThemeToggle />
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Contacts"
+          subtitle="View contacts across all channels"
+          icon={<UsersIcon className="h-6 w-6 text-primary" />}
+        />
 
         {/* Filters */}
         <div className="border-b border-border bg-card">
