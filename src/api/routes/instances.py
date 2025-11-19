@@ -440,32 +440,39 @@ async def list_instances(
                 "Skipping Evolution status lookup for %s in test environment",
                 instance.name,
             )
-        elif (
-            include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key
-        ):
+        elif include_status and instance.channel_type == "whatsapp":
             try:
                 from src.channels.whatsapp.evolution_client import EvolutionClient
+                from src.config import config
 
-                evolution_client = EvolutionClient(instance.evolution_url, instance.evolution_key)
+                # Use instance-specific URL or fall back to global config
+                evolution_url = instance.evolution_url or config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
+                evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
 
-                # Get connection state
-                state_response = await evolution_client.get_connection_state(instance.name)
-                logger.debug(f"Evolution status for {instance.name}: {state_response}")
-
-                # Parse the response
-                if isinstance(state_response, dict) and "instance" in state_response:
-                    instance_info = state_response["instance"]
-                    instance_dict["evolution_status"] = EvolutionStatusInfo(
-                        state=instance_info.get("state"),
-                        owner_jid=instance_info.get("ownerJid"),
-                        profile_name=instance_info.get("profileName"),
-                        profile_picture_url=instance_info.get("profilePictureUrl"),
-                        last_updated=datetime.now(),
-                    )
+                if not evolution_key:
+                    logger.warning(f"No Evolution API key configured for {instance.name}, skipping status check")
+                    instance_dict["evolution_status"] = None
                 else:
-                    instance_dict["evolution_status"] = EvolutionStatusInfo(
-                        error="Invalid response format", last_updated=datetime.now()
-                    )
+                    evolution_client = EvolutionClient(evolution_url, evolution_key)
+
+                    # Get connection state
+                    state_response = await evolution_client.get_connection_state(instance.name)
+                    logger.debug(f"Evolution status for {instance.name}: {state_response}")
+
+                    # Parse the response
+                    if isinstance(state_response, dict) and "instance" in state_response:
+                        instance_info = state_response["instance"]
+                        instance_dict["evolution_status"] = EvolutionStatusInfo(
+                            state=instance_info.get("state"),
+                            owner_jid=instance_info.get("ownerJid"),
+                            profile_name=instance_info.get("profileName"),
+                            profile_picture_url=instance_info.get("profilePictureUrl"),
+                            last_updated=datetime.now(),
+                        )
+                    else:
+                        instance_dict["evolution_status"] = EvolutionStatusInfo(
+                            error="Invalid response format", last_updated=datetime.now()
+                        )
 
             except Exception as e:
                 logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")
