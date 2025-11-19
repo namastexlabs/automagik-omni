@@ -4,8 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { api, getApiKey } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { PageHeader } from '@/components/PageHeader';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { McpConfigCopy } from '@/components/McpConfigCopy';
 import { Settings as SettingsIcon, Key, Info, Moon, Sun } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
@@ -21,24 +21,11 @@ export default function Settings() {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="border-b border-border bg-card">
-          <div className="flex h-20 items-center px-8">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                <SettingsIcon className="h-6 w-6 text-primary" />
-                Settings
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Configure your Omni UI preferences
-              </p>
-            </div>
-            <div className="ml-auto flex items-center space-x-3">
-              <McpConfigCopy />
-              <ThemeToggle />
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Settings"
+          subtitle="Configure your Omni UI preferences"
+          icon={<SettingsIcon className="h-6 w-6 text-primary" />}
+        />
 
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-background">

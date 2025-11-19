@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { McpConfigCopy } from '@/components/McpConfigCopy';
+import { PageHeader } from '@/components/PageHeader';
 import { InstanceDialog } from '@/components/InstanceDialog';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { InstanceCard } from '@/components/InstanceCard';
@@ -54,28 +53,19 @@ export default function Instances() {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="border-b border-border bg-card">
-          <div className="flex h-20 items-center px-8">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Instances</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Manage your messaging channel instances
-              </p>
-            </div>
-            <div className="ml-auto flex items-center space-x-3">
-              <McpConfigCopy />
-              <ThemeToggle />
-              <Button
-                className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"
-                onClick={() => setCreateDialogOpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New Instance
-              </Button>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Instances"
+          subtitle="Manage your messaging channel instances"
+          actions={
+            <Button
+              className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Instance
+            </Button>
+          }
+        />
 
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-background">
