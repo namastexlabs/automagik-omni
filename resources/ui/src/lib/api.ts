@@ -67,7 +67,61 @@ export const api = {
     }
   },
 
-  // Instances
+  // Instances API
+  instances: {
+    async list(params?: { limit?: number; include_status?: boolean }): Promise<any[]> {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.include_status) queryParams.append('include_status', params.include_status.toString());
+
+      const query = queryParams.toString();
+      return apiRequest(`/instances${query ? `?${query}` : ''}`);
+    },
+
+    async get(name: string): Promise<any> {
+      return apiRequest(`/instances/${name}`);
+    },
+
+    async create(data: any): Promise<any> {
+      return apiRequest('/instances', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async update(name: string, data: any): Promise<any> {
+      return apiRequest(`/instances/${name}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async delete(name: string): Promise<void> {
+      return apiRequest(`/instances/${name}`, {
+        method: 'DELETE',
+      });
+    },
+
+    async getQR(name: string): Promise<{ qr_code?: string; status?: string }> {
+      return apiRequest(`/instances/${name}/qr`);
+    },
+
+    async getQRCode(name: string): Promise<{ qr_code?: string; status?: string }> {
+      return apiRequest(`/instances/${name}/qr`);
+    },
+
+    async restart(name: string): Promise<any> {
+      return apiRequest(`/instances/${name}/restart`, {
+        method: 'POST',
+      });
+    },
+
+    async getStatus(name: string): Promise<any> {
+      return apiRequest(`/instances/${name}/status`);
+    },
+  },
+
+  // Legacy flat methods for backward compatibility
   async getInstances(): Promise<any[]> {
     return apiRequest('/instances');
   },
@@ -96,9 +150,8 @@ export const api = {
     });
   },
 
-  // WhatsApp QR Code
   async getQRCode(instanceId: string): Promise<{ qr_code?: string; status?: string }> {
-    return apiRequest(`/instances/${instanceId}/qrcode`);
+    return apiRequest(`/instances/${instanceId}/qr`);
   },
 
   async restartInstance(instanceId: string): Promise<any> {
