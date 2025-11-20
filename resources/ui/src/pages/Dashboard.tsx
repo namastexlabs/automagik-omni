@@ -5,8 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { PageHeader } from '@/components/PageHeader';
 import { MetricCard } from '@/components/MetricCard';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { InstanceDialog } from '@/components/InstanceDialog';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { InstanceCard } from '@/components/InstanceCard';
@@ -65,20 +65,16 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="border-b border-border bg-card">
-          <div className="flex h-20 items-center px-8">
-            <h1 className="text-2xl font-bold text-foreground">
-              Dashboard
-            </h1>
-            <div className="ml-auto flex items-center space-x-3">
+        <PageHeader
+          title="Dashboard"
+          actions={
+            <>
               <div className="px-4 py-2 bg-muted rounded-lg elevation-sm border border-border">
                 <span className="text-xs text-muted-foreground">API Status: </span>
                 <span className={`text-sm font-semibold ${health?.status === 'healthy' ? 'text-success' : 'text-destructive'}`}>
                   {health?.status === 'healthy' ? '● Online' : '● Offline'}
                 </span>
               </div>
-              <ThemeToggle />
               <Button
                 className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"
                 onClick={() => setCreateDialogOpen(true)}
@@ -86,9 +82,9 @@ export default function Dashboard() {
                 <Plus className="h-4 w-4 mr-2" />
                 New Instance
               </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-background">

@@ -452,12 +452,18 @@ class EvolutionApiSender:
             logger.error("Cannot send audio message: missing server URL, API key, or instance name")
             return False
 
-        url = f"{self.server_url}/message/sendWhatsAppAudio/{quote(self.instance_name, safe='')}"
+        # Use sendMedia endpoint instead of sendWhatsAppAudio (which fails with base64)
+        url = f"{self.server_url}/message/sendMedia/{quote(self.instance_name, safe='')}"
         formatted_recipient = self._prepare_recipient(recipient)
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
 
-        payload = {"number": formatted_recipient, "audio": audio}
+        payload = {
+            "number": formatted_recipient,
+            "mediatype": "audio",
+            "media": audio,
+            "mimetype": "audio/mpeg"
+        }
 
         try:
             logger.info(f"Sending audio message to {formatted_recipient}")

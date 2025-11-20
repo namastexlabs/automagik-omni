@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { PageHeader } from '@/components/PageHeader';
 import {
   AlertCircle,
   Search,
@@ -101,23 +101,11 @@ export default function Chats() {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="border-b border-border bg-card">
-          <div className="flex h-20 items-center px-8">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                <MessageSquare className="h-6 w-6 text-primary" />
-                Chats
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                View conversations across all channels
-              </p>
-            </div>
-            <div className="ml-auto flex items-center space-x-3">
-              <ThemeToggle />
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Chats"
+          subtitle="View conversations across all channels"
+          icon={<MessageSquare className="h-6 w-6 text-primary" />}
+        />
 
         {/* Filters */}
         <div className="border-b border-border bg-card">

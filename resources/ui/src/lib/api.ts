@@ -121,6 +121,48 @@ export const api = {
     },
   },
 
+  // Contacts API
+  contacts: {
+    async list(instanceId: string, params?: {
+      page?: number;
+      page_size?: number;
+      search_query?: string;
+      status_filter?: string;
+    }): Promise<any> {
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+      if (params?.search_query) queryParams.append('search_query', params.search_query);
+      if (params?.status_filter) queryParams.append('status_filter', params.status_filter);
+
+      const query = queryParams.toString();
+      return apiRequest(`/instances/${instanceId}/contacts${query ? `?${query}` : ''}`);
+    },
+  },
+
+  // Chats API
+  chats: {
+    async list(instanceId: string, params?: {
+      page?: number;
+      page_size?: number;
+      search_query?: string;
+      chat_type?: string;
+      include_archived?: boolean;
+    }): Promise<any> {
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+      if (params?.search_query) queryParams.append('search_query', params.search_query);
+      if (params?.chat_type) queryParams.append('chat_type', params.chat_type);
+      if (params?.include_archived !== undefined) {
+        queryParams.append('include_archived', params.include_archived.toString());
+      }
+
+      const query = queryParams.toString();
+      return apiRequest(`/instances/${instanceId}/chats${query ? `?${query}` : ''}`);
+    },
+  },
+
   // Legacy flat methods for backward compatibility
   async getInstances(): Promise<any[]> {
     return apiRequest('/instances');
@@ -164,7 +206,6 @@ export const api = {
     return apiRequest(`/instances/${instanceId}/status`);
   },
 
-  // Contacts
   async getContacts(instanceId: string, params?: {
     page?: number;
     limit?: number;
@@ -176,10 +217,9 @@ export const api = {
     if (params?.search) queryParams.append('search', params.search);
 
     const query = queryParams.toString();
-    return apiRequest(`/omni/${instanceId}/contacts${query ? `?${query}` : ''}`);
+    return apiRequest(`/instances/${instanceId}/contacts${query ? `?${query}` : ''}`);
   },
 
-  // Chats
   async getChats(instanceId: string, params?: {
     page?: number;
     limit?: number;
@@ -191,7 +231,7 @@ export const api = {
     if (params?.search) queryParams.append('search', params.search);
 
     const query = queryParams.toString();
-    return apiRequest(`/omni/${instanceId}/chats${query ? `?${query}` : ''}`);
+    return apiRequest(`/instances/${instanceId}/chats${query ? `?${query}` : ''}`);
   },
 
   // Health check
