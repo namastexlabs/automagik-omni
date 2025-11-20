@@ -81,7 +81,7 @@ class SendAudioRequest(BaseModel):
     """Schema for sending WhatsApp audio messages."""
 
     user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
-    phone_number: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
+    phone: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID")
     audio_url: Optional[str] = Field(None, description="URL to audio file")
     audio_base64: Optional[str] = Field(None, description="Base64 encoded audio data")
 
@@ -147,12 +147,12 @@ class MessageResponse(BaseModel):
 
 def _resolve_recipient(
     user_id: Optional[str],
-    phone_number: Optional[str],
+    phone: Optional[str],
     db: Session,
     channel_type: str = "whatsapp",
 ) -> str:
     """
-    Resolve user_id or phone_number to the appropriate recipient identifier for the channel.
+    Resolve user_id or phone to the appropriate recipient identifier for the channel.
 
     For WhatsApp: Converts to WhatsApp JID format using the user service.
     For Discord: Validates channel ID as Discord snowflake format.
@@ -160,11 +160,11 @@ def _resolve_recipient(
     Resolution order:
     1. If user_id provided: lookup in our local user database
     2. If not found locally: try agent API (backward compatibility)
-    3. If phone_number provided: validate and use directly
+    3. If phone provided: validate and use directly
 
     Args:
         user_id: Optional user ID (UUID string)
-        phone_number: Optional phone number (WhatsApp) or channel ID (Discord)
+        phone: Optional phone number (WhatsApp) or channel ID (Discord)
         db: Database session
         channel_type: Channel type ("whatsapp", "discord", etc.)
 
@@ -174,6 +174,9 @@ def _resolve_recipient(
     Raises:
         HTTPException: If validation fails or required data is missing
     """
+    # Keep backwards compatibility with phone_number parameter name
+    phone_number = phone
+
     if not user_id and not phone_number:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -385,7 +388,7 @@ async def send_audio_message(
 
     try:
         # Resolve recipient (pass channel_type for proper validation)
-        recipient = _resolve_recipient(request.user_id, request.phone_number, db, instance_config.channel_type)
+        recipient = _resolve_recipient(request.user_id, request.phone, db, instance_config.channel_type)
 
         # Validate audio source
         if not request.audio_url and not request.audio_base64:
