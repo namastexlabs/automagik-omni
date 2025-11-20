@@ -89,10 +89,10 @@ if (process.platform === 'win32') {
 module.exports = {
   apps: [
     // ===================================================================
-    // 🐘 Evolution API (SQLite) - WhatsApp Gateway (Priority 0 - Starts First)
+    // 🐘 Evolution API (PGLite) - WhatsApp Gateway (Priority 0 - Starts First)
     // ===================================================================
     {
-      name: 'Evolution API (SQLite)',
+      name: 'Evolution API (PGLite)',
       cwd: envVars.EVOLUTION_API_PATH ? path.join(PROJECT_ROOT, envVars.EVOLUTION_API_PATH) : path.join(PROJECT_ROOT, 'resources/evolution-api'),
       script: 'npm',
       args: 'run start',
@@ -105,10 +105,11 @@ module.exports = {
         SERVER_URL: envVars.EVOLUTION_API_URL || 'http://localhost:18082',
         SERVER_DISABLE_MANAGER: 'true',
         SERVER_DISABLE_DOCS: 'true',
-        // Database - Fixed for SQLite local setup
+        // Database - PGLite (in-memory PostgreSQL)
         DATABASE_ENABLED: 'true',
-        DATABASE_PROVIDER: 'sqlite',
-        DATABASE_CONNECTION_URI: `file:${path.join(envVars.EVOLUTION_API_PATH ? path.join(PROJECT_ROOT, envVars.EVOLUTION_API_PATH) : path.join(PROJECT_ROOT, 'resources/evolution-api'), 'prisma/evolution-desktop.db')}`,
+        DATABASE_PROVIDER: 'pglite',
+        DATABASE_CONNECTION_URI: 'postgresql://dummy:dummy@localhost:5432/dummy',
+        PGLITE_DATA_DIR: '/home/namastex/data/evolution-pglite',
         DATABASE_SAVE_DATA_INSTANCE: 'true',
         DATABASE_SAVE_DATA_NEW_MESSAGE: 'true',
         DATABASE_SAVE_MESSAGE_UPDATE: 'true',
