@@ -162,6 +162,41 @@ module.exports = {
     },
 
     // ===================================================================
+    // 📱 Evolution API - WhatsApp Integration with PGlite (Priority 2)
+    // ===================================================================
+    {
+      name: 'Evolution API (PGlite)',
+      cwd: path.join(PROJECT_ROOT, 'resources/evolution-api'),
+      script: 'npm',
+      args: 'run start',
+      interpreter: 'none',
+      version: '0.40.3', // Evolution API version (from package.json)
+      env: {
+        NODE_ENV: 'production',
+        SERVER_PORT: envVars.EVOLUTION_API_PORT || '18082',
+        DATABASE_PROVIDER: 'pglite',
+        PGLITE_DATA_DIR: path.join(require('os').homedir(), 'data/evolution-pglite'),
+        LOG_LEVEL: envVars.EVOLUTION_LOG_LEVEL || 'ERROR,WARN',
+        PROCESS_TITLE: 'Evolution API (PGlite)'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 3000,
+      kill_timeout: 5000,
+      error_file: path.join(PROJECT_ROOT, 'logs/evolution-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/evolution-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/evolution-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+
+    // ===================================================================
     // 🎨 Omni UI (Frontend Dashboard)
     // ===================================================================
     {
