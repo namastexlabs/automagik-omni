@@ -341,10 +341,11 @@ install-evolution: ## Install Evolution API dependencies (Node.js)
 			exit 1; \
 		fi; \
 	}
-	$(call print_status,Generating Prisma client for SQLite)
-	@cd resources/evolution-api && DATABASE_PROVIDER=sqlite npm run db:generate
-	$(call print_status,Creating Evolution API database schema)
-	@cd resources/evolution-api && DATABASE_CONNECTION_URI="file:$$(pwd)/prisma/evolution-desktop.db" npx prisma db push --schema ./prisma/sqlite-schema.prisma --accept-data-loss --skip-generate
+	$(call print_status,Generating Prisma client for PGlite)
+	@cd resources/evolution-api && DATABASE_PROVIDER=pglite npm run db:generate
+	$(call print_status,Creating Evolution API PGlite database directory)
+	@mkdir -p "$$HOME/data/evolution-pglite"
+	$(call print_info,PGlite database will be created automatically on first run at $$HOME/data/evolution-pglite)
 	$(call print_success,Evolution API dependencies installed)
 
 .PHONY: setup
