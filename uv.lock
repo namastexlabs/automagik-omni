@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -194,6 +194,7 @@ dependencies = [
     { name = "pika" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
+    { name = "pydub" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -260,6 +261,7 @@ requires-dist = [
     { name = "pika", specifier = ">=1.3.2" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "pydub", specifier = ">=0.25.1" },
     { name = "pydub", marker = "extra == 'discord-voice-ai'", specifier = ">=0.25.1" },
     { name = "pynacl", marker = "extra == 'discord'", specifier = ">=1.5.0" },
     { name = "pynacl", marker = "extra == 'discord-voice'", specifier = ">=1.5.0" },
