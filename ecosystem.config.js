@@ -162,10 +162,10 @@ module.exports = {
     },
 
     // ===================================================================
-    // 📱 Evolution API - WhatsApp Integration with PGlite (Priority 2)
+    // 📱 Evolution API - WhatsApp Integration (PostgreSQL) (Priority 2)
     // ===================================================================
     {
-      name: 'Evolution API (PGlite)',
+      name: 'Evolution API',
       cwd: path.join(PROJECT_ROOT, 'resources/evolution-api'),
       script: 'npm',
       args: 'run start',
@@ -174,10 +174,8 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         SERVER_PORT: envVars.EVOLUTION_API_PORT || '18082',
-        DATABASE_PROVIDER: 'pglite',
-        PGLITE_DATA_DIR: path.join(require('os').homedir(), 'data/evolution-pglite'),
         LOG_LEVEL: envVars.EVOLUTION_LOG_LEVEL || 'ERROR,WARN',
-        PROCESS_TITLE: 'Evolution API (PGlite)'
+        PROCESS_TITLE: 'Evolution API'
       },
       instances: 1,
       exec_mode: 'fork',
