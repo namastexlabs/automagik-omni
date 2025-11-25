@@ -292,12 +292,12 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   });
 
   // ============================================================
-  // Route: /api/* - Proxy to Python FastAPI
+  // Route: /api/v1/* - Proxy to Python FastAPI
   // ============================================================
   await fastify.register(proxy, {
     upstream: `http://127.0.0.1:${PYTHON_PORT}`,
-    prefix: '/api',
-    rewritePrefix: '/api',
+    prefix: '/api/v1',
+    rewritePrefix: '/api/v1',
     http2: false,
   });
 
@@ -379,10 +379,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     // SPA fallback - serve index.html for unmatched routes
     fastify.setNotFoundHandler(async (request, reply) => {
       // Don't serve index.html for API routes
-      if (request.url.startsWith('/api') ||
+      if (request.url.startsWith('/api/v1') ||
           request.url.startsWith('/webhook') ||
           request.url.startsWith('/evolution') ||
-          request.url.startsWith('/health')) {
+          request.url.startsWith('/health') ||
+          request.url.startsWith('/docs') ||
+          request.url.startsWith('/redoc') ||
+          request.url.startsWith('/openapi.json')) {
         return reply.status(404).send({ error: 'Not Found' });
       }
       return reply.sendFile('index.html');
