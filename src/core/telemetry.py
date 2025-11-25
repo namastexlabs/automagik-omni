@@ -1,8 +1,9 @@
 """
 Lightweight telemetry client for Omni-Hub.
-Uses only Python standard library to send OTLP-compatible traces.
+Uses asyncio + httpx for non-blocking OTLP-compatible traces.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -12,8 +13,8 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,8 @@ logger = logging.getLogger(__name__)
 class TelemetryClient:
     """
     Lightweight telemetry client that sends OTLP-compatible traces.
-    Uses only Python standard library - no external dependencies.
+    Uses asyncio + httpx for non-blocking sends in FastAPI context.
+    Falls back to sync httpx for CLI contexts without event loop.
     """
 
     def __init__(self):
@@ -76,6 +78,22 @@ class TelemetryClient:
             return False
 
         return True
+
+    async def _async_send(self, payload: Dict[str, Any]) -> None:
+        """Fire-and-forget HTTP send (async, for FastAPI context)."""
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                await client.post(self.endpoint, json=payload)
+        except Exception as e:
+            logger.debug(f"Telemetry async error: {e}")
+
+    def _sync_send(self, payload: Dict[str, Any]) -> None:
+        """Blocking HTTP send (for CLI context without event loop)."""
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                client.post(self.endpoint, json=payload)
+        except Exception as e:
+            logger.debug(f"Telemetry sync error: {e}")
 
     def _get_system_info(self) -> Dict[str, Any]:
         """Collect basic system information."""
@@ -187,22 +205,14 @@ class TelemetryClient:
                 ]
             }
 
-            # Send HTTP request
-            request = Request(
-                self.endpoint,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-            )
+            # Try async first (FastAPI), fall back to sync (CLI)
+            try:
+                asyncio.create_task(self._async_send(payload))
+            except RuntimeError:
+                # No event loop (CLI context) - use sync fallback
+                self._sync_send(payload)
 
-            with urlopen(request, timeout=self.timeout) as response:
-                if response.status != 200:
-                    logger.debug(f"Telemetry event failed with status {response.status}")
-
-        except (URLError, HTTPError, TimeoutError) as e:
-            # Log only in debug mode, never crash the application
-            logger.debug(f"Telemetry network error: {e}")
         except Exception as e:
-            # Log any other errors in debug mode
             logger.debug(f"Telemetry event error: {e}")
 
     # Public API methods
