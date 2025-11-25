@@ -233,6 +233,20 @@ export const api = {
     async getStatus(name: string): Promise<any> {
       return apiRequest(`/instances/${name}/status`);
     },
+
+    async discover(): Promise<{
+      message: string;
+      instances: Array<{
+        name: string;
+        whatsapp_instance: string;
+        profile_name?: string;
+        evolution_key: string;
+        evolution_url: string;
+      }>;
+      total: number;
+    }> {
+      return apiRequest('/instances/discover', { method: 'POST' });
+    },
   },
 
   // Contacts API

@@ -3,6 +3,7 @@ Discovery service for auto-detecting Evolution instances and syncing with databa
 """
 
 import logging
+import secrets
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,15 @@ from src.db.models import InstanceConfig
 from src.utils.instance_utils import normalize_instance_name
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_api_key() -> str:
+    """Generate a secure random API key for Evolution instances.
+
+    Returns:
+        32-character hexadecimal string suitable for API authentication
+    """
+    return secrets.token_hex(16)
 
 
 class DiscoveryService:
@@ -22,10 +32,13 @@ class DiscoveryService:
 
     async def discover_evolution_instances(self, db: Session) -> List[InstanceConfig]:
         """
-        Discover Evolution instances using existing database configurations.
+        Discover Evolution instances using existing database configurations or global env vars.
 
         Uses Evolution API credentials from existing instances in the database
         to discover additional instances from those Evolution API servers.
+
+        If no instances with credentials exist, falls back to global Evolution credentials
+        from environment variables (EVOLUTION_URL, EVOLUTION_API_KEY).
 
         Args:
             db: Database session
@@ -46,23 +59,46 @@ class DiscoveryService:
             .all()
         )
 
-        if not existing_instances:
-            logger.info("No existing WhatsApp instances with Evolution API config found")
-            return []
-
         synced_instances = []
 
-        # Group instances by unique Evolution API servers
+        # Group instances by unique Evolution API servers or use global config
         evolution_servers = {}
-        for instance in existing_instances:
-            server_key = f"{instance.evolution_url}::{instance.evolution_key}"
-            if server_key not in evolution_servers:
-                evolution_servers[server_key] = {
-                    "url": instance.evolution_url,
-                    "key": instance.evolution_key,
+
+        if existing_instances:
+            # Use existing instance credentials (normal operation)
+            for instance in existing_instances:
+                server_key = f"{instance.evolution_url}::{instance.evolution_key}"
+                if server_key not in evolution_servers:
+                    evolution_servers[server_key] = {
+                        "url": instance.evolution_url,
+                        "key": instance.evolution_key,
+                        "instances": [],
+                    }
+                evolution_servers[server_key]["instances"].append(instance)
+            logger.info(f"Found {len(evolution_servers)} existing Evolution API server(s)")
+        else:
+            # Fallback to global Evolution credentials from environment
+            logger.info("No existing instances found, attempting to use global Evolution credentials")
+            from src.config import config
+
+            global_url = config.get_env("EVOLUTION_URL", "http://localhost:18082")
+            global_key = config.get_env("EVOLUTION_API_KEY")
+
+            if not global_key:
+                logger.warning(
+                    "No Evolution API credentials found. "
+                    "Please set EVOLUTION_API_KEY in .env or add at least one WhatsApp instance with Evolution credentials."
+                )
+                return []
+
+            logger.info(f"Using global Evolution credentials from environment (URL: {global_url})")
+            evolution_servers = {
+                f"{global_url}::{global_key}": {
+                    "url": global_url,
+                    "key": global_key,
                     "instances": [],
                 }
-            evolution_servers[server_key]["instances"].append(instance)
+            }
 
         logger.info(f"Found {len(evolution_servers)} unique Evolution API servers")
 
@@ -199,12 +235,15 @@ class DiscoveryService:
             # Normalize the name for our database but keep original for Evolution API
             normalized_name = normalize_instance_name(evo_instance.instanceName)
 
+            # Auto-generate a unique API key for this instance (transparent to user)
+            auto_generated_key = _generate_api_key()
+
             new_instance = InstanceConfig(
                 name=normalized_name,
                 channel_type="whatsapp",
                 default_agent=evo_instance.profileName or "default-agent",
                 evolution_url=evolution_url,
-                evolution_key=evolution_key,
+                evolution_key=auto_generated_key,  # Use auto-generated key instead of passed-in credentials
                 agent_api_url="http://localhost:8000",  # Default agent URL
                 agent_api_key="default-key",  # Default agent key
                 whatsapp_instance=evo_instance.instanceName,  # Preserve original case for Evolution API calls
@@ -214,6 +253,8 @@ class DiscoveryService:
                 profile_pic_url=evo_instance.profilePicUrl,
                 owner_jid=evo_instance.ownerJid,
             )
+
+            logger.debug(f"Auto-generated API key for instance {normalized_name}")
 
             # Log normalization if name changed
             if evo_instance.instanceName != normalized_name:

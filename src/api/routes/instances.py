@@ -855,48 +855,38 @@ async def discover_instances(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Discover available instances from external services."""
-    discovered_instances = []
+    """Resync with Evolution API - discover and auto-configure instances.
 
+    Uses global Evolution credentials from environment if DB is empty,
+    then auto-generates API keys for each discovered instance.
+    Useful when database has been recreated or wiped.
+    """
     try:
-        # Get all configured instances to check their external status
-        instances = db.query(InstanceConfig).all()
+        from src.services.discovery_service import discovery_service
 
-        for instance in instances:
-            try:
-                handler = ChannelHandlerFactory.get_handler(instance.channel_type)
-                status_info = await handler.get_status(instance)
+        logger.info("Manual instance discovery/resync triggered")
 
-                discovered_instances.append(
-                    {
-                        "name": instance.name,
-                        "channel_type": instance.channel_type,
-                        "status": status_info.status,
-                        "configured": True,
-                        "active": instance.is_active,
-                        "channel_data": status_info.channel_data,
-                    }
-                )
-            except Exception as e:
-                # If we can't get status, still include the instance
-                discovered_instances.append(
-                    {
-                        "name": instance.name,
-                        "channel_type": instance.channel_type,
-                        "status": "error",
-                        "configured": True,
-                        "active": False,
-                        "error": str(e),
-                    }
-                )
+        # Call enhanced discovery service (now supports empty DB via global env vars)
+        discovered_instances = await discovery_service.discover_evolution_instances(db)
 
         return {
-            "message": "Instance discovery completed",
-            "instances": discovered_instances,
-            "total_discovered": len(discovered_instances),
+            "message": f"Resync complete - {len(discovered_instances)} instances configured",
+            "instances": [
+                {
+                    "name": inst.name,
+                    "whatsapp_instance": inst.whatsapp_instance,
+                    "profile_name": inst.profile_name,
+                    "evolution_key": inst.evolution_key,
+                    "evolution_url": inst.evolution_url,
+                }
+                for inst in discovered_instances
+            ],
+            "total": len(discovered_instances),
         }
+
     except Exception as e:
+        logger.error(f"Discovery/resync failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to discover instances: {str(e)}",
+            detail=f"Failed to resync with Evolution: {str(e)}",
         )
