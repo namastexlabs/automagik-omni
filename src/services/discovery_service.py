@@ -77,25 +77,19 @@ class DiscoveryService:
                 evolution_servers[server_key]["instances"].append(instance)
             logger.info(f"Found {len(evolution_servers)} existing Evolution API server(s)")
         else:
-            # Fallback to global Evolution credentials from environment
-            logger.info("No existing instances found, attempting to use global Evolution credentials")
+            # Fallback: generate a temporary key for initial discovery
+            logger.info("No existing instances found, using auto-generated key for initial discovery")
             from src.config import config
 
             global_url = config.get_env("EVOLUTION_URL", "http://localhost:18082")
-            global_key = config.get_env("EVOLUTION_API_KEY")
+            # Generate a temporary key for initial discovery
+            temp_key = _generate_api_key()
 
-            if not global_key:
-                logger.warning(
-                    "No Evolution API credentials found. "
-                    "Please set EVOLUTION_API_KEY in .env or add at least one WhatsApp instance with Evolution credentials."
-                )
-                return []
-
-            logger.info(f"Using global Evolution credentials from environment (URL: {global_url})")
+            logger.info(f"Using auto-generated key for Evolution API discovery (URL: {global_url})")
             evolution_servers = {
-                f"{global_url}::{global_key}": {
+                f"{global_url}::{temp_key}": {
                     "url": global_url,
-                    "key": global_key,
+                    "key": temp_key,
                     "instances": [],
                 }
             }
