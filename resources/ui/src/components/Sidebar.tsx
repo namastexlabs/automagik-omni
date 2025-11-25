@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
@@ -5,9 +6,9 @@ import {
   MessageSquare,
   Users,
   Settings,
-  Activity,
   LogOut,
 } from 'lucide-react';
+import { InstanceNav } from './sidebar/InstanceNav';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -15,7 +16,6 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Instances', href: '/instances', icon: Activity },
   { name: 'Chats', href: '/chats', icon: MessageSquare },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -23,6 +23,7 @@ const navigation = [
 
 export function Sidebar({ onLogout }: SidebarProps) {
   const location = useLocation();
+  const [instancesExpanded, setInstancesExpanded] = useState(true);
 
   return (
     <div className="flex h-full w-64 flex-col bg-card border-r border-border elevation-sm">
@@ -36,8 +37,35 @@ export function Sidebar({ onLogout }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-6">
-        {navigation.map((item) => {
+      <nav className="flex-1 overflow-y-auto space-y-1 px-3 py-6">
+        {/* Dashboard Link */}
+        <Link
+          to="/dashboard"
+          className={cn(
+            'group flex items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200',
+            location.pathname === '/dashboard'
+              ? 'bg-primary text-primary-foreground elevation-md'
+              : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+          )}
+        >
+          <LayoutDashboard className={cn(
+            'h-5 w-5 transition-transform group-hover:scale-110',
+            location.pathname === '/dashboard' ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-accent-foreground'
+          )} />
+          <span>Dashboard</span>
+          {location.pathname === '/dashboard' && (
+            <div className="ml-auto h-2 w-2 rounded-full bg-primary-foreground/80 animate-pulse"></div>
+          )}
+        </Link>
+
+        {/* Instances Nav with Expandable Sub-items */}
+        <InstanceNav
+          isExpanded={instancesExpanded}
+          onToggle={() => setInstancesExpanded(!instancesExpanded)}
+        />
+
+        {/* Other Navigation Items */}
+        {navigation.filter(item => item.name !== 'Dashboard').map((item) => {
           const isActive = location.pathname === item.href;
           return (
             <Link

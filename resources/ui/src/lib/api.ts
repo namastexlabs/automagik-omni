@@ -239,4 +239,160 @@ export const api = {
     const response = await fetch('/health');
     return response.json();
   },
+
+  // Evolution API (direct access via gateway)
+  evolution: {
+    // Settings
+    async getSettings(instanceName: string): Promise<any> {
+      return evolutionRequest(`/settings/find/${instanceName}`);
+    },
+
+    async setSettings(instanceName: string, settings: any): Promise<any> {
+      return evolutionRequest(`/settings/set/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(settings),
+      });
+    },
+
+    // Connection
+    async getConnectionState(instanceName: string): Promise<any> {
+      return evolutionRequest(`/instance/connectionState/${instanceName}`);
+    },
+
+    async restart(instanceName: string): Promise<any> {
+      return evolutionRequest(`/instance/restart/${instanceName}`, {
+        method: 'POST',
+      });
+    },
+
+    async logout(instanceName: string): Promise<any> {
+      return evolutionRequest(`/instance/logout/${instanceName}`, {
+        method: 'DELETE',
+      });
+    },
+
+    async connect(instanceName: string): Promise<any> {
+      return evolutionRequest(`/instance/connect/${instanceName}`);
+    },
+
+    // Webhook
+    async getWebhook(instanceName: string): Promise<any> {
+      return evolutionRequest(`/webhook/find/${instanceName}`);
+    },
+
+    async setWebhook(instanceName: string, config: any): Promise<any> {
+      return evolutionRequest(`/webhook/set/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(config),
+      });
+    },
+
+    // WebSocket
+    async getWebSocket(instanceName: string): Promise<any> {
+      return evolutionRequest(`/websocket/find/${instanceName}`);
+    },
+
+    async setWebSocket(instanceName: string, config: any): Promise<any> {
+      return evolutionRequest(`/websocket/set/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(config),
+      });
+    },
+
+    // RabbitMQ
+    async getRabbitMQ(instanceName: string): Promise<any> {
+      return evolutionRequest(`/rabbitmq/find/${instanceName}`);
+    },
+
+    async setRabbitMQ(instanceName: string, config: any): Promise<any> {
+      return evolutionRequest(`/rabbitmq/set/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(config),
+      });
+    },
+
+    // Chats
+    async findChats(instanceName: string, params?: any): Promise<any> {
+      return evolutionRequest(`/chat/findChats/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(params || {}),
+      });
+    },
+
+    async findMessages(instanceName: string, params: { where: { key: { remoteJid: string } }; limit?: number }): Promise<any> {
+      return evolutionRequest(`/chat/findMessages/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+      });
+    },
+
+    async findContacts(instanceName: string, params?: any): Promise<any> {
+      return evolutionRequest(`/chat/findContacts/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(params || {}),
+      });
+    },
+
+    // Messages
+    async sendText(instanceName: string, data: { number: string; text: string }): Promise<any> {
+      return evolutionRequest(`/message/sendText/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async sendMedia(instanceName: string, data: any): Promise<any> {
+      return evolutionRequest(`/message/sendMedia/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async markAsRead(instanceName: string, data: { readMessages: Array<{ remoteJid: string; id: string }> }): Promise<any> {
+      return evolutionRequest(`/chat/markMessageAsRead/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    // Presence
+    async sendPresence(instanceName: string, data: { number: string; presence: string }): Promise<any> {
+      return evolutionRequest(`/chat/sendPresence/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  },
 };
+
+// Evolution API helper (direct to Evolution via gateway)
+const EVOLUTION_BASE_URL = '/evolution';
+
+async function evolutionRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    throw new Error('No API key found. Please login.');
+  }
+
+  const url = `${EVOLUTION_BASE_URL}${endpoint}`;
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': localStorage.getItem('evolution_api_key') || '429683C4C977415CAAFCCE10F7D57E11',
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || `Evolution API request failed with status ${response.status}`);
+  }
+
+  return response.json();
+}

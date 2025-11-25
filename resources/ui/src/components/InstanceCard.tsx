@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { QrCode, Eye, Settings as SettingsIcon, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { QrCode, Settings as SettingsIcon, Trash2, Loader2, AlertTriangle, MessageSquare } from 'lucide-react';
 import type { InstanceConfig } from '@/lib/types';
 
 interface InstanceCardProps {
@@ -148,16 +149,18 @@ export function InstanceCard({
                   Scan QR
                 </Button>
               )}
-              {/* Show View when connected */}
+              {/* Show Chats when connected */}
               {isWhatsAppConnected() && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary transition-colors"
-                  onClick={() => onShowQR(instance.name)}
+                  asChild
                 >
-                  <Eye className="h-4 w-4 mr-1" />
-                  View
+                  <Link to="/chats">
+                    <MessageSquare className="h-4 w-4 mr-1" />
+                    Chats
+                  </Link>
                 </Button>
               )}
             </>

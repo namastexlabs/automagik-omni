@@ -153,3 +153,123 @@ export interface PaginatedResponse<T> {
   page_size: number;
   total_pages: number;
 }
+
+// Evolution API Types
+
+export interface EvolutionSettings {
+  rejectCall: boolean;
+  msgCall: string;
+  groupsIgnore: boolean;
+  alwaysOnline: boolean;
+  readMessages: boolean;
+  readStatus: boolean;
+  syncFullHistory: boolean;
+}
+
+export interface EvolutionWebhookConfig {
+  enabled: boolean;
+  url: string;
+  headers?: Record<string, string>;
+  byEvents: boolean;
+  base64: boolean;
+  events: string[];
+}
+
+export interface EvolutionWebSocketConfig {
+  enabled: boolean;
+  events: string[];
+}
+
+export interface EvolutionRabbitMQConfig {
+  enabled: boolean;
+  uri?: string;
+  exchange?: string;
+  events: string[];
+}
+
+export interface EvolutionConnectionState {
+  instance: string;
+  state: 'open' | 'close' | 'connecting' | 'refused';
+}
+
+export interface EvolutionProfile {
+  name?: string;
+  status?: string;
+  pictureUrl?: string;
+  jid?: string;
+  phone?: string;
+}
+
+export interface EvolutionStats {
+  contacts?: number;
+  chats?: number;
+  messages?: number;
+}
+
+export interface EvolutionMessage {
+  key: {
+    remoteJid: string;
+    fromMe: boolean;
+    id: string;
+  };
+  pushName?: string;
+  message?: {
+    conversation?: string;
+    extendedTextMessage?: { text: string };
+    imageMessage?: { caption?: string; mimetype?: string; url?: string };
+    videoMessage?: { caption?: string; mimetype?: string; url?: string };
+    audioMessage?: { mimetype?: string; url?: string };
+    documentMessage?: { fileName?: string; mimetype?: string; url?: string };
+  };
+  messageType?: string;
+  messageTimestamp?: number;
+  status?: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'PLAYED';
+}
+
+export interface EvolutionChat {
+  id: string;
+  remoteJid: string;
+  name?: string;
+  profilePictureUrl?: string;
+  unreadCount?: number;
+  lastMessage?: EvolutionMessage;
+  lastMessageTimestamp?: number;
+  isGroup?: boolean;
+}
+
+export interface EvolutionContact {
+  id: string;
+  remoteJid: string;
+  pushName?: string;
+  profilePictureUrl?: string;
+  phone?: string;
+}
+
+// Event types for webhook/websocket configuration
+export const EVOLUTION_EVENTS = [
+  'APPLICATION_STARTUP',
+  'QRCODE_UPDATED',
+  'MESSAGES_SET',
+  'MESSAGES_UPSERT',
+  'MESSAGES_UPDATE',
+  'MESSAGES_DELETE',
+  'SEND_MESSAGE',
+  'CONTACTS_SET',
+  'CONTACTS_UPSERT',
+  'CONTACTS_UPDATE',
+  'CHATS_SET',
+  'CHATS_UPSERT',
+  'CHATS_UPDATE',
+  'CHATS_DELETE',
+  'GROUPS_UPSERT',
+  'GROUPS_UPDATE',
+  'PRESENCE_UPDATE',
+  'CONNECTION_UPDATE',
+  'CALL',
+  'LABELS_EDIT',
+  'LABELS_ASSOCIATION',
+  'LOGOUT_INSTANCE',
+  'REMOVE_INSTANCE',
+] as const;
+
+export type EvolutionEventType = typeof EVOLUTION_EVENTS[number];
