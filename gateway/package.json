@@ -1,0 +1,29 @@
+{
+  "name": "@automagik/gateway",
+  "version": "0.5.2",
+  "description": "TypeScript gateway for Automagik Omni - single port access to all services",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "@fastify/http-proxy": "^9.5.0",
+    "@fastify/static": "^7.0.4",
+    "@fastify/websocket": "^10.0.1",
+    "@fastify/cors": "^9.0.1",
+    "execa": "^9.5.2",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsup": "^8.3.5",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2"
+  }
+}
