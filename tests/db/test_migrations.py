@@ -13,7 +13,7 @@ def test_alembic_has_single_head():
     heads = script_dir.get_heads()
 
     assert len(heads) == 1, f"Expected a single head, found: {heads}"
-    assert heads[0] == "0758c72b3e68"  # Updated for add_access_rule_tracking migration
+    assert heads[0] == "49e3788203da"  # Updated for add_enable_auto_split_to_instance_config migration
 
 
 def test_run_migrations_stamps_after_idempotent_error(monkeypatch):
