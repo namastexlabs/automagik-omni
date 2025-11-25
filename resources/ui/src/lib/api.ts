@@ -1,6 +1,59 @@
 const API_KEY_STORAGE_KEY = 'omni_api_key';
 const API_BASE_URL = '/api/v1';
 
+// Trace Analytics Types
+export interface TraceAnalytics {
+  total_messages: number;
+  successful_messages: number;
+  failed_messages: number;
+  success_rate: number;
+  avg_processing_time_ms: number | null;
+  avg_agent_time_ms: number | null;
+  message_types: Record<string, number>;
+  error_stages: Record<string, number>;
+  instances: Record<string, number>;
+}
+
+export interface Trace {
+  trace_id: string;
+  instance_name: string;
+  whatsapp_message_id: string | null;
+  sender_phone: string | null;
+  sender_name: string | null;
+  message_type: string | null;
+  message_type_display: string | null;
+  has_media: boolean;
+  has_quoted_message: boolean;
+  session_name: string | null;
+  agent_session_id: string | null;
+  status: 'received' | 'processing' | 'completed' | 'failed' | 'access_denied';
+  error_message: string | null;
+  error_stage: string | null;
+  received_at: string | null;
+  completed_at: string | null;
+  agent_processing_time_ms: number | null;
+  total_processing_time_ms: number | null;
+  agent_response_success: boolean | null;
+  evolution_success: boolean | null;
+}
+
+// Health Types
+export interface HealthResponse {
+  status: 'up' | 'down' | 'degraded';
+  timestamp: string;
+  services: {
+    gateway: ServiceHealth;
+    python: ServiceHealth;
+    evolution: ServiceHealth;
+  };
+}
+
+export interface ServiceHealth {
+  status: 'up' | 'down' | 'degraded';
+  latency?: number;
+  details?: Record<string, unknown>;
+}
+
 // API Key management
 export function getApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
@@ -236,8 +289,63 @@ export const api = {
 
   // Health check
   async health(): Promise<any> {
-    const response = await fetch('/health');
-    return response.json();
+    try {
+      const response = await fetch('/health');
+      if (!response.ok) {
+        return { status: 'down' };
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[API] Health check failed:', error);
+      return { status: 'down' };
+    }
+  },
+
+  // Trace Analytics API
+  traces: {
+    async getAnalytics(params?: {
+      start_date?: string;
+      end_date?: string;
+      instance_name?: string;
+      all_time?: boolean;
+    }): Promise<TraceAnalytics> {
+      const queryParams = new URLSearchParams();
+      if (params?.start_date) queryParams.append('start_date', params.start_date);
+      if (params?.end_date) queryParams.append('end_date', params.end_date);
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.all_time) queryParams.append('all_time', 'true');
+
+      const query = queryParams.toString();
+      return apiRequest(`/traces/analytics/summary${query ? `?${query}` : ''}`);
+    },
+
+    async list(params?: {
+      limit?: number;
+      offset?: number;
+      start_date?: string;
+      end_date?: string;
+      instance_name?: string;
+      trace_status?: string;
+      message_type?: string;
+      all_time?: boolean;
+    }): Promise<Trace[]> {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.offset) queryParams.append('offset', params.offset.toString());
+      if (params?.start_date) queryParams.append('start_date', params.start_date);
+      if (params?.end_date) queryParams.append('end_date', params.end_date);
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.trace_status) queryParams.append('trace_status', params.trace_status);
+      if (params?.message_type) queryParams.append('message_type', params.message_type);
+      if (params?.all_time) queryParams.append('all_time', 'true');
+
+      const query = queryParams.toString();
+      return apiRequest(`/traces${query ? `?${query}` : ''}`);
+    },
+
+    async get(traceId: string): Promise<Trace> {
+      return apiRequest(`/traces/${traceId}`);
+    },
   },
 
   // Evolution API (direct access via gateway)
@@ -333,6 +441,11 @@ export const api = {
       });
     },
 
+    // Groups
+    async fetchAllGroups(instanceName: string): Promise<any[]> {
+      return evolutionRequest(`/group/fetchAllGroups/${instanceName}?getParticipants=false`);
+    },
+
     // Messages
     async sendText(instanceName: string, data: { number: string; text: string }): Promise<any> {
       return evolutionRequest(`/message/sendText/${instanceName}`, {
@@ -348,6 +461,13 @@ export const api = {
       });
     },
 
+    async sendWhatsAppAudio(instanceName: string, data: { number: string; audio: string; encoding?: boolean }): Promise<any> {
+      return evolutionRequest(`/message/sendWhatsAppAudio/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
     async markAsRead(instanceName: string, data: { readMessages: Array<{ remoteJid: string; id: string }> }): Promise<any> {
       return evolutionRequest(`/chat/markMessageAsRead/${instanceName}`, {
         method: 'POST',
@@ -358,6 +478,20 @@ export const api = {
     // Presence
     async sendPresence(instanceName: string, data: { number: string; presence: string }): Promise<any> {
       return evolutionRequest(`/chat/sendPresence/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    // Media
+    async getBase64FromMediaMessage(instanceName: string, data: { message: { key: { id: string; remoteJid: string } }; convertToMp4?: boolean }): Promise<{
+      mediaType: string;
+      fileName: string;
+      caption?: string;
+      mimetype: string;
+      base64: string;
+    }> {
+      return evolutionRequest(`/chat/getBase64FromMediaMessage/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
       });

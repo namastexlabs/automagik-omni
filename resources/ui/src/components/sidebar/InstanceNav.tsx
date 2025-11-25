@@ -12,11 +12,12 @@ import { RabbitMQSheet } from '@/components/sheets/RabbitMQSheet';
 interface InstanceNavProps {
   isExpanded: boolean;
   onToggle: () => void;
+  onNavigate?: () => void;
 }
 
 type SheetType = 'connection' | 'settings' | 'webhook' | 'websocket' | 'rabbitmq' | null;
 
-export function InstanceNav({ isExpanded, onToggle }: InstanceNavProps) {
+export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavProps) {
   const [expandedInstances, setExpandedInstances] = useState<Record<string, boolean>>({});
   const [activeSheet, setActiveSheet] = useState<{ type: SheetType; instanceName: string } | null>(null);
 

@@ -55,8 +55,8 @@ export default function Settings() {
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
                   <span className="text-sm font-medium text-foreground">API Status</span>
                   {health ? (
-                    <Badge className="gradient-success border-0">
-                      {health.status === 'healthy' ? 'Connected' : health.status}
+                    <Badge className={health.status === 'up' ? 'gradient-success border-0' : 'bg-destructive border-0'}>
+                      {health.status === 'up' ? 'Connected' : health.status}
                     </Badge>
                   ) : (
                     <Badge variant="outline">Checking...</Badge>
