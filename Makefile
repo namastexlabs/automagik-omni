@@ -990,3 +990,173 @@ dev-pm2: ## Start both API and UI in PM2
 	$(call print_info,API: http://$(AUTOMAGIK_OMNI_API_HOST):$(AUTOMAGIK_OMNI_API_PORT))
 	$(call print_info,UI:  http://$(UI_HOST):$(UI_PORT))
 	$(call print_info,Monitor: pm2 monit)
+
+# ===========================================
+# 🏭 Production Deployment (PM2 Gateway Mode)
+# ===========================================
+# Default ports for production
+OMNI_PORT ?= 8882
+PYTHON_API_PORT ?= 8881
+EVOLUTION_PORT ?= 18082
+
+.PHONY: prod prod-setup prod-start prod-stop prod-restart prod-status prod-logs prod-build
+
+prod: ## 🏭 Full production setup and start (recommended for fresh deployment)
+	@echo ""
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)╔═══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)║  $(ROCKET) Automagik Omni - Production Deployment               ║$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)╚═══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)This will set up Omni Hub for production with:$(FONT_RESET)"
+	@echo -e "  • Gateway on port $(OMNI_PORT) (single entry point)"
+	@echo -e "  • Python API on port $(PYTHON_API_PORT) (internal)"
+	@echo -e "  • Evolution API on port $(EVOLUTION_PORT) (WhatsApp)"
+	@echo -e "  • Built UI served by Gateway"
+	@echo ""
+	@read -r -p "Continue with production setup? [Y/n] " choice; \
+	if [ "$$choice" = "n" ] || [ "$$choice" = "N" ]; then \
+		echo "$(FONT_YELLOW)Setup cancelled$(FONT_RESET)"; \
+		exit 0; \
+	fi
+	@$(MAKE) prod-setup
+	@$(MAKE) prod-start
+	@echo ""
+	@echo -e "$(FONT_GREEN)$(FONT_BOLD)╔═══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_GREEN)$(FONT_BOLD)║  $(CHECKMARK) Production Deployment Complete!                       ║$(FONT_RESET)"
+	@echo -e "$(FONT_GREEN)$(FONT_BOLD)╚═══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_BOLD)Services:$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)•$(FONT_RESET) Gateway:     http://0.0.0.0:$(OMNI_PORT)"
+	@echo -e "  $(FONT_GREEN)•$(FONT_RESET) Dashboard:   http://0.0.0.0:$(OMNI_PORT)/dashboard"
+	@echo -e "  $(FONT_GREEN)•$(FONT_RESET) API Health:  http://0.0.0.0:$(OMNI_PORT)/health"
+	@echo ""
+	@echo -e "$(FONT_BOLD)PM2 Commands:$(FONT_RESET)"
+	@echo -e "  $(FONT_CYAN)make prod-status$(FONT_RESET)   - Check service status"
+	@echo -e "  $(FONT_CYAN)make prod-logs$(FONT_RESET)     - View logs"
+	@echo -e "  $(FONT_CYAN)make prod-restart$(FONT_RESET)  - Restart services"
+	@echo -e "  $(FONT_CYAN)make prod-stop$(FONT_RESET)     - Stop services"
+	@echo ""
+
+prod-setup: ## 🔧 Setup production environment (install deps, build, configure)
+	$(call print_status,Phase 1: Checking prerequisites)
+	$(call check_prerequisites)
+	@if ! command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_RED)$(ERROR) PM2 not installed$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Install with: npm install -g pm2$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo -e "$(FONT_RED)$(ERROR) Node.js not installed$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	$(call print_success,Prerequisites verified)
+	@echo ""
+	$(call print_status,Phase 2: Creating environment file)
+	@if [ ! -f ".env" ]; then \
+		if [ -f ".env.example" ]; then \
+			cp .env.example .env; \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Created .env from .env.example$(FONT_RESET)"; \
+		else \
+			echo "OMNI_PORT=$(OMNI_PORT)" > .env; \
+			echo "PYTHON_API_PORT=$(PYTHON_API_PORT)" >> .env; \
+			echo "EVOLUTION_PORT=$(EVOLUTION_PORT)" >> .env; \
+			echo "ENVIRONMENT=production" >> .env; \
+			echo "LOG_LEVEL=INFO" >> .env; \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Created minimal .env file$(FONT_RESET)"; \
+		fi; \
+		echo -e "$(FONT_YELLOW)$(WARNING) Please review and configure .env before starting$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) .env file exists$(FONT_RESET)"; \
+	fi
+	@echo ""
+	$(call print_status,Phase 3: Installing Python dependencies)
+	@$(MAKE) install-omni
+	@echo ""
+	$(call print_status,Phase 4: Running database migrations)
+	@$(UV) run alembic upgrade head
+	$(call print_success,Database migrations completed)
+	@echo ""
+	$(call print_status,Phase 5: Installing Evolution API)
+	@$(MAKE) install-evolution
+	@echo ""
+	$(call print_status,Phase 6: Installing Gateway dependencies)
+	@cd gateway && pnpm install
+	$(call print_success,Gateway dependencies installed)
+	@echo ""
+	$(call print_status,Phase 7: Building Gateway)
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway built)
+	@echo ""
+	$(call print_status,Phase 8: Installing UI dependencies)
+	@cd resources/ui && pnpm install
+	$(call print_success,UI dependencies installed)
+	@echo ""
+	$(call print_status,Phase 9: Building UI for production)
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI built for production)
+	@echo ""
+	$(call print_status,Phase 10: Setting up PM2 startup)
+	@pm2 startup 2>/dev/null || echo -e "$(FONT_YELLOW)$(WARNING) Run 'pm2 startup' manually if you want auto-restart on boot$(FONT_RESET)"
+	$(call print_success,Production setup completed!)
+
+prod-start: ## ▶️  Start production services with PM2
+	$(call print_status,Starting production services...)
+	@# Stop any existing processes first
+	@pm2 delete "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || true
+	@pm2 delete "$(EVOLUTION_PORT): Evolution-API" 2>/dev/null || true
+	@# Start Evolution API
+	$(call print_info,Starting Evolution API on port $(EVOLUTION_PORT)...)
+	@cd resources/evolution-api && pm2 start npm --name "$(EVOLUTION_PORT): Evolution-API" \
+		--cwd "$(PROJECT_ROOT)/resources/evolution-api" \
+		--time \
+		--log-date-format "YYYY-MM-DD HH:mm:ss" \
+		-- run start
+	@sleep 3
+	@# Start Gateway (which manages Python API internally)
+	$(call print_info,Starting Gateway on port $(OMNI_PORT)...)
+	@pm2 start gateway/dist/index.js --name "$(OMNI_PORT): Omni-Gateway" \
+		--cwd "$(PROJECT_ROOT)" \
+		--time \
+		--log-date-format "YYYY-MM-DD HH:mm:ss" \
+		--node-args="--max-old-space-size=512" \
+		--env production
+	@sleep 3
+	@# Save PM2 configuration
+	@pm2 save
+	$(call print_success,Production services started!)
+	@pm2 list
+
+prod-stop: ## ⏹️  Stop production services
+	$(call print_status,Stopping production services...)
+	@pm2 stop "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || true
+	@pm2 stop "$(EVOLUTION_PORT): Evolution-API" 2>/dev/null || true
+	@pm2 save
+	$(call print_success,Production services stopped)
+
+prod-restart: ## 🔄 Restart production services
+	$(call print_status,Restarting production services...)
+	@pm2 restart "$(EVOLUTION_PORT): Evolution-API" 2>/dev/null || $(MAKE) prod-start
+	@pm2 restart "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || $(MAKE) prod-start
+	@pm2 save
+	$(call print_success,Production services restarted)
+	@pm2 list
+
+prod-status: ## 📊 Show production service status
+	$(call print_status,Production service status)
+	@pm2 list
+	@echo ""
+	@echo -e "$(FONT_CYAN)Health Check:$(FONT_RESET)"
+	@curl -s http://localhost:$(OMNI_PORT)/health 2>/dev/null | python3 -c "import sys,json; h=json.load(sys.stdin); print(f'  Gateway: {h[\"services\"][\"gateway\"][\"status\"]}'); print(f'  Python:  {h[\"services\"][\"python\"][\"status\"]}'); print(f'  Evolution: {h[\"services\"][\"evolution\"][\"status\"]}')" 2>/dev/null || echo "  $(FONT_YELLOW)Gateway not responding$(FONT_RESET)"
+
+prod-logs: ## 📜 Show production logs
+	$(call print_status,Production logs - Press Ctrl+C to exit)
+	@pm2 logs --lines 50
+
+prod-build: ## 🔨 Rebuild Gateway and UI (for updates)
+	$(call print_status,Rebuilding Gateway...)
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway rebuilt)
+	$(call print_status,Rebuilding UI...)
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI rebuilt)
+	$(call print_info,Run 'make prod-restart' to apply changes)
