@@ -145,14 +145,16 @@ export function useLogStream(options: UseLogStreamOptions = {}): UseLogStreamRet
     return () => {
       disconnect();
     };
-  }, [autoConnect]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback, only autoConnect should trigger
+  }, [autoConnect]);
 
   // Reconnect when selected services change (if connected)
   useEffect(() => {
     if (isConnected || isConnecting) {
       connect();
     }
-  }, [selectedServices]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only reconnect when selectedServices changes, connect is stable
+  }, [selectedServices]);
 
   const clearLogs = useCallback(() => {
     setLogs([]);

@@ -202,9 +202,10 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
     const tailer = getLogTailer();
 
-    // Start tailing requested services
+    // Start tailing requested services and track listener counts
     for (const service of services) {
       await tailer.startTailing(service);
+      tailer.incrementListeners(service);
     }
 
     // Handler for new log entries
@@ -221,11 +222,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       reply.raw.write(`: heartbeat ${Date.now()}\n\n`);
     }, 30000);
 
-    // Cleanup on close
+    // Cleanup on close - decrement listener counts (stops tailing when no listeners)
     request.raw.on('close', () => {
       clearInterval(heartbeatInterval);
       tailer.off('log', logHandler);
-      // Note: We don't stop tailing as other clients may be listening
+      for (const service of services) {
+        tailer.decrementListeners(service);
+      }
     });
 
     // Don't end the response - SSE keeps connection open
@@ -233,9 +236,19 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   });
 
   // POST /api/logs/restart/:service - Restart a PM2 service
+  // Security: Only allow from localhost to prevent unauthorized service restarts
   fastify.post<{
     Params: { service: string };
   }>('/api/logs/restart/:service', async (request, reply) => {
+    // Only allow from localhost
+    const clientIp = request.ip;
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+      return reply.status(403).send({
+        success: false,
+        message: 'Restart endpoint only accessible from localhost',
+      });
+    }
+
     const { service } = request.params;
 
     if (!(service in LOG_SERVICES)) {
