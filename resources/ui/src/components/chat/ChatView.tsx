@@ -29,11 +29,14 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
     refetchInterval: 5000,
   });
 
+  // API returns { messages: { records: [...] } } structure
   const messages = Array.isArray(messagesResponse)
     ? messagesResponse
-    : (messagesResponse?.messages && Array.isArray(messagesResponse.messages))
-      ? messagesResponse.messages
-      : [];
+    : (messagesResponse?.messages?.records && Array.isArray(messagesResponse.messages.records))
+      ? messagesResponse.messages.records
+      : (messagesResponse?.messages && Array.isArray(messagesResponse.messages))
+        ? messagesResponse.messages
+        : [];
 
   // Sort messages by timestamp
   const sortedMessages = [...messages].sort((a: any, b: any) => {
@@ -54,26 +57,30 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b px-4 py-3 flex items-center gap-3">
+      <div className="bg-muted/50 border-b border-border px-4 py-2 flex items-center gap-3">
         <Avatar className="h-10 w-10">
-          <AvatarImage src={chat.profilePictureUrl} />
-          <AvatarFallback>
+          <AvatarImage src={chat.profilePicUrl || chat.profilePictureUrl} />
+          <AvatarFallback className="bg-primary/20 text-primary">
             {isGroup ? <Users className="h-5 w-5" /> : <User className="h-5 w-5" />}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <h2 className="font-medium truncate">{name}</h2>
-          <p className="text-sm text-muted-foreground truncate">
-            {isGroup ? 'Group' : remoteJid.split('@')[0]}
+          <h2 className="font-medium truncate text-foreground">{name}</h2>
+          <p className="text-xs text-muted-foreground truncate">
+            {isGroup ? 'Group chat' : `+${remoteJid.split('@')[0]}`}
           </p>
         </div>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" className="text-muted-foreground">
           <MoreVertical className="h-5 w-5" />
         </Button>
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea
+        className="flex-1 bg-muted/20"
+        ref={scrollRef}
+      >
+        <div className="p-3">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -83,16 +90,18 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
             No messages yet
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1">
             {sortedMessages.map((message: any, index: number) => (
               <MessageBubble
                 key={message.key?.id || index}
                 message={message}
+                instanceName={instanceName}
                 showAvatar={isGroup}
               />
             ))}
           </div>
         )}
+        </div>
       </ScrollArea>
 
       {/* Input */}

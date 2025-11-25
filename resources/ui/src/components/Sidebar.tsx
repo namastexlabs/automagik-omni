@@ -12,6 +12,7 @@ import { InstanceNav } from './sidebar/InstanceNav';
 
 interface SidebarProps {
   onLogout: () => void;
+  onNavigate?: () => void;
 }
 
 const navigation = [
@@ -21,9 +22,13 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export function Sidebar({ onLogout }: SidebarProps) {
+export function Sidebar({ onLogout, onNavigate }: SidebarProps) {
   const location = useLocation();
   const [instancesExpanded, setInstancesExpanded] = useState(true);
+
+  const handleNavClick = () => {
+    onNavigate?.();
+  };
 
   return (
     <div className="flex h-full w-64 flex-col bg-card border-r border-border elevation-sm">
@@ -41,6 +46,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
         {/* Dashboard Link */}
         <Link
           to="/dashboard"
+          onClick={handleNavClick}
           className={cn(
             'group flex items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200',
             location.pathname === '/dashboard'
@@ -62,6 +68,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
         <InstanceNav
           isExpanded={instancesExpanded}
           onToggle={() => setInstancesExpanded(!instancesExpanded)}
+          onNavigate={onNavigate}
         />
 
         {/* Other Navigation Items */}
@@ -71,6 +78,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
             <Link
               key={item.name}
               to={item.href}
+              onClick={handleNavClick}
               className={cn(
                 'group flex items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200',
                 isActive
@@ -90,18 +98,6 @@ export function Sidebar({ onLogout }: SidebarProps) {
           );
         })}
       </nav>
-
-      {/* Stats/Info Section */}
-      <div className="px-3 py-4 space-y-3">
-        <div className="rounded-lg bg-success/10 p-4 border border-success/20">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-success">API Status</span>
-            <div className="h-2 w-2 bg-success rounded-full animate-pulse"></div>
-          </div>
-          <p className="text-sm font-semibold text-success">Connected</p>
-          <p className="text-xs text-success/80 mt-1">All systems operational</p>
-        </div>
-      </div>
 
       {/* Footer */}
       <div className="border-t border-border p-4">

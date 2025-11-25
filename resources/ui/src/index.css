@@ -40,6 +40,17 @@
     --chart-3: 142 76% 36%;
     --chart-4: 43 96% 56%;
     --chart-5: 0 84% 60%;
+
+    /* Semantic chart colors */
+    --chart-success: 142 76% 36%;
+    --chart-processing: 43 96% 56%;
+    --chart-failed: 0 84% 60%;
+    --chart-text: 262 83% 58%;
+    --chart-image: 200 98% 39%;
+    --chart-audio: 280 60% 50%;
+    --chart-reaction: 330 80% 60%;
+    --chart-document: 180 60% 40%;
+    --chart-sticker: 120 60% 50%;
   }
 
   .dark {
@@ -77,6 +88,17 @@
     --chart-3: 142 76% 45%;
     --chart-4: 43 96% 65%;
     --chart-5: 0 84% 65%;
+
+    /* Semantic chart colors (dark mode) */
+    --chart-success: 142 76% 50%;
+    --chart-processing: 43 96% 65%;
+    --chart-failed: 0 84% 65%;
+    --chart-text: 262 83% 70%;
+    --chart-image: 200 98% 60%;
+    --chart-audio: 280 60% 65%;
+    --chart-reaction: 330 80% 70%;
+    --chart-document: 180 60% 55%;
+    --chart-sticker: 120 60% 60%;
   }
 }
 

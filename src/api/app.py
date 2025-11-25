@@ -420,6 +420,10 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
+# Store API start time for uptime calculation
+_api_start_time = time.time()
+
+
 @app.get("/health", tags=["health"])
 async def health_check():
     """
@@ -427,8 +431,39 @@ async def health_check():
 
     Returns status for API, database, Discord services, and runtime information.
     """
-
+    import resource
     from datetime import datetime, timezone
+    from src.db import get_engine
+
+    # Get memory usage (in MB)
+    try:
+        mem_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        # On Linux, ru_maxrss is in KB; on macOS it's in bytes
+        import platform
+        if platform.system() == 'Darwin':
+            memory_mb = round(mem_usage / 1024 / 1024, 1)
+        else:
+            memory_mb = round(mem_usage / 1024, 1)
+    except Exception:
+        memory_mb = None
+
+    # Get database pool stats
+    db_pool_stats = None
+    try:
+        engine = get_engine()
+        pool = engine.pool
+        if hasattr(pool, 'checkedout') and hasattr(pool, 'size'):
+            db_pool_stats = {
+                "pool_size": pool.size(),
+                "checked_out": pool.checkedout(),
+                "overflow": pool.overflow() if hasattr(pool, 'overflow') else 0,
+                "checked_in": pool.checkedin() if hasattr(pool, 'checkedin') else None,
+            }
+    except Exception:
+        pass
+
+    # Calculate uptime
+    uptime_seconds = round(time.time() - _api_start_time)
 
     # Basic API health
     health_status = {
@@ -437,10 +472,19 @@ async def health_check():
         "services": {
             "api": {
                 "status": "up",
+                "uptime": uptime_seconds,
+                "memory_mb": memory_mb,
                 "checks": {"database": "connected", "runtime": "operational"},
             }
         },
     }
+
+    # Add database pool stats if available
+    if db_pool_stats:
+        health_status["services"]["database"] = {
+            "status": "connected",
+            **db_pool_stats,
+        }
 
     # Check Discord service status if available
     try:

@@ -1,66 +1,40 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { Card, CardContent } from '@/components/ui/card';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
-import { MetricCard } from '@/components/MetricCard';
 import { InstanceDialog } from '@/components/InstanceDialog';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
-import { InstanceCard } from '@/components/InstanceCard';
-import { Activity, MessageSquare, Users, Zap, Plus, TrendingUp } from 'lucide-react';
+import { TimeRangeSelector } from '@/components/dashboard/TimeRangeSelector';
+import { OverviewTab } from '@/components/dashboard/tabs/OverviewTab';
+import { MessagesTab } from '@/components/dashboard/tabs/MessagesTab';
+import { InstancesTab } from '@/components/dashboard/tabs/InstancesTab';
+import { SystemTab } from '@/components/dashboard/tabs/SystemTab';
+import { ManageTab } from '@/components/dashboard/tabs/ManageTab';
+import {
+  MessageSquare,
+  Plus,
+  LayoutDashboard,
+  Server,
+  Cpu,
+  Settings,
+} from 'lucide-react';
 import type { InstanceConfig } from '@/lib/types';
 
 export default function Dashboard() {
-  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingInstance, setEditingInstance] = useState<InstanceConfig | null>(null);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
 
-  const { data: instances, isLoading, error } = useQuery({
-    queryKey: ['instances'],
-    queryFn: () => api.instances.list({ limit: 100, include_status: true }),
-  });
+  const currentTab = searchParams.get('tab') || 'overview';
 
-  const deleteMutation = useMutation({
-    mutationFn: (name: string) => api.instances.delete(name),
-    onSuccess: (_, name) => {
-      queryClient.invalidateQueries({ queryKey: ['instances'] });
-      toast.success(`Instance "${name}" deleted successfully`);
-    },
-    onError: (error: any, name) => {
-      toast.error(`Failed to delete instance "${name}": ${error.message || 'Unknown error'}`);
-    },
-  });
-
-  const { data: health } = useQuery({
-    queryKey: ['health'],
-    queryFn: () => api.health(),
-    refetchInterval: 30000,
-  });
-
-  const handleShowQR = (instanceName: string) => {
-    setQrInstance(instanceName);
+  const handleTabChange = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', value);
+    setSearchParams(newParams);
   };
-
-  const handleEdit = (instance: InstanceConfig) => {
-    setEditingInstance(instance);
-  };
-
-  const handleDelete = (name: string) => {
-    // Confirmation is now handled by InstanceCard's AlertDialog
-    deleteMutation.mutate(name);
-  };
-
-  // Calculate metrics
-  const totalInstances = instances?.length || 0;
-  const activeInstances = instances?.filter(i => i.is_active).length || 0;
-  const channelTypes = new Set(instances?.map(i => i.channel_type)).size || 0;
-  const connectedInstances = instances?.filter(i =>
-    i.evolution_status?.state?.toLowerCase() === 'open'
-  ).length || 0;
 
   return (
     <DashboardLayout>
@@ -68,13 +42,8 @@ export default function Dashboard() {
         <PageHeader
           title="Dashboard"
           actions={
-            <>
-              <div className="px-4 py-2 bg-muted rounded-lg elevation-sm border border-border">
-                <span className="text-xs text-muted-foreground">API Status: </span>
-                <span className={`text-sm font-semibold ${health?.status === 'healthy' ? 'text-success' : 'text-destructive'}`}>
-                  {health?.status === 'healthy' ? '● Online' : '● Offline'}
-                </span>
-              </div>
+            <div className="flex items-center gap-3">
+              <TimeRangeSelector />
               <Button
                 className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"
                 onClick={() => setCreateDialogOpen(true)}
@@ -82,121 +51,57 @@ export default function Dashboard() {
                 <Plus className="h-4 w-4 mr-2" />
                 New Instance
               </Button>
-            </>
+            </div>
           }
         />
 
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-background">
-          <div className="p-8 space-y-8 animate-fade-in">
-            {/* Metrics Grid */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-              <MetricCard
-                title="Total Instances"
-                value={totalInstances}
-                description="All configured instances"
-                icon={Activity}
-                gradient="from-purple-500 to-indigo-500"
-                trend={{ value: 12, isPositive: true }}
-              />
-              <MetricCard
-                title="Active Now"
-                value={activeInstances}
-                description="Currently running"
-                icon={Zap}
-                gradient="from-blue-500 to-cyan-500"
-                trend={{ value: 8, isPositive: true }}
-              />
-              <MetricCard
-                title="Connected"
-                value={connectedInstances}
-                description="Successfully connected"
-                icon={MessageSquare}
-                gradient="from-green-500 to-emerald-500"
-              />
-              <MetricCard
-                title="Channels"
-                value={channelTypes}
-                description="Different platforms"
-                icon={Users}
-                gradient="from-orange-500 to-pink-500"
-              />
-            </div>
+          <div className="p-6 space-y-6 animate-fade-in">
+            <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
+              <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+                <TabsTrigger value="overview" className="flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  <span className="hidden sm:inline">Overview</span>
+                </TabsTrigger>
+                <TabsTrigger value="messages" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="hidden sm:inline">Messages</span>
+                </TabsTrigger>
+                <TabsTrigger value="instances" className="flex items-center gap-2">
+                  <Server className="h-4 w-4" />
+                  <span className="hidden sm:inline">Instances</span>
+                </TabsTrigger>
+                <TabsTrigger value="system" className="flex items-center gap-2">
+                  <Cpu className="h-4 w-4" />
+                  <span className="hidden sm:inline">System</span>
+                </TabsTrigger>
+                <TabsTrigger value="manage" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  <span className="hidden sm:inline">Manage</span>
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Instances Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold flex items-center gap-2 text-foreground">
-                    <TrendingUp className="h-6 w-6 text-primary" />
-                    Active Instances
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">Manage your messaging channels</p>
-                </div>
-                <Button variant="outline" className="elevation-sm hover:elevation-md hover-lift">
-                  View All
-                </Button>
-              </div>
+              <TabsContent value="overview" className="mt-6">
+                <OverviewTab />
+              </TabsContent>
 
-              {isLoading && (
-                <Card className="border-border elevation-md">
-                  <CardContent className="pt-12 pb-12">
-                    <div className="flex flex-col items-center justify-center space-y-4">
-                      <div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin"></div>
-                      <p className="text-muted-foreground">Loading instances...</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              <TabsContent value="messages" className="mt-6">
+                <MessagesTab />
+              </TabsContent>
 
-              {error && (
-                <Card className="border-destructive elevation-md bg-destructive/5">
-                  <CardContent className="pt-6">
-                    <p className="text-destructive font-medium">
-                      Error loading instances: {error instanceof Error ? error.message : 'Unknown error'}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+              <TabsContent value="instances" className="mt-6">
+                <InstancesTab />
+              </TabsContent>
 
-              {instances && instances.length === 0 && (
-                <Card className="border-border elevation-md bg-gradient-to-br from-primary/5 to-primary/10">
-                  <CardContent className="pt-12 pb-12 text-center">
-                    <div className="flex flex-col items-center space-y-4">
-                      <div className="h-20 w-20 rounded-2xl gradient-primary flex items-center justify-center elevation-lg">
-                        <Plus className="h-10 w-10 text-primary-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-lg font-semibold text-foreground mb-2">No instances yet</p>
-                        <p className="text-sm text-muted-foreground mb-6">Get started by creating your first messaging instance</p>
-                      </div>
-                      <Button
-                        className="gradient-primary elevation-md hover:elevation-lg hover-lift"
-                        onClick={() => setCreateDialogOpen(true)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create First Instance
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              <TabsContent value="system" className="mt-6">
+                <SystemTab />
+              </TabsContent>
 
-              {instances && instances.length > 0 && (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {instances.map((instance) => (
-                    <InstanceCard
-                      key={instance.id}
-                      instance={instance}
-                      onShowQR={handleShowQR}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                      isDeleting={deleteMutation.isPending}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+              <TabsContent value="manage" className="mt-6">
+                <ManageTab />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
@@ -212,7 +117,6 @@ export default function Dashboard() {
         }}
         instance={editingInstance}
         onInstanceCreated={(instanceName, channelType) => {
-          // Auto-show QR code for WhatsApp instances
           if (channelType === 'whatsapp') {
             setQrInstance(instanceName);
           }
