@@ -431,9 +431,14 @@ async def health_check():
 
     Returns status for API, database, Discord services, and runtime information.
     """
+    import os
     import resource
+    import subprocess
     from datetime import datetime, timezone
     from src.db import get_engine
+
+    # Get PID
+    pid = os.getpid()
 
     # Get memory usage (in MB)
     try:
@@ -446,6 +451,17 @@ async def health_check():
             memory_mb = round(mem_usage / 1024, 1)
     except Exception:
         memory_mb = None
+
+    # Get CPU percentage using ps command
+    cpu_percent = 0.0
+    try:
+        result = subprocess.run(
+            ['ps', '-p', str(pid), '-o', '%cpu', '--no-headers'],
+            capture_output=True, text=True, timeout=1
+        )
+        cpu_percent = round(float(result.stdout.strip()), 1)
+    except Exception:
+        pass
 
     # Get database pool stats
     db_pool_stats = None
@@ -474,6 +490,8 @@ async def health_check():
                 "status": "up",
                 "uptime": uptime_seconds,
                 "memory_mb": memory_mb,
+                "cpu_percent": cpu_percent,
+                "pid": pid,
                 "checks": {"database": "connected", "runtime": "operational"},
             }
         },

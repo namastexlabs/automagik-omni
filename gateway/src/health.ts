@@ -73,9 +73,35 @@ export interface ServiceHealth {
   details?: Record<string, unknown>;
 }
 
+export interface ServerStats {
+  memory: {
+    total: number;       // GB
+    used: number;        // GB
+    free: number;        // GB
+    usedPercent: number; // %
+  };
+  cpu: {
+    cores: number;
+    model: string;
+    usagePercent: number; // % (average across cores)
+  };
+  disk: {
+    total: number;       // GB
+    used: number;        // GB
+    free: number;        // GB
+    usedPercent: number; // %
+    mountPoint: string;  // "/"
+  };
+  loadAverage: [number, number, number]; // 1, 5, 15 min
+  uptime: number;        // seconds
+  platform: string;      // "linux", "darwin", etc.
+  hostname: string;
+}
+
 export interface AggregatedHealth {
   status: 'up' | 'down' | 'degraded';
   timestamp: string;
+  server?: ServerStats;
   services: {
     gateway: ServiceHealth;
     python: ServiceHealth;
@@ -92,11 +118,39 @@ export class HealthChecker {
   private portRegistry: PortRegistry;
   private timeout: number;
   private evolutionApiKey: string;
+  private lastCpuUsage: { user: number; system: number; time: number } | null = null;
 
   constructor(portRegistry: PortRegistry, timeout = 5000) {
     this.portRegistry = portRegistry;
     this.timeout = timeout;
     this.evolutionApiKey = process.env.EVOLUTION_API_KEY ?? '';
+  }
+
+  /**
+   * Calculate Gateway CPU usage percentage using process.cpuUsage()
+   */
+  private getGatewayCpuPercent(): number {
+    const cpu = process.cpuUsage();
+    const now = Date.now();
+
+    if (!this.lastCpuUsage) {
+      this.lastCpuUsage = { user: cpu.user, system: cpu.system, time: now };
+      return 0;
+    }
+
+    const elapsedMs = now - this.lastCpuUsage.time;
+    if (elapsedMs < 100) return 0; // Avoid division issues on rapid calls
+
+    // cpuUsage returns microseconds, convert to milliseconds
+    const userDelta = (cpu.user - this.lastCpuUsage.user) / 1000;
+    const systemDelta = (cpu.system - this.lastCpuUsage.system) / 1000;
+    const totalDelta = userDelta + systemDelta;
+
+    // Update stored values
+    this.lastCpuUsage = { user: cpu.user, system: cpu.system, time: now };
+
+    // Calculate percentage (total CPU time / elapsed wall time)
+    return Math.round((totalDelta / elapsedMs) * 100 * 10) / 10;
   }
 
   /**
@@ -144,6 +198,79 @@ export class HealthChecker {
       uptime: Math.round(process.uptime()),
       nodeVersion: process.version,
       pid: process.pid,
+      cpu: this.getGatewayCpuPercent(),
+    };
+  }
+
+  /**
+   * Get server-wide system stats
+   */
+  private async getServerStats(): Promise<ServerStats> {
+    const os = await import('os');
+
+    // Memory stats (convert bytes to GB)
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+
+    // CPU info
+    const cpus = os.cpus();
+    const cpuModel = cpus[0]?.model || 'Unknown';
+
+    // Calculate CPU usage from cpus() (average idle percentage)
+    let totalIdle = 0;
+    let totalTick = 0;
+    for (const cpu of cpus) {
+      for (const type in cpu.times) {
+        totalTick += cpu.times[type as keyof typeof cpu.times];
+      }
+      totalIdle += cpu.times.idle;
+    }
+    const cpuUsage = totalTick > 0 ? 100 - (100 * totalIdle / totalTick) : 0;
+
+    // Disk stats via df command (root partition only)
+    let diskStats = { total: 0, used: 0, free: 0, usedPercent: 0, mountPoint: '/' };
+    try {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      const { stdout } = await execAsync('df -B1 / 2>/dev/null | tail -1');
+      const parts = stdout.trim().split(/\s+/);
+      // Format: Filesystem 1B-blocks Used Available Use% Mounted
+      if (parts.length >= 4) {
+        const total = parseInt(parts[1], 10);
+        const used = parseInt(parts[2], 10);
+        const free = parseInt(parts[3], 10);
+        diskStats = {
+          total: Math.round(total / 1024 / 1024 / 1024 * 10) / 10,
+          used: Math.round(used / 1024 / 1024 / 1024 * 10) / 10,
+          free: Math.round(free / 1024 / 1024 / 1024 * 10) / 10,
+          usedPercent: total > 0 ? Math.round((used / total) * 100) : 0,
+          mountPoint: '/',
+        };
+      }
+    } catch {
+      // Disk stats unavailable on this platform
+    }
+
+    return {
+      memory: {
+        total: Math.round(totalMem / 1024 / 1024 / 1024 * 10) / 10,
+        used: Math.round(usedMem / 1024 / 1024 / 1024 * 10) / 10,
+        free: Math.round(freeMem / 1024 / 1024 / 1024 * 10) / 10,
+        usedPercent: totalMem > 0 ? Math.round((usedMem / totalMem) * 100) : 0,
+      },
+      cpu: {
+        cores: cpus.length,
+        model: cpuModel,
+        usagePercent: Math.round(cpuUsage * 10) / 10,
+      },
+      disk: diskStats,
+      loadAverage: os.loadavg().map(l => Math.round(l * 100) / 100) as [number, number, number],
+      uptime: Math.round(os.uptime()),
+      platform: os.platform(),
+      hostname: os.hostname(),
     };
   }
 
@@ -408,12 +535,13 @@ export class HealthChecker {
     const evolutionUrl = this.getEvolutionUrl();
     const viteUrl = this.getViteUrl();
 
-    const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances, evolutionProcess] = await Promise.all([
+    const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances, evolutionProcess, serverStats] = await Promise.all([
       pythonUrl ? this.checkService(pythonUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
       evolutionUrl ? this.checkService(evolutionUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
       viteUrl ? this.checkService(viteUrl) : Promise.resolve(undefined),
       this.getEvolutionInstances(),
       this.getEvolutionProcessStats(),
+      this.getServerStats(),
     ]);
 
     // Gateway stats
@@ -455,6 +583,7 @@ export class HealthChecker {
     const health: AggregatedHealth = {
       status: overallStatus,
       timestamp: new Date().toISOString(),
+      server: serverStats,
       services: {
         gateway: gatewayHealth,
         python: pythonHealth,

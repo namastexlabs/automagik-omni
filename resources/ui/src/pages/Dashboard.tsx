@@ -12,6 +12,7 @@ import { MessagesTab } from '@/components/dashboard/tabs/MessagesTab';
 import { InstancesTab } from '@/components/dashboard/tabs/InstancesTab';
 import { SystemTab } from '@/components/dashboard/tabs/SystemTab';
 import { ManageTab } from '@/components/dashboard/tabs/ManageTab';
+import { LogsTab } from '@/components/dashboard/tabs/LogsTab';
 import {
   MessageSquare,
   Plus,
@@ -19,6 +20,7 @@ import {
   Server,
   Cpu,
   Settings,
+  ScrollText,
 } from 'lucide-react';
 import type { InstanceConfig } from '@/lib/types';
 
@@ -59,7 +61,7 @@ export default function Dashboard() {
         <div className="flex-1 overflow-auto bg-background">
           <div className="p-6 space-y-6 animate-fade-in">
             <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-              <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+              <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
                 <TabsTrigger value="overview" className="flex items-center gap-2">
                   <LayoutDashboard className="h-4 w-4" />
                   <span className="hidden sm:inline">Overview</span>
@@ -75,6 +77,10 @@ export default function Dashboard() {
                 <TabsTrigger value="system" className="flex items-center gap-2">
                   <Cpu className="h-4 w-4" />
                   <span className="hidden sm:inline">System</span>
+                </TabsTrigger>
+                <TabsTrigger value="logs" className="flex items-center gap-2">
+                  <ScrollText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Logs</span>
                 </TabsTrigger>
                 <TabsTrigger value="manage" className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />
@@ -96,6 +102,10 @@ export default function Dashboard() {
 
               <TabsContent value="system" className="mt-6">
                 <SystemTab />
+              </TabsContent>
+
+              <TabsContent value="logs" className="mt-6">
+                <LogsTab />
               </TabsContent>
 
               <TabsContent value="manage" className="mt-6">

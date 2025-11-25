@@ -38,9 +38,35 @@ export interface Trace {
 }
 
 // Health Types
+export interface ServerStats {
+  memory: {
+    total: number;       // GB
+    used: number;        // GB
+    free: number;        // GB
+    usedPercent: number; // %
+  };
+  cpu: {
+    cores: number;
+    model: string;
+    usagePercent: number; // %
+  };
+  disk: {
+    total: number;       // GB
+    used: number;        // GB
+    free: number;        // GB
+    usedPercent: number; // %
+    mountPoint: string;
+  };
+  loadAverage: [number, number, number];
+  uptime: number;        // seconds
+  platform: string;
+  hostname: string;
+}
+
 export interface HealthResponse {
   status: 'up' | 'down' | 'degraded';
   timestamp: string;
+  server?: ServerStats;
   services: {
     gateway: ServiceHealth;
     python: ServiceHealth;
@@ -52,6 +78,41 @@ export interface ServiceHealth {
   status: 'up' | 'down' | 'degraded';
   latency?: number;
   details?: Record<string, unknown>;
+}
+
+// Log Types
+export type LogServiceName = 'api' | 'discord' | 'evolution' | 'gateway';
+
+export interface LogEntry {
+  timestamp: string;
+  service: LogServiceName;
+  level: 'debug' | 'info' | 'warn' | 'error' | 'unknown';
+  message: string;
+  raw: string;
+}
+
+export interface LogService {
+  id: LogServiceName;
+  name: string;
+  color: string;
+  available: boolean;
+}
+
+export interface Pm2Status {
+  online: boolean;
+  pm2_id?: number;
+  name?: string;
+  pid?: number;
+  uptime?: number;
+  restarts?: number;
+  memory?: number;
+  cpu?: number;
+  message?: string;
+}
+
+export interface RestartResult {
+  success: boolean;
+  message: string;
 }
 
 // API Key management
@@ -345,6 +406,83 @@ export const api = {
 
     async get(traceId: string): Promise<Trace> {
       return apiRequest(`/traces/${traceId}`);
+    },
+  },
+
+  // Logs API (direct to gateway, no auth needed)
+  logs: {
+    async getServices(): Promise<LogService[]> {
+      try {
+        const response = await fetch('/api/logs/services');
+        if (!response.ok) throw new Error('Failed to fetch log services');
+        return response.json();
+      } catch (error) {
+        console.error('[API] Failed to get log services:', error);
+        return [];
+      }
+    },
+
+    async getRecent(params?: { services?: LogServiceName[]; limit?: number }): Promise<LogEntry[]> {
+      try {
+        const queryParams = new URLSearchParams();
+        if (params?.services?.length) queryParams.append('services', params.services.join(','));
+        if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+        const query = queryParams.toString();
+        const response = await fetch(`/api/logs/recent${query ? `?${query}` : ''}`);
+        if (!response.ok) throw new Error('Failed to fetch recent logs');
+        return response.json();
+      } catch (error) {
+        console.error('[API] Failed to get recent logs:', error);
+        return [];
+      }
+    },
+
+    createStream(services?: LogServiceName[]): EventSource {
+      const queryParams = new URLSearchParams();
+      if (services?.length) queryParams.append('services', services.join(','));
+
+      const query = queryParams.toString();
+      return new EventSource(`/api/logs/stream${query ? `?${query}` : ''}`);
+    },
+
+    async restart(service: LogServiceName): Promise<RestartResult> {
+      try {
+        const response = await fetch(`/api/logs/restart/${service}`, {
+          method: 'POST',
+        });
+        return response.json();
+      } catch (error) {
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : 'Failed to restart service',
+        };
+      }
+    },
+
+    async getStatus(service: LogServiceName): Promise<Pm2Status> {
+      try {
+        const response = await fetch(`/api/logs/status/${service}`);
+        if (!response.ok) throw new Error('Failed to get status');
+        return response.json();
+      } catch (error) {
+        return { online: false, message: 'Failed to get status' };
+      }
+    },
+
+    async getAllStatuses(): Promise<Record<LogServiceName, Pm2Status>> {
+      try {
+        const response = await fetch('/api/logs/status');
+        if (!response.ok) throw new Error('Failed to get statuses');
+        return response.json();
+      } catch (error) {
+        return {
+          api: { online: false },
+          discord: { online: false },
+          evolution: { online: false },
+          gateway: { online: false },
+        };
+      }
     },
   },
 
