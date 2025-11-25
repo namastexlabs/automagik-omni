@@ -31,10 +31,6 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  console.log('[App] Rendering App component with ForgeInspector');
-  console.log('[App] NODE_ENV:', process.env.NODE_ENV);
-  console.log('[App] In iframe:', window.self !== window.top);
-
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
