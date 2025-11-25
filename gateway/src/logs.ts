@@ -4,11 +4,10 @@
  */
 
 import { EventEmitter } from 'events';
-import { watch, stat, open, readFile } from 'fs/promises';
+import { stat, open, readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, createReadStream } from 'fs';
-import { createInterface } from 'readline';
+import { existsSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -122,10 +121,38 @@ export class LogTailer extends EventEmitter {
   private buffer: LogEntry[] = [];
   private maxBufferSize: number;
   private activeServices = new Set<ServiceName>();
+  private listenerCounts = new Map<ServiceName, number>();
 
   constructor(maxBufferSize = 500) {
     super();
     this.maxBufferSize = maxBufferSize;
+  }
+
+  /**
+   * Increment listener count for a service (for SSE reference counting)
+   */
+  incrementListeners(service: ServiceName): void {
+    this.listenerCounts.set(service, (this.listenerCounts.get(service) ?? 0) + 1);
+  }
+
+  /**
+   * Decrement listener count and stop tailing if no listeners remain
+   */
+  decrementListeners(service: ServiceName): void {
+    const count = (this.listenerCounts.get(service) ?? 1) - 1;
+    if (count <= 0) {
+      this.listenerCounts.delete(service);
+      this.stopTailing(service);
+    } else {
+      this.listenerCounts.set(service, count);
+    }
+  }
+
+  /**
+   * Get current listener count for a service
+   */
+  getListenerCount(service: ServiceName): number {
+    return this.listenerCounts.get(service) ?? 0;
   }
 
   /**
@@ -355,6 +382,7 @@ export const PM2_PROCESS_NAMES: Record<ServiceName, string[]> = {
 
 /**
  * Restart a PM2 service by name
+ * Uses execFile for safety (avoids shell command injection)
  */
 export async function restartPm2Service(service: ServiceName): Promise<{ success: boolean; message: string }> {
   const processNames = PM2_PROCESS_NAMES[service];
@@ -362,14 +390,14 @@ export async function restartPm2Service(service: ServiceName): Promise<{ success
     return { success: false, message: `Unknown service: ${service}` };
   }
 
-  const { exec } = await import('child_process');
+  const { execFile } = await import('child_process');
   const { promisify } = await import('util');
-  const execAsync = promisify(exec);
+  const execFileAsync = promisify(execFile);
 
   // Try each possible PM2 process name
   for (const processName of processNames) {
     try {
-      const { stdout, stderr } = await execAsync(`pm2 restart "${processName}" 2>&1`, { timeout: 30000 });
+      const { stdout, stderr } = await execFileAsync('pm2', ['restart', processName], { timeout: 30000 });
       const output = stdout || stderr;
 
       // Check if restart was successful
@@ -393,6 +421,7 @@ export async function restartPm2Service(service: ServiceName): Promise<{ success
 
 /**
  * Get PM2 process status for a service
+ * Uses execFile for safety (avoids shell command injection)
  */
 export async function getPm2Status(service: ServiceName): Promise<{
   online: boolean;
@@ -407,12 +436,12 @@ export async function getPm2Status(service: ServiceName): Promise<{
   const processNames = PM2_PROCESS_NAMES[service];
   if (!processNames || processNames.length === 0) return null;
 
-  const { exec } = await import('child_process');
+  const { execFile } = await import('child_process');
   const { promisify } = await import('util');
-  const execAsync = promisify(exec);
+  const execFileAsync = promisify(execFile);
 
   try {
-    const { stdout } = await execAsync('pm2 jlist 2>/dev/null');
+    const { stdout } = await execFileAsync('pm2', ['jlist']);
     const processes = JSON.parse(stdout) as Array<{
       pm_id: number;
       name: string;
