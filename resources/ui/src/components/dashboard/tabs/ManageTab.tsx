@@ -36,6 +36,7 @@ import {
   BellOff,
   Eye,
   EyeOff,
+  Copy,
   PhoneOff,
   History,
   Loader2,
@@ -113,6 +114,7 @@ function InstanceManageCard({
   isLoggingOut,
 }: InstanceManageCardProps) {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const isConnected = instance.connectionStatus === 'open';
 
   return (
@@ -256,6 +258,52 @@ function InstanceManageCard({
 
         <Separator />
 
+        {/* Evolution API Credentials */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-muted-foreground">Evolution API Key</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowApiKey(!showApiKey)}
+              className="h-6 px-2"
+            >
+              {showApiKey ? (
+                <EyeOff className="h-3 w-3" />
+              ) : (
+                <Eye className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <code className="flex-1 px-2 py-1 text-xs bg-muted rounded font-mono">
+              {showApiKey
+                ? (instance as any).evolution_key || '••••••••••••••••••••••••••••••••'
+                : '••••••••••••••••••••••••••••••••'}
+            </code>
+            {showApiKey && (instance as any).evolution_key && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText((instance as any).evolution_key);
+                  toast.success('API key copied to clipboard');
+                }}
+                className="h-6 px-2"
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Auto-generated key for Evolution API authentication
+          </p>
+        </div>
+
+        <Separator />
+
         {/* Actions */}
         <div className="flex gap-2">
           <Button
@@ -384,6 +432,19 @@ export function ManageTab() {
     },
   });
 
+  const discoverMutation = useMutation({
+    mutationFn: () => api.instances.discover(),
+    onSuccess: (data) => {
+      toast.success(
+        `Resync complete - ${data.total} instance${data.total !== 1 ? 's' : ''} configured`
+      );
+      queryClient.invalidateQueries({ queryKey: ['health'] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Resync failed: ${error.message}`);
+    },
+  });
+
   // Extract Evolution instance details from health
   const evolutionDetails = health?.services?.evolution?.details as {
     instances?: { total: number; connected: number; disconnected: number };
@@ -400,7 +461,7 @@ export function ManageTab() {
       {/* Evolution API Status Header */}
       <Card>
         <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Smartphone className="h-5 w-5" />
@@ -410,19 +471,37 @@ export function ManageTab() {
                 Manage your WhatsApp instances, view settings, and monitor connections
               </CardDescription>
             </div>
-            {evolutionDetails && (
-              <div className="flex items-center gap-4 text-sm">
-                <div className="text-right">
-                  <div className="text-muted-foreground">Evolution API</div>
-                  <div className="font-medium">v{evolutionDetails.version || 'Unknown'}</div>
+            <div className="flex items-center gap-4">
+              {evolutionDetails && (
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="text-right">
+                    <div className="text-muted-foreground">Evolution API</div>
+                    <div className="font-medium">v{evolutionDetails.version || 'Unknown'}</div>
+                  </div>
+                  <Separator orientation="vertical" className="h-8" />
+                  <div className="text-right">
+                    <div className="text-muted-foreground">WhatsApp Web</div>
+                    <div className="font-medium">{evolutionDetails.whatsappWebVersion || 'Unknown'}</div>
+                  </div>
                 </div>
-                <Separator orientation="vertical" className="h-8" />
-                <div className="text-right">
-                  <div className="text-muted-foreground">WhatsApp Web</div>
-                  <div className="font-medium">{evolutionDetails.whatsappWebVersion || 'Unknown'}</div>
-                </div>
-              </div>
-            )}
+              )}
+              {evolutionDetails && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => discoverMutation.mutate()}
+                  disabled={discoverMutation.isPending}
+                  className="whitespace-nowrap"
+                >
+                  {discoverMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Resync with Evolution
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         {evolutionDetails?.instances && (
