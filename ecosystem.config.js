@@ -85,8 +85,52 @@ if (process.platform === 'win32') {
   }
 }
 
+// ===================================================================
+// Gateway Mode: Set OMNI_GATEWAY=true to use single-port gateway
+// ===================================================================
+const USE_GATEWAY = envVars.OMNI_GATEWAY === 'true' || process.env.OMNI_GATEWAY === 'true';
+
 module.exports = {
-  apps: [
+  apps: USE_GATEWAY ? [
+    // ===================================================================
+    // 🌐 GATEWAY MODE: Single TypeScript Gateway manages all services
+    // ===================================================================
+    {
+      name: 'Omni Gateway',
+      cwd: PROJECT_ROOT,
+      script: 'node',
+      args: 'gateway/dist/index.js',
+      interpreter: 'none',
+      version: version,
+      env: {
+        ...envVars,
+        NODE_ENV: 'production',
+        OMNI_PORT: envVars.OMNI_PORT || envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
+        PYTHON_API_PORT: '8881',
+        EVOLUTION_PORT: envVars.EVOLUTION_API_PORT || '18082',
+        VITE_PORT: envVars.UI_PORT || '9882',
+        PYTHONPATH: PROJECT_ROOT,
+        PROCESS_TITLE: 'Omni Gateway'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 2000,
+      kill_timeout: 10000,
+      error_file: path.join(PROJECT_ROOT, 'logs/gateway-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/gateway-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/gateway-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    }
+  ] : [
+    // ===================================================================
+    // 🚀 LEGACY MODE: Separate PM2 processes for each service
     // ===================================================================
     // 🚀 Automagik-Omni API Server (Priority 0 - Starts First)
     // ===================================================================
