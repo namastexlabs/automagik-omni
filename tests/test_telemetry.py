@@ -111,8 +111,8 @@ class TestTelemetryClient:
                 # Check that opt-out file was removed
                 assert not opt_out_file.exists()
 
-    @patch("src.core.telemetry.urlopen")
-    def test_track_command_disabled(self, mock_urlopen):
+    @patch("httpx.Client")
+    def test_track_command_disabled(self, mock_client):
         """Test that tracking does nothing when disabled."""
         with patch.dict(os.environ, {"AUTOMAGIK_OMNI_DISABLE_TELEMETRY": "true"}):
             client = TelemetryClient()
@@ -120,18 +120,16 @@ class TestTelemetryClient:
             # Call track_command - it should not make HTTP request when disabled
             client.track_command("test_command", success=True)
 
-            # Verify that urlopen was NOT called since telemetry is disabled
-            mock_urlopen.assert_not_called()
+            # Verify that httpx.Client was NOT called since telemetry is disabled
+            mock_client.assert_not_called()
 
-    @patch("src.core.telemetry.urlopen")
-    def test_track_command_enabled(self, mock_urlopen):
+    @patch("httpx.Client")
+    def test_track_command_enabled(self, mock_client):
         """Test that tracking works when enabled."""
-        # Setup mock response
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=None)
-        mock_urlopen.return_value = mock_response
+        # Setup mock client instance
+        mock_client_instance = MagicMock()
+        mock_client.return_value.__enter__ = MagicMock(return_value=mock_client_instance)
+        mock_client.return_value.__exit__ = MagicMock(return_value=None)
 
         # Clear CI environment variables and testing environment variables
         ci_vars = [
@@ -151,8 +149,8 @@ class TestTelemetryClient:
                     client = TelemetryClient()
                     client.track_command("test_command", success=True, duration_ms=100)
 
-                    # Verify that urlopen was called
-                    mock_urlopen.assert_called_once()
+                    # Verify that httpx.Client was called
+                    mock_client.assert_called_once()
 
     def test_get_status(self):
         """Test getting telemetry status."""
@@ -203,13 +201,16 @@ class TestTelemetryClient:
         long_string_attr = next(attr for attr in event_attrs if attr["key"] == "event.long_string")
         assert len(long_string_attr["value"]["stringValue"]) == 500
 
-    @patch("src.core.telemetry.urlopen")
-    def test_network_error_handling(self, mock_urlopen):
+    @patch("httpx.Client")
+    def test_network_error_handling(self, mock_client):
         """Test that network errors are handled gracefully."""
-        from urllib.error import URLError
+        import httpx
 
         # Setup mock to raise network error
-        mock_urlopen.side_effect = URLError("Network error")
+        mock_client_instance = MagicMock()
+        mock_client_instance.post.side_effect = httpx.ConnectError("Network error")
+        mock_client.return_value.__enter__ = MagicMock(return_value=mock_client_instance)
+        mock_client.return_value.__exit__ = MagicMock(return_value=None)
 
         # Clear CI environment variables and testing environment variables
         ci_vars = [
@@ -231,8 +232,8 @@ class TestTelemetryClient:
                     # This should not raise an exception
                     client.track_command("test_command", success=True)
 
-                    # Verify that urlopen was called (and failed)
-                    mock_urlopen.assert_called_once()
+                    # Verify that httpx.Client was called (and failed gracefully)
+                    mock_client.assert_called_once()
 
 
 class TestTelemetryFunctions:
