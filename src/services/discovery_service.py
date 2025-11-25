@@ -77,19 +77,26 @@ class DiscoveryService:
                 evolution_servers[server_key]["instances"].append(instance)
             logger.info(f"Found {len(evolution_servers)} existing Evolution API server(s)")
         else:
-            # Fallback: generate a temporary key for initial discovery
-            logger.info("No existing instances found, using auto-generated key for initial discovery")
+            # Fallback: use bootstrap EVOLUTION_API_KEY for initial discovery
+            logger.info("No existing instances found, attempting to use bootstrap EVOLUTION_API_KEY")
             from src.config import config
 
             global_url = config.get_env("EVOLUTION_URL", "http://localhost:18082")
-            # Generate a temporary key for initial discovery
-            temp_key = _generate_api_key()
+            bootstrap_key = config.get_env("EVOLUTION_API_KEY")
 
-            logger.info(f"Using auto-generated key for Evolution API discovery (URL: {global_url})")
+            if not bootstrap_key:
+                logger.warning(
+                    "No Evolution API credentials found. "
+                    "Please set EVOLUTION_API_KEY in .env to enable WhatsApp instance discovery, "
+                    "or add at least one WhatsApp instance with Evolution credentials."
+                )
+                return []
+
+            logger.info(f"Using bootstrap EVOLUTION_API_KEY for instance discovery (URL: {global_url})")
             evolution_servers = {
-                f"{global_url}::{temp_key}": {
+                f"{global_url}::{bootstrap_key}": {
                     "url": global_url,
-                    "key": temp_key,
+                    "key": bootstrap_key,
                     "instances": [],
                 }
             }
