@@ -7,14 +7,12 @@ import { execa, type ExecaChildProcess, type Options } from 'execa';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PortRegistry } from './port-registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
 
 export interface ProcessConfig {
-  pythonPort: number;
-  evolutionPort: number;
-  vitePort: number;
   devMode: boolean;
 }
 
@@ -27,14 +25,13 @@ export interface ManagedProcess {
 
 export class ProcessManager {
   private processes: Map<string, ManagedProcess> = new Map();
+  private portRegistry: PortRegistry;
   private config: ProcessConfig;
   private shuttingDown = false;
 
-  constructor(config: Partial<ProcessConfig> = {}) {
+  constructor(portRegistry: PortRegistry, config: Partial<ProcessConfig> = {}) {
+    this.portRegistry = portRegistry;
     this.config = {
-      pythonPort: config.pythonPort ?? parseInt(process.env.PYTHON_API_PORT ?? '8881', 10),
-      evolutionPort: config.evolutionPort ?? parseInt(process.env.EVOLUTION_PORT ?? '18082', 10),
-      vitePort: config.vitePort ?? parseInt(process.env.VITE_PORT ?? '9882', 10),
       devMode: config.devMode ?? process.env.NODE_ENV === 'development',
     };
 
@@ -48,7 +45,12 @@ export class ProcessManager {
    */
   async startPython(): Promise<void> {
     const name = 'python';
-    console.log(`[ProcessManager] Starting Python API on port ${this.config.pythonPort}...`);
+    const port = this.portRegistry.getPort('python');
+    if (!port) {
+      throw new Error('Python port not allocated in registry');
+    }
+
+    console.log(`[ProcessManager] Starting Python API on port ${port}...`);
 
     // Determine the Python executable (prefer venv)
     const venvPython = join(ROOT_DIR, '.venv', 'bin', 'python');
@@ -58,7 +60,7 @@ export class ProcessManager {
       '-m', 'uvicorn',
       'src.api.app:app',
       '--host', '127.0.0.1',
-      '--port', String(this.config.pythonPort),
+      '--port', String(port),
     ];
 
     if (this.config.devMode) {
@@ -69,7 +71,7 @@ export class ProcessManager {
       cwd: ROOT_DIR,
       env: {
         ...process.env,
-        AUTOMAGIK_OMNI_API_PORT: String(this.config.pythonPort),
+        AUTOMAGIK_OMNI_API_PORT: String(port),
         AUTOMAGIK_OMNI_API_HOST: '127.0.0.1',
         PYTHONPATH: ROOT_DIR,
       },
@@ -79,7 +81,7 @@ export class ProcessManager {
     this.processes.set(name, {
       name,
       process: proc,
-      port: this.config.pythonPort,
+      port,
       healthy: false,
     });
 
@@ -99,7 +101,7 @@ export class ProcessManager {
     });
 
     // Wait for Python to be ready
-    await this.waitForHealth(`http://127.0.0.1:${this.config.pythonPort}/health`, name);
+    await this.waitForHealth(`http://127.0.0.1:${port}/health`, name);
   }
 
   /**
@@ -107,6 +109,11 @@ export class ProcessManager {
    */
   async startEvolution(): Promise<void> {
     const name = 'evolution';
+    const port = this.portRegistry.getPort('evolution');
+    if (!port) {
+      throw new Error('Evolution port not allocated in registry');
+    }
+
     const evolutionDir = join(ROOT_DIR, 'resources', 'evolution-api');
 
     if (!existsSync(evolutionDir)) {
@@ -114,14 +121,14 @@ export class ProcessManager {
       return;
     }
 
-    console.log(`[ProcessManager] Starting Evolution API on port ${this.config.evolutionPort}...`);
+    console.log(`[ProcessManager] Starting Evolution API on port ${port}...`);
 
     const proc = execa('npm', ['run', 'start'], {
       cwd: evolutionDir,
       env: {
         ...process.env,
-        SERVER_PORT: String(this.config.evolutionPort),
-        SERVER_URL: `http://localhost:${this.config.evolutionPort}`,
+        SERVER_PORT: String(port),
+        SERVER_URL: `http://localhost:${port}`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     } as Options);
@@ -129,7 +136,7 @@ export class ProcessManager {
     this.processes.set(name, {
       name,
       process: proc,
-      port: this.config.evolutionPort,
+      port,
       healthy: false,
     });
 
@@ -148,7 +155,7 @@ export class ProcessManager {
     });
 
     // Wait for Evolution to be ready
-    await this.waitForHealth(`http://127.0.0.1:${this.config.evolutionPort}/`, name, 60000);
+    await this.waitForHealth(`http://127.0.0.1:${port}/`, name, 60000);
   }
 
   /**
@@ -161,6 +168,11 @@ export class ProcessManager {
     }
 
     const name = 'vite';
+    const port = this.portRegistry.getPort('vite');
+    if (!port) {
+      throw new Error('Vite port not allocated in registry');
+    }
+
     const uiDir = join(ROOT_DIR, 'resources', 'ui');
 
     if (!existsSync(uiDir)) {
@@ -168,13 +180,13 @@ export class ProcessManager {
       return;
     }
 
-    console.log(`[ProcessManager] Starting Vite dev server on port ${this.config.vitePort}...`);
+    console.log(`[ProcessManager] Starting Vite dev server on port ${port}...`);
 
     const proc = execa('npm', ['run', 'dev'], {
       cwd: uiDir,
       env: {
         ...process.env,
-        UI_PORT: String(this.config.vitePort),
+        UI_PORT: String(port),
         UI_HOST: '127.0.0.1',
         // Point Vite's API proxy to our gateway (not directly to Python)
         VITE_API_URL: `http://127.0.0.1:${process.env.OMNI_PORT ?? 8882}`,
@@ -185,7 +197,7 @@ export class ProcessManager {
     this.processes.set(name, {
       name,
       process: proc,
-      port: this.config.vitePort,
+      port,
       healthy: false,
     });
 

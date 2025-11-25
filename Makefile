@@ -994,10 +994,9 @@ dev-pm2: ## Start both API and UI in PM2
 # ===========================================
 # 🏭 Production Deployment (PM2 Gateway Mode)
 # ===========================================
-# Default ports for production
+# Only the Gateway port is user-configurable
+# Internal service ports (Python, Evolution, Vite) are auto-managed
 OMNI_PORT ?= 8882
-PYTHON_API_PORT ?= 8881
-EVOLUTION_PORT ?= 18082
 
 .PHONY: prod prod-setup prod-start prod-stop prod-restart prod-status prod-logs prod-build
 
@@ -1009,8 +1008,8 @@ prod: ## 🏭 Full production setup and start (recommended for fresh deployment)
 	@echo ""
 	@echo -e "$(FONT_CYAN)This will set up Omni Hub for production with:$(FONT_RESET)"
 	@echo -e "  • Gateway on port $(OMNI_PORT) (single entry point)"
-	@echo -e "  • Python API on port $(PYTHON_API_PORT) (internal)"
-	@echo -e "  • Evolution API on port $(EVOLUTION_PORT) (WhatsApp)"
+	@echo -e "  • Python API (auto-managed port, internal)"
+	@echo -e "  • Evolution API (auto-managed port, internal)"
 	@echo -e "  • Built UI served by Gateway"
 	@echo ""
 	@read -r -p "Continue with production setup? [Y/n] " choice; \
@@ -1058,8 +1057,6 @@ prod-setup: ## 🔧 Setup production environment (install deps, build, configure
 			echo -e "$(FONT_GREEN)$(CHECKMARK) Created .env from .env.example$(FONT_RESET)"; \
 		else \
 			echo "OMNI_PORT=$(OMNI_PORT)" > .env; \
-			echo "PYTHON_API_PORT=$(PYTHON_API_PORT)" >> .env; \
-			echo "EVOLUTION_PORT=$(EVOLUTION_PORT)" >> .env; \
 			echo "ENVIRONMENT=production" >> .env; \
 			echo "LOG_LEVEL=INFO" >> .env; \
 			echo -e "$(FONT_GREEN)$(CHECKMARK) Created minimal .env file$(FONT_RESET)"; \
@@ -1103,16 +1100,16 @@ prod-start: ## ▶️  Start production services with PM2
 	$(call print_status,Starting production services...)
 	@# Stop any existing processes first
 	@pm2 delete "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || true
-	@pm2 delete "$(EVOLUTION_PORT): Evolution-API" 2>/dev/null || true
-	@# Start Evolution API
-	$(call print_info,Starting Evolution API on port $(EVOLUTION_PORT)...)
-	@cd resources/evolution-api && pm2 start npm --name "$(EVOLUTION_PORT): Evolution-API" \
+	@pm2 delete "Omni-Evolution-API" 2>/dev/null || true
+	@# Start Evolution API (port auto-managed internally)
+	$(call print_info,Starting Evolution API...)
+	@cd resources/evolution-api && pm2 start npm --name "Omni-Evolution-API" \
 		--cwd "$(PROJECT_ROOT)/resources/evolution-api" \
 		--time \
 		--log-date-format "YYYY-MM-DD HH:mm:ss" \
 		-- run start
 	@sleep 3
-	@# Start Gateway (which manages Python API internally)
+	@# Start Gateway (manages Python API and proxies to Evolution)
 	$(call print_info,Starting Gateway on port $(OMNI_PORT)...)
 	@pm2 start gateway/dist/index.js --name "$(OMNI_PORT): Omni-Gateway" \
 		--cwd "$(PROJECT_ROOT)" \
@@ -1129,13 +1126,13 @@ prod-start: ## ▶️  Start production services with PM2
 prod-stop: ## ⏹️  Stop production services
 	$(call print_status,Stopping production services...)
 	@pm2 stop "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || true
-	@pm2 stop "$(EVOLUTION_PORT): Evolution-API" 2>/dev/null || true
+	@pm2 stop "Omni-Evolution-API" 2>/dev/null || true
 	@pm2 save
 	$(call print_success,Production services stopped)
 
 prod-restart: ## 🔄 Restart production services
 	$(call print_status,Restarting production services...)
-	@pm2 restart "$(EVOLUTION_PORT): Evolution-API" 2>/dev/null || $(MAKE) prod-start
+	@pm2 restart "Omni-Evolution-API" 2>/dev/null || $(MAKE) prod-start
 	@pm2 restart "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || $(MAKE) prod-start
 	@pm2 save
 	$(call print_success,Production services restarted)

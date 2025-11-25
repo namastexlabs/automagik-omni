@@ -14,6 +14,7 @@ import { config } from 'dotenv';
 
 import { ProcessManager } from './process.js';
 import { HealthChecker } from './health.js';
+import { PortRegistry } from './port-registry.js';
 
 // Load environment variables
 config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../.env') });
@@ -41,41 +42,48 @@ function parseArgs() {
 
 const cliArgs = parseArgs();
 
-// Find available port starting from preferred
-async function findAvailablePort(preferred: number, host = '127.0.0.1'): Promise<number> {
-  const net = await import('node:net');
-
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.listen(preferred, host, () => {
-      server.close(() => resolve(preferred));
-    });
-    server.on('error', () => {
-      // Port in use, try next
-      resolve(findAvailablePort(preferred + 1, host));
-    });
-  });
-}
-
 // Configuration
 const GATEWAY_PORT = parseInt(cliArgs.port as string ?? process.env.OMNI_PORT ?? process.env.AUTOMAGIK_OMNI_API_PORT ?? '8882', 10);
-const PYTHON_PORT_PREFERRED = parseInt(process.env.PYTHON_API_PORT ?? '18881', 10);
-const EVOLUTION_PORT_PREFERRED = parseInt(process.env.EVOLUTION_PORT ?? '18082', 10);
-const VITE_PORT_PREFERRED = parseInt(process.env.VITE_PORT ?? '19882', 10);
 const DEV_MODE = process.env.NODE_ENV === 'development' || cliArgs.dev === true;
 const PROXY_ONLY = process.env.PROXY_ONLY === 'true' || cliArgs.proxyOnly === true;
 
+// Legacy env var support for PROXY_ONLY mode (connecting to external services)
+const PROXY_PYTHON_PORT = parseInt(process.env.PYTHON_API_PORT ?? '18881', 10);
+const PROXY_EVOLUTION_PORT = parseInt(process.env.EVOLUTION_PORT ?? '18082', 10);
+const PROXY_VITE_PORT = parseInt(process.env.VITE_PORT ?? '19882', 10);
+
 async function main() {
-  // Resolve ports (find available ones for internal services)
-  const PYTHON_PORT = PROXY_ONLY
-    ? PYTHON_PORT_PREFERRED
-    : await findAvailablePort(PYTHON_PORT_PREFERRED);
-  const EVOLUTION_PORT = PROXY_ONLY
-    ? EVOLUTION_PORT_PREFERRED
-    : await findAvailablePort(EVOLUTION_PORT_PREFERRED);
-  const VITE_PORT = PROXY_ONLY
-    ? VITE_PORT_PREFERRED
-    : await findAvailablePort(VITE_PORT_PREFERRED);
+  // Initialize port registry for dynamic port allocation
+  const portRegistry = new PortRegistry();
+
+  // Allocate ports for internal services (unless proxy-only mode)
+  let PYTHON_PORT: number;
+  let EVOLUTION_PORT: number | undefined;
+  let VITE_PORT: number | undefined;
+
+  if (PROXY_ONLY) {
+    // Proxy-only mode: use configured ports to connect to external services
+    PYTHON_PORT = PROXY_PYTHON_PORT;
+    EVOLUTION_PORT = PROXY_EVOLUTION_PORT;
+    VITE_PORT = DEV_MODE ? PROXY_VITE_PORT : undefined;
+  } else {
+    // Normal mode: allocate ports dynamically from dedicated ranges
+    const pythonAllocation = await portRegistry.allocate('python');
+    PYTHON_PORT = pythonAllocation.port;
+
+    try {
+      const evolutionAllocation = await portRegistry.allocate('evolution');
+      EVOLUTION_PORT = evolutionAllocation.port;
+    } catch (error) {
+      console.warn('[Gateway] Could not allocate Evolution port:', error);
+      EVOLUTION_PORT = undefined;
+    }
+
+    if (DEV_MODE) {
+      const viteAllocation = await portRegistry.allocate('vite');
+      VITE_PORT = viteAllocation.port;
+    }
+  }
 
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
@@ -85,26 +93,19 @@ async function main() {
 
 Mode: ${PROXY_ONLY ? 'PROXY-ONLY' : (DEV_MODE ? 'DEVELOPMENT' : 'PRODUCTION')}
 Gateway Port: ${GATEWAY_PORT} (--port or OMNI_PORT to change)
-Python API:   http://127.0.0.1:${PYTHON_PORT}${PYTHON_PORT !== PYTHON_PORT_PREFERRED ? ' (auto-assigned)' : ''}
-Evolution:    http://127.0.0.1:${EVOLUTION_PORT}${EVOLUTION_PORT !== EVOLUTION_PORT_PREFERRED ? ' (auto-assigned)' : ''}
-${DEV_MODE ? `Vite Dev:     http://127.0.0.1:${VITE_PORT}${VITE_PORT !== VITE_PORT_PREFERRED ? ' (auto-assigned)' : ''}` : ''}
+Python API:   http://127.0.0.1:${PYTHON_PORT} (auto-managed)
+${EVOLUTION_PORT ? `Evolution:    http://127.0.0.1:${EVOLUTION_PORT} (auto-managed)` : 'Evolution:    (not allocated)'}
+${DEV_MODE && VITE_PORT ? `Vite Dev:     http://127.0.0.1:${VITE_PORT} (auto-managed)` : ''}
 ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing services)' : ''}
 `);
 
-  // Initialize process manager
-  const processManager = new ProcessManager({
-    pythonPort: PYTHON_PORT,
-    evolutionPort: EVOLUTION_PORT,
-    vitePort: VITE_PORT,
+  // Initialize process manager with port registry
+  const processManager = new ProcessManager(portRegistry, {
     devMode: DEV_MODE,
   });
 
-  // Initialize health checker
-  const healthChecker = new HealthChecker({
-    pythonUrl: `http://127.0.0.1:${PYTHON_PORT}/health`,
-    evolutionUrl: `http://127.0.0.1:${EVOLUTION_PORT}/`,
-    viteUrl: DEV_MODE ? `http://127.0.0.1:${VITE_PORT}/` : undefined,
-  });
+  // Initialize health checker with port registry
+  const healthChecker = new HealthChecker(portRegistry);
 
   // Start backend services (unless proxy-only mode)
   if (!PROXY_ONLY) {
@@ -199,19 +200,29 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // ============================================================
   // Route: /evolution/* - Proxy to Evolution API
   // ============================================================
-  await fastify.register(proxy, {
-    upstream: `http://127.0.0.1:${EVOLUTION_PORT}`,
-    prefix: '/evolution',
-    rewritePrefix: '',
-    http2: false,
-  });
+  if (EVOLUTION_PORT) {
+    await fastify.register(proxy, {
+      upstream: `http://127.0.0.1:${EVOLUTION_PORT}`,
+      prefix: '/evolution',
+      rewritePrefix: '',
+      http2: false,
+    });
+  } else {
+    // Evolution not available - return 503
+    fastify.all('/evolution/*', async (_request, reply) => {
+      return reply.status(503).send({
+        error: 'Evolution API not available',
+        message: 'Evolution API port was not allocated. Check gateway logs.',
+      });
+    });
+  }
 
   // ============================================================
   // Route: /* - UI (static files in prod, Vite proxy in dev)
   // ============================================================
   const uiDistDir = join(ROOT_DIR, 'resources', 'ui', 'dist');
 
-  if (DEV_MODE) {
+  if (DEV_MODE && VITE_PORT) {
     // Development: Proxy to Vite dev server (with WebSocket for HMR)
     await fastify.register(proxy, {
       upstream: `http://127.0.0.1:${VITE_PORT}`,
@@ -258,11 +269,21 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       gateway: {
         port: GATEWAY_PORT,
         mode: DEV_MODE ? 'development' : 'production',
+        proxyOnly: PROXY_ONLY,
         uptime: process.uptime(),
       },
+      ports: portRegistry.toJSON(),
       processes: processManager.getStatus(),
     };
   });
+
+  // Cleanup port registry on shutdown
+  const cleanup = () => {
+    portRegistry.releaseAll();
+  };
+  process.on('exit', cleanup);
+  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', cleanup);
 
   // Start the gateway server
   try {
