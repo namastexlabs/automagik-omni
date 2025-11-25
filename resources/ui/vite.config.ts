@@ -13,7 +13,7 @@ export default defineConfig({
   server: {
     host: process.env.UI_HOST || '0.0.0.0',
     port: parseInt(process.env.UI_PORT || '9882', 10),
-    strictPort: false, // Allow Vite to use a different port if the specified one is busy
+    strictPort: true, // Let Gateway handle port conflicts via PortRegistry
     proxy: {
       '/api': {
         target: process.env.VITE_API_URL || 'http://localhost:8882',

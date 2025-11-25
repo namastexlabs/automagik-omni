@@ -3,6 +3,8 @@
  * Collects health status from all backend services
  */
 
+import { PortRegistry } from './port-registry.js';
+
 export interface ProcessStats {
   memory: {
     heapUsed: number;  // MB
@@ -83,31 +85,49 @@ export interface AggregatedHealth {
 }
 
 export interface HealthConfig {
-  pythonUrl: string;
-  evolutionUrl: string;
-  viteUrl?: string;
   timeout: number;
 }
 
 export class HealthChecker {
-  private config: HealthConfig;
+  private portRegistry: PortRegistry;
+  private timeout: number;
   private evolutionApiKey: string;
 
-  constructor(config: Partial<HealthConfig> = {}) {
-    const pythonPort = process.env.PYTHON_API_PORT ?? '8881';
-    const evolutionPort = process.env.EVOLUTION_PORT ?? '18082';
-    const vitePort = process.env.VITE_PORT ?? '9882';
-
-    this.config = {
-      pythonUrl: config.pythonUrl ?? `http://127.0.0.1:${pythonPort}/health`,
-      evolutionUrl: config.evolutionUrl ?? `http://127.0.0.1:${evolutionPort}/`,
-      viteUrl: process.env.NODE_ENV === 'development'
-        ? (config.viteUrl ?? `http://127.0.0.1:${vitePort}/`)
-        : undefined,
-      timeout: config.timeout ?? 5000,
-    };
-
+  constructor(portRegistry: PortRegistry, timeout = 5000) {
+    this.portRegistry = portRegistry;
+    this.timeout = timeout;
     this.evolutionApiKey = process.env.EVOLUTION_API_KEY ?? '';
+  }
+
+  /**
+   * Get the Python API health check URL
+   */
+  private getPythonUrl(): string | undefined {
+    const port = this.portRegistry.getPort('python');
+    return port ? `http://127.0.0.1:${port}/health` : undefined;
+  }
+
+  /**
+   * Get the Evolution API URL
+   */
+  private getEvolutionUrl(): string | undefined {
+    const port = this.portRegistry.getPort('evolution');
+    return port ? `http://127.0.0.1:${port}/` : undefined;
+  }
+
+  /**
+   * Get the Evolution API port
+   */
+  private getEvolutionPort(): number | undefined {
+    return this.portRegistry.getPort('evolution');
+  }
+
+  /**
+   * Get the Vite dev server URL
+   */
+  private getViteUrl(): string | undefined {
+    const port = this.portRegistry.getPort('vite');
+    return port ? `http://127.0.0.1:${port}/` : undefined;
   }
 
   /**
@@ -131,7 +151,8 @@ export class HealthChecker {
    * Get Evolution process stats by finding its PID and reading from /proc
    */
   private async getEvolutionProcessStats(): Promise<EvolutionProcessStats | null> {
-    const evolutionPort = process.env.EVOLUTION_PORT ?? '18082';
+    const evolutionPort = this.getEvolutionPort();
+    if (!evolutionPort) return null;
 
     try {
       // Find Evolution process by looking for the port listener
@@ -214,12 +235,13 @@ export class HealthChecker {
     totals: EvolutionTotals;
     details: EvolutionInstanceDetail[];
   } | null> {
-    const evolutionPort = process.env.EVOLUTION_PORT ?? '18082';
+    const evolutionPort = this.getEvolutionPort();
+    if (!evolutionPort) return null;
     const url = `http://127.0.0.1:${evolutionPort}/instance/fetchInstances`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -336,7 +358,7 @@ export class HealthChecker {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -382,10 +404,14 @@ export class HealthChecker {
    * Get aggregated health status from all services
    */
   async getHealth(): Promise<AggregatedHealth> {
+    const pythonUrl = this.getPythonUrl();
+    const evolutionUrl = this.getEvolutionUrl();
+    const viteUrl = this.getViteUrl();
+
     const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances, evolutionProcess] = await Promise.all([
-      this.checkService(this.config.pythonUrl),
-      this.checkService(this.config.evolutionUrl),
-      this.config.viteUrl ? this.checkService(this.config.viteUrl) : Promise.resolve(undefined),
+      pythonUrl ? this.checkService(pythonUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
+      evolutionUrl ? this.checkService(evolutionUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
+      viteUrl ? this.checkService(viteUrl) : Promise.resolve(undefined),
       this.getEvolutionInstances(),
       this.getEvolutionProcessStats(),
     ]);

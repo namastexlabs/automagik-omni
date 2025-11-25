@@ -105,10 +105,8 @@ module.exports = {
       env: {
         ...envVars,
         NODE_ENV: 'production',
+        // Only OMNI_PORT is user-configurable - internal service ports are auto-managed
         OMNI_PORT: envVars.OMNI_PORT || envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
-        PYTHON_API_PORT: '8881',
-        EVOLUTION_PORT: envVars.EVOLUTION_API_PORT || '18082',
-        VITE_PORT: envVars.UI_PORT || '9882',
         PYTHONPATH: PROJECT_ROOT,
         PROCESS_TITLE: 'Omni Gateway'
       },
