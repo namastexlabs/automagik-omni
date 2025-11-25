@@ -3,7 +3,7 @@
  * Collects health status from all backend services
  */
 
-export interface GatewayStats {
+export interface ProcessStats {
   memory: {
     heapUsed: number;  // MB
     heapTotal: number; // MB
@@ -12,6 +12,16 @@ export interface GatewayStats {
   uptime: number;      // seconds
   nodeVersion: string;
   pid: number;
+  cpu?: number;        // CPU percentage (if available)
+}
+
+export interface GatewayStats extends ProcessStats {}
+
+export interface EvolutionProcessStats {
+  pid?: number;
+  memory_mb?: number;
+  cpu_percent?: number;
+  uptime?: number;
 }
 
 export interface EvolutionInstanceStats {
@@ -115,6 +125,85 @@ export class HealthChecker {
       nodeVersion: process.version,
       pid: process.pid,
     };
+  }
+
+  /**
+   * Get Evolution process stats by finding its PID and reading from /proc
+   */
+  private async getEvolutionProcessStats(): Promise<EvolutionProcessStats | null> {
+    const evolutionPort = process.env.EVOLUTION_PORT ?? '18082';
+
+    try {
+      // Find Evolution process by looking for the port listener
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      // Use lsof or ss to find the process listening on Evolution port
+      let pid: number | undefined;
+      try {
+        const { stdout } = await execAsync(`ss -tlnp 2>/dev/null | grep ':${evolutionPort}' | grep -oP 'pid=\\K[0-9]+'`);
+        pid = parseInt(stdout.trim(), 10);
+      } catch {
+        // Try alternative method with lsof
+        try {
+          const { stdout } = await execAsync(`lsof -ti :${evolutionPort} 2>/dev/null | head -1`);
+          pid = parseInt(stdout.trim(), 10);
+        } catch {
+          return null;
+        }
+      }
+
+      if (!pid || isNaN(pid)) {
+        return null;
+      }
+
+      // Read process stats from /proc
+      const fs = await import('fs/promises');
+
+      // Get memory from /proc/[pid]/status
+      let memoryMb = 0;
+      try {
+        const status = await fs.readFile(`/proc/${pid}/status`, 'utf-8');
+        const vmRssMatch = status.match(/VmRSS:\s*(\d+)\s*kB/);
+        if (vmRssMatch) {
+          memoryMb = Math.round(parseInt(vmRssMatch[1], 10) / 1024 * 10) / 10;
+        }
+      } catch {
+        // Ignore read errors
+      }
+
+      // Get uptime by calculating from process start time
+      let uptime = 0;
+      try {
+        // Get process start time in a parseable format
+        const { stdout } = await execAsync(`ps -p ${pid} -o lstart= 2>/dev/null`);
+        const startTime = new Date(stdout.trim());
+        if (!isNaN(startTime.getTime())) {
+          uptime = Math.round((Date.now() - startTime.getTime()) / 1000);
+        }
+      } catch {
+        // Ignore errors
+      }
+
+      // Get CPU from /proc/[pid]/stat (simplified - instantaneous is tricky)
+      let cpuPercent = 0;
+      try {
+        const { stdout } = await execAsync(`ps -p ${pid} -o %cpu --no-headers 2>/dev/null`);
+        cpuPercent = parseFloat(stdout.trim()) || 0;
+      } catch {
+        // Ignore errors
+      }
+
+      return {
+        pid,
+        memory_mb: memoryMb,
+        cpu_percent: Math.round(cpuPercent * 10) / 10,
+        uptime,
+      };
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -293,11 +382,12 @@ export class HealthChecker {
    * Get aggregated health status from all services
    */
   async getHealth(): Promise<AggregatedHealth> {
-    const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances] = await Promise.all([
+    const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances, evolutionProcess] = await Promise.all([
       this.checkService(this.config.pythonUrl),
       this.checkService(this.config.evolutionUrl),
       this.config.viteUrl ? this.checkService(this.config.viteUrl) : Promise.resolve(undefined),
       this.getEvolutionInstances(),
+      this.getEvolutionProcessStats(),
     ]);
 
     // Gateway stats
@@ -308,13 +398,18 @@ export class HealthChecker {
       details: gatewayStats,
     };
 
-    // Enrich Evolution health with instance stats and details
-    if (evolutionHealth.status === 'up' && evolutionInstances) {
+    // Enrich Evolution health with instance stats, details, and process stats
+    if (evolutionHealth.status === 'up') {
       evolutionHealth.details = {
         ...evolutionHealth.details,
-        instances: evolutionInstances.instances,
-        totals: evolutionInstances.totals,
-        instanceDetails: evolutionInstances.details,
+        ...(evolutionInstances ? {
+          instances: evolutionInstances.instances,
+          totals: evolutionInstances.totals,
+          instanceDetails: evolutionInstances.details,
+        } : {}),
+        ...(evolutionProcess ? {
+          process: evolutionProcess,
+        } : {}),
       };
     }
 
