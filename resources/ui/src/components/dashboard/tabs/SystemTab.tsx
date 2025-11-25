@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, TraceAnalytics, HealthResponse } from '@/lib/api';
+import { api, TraceAnalytics, HealthResponse, ServerStats } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,8 @@ import {
   CheckCircle,
   AlertCircle,
   Wifi,
+  MemoryStick,
+  MonitorCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -116,6 +118,145 @@ function MetricRow({ icon, label, value, subValue, progress, progressColor }: Me
   );
 }
 
+interface ServerOverviewCardProps {
+  server?: ServerStats;
+  isLoading: boolean;
+}
+
+function ServerOverviewCard({ server, isLoading }: ServerOverviewCardProps) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <MonitorCog className="h-4 w-4" />
+            Server Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!server) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <MonitorCog className="h-4 w-4" />
+            Server Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center text-muted-foreground py-4">
+            Server stats unavailable
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MonitorCog className="h-4 w-4" />
+            Server Overview
+          </CardTitle>
+          <Badge variant="outline" className="text-xs">
+            {server.hostname} • {server.platform}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {/* RAM */}
+          <div className="p-4 rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2 text-muted-foreground mb-2">
+              <MemoryStick className="h-4 w-4" />
+              <span className="text-xs font-medium">RAM</span>
+            </div>
+            <div className="text-2xl font-bold">{server.memory.usedPercent}%</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {server.memory.used.toFixed(1)} / {server.memory.total.toFixed(1)} GB
+            </div>
+            <Progress
+              value={server.memory.usedPercent}
+              className={cn('h-1.5 mt-2', server.memory.usedPercent > 90 ? '[&>div]:bg-destructive' : '')}
+            />
+          </div>
+
+          {/* CPU */}
+          <div className="p-4 rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2 text-muted-foreground mb-2">
+              <Cpu className="h-4 w-4" />
+              <span className="text-xs font-medium">CPU</span>
+            </div>
+            <div className="text-2xl font-bold">{server.cpu.usagePercent}%</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {server.cpu.cores} cores
+            </div>
+            <Progress
+              value={server.cpu.usagePercent}
+              className={cn('h-1.5 mt-2', server.cpu.usagePercent > 90 ? '[&>div]:bg-destructive' : '')}
+            />
+          </div>
+
+          {/* Disk */}
+          <div className="p-4 rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2 text-muted-foreground mb-2">
+              <HardDrive className="h-4 w-4" />
+              <span className="text-xs font-medium">Disk ({server.disk.mountPoint})</span>
+            </div>
+            <div className="text-2xl font-bold">{server.disk.usedPercent}%</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {server.disk.used.toFixed(1)} / {server.disk.total.toFixed(1)} GB
+            </div>
+            <Progress
+              value={server.disk.usedPercent}
+              className={cn('h-1.5 mt-2', server.disk.usedPercent > 90 ? '[&>div]:bg-destructive' : '')}
+            />
+          </div>
+
+          {/* Load Average */}
+          <div className="p-4 rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2 text-muted-foreground mb-2">
+              <Gauge className="h-4 w-4" />
+              <span className="text-xs font-medium">Load Average</span>
+            </div>
+            <div className="text-2xl font-bold">{server.loadAverage[0].toFixed(2)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {server.loadAverage[1].toFixed(2)} / {server.loadAverage[2].toFixed(2)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              1m / 5m / 15m
+            </div>
+          </div>
+
+          {/* System Uptime */}
+          <div className="p-4 rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2 text-muted-foreground mb-2">
+              <Clock className="h-4 w-4" />
+              <span className="text-xs font-medium">System Uptime</span>
+            </div>
+            <div className="text-2xl font-bold">{formatUptime(server.uptime)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Since boot
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function SystemTab() {
   const { dateRange } = useTimeRange();
 
@@ -139,6 +280,7 @@ export function SystemTab() {
     uptime?: number;
     nodeVersion?: string;
     pid?: number;
+    cpu?: number;
   } | undefined;
 
   const pythonDetails = health?.services?.python?.details as {
@@ -146,6 +288,8 @@ export function SystemTab() {
       api?: {
         uptime?: number;
         memory_mb?: number;
+        cpu_percent?: number;
+        pid?: number;
       };
       database?: {
         status?: string;
@@ -187,6 +331,9 @@ export function SystemTab() {
 
   return (
     <div className="space-y-6">
+      {/* Server Overview - Full width */}
+      <ServerOverviewCard server={health?.server} isLoading={isLoading} />
+
       {/* Services Row - 3 columns */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Gateway */}
@@ -205,16 +352,22 @@ export function SystemTab() {
             <div className="space-y-3">
               <MetricRow
                 icon={<HardDrive className="h-4 w-4" />}
-                label="Heap Memory"
-                value={`${gatewayDetails?.memory?.heapUsed || 0} / ${gatewayDetails?.memory?.heapTotal || 0} MB`}
-                subValue={`RSS: ${formatBytes(gatewayDetails?.memory?.rss || 0)}`}
+                label="Memory"
+                value={`${gatewayDetails?.memory?.heapUsed || 0} MB`}
+                subValue={`Heap: ${gatewayDetails?.memory?.heapTotal || 0} MB • RSS: ${formatBytes(gatewayDetails?.memory?.rss || 0)}`}
                 progress={gatewayMemPercent}
+              />
+              <MetricRow
+                icon={<Cpu className="h-4 w-4" />}
+                label="CPU"
+                value={`${gatewayDetails?.cpu ?? 0}%`}
+                subValue={`PID ${gatewayDetails?.pid || 'N/A'}`}
               />
               <MetricRow
                 icon={<Clock className="h-4 w-4" />}
                 label="Uptime"
                 value={formatUptime(gatewayDetails?.uptime || 0)}
-                subValue={`Node ${gatewayDetails?.nodeVersion || 'N/A'} • PID ${gatewayDetails?.pid || 'N/A'}`}
+                subValue={`Node ${gatewayDetails?.nodeVersion || 'N/A'}`}
               />
             </div>
           )}
@@ -236,8 +389,14 @@ export function SystemTab() {
             <div className="space-y-3">
               <MetricRow
                 icon={<HardDrive className="h-4 w-4" />}
-                label="Memory Usage"
+                label="Memory"
                 value={formatBytes(apiInfo?.memory_mb || 0)}
+              />
+              <MetricRow
+                icon={<Cpu className="h-4 w-4" />}
+                label="CPU"
+                value={`${apiInfo?.cpu_percent ?? 0}%`}
+                subValue={`PID ${apiInfo?.pid || 'N/A'}`}
               />
               <MetricRow
                 icon={<Clock className="h-4 w-4" />}
@@ -272,15 +431,20 @@ export function SystemTab() {
             <div className="space-y-3">
               <MetricRow
                 icon={<HardDrive className="h-4 w-4" />}
-                label="Memory Usage"
+                label="Memory"
                 value={formatBytes(evolutionProcess.memory_mb || 0)}
-                subValue={`CPU: ${evolutionProcess.cpu_percent || 0}%`}
+              />
+              <MetricRow
+                icon={<Cpu className="h-4 w-4" />}
+                label="CPU"
+                value={`${evolutionProcess.cpu_percent ?? 0}%`}
+                subValue={`PID ${evolutionProcess.pid || 'N/A'}`}
               />
               <MetricRow
                 icon={<Clock className="h-4 w-4" />}
                 label="Uptime"
                 value={formatUptime(evolutionProcess.uptime || 0)}
-                subValue={`PID ${evolutionProcess.pid || 'N/A'} • v${evolutionDetails?.version || '?'}`}
+                subValue={`v${evolutionDetails?.version || '?'}`}
               />
             </div>
           ) : (

@@ -15,6 +15,7 @@ import { config } from 'dotenv';
 import { ProcessManager } from './process.js';
 import { HealthChecker } from './health.js';
 import { PortRegistry } from './port-registry.js';
+import { getLogTailer, getAvailableServices, LOG_SERVICES, restartPm2Service, getPm2Status, type ServiceName, type LogEntry } from './logs.js';
 
 // Load environment variables
 config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../.env') });
@@ -151,6 +152,130 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // ============================================================
   fastify.get('/health', async () => {
     return healthChecker.getHealth();
+  });
+
+  // ============================================================
+  // Route: /api/logs/* - Log streaming endpoints
+  // ============================================================
+
+  // GET /api/logs/services - List available log services
+  fastify.get('/api/logs/services', async () => {
+    return getAvailableServices();
+  });
+
+  // GET /api/logs/recent - Get recent log entries
+  fastify.get<{
+    Querystring: { services?: string; limit?: string };
+  }>('/api/logs/recent', async (request) => {
+    const { services: servicesParam, limit: limitParam } = request.query;
+
+    const limit = Math.min(Math.max(parseInt(limitParam ?? '100', 10), 1), 500);
+    const services = servicesParam
+      ? servicesParam.split(',').filter((s): s is ServiceName => s in LOG_SERVICES)
+      : Object.keys(LOG_SERVICES) as ServiceName[];
+
+    const tailer = getLogTailer();
+    return tailer.getRecentLogs(services, limit);
+  });
+
+  // GET /api/logs/stream - SSE endpoint for real-time logs
+  fastify.get<{
+    Querystring: { services?: string };
+  }>('/api/logs/stream', async (request, reply) => {
+    const { services: servicesParam } = request.query;
+
+    const services = servicesParam
+      ? servicesParam.split(',').filter((s): s is ServiceName => s in LOG_SERVICES)
+      : Object.keys(LOG_SERVICES) as ServiceName[];
+
+    // Set SSE headers
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'X-Accel-Buffering': 'no', // Disable nginx buffering
+    });
+
+    // Send initial connection message
+    reply.raw.write(`event: connected\ndata: ${JSON.stringify({ services, timestamp: new Date().toISOString() })}\n\n`);
+
+    const tailer = getLogTailer();
+
+    // Start tailing requested services
+    for (const service of services) {
+      await tailer.startTailing(service);
+    }
+
+    // Handler for new log entries
+    const logHandler = (entry: LogEntry) => {
+      if (services.includes(entry.service)) {
+        reply.raw.write(`event: log\ndata: ${JSON.stringify(entry)}\n\n`);
+      }
+    };
+
+    tailer.on('log', logHandler);
+
+    // Heartbeat to keep connection alive
+    const heartbeatInterval = setInterval(() => {
+      reply.raw.write(`: heartbeat ${Date.now()}\n\n`);
+    }, 30000);
+
+    // Cleanup on close
+    request.raw.on('close', () => {
+      clearInterval(heartbeatInterval);
+      tailer.off('log', logHandler);
+      // Note: We don't stop tailing as other clients may be listening
+    });
+
+    // Don't end the response - SSE keeps connection open
+    return reply;
+  });
+
+  // POST /api/logs/restart/:service - Restart a PM2 service
+  fastify.post<{
+    Params: { service: string };
+  }>('/api/logs/restart/:service', async (request, reply) => {
+    const { service } = request.params;
+
+    if (!(service in LOG_SERVICES)) {
+      return reply.status(400).send({
+        success: false,
+        message: `Invalid service: ${service}. Valid services: ${Object.keys(LOG_SERVICES).join(', ')}`,
+      });
+    }
+
+    const result = await restartPm2Service(service as ServiceName);
+    return reply.status(result.success ? 200 : 500).send(result);
+  });
+
+  // GET /api/logs/status/:service - Get PM2 status for a service
+  fastify.get<{
+    Params: { service: string };
+  }>('/api/logs/status/:service', async (request, reply) => {
+    const { service } = request.params;
+
+    if (!(service in LOG_SERVICES)) {
+      return reply.status(400).send({
+        error: `Invalid service: ${service}`,
+      });
+    }
+
+    const status = await getPm2Status(service as ServiceName);
+    return status || { online: false, message: 'Service not found in PM2' };
+  });
+
+  // GET /api/logs/status - Get PM2 status for all services
+  fastify.get('/api/logs/status', async () => {
+    const statuses: Record<string, Awaited<ReturnType<typeof getPm2Status>> | { online: false }> = {};
+
+    await Promise.all(
+      (Object.keys(LOG_SERVICES) as ServiceName[]).map(async (service) => {
+        statuses[service] = await getPm2Status(service) || { online: false };
+      })
+    );
+
+    return statuses;
   });
 
   // ============================================================
