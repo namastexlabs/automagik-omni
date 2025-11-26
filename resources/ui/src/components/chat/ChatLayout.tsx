@@ -68,34 +68,44 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
     return map;
   }, [groupsResponse]);
 
-  // Merge chats with group info
+  // Merge chats with group info and filter out empty metadata-only entries
   const chats = useMemo(() => {
     const rawChats = Array.isArray(chatsResponse) ? chatsResponse : [];
-    return rawChats.map((chat: any) => {
-      const isGroup = chat.remoteJid?.includes('@g.us');
-      if (isGroup) {
-        const groupInfo = groupsMap.get(chat.remoteJid);
-        if (groupInfo) {
+    return rawChats
+      .map((chat: any) => {
+        const isGroup = chat.remoteJid?.includes('@g.us');
+        if (isGroup) {
+          const groupInfo = groupsMap.get(chat.remoteJid);
+          if (groupInfo) {
+            return {
+              ...chat,
+              name: groupInfo.subject, // Use group subject as name
+              profilePicUrl: groupInfo.pictureUrl || chat.profilePicUrl,
+              isGroup: true,
+            };
+          }
           return {
             ...chat,
-            name: groupInfo.subject, // Use group subject as name
-            profilePicUrl: groupInfo.pictureUrl || chat.profilePicUrl,
+            name: chat.pushName || 'Group',
             isGroup: true,
           };
         }
+        // For direct chats
         return {
           ...chat,
-          name: chat.pushName || 'Group',
-          isGroup: true,
+          name: chat.pushName || formatDisplayName(chat.remoteJid),
+          isGroup: false,
         };
-      }
-      // For direct chats
-      return {
-        ...chat,
-        name: chat.pushName || formatDisplayName(chat.remoteJid),
-        isGroup: false,
-      };
-    });
+      })
+      .filter((chat: any) => {
+        // Filter out empty LID entries (no name and no messages)
+        // These are WhatsApp metadata entries for contacts that haven't been messaged yet
+        const isLID = chat.remoteJid?.includes('@lid');
+        if (isLID && !chat.pushName && !chat.lastMessage) {
+          return false; // Hide empty LID entries
+        }
+        return true;
+      });
   }, [chatsResponse, groupsMap]);
 
   const isLoading = chatsLoading;
