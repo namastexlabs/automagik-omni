@@ -26,6 +26,7 @@ class EvolutionInstance(BaseModel):
     status: str  # "open", "close", "connecting", "created"
     serverUrl: Optional[str] = None
     apikey: Optional[str] = None
+    token: Optional[str] = None  # Instance-specific authentication token from Evolution
     integration: Optional[Dict[str, Any]] = None
 
 
@@ -158,6 +159,7 @@ class EvolutionClient:
                         "profileName": item.get("profileName"),
                         "profilePicUrl": item.get("profilePicUrl"),
                         "status": item.get("connectionStatus", "unknown"),
+                        "token": item.get("token"),  # Include per-instance authentication token
                     }
                     instances.append(EvolutionInstance(**instance_data))
 
