@@ -51,7 +51,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
   });
 
   // Fetch groups to get proper group names
-  const { data: groupsResponse } = useQuery({
+  const { data: groupsResponse, isLoading: groupsLoading } = useQuery({
     queryKey: ['groups', instanceName],
     queryFn: () => api.evolution.fetchAllGroups(instanceName),
     refetchInterval: 60000,
@@ -108,7 +108,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
       });
   }, [chatsResponse, groupsMap]);
 
-  const isLoading = chatsLoading;
+  const isLoading = chatsLoading || groupsLoading;
   const selectedChat = chats.find((c: any) => c.id === selectedChatId || c.remoteJid === selectedChatId);
 
   if (isLoading) {
