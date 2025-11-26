@@ -1,0 +1,73 @@
+# Development files
+.git
+.github
+.genie
+.vscode
+.claude
+*.log
+node_modules
+.DS_Store
+
+# Python source (bundled in .bundled/)
+src/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.mypy_cache
+*.coverage
+.ruff_cache
+
+# Build artifacts
+*.tsbuildinfo
+.turbo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Docs and extras
+docs/
+*.md
+!README.md
+tests/
+test/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Gateway source (only ship dist/)
+gateway/src/
+gateway/tsconfig.json
+gateway/tsup.config.ts
+
+# UI source (only ship dist/)
+resources/ui/src/
+resources/ui/public/
+resources/ui/index.html
+resources/ui/vite.config.ts
+resources/ui/tsconfig.json
+resources/ui/package.json
+resources/ui/node_modules
+
+# Evolution API (not bundled)
+resources/evolution-api/
+
+# Scripts
+scripts/
+!scripts/bundle-python.sh
+
+# Config files
+.editorconfig
+.gitignore
+.prettierrc
+.eslintrc*
+playwright.config.ts
+pyproject.toml
+uv.lock

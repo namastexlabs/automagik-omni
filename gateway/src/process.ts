@@ -7,10 +7,40 @@ import { execa, type ExecaChildProcess, type Options } from 'execa';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { homedir } from 'node:os';
 import { PortRegistry } from './port-registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
+
+/**
+ * Detect Python runtime paths (development vs bundled)
+ */
+function detectPythonRuntime(): { python: string; backend: string; mode: 'development' | 'bundled' } {
+  const isDev = process.env.NODE_ENV === 'development' || existsSync(join(ROOT_DIR, 'src', 'api'));
+
+  if (isDev) {
+    // Development mode: use source Python from workspace
+    const venvPython = join(ROOT_DIR, '.venv', 'bin', 'python');
+    return {
+      python: existsSync(venvPython) ? venvPython : 'python3',
+      backend: ROOT_DIR,
+      mode: 'development',
+    };
+  }
+
+  // Production/bundled mode: use extracted Python from user home
+  const bundledRoot = join(homedir(), '.automagik-omni');
+  const pythonBin = process.platform === 'win32'
+    ? join(bundledRoot, 'python', 'Scripts', 'python.exe')
+    : join(bundledRoot, 'python', 'bin', 'python');
+
+  return {
+    python: pythonBin,
+    backend: join(bundledRoot, 'backend'),
+    mode: 'bundled',
+  };
+}
 
 export interface ProcessConfig {
   devMode: boolean;
@@ -50,11 +80,11 @@ export class ProcessManager {
       throw new Error('Python port not allocated in registry');
     }
 
-    console.log(`[ProcessManager] Starting Python API on port ${port}...`);
-
-    // Determine the Python executable (prefer venv)
-    const venvPython = join(ROOT_DIR, '.venv', 'bin', 'python');
-    const pythonExe = existsSync(venvPython) ? venvPython : 'python3';
+    // Detect runtime paths (development vs bundled)
+    const runtime = detectPythonRuntime();
+    console.log(`[ProcessManager] Starting Python API in ${runtime.mode} mode on port ${port}...`);
+    console.log(`[ProcessManager] Python: ${runtime.python}`);
+    console.log(`[ProcessManager] Backend: ${runtime.backend}`);
 
     const uvicornArgs = [
       '-m', 'uvicorn',
@@ -63,17 +93,17 @@ export class ProcessManager {
       '--port', String(port),
     ];
 
-    if (this.config.devMode) {
+    if (this.config.devMode && runtime.mode === 'development') {
       uvicornArgs.push('--reload');
     }
 
-    const proc = execa(pythonExe, uvicornArgs, {
-      cwd: ROOT_DIR,
+    const proc = execa(runtime.python, uvicornArgs, {
+      cwd: runtime.backend,
       env: {
         ...process.env,
         AUTOMAGIK_OMNI_API_PORT: String(port),
         AUTOMAGIK_OMNI_API_HOST: '127.0.0.1',
-        PYTHONPATH: ROOT_DIR,
+        PYTHONPATH: runtime.backend,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     } as Options);

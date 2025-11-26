@@ -53,7 +53,7 @@ const PROXY_PYTHON_PORT = parseInt(process.env.PYTHON_API_PORT ?? '18881', 10);
 const PROXY_EVOLUTION_PORT = parseInt(process.env.EVOLUTION_PORT ?? '18082', 10);
 const PROXY_VITE_PORT = parseInt(process.env.VITE_PORT ?? '19882', 10);
 
-async function main() {
+export async function main() {
   // Initialize port registry for dynamic port allocation
   const portRegistry = new PortRegistry();
 
@@ -314,11 +314,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // ============================================================
   // Route: /mcp - Proxy to Python FastAPI (MCP server)
   // ============================================================
-  await fastify.register(proxy, {
-    upstream: `http://127.0.0.1:${PYTHON_PORT}`,
-    prefix: '/mcp',
-    rewritePrefix: '/mcp',
-    http2: false,
+  await fastify.register(async (fastify) => {
+    await fastify.register(proxy, {
+      upstream: `http://127.0.0.1:${PYTHON_PORT}`,
+      prefix: '/mcp',
+      rewritePrefix: '/mcp',
+      http2: false,
+    });
   });
 
   // ============================================================
@@ -380,10 +382,12 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       http2: false,
     });
   } else if (existsSync(uiDistDir)) {
-    // Production: Serve static files
-    await fastify.register(fastifyStatic, {
-      root: uiDistDir,
-      prefix: '/',
+    // Production: Serve static files (in its own plugin context)
+    await fastify.register(async (fastify) => {
+      await fastify.register(fastifyStatic, {
+        root: uiDistDir,
+        prefix: '/',
+      });
     });
 
     // SPA fallback - serve index.html for unmatched routes
@@ -460,6 +464,8 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 ║  → /health     Health Check                               ║
 ╚═══════════════════════════════════════════════════════════╝
 `);
+
+    return fastify;
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
