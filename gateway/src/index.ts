@@ -118,11 +118,21 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     // Start standalone MCP server (eliminates double proxy layer)
     await processManager.startMCP();
 
-    // Start Evolution API (optional, can fail)
+    // Start Evolution API (core service - fail fast if it won't start)
     try {
       await processManager.startEvolution();
     } catch (error) {
-      console.warn('[Gateway] Evolution API failed to start, continuing without it');
+      console.error('[Gateway] Evolution API failed to start:', error);
+      console.error('[Gateway] Evolution is core to Omni - this is a critical failure');
+      throw error; // Fail fast if Evolution won't start
+    }
+
+    // Start Discord service manager (optional but recommended)
+    try {
+      await processManager.startDiscord();
+    } catch (error) {
+      console.warn('[Gateway] Discord service failed to start, continuing without it');
+      console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
     }
 
     // Start Vite in dev mode
