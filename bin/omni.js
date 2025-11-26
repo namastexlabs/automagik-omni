@@ -9,7 +9,7 @@ const { join } = require('path');
 const { existsSync, mkdirSync, cpSync } = require('fs');
 const { homedir } = require('os');
 
-const BUNDLED_ROOT = join(homedir(), '.automagik-omni');
+const BUNDLED_ROOT = join(homedir(), 'automagik', 'omni');
 const BUNDLED_SRC = join(__dirname, '../.bundled');
 
 /**
