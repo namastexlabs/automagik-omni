@@ -312,6 +312,16 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   });
 
   // ============================================================
+  // Route: /mcp - Proxy to Python FastAPI (MCP server)
+  // ============================================================
+  await fastify.register(proxy, {
+    upstream: `http://127.0.0.1:${PYTHON_PORT}`,
+    prefix: '/mcp',
+    rewritePrefix: '/mcp',
+    http2: false,
+  });
+
+  // ============================================================
   // Route: /docs - Proxy OpenAPI docs to Python
   // ============================================================
   await fastify.register(proxy, {
