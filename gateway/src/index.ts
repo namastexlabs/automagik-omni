@@ -395,7 +395,8 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           request.url.startsWith('/health') ||
           request.url.startsWith('/docs') ||
           request.url.startsWith('/redoc') ||
-          request.url.startsWith('/openapi.json')) {
+          request.url.startsWith('/openapi.json') ||
+          request.url.startsWith('/mcp')) {
         return reply.status(404).send({ error: 'Not Found' });
       }
       return reply.sendFile('index.html');
