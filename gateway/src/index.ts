@@ -115,6 +115,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     // Start Python API first (critical)
     await processManager.startPython();
 
+    // Start standalone MCP server (eliminates double proxy layer)
+    await processManager.startMCP();
+
     // Start Evolution API (optional, can fail)
     try {
       await processManager.startEvolution();
@@ -312,12 +315,12 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   });
 
   // ============================================================
-  // Route: /mcp - Proxy to Python FastAPI (MCP server)
+  // Route: /mcp - Proxy to standalone MCP server (eliminates double proxy layer)
   // ============================================================
   await fastify.register(proxy, {
-    upstream: `http://127.0.0.1:${PYTHON_PORT}`,
+    upstream: 'http://127.0.0.1:18880',  // Direct to standalone MCP server
     prefix: '/mcp',
-    rewritePrefix: '/mcp',
+    rewritePrefix: '/',  // MCP server serves at root
     http2: false,
   });
 
@@ -431,13 +434,32 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     };
   });
 
-  // Cleanup port registry on shutdown
-  const cleanup = () => {
+  // Cleanup on shutdown (idempotent - safe to call multiple times)
+  let cleanupInProgress = false;
+  const cleanup = async () => {
+    if (cleanupInProgress) return;
+    cleanupInProgress = true;
+
+    console.log('[Gateway] Starting graceful shutdown...');
+
+    // Shutdown process manager (stops all subprocesses)
+    await processManager.shutdown();
+
+    // Release all port allocations
     portRegistry.releaseAll();
+
+    console.log('[Gateway] Cleanup complete');
   };
-  process.on('exit', cleanup);
-  process.on('SIGTERM', cleanup);
-  process.on('SIGINT', cleanup);
+
+  // Register signal handlers (deduplicated - only here, not in ProcessManager)
+  process.on('SIGTERM', async () => {
+    await cleanup();
+    process.exit(0);
+  });
+  process.on('SIGINT', async () => {
+    await cleanup();
+    process.exit(0);
+  });
 
   // Start the gateway server
   try {

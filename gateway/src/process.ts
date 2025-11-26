@@ -58,6 +58,11 @@ export class ProcessManager {
   private portRegistry: PortRegistry;
   private config: ProcessConfig;
   private shuttingDown = false;
+  // Circuit breaker state
+  private restartCount: Map<string, number> = new Map();
+  private lastRestartTime: Map<string, number> = new Map();
+  // Active health monitoring
+  private healthCheckIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(portRegistry: PortRegistry, config: Partial<ProcessConfig> = {}) {
     this.portRegistry = portRegistry;
@@ -65,9 +70,8 @@ export class ProcessManager {
       devMode: config.devMode ?? process.env.NODE_ENV === 'development',
     };
 
-    // Handle graceful shutdown
-    process.on('SIGTERM', () => this.shutdown());
-    process.on('SIGINT', () => this.shutdown());
+    // Note: Signal handlers are registered in index.ts to avoid duplicates
+    // The main() function will call processManager.shutdown() on SIGTERM/SIGINT
   }
 
   /**
@@ -125,13 +129,109 @@ export class ProcessManager {
 
     proc.on('exit', (code) => {
       if (!this.shuttingDown) {
-        console.error(`[ProcessManager] Python exited with code ${code}, restarting...`);
-        setTimeout(() => this.startPython(), 2000);
+        const count = this.restartCount.get(name) || 0;
+
+        // Circuit breaker: stop after 5 consecutive failures
+        if (count >= 5) {
+          console.error(`[ProcessManager] Circuit breaker: ${name} failed 5 times, giving up`);
+          return;
+        }
+
+        // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
+        const delay = Math.min(2000 * Math.pow(2, count), 60000);
+
+        console.error(`[ProcessManager] Python exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        this.restartCount.set(name, count + 1);
+        this.lastRestartTime.set(name, Date.now());
+
+        setTimeout(() => this.startPython(), delay);
       }
     });
 
+    // Reset restart counter after 30s uptime (successful start)
+    setTimeout(() => {
+      const proc = this.processes.get(name);
+      if (proc && proc.healthy) {
+        this.restartCount.set(name, 0);
+        console.log(`[ProcessManager] ${name} running stable, reset restart counter`);
+      }
+    }, 30000);
+
     // Wait for Python to be ready
     await this.waitForHealth(`http://127.0.0.1:${port}/health`, name);
+  }
+
+  /**
+   * Start the standalone MCP server
+   */
+  async startMCP(): Promise<void> {
+    const name = 'mcp';
+    const MCP_PORT = 18880; // Dedicated MCP port
+
+    // Detect runtime paths (development vs bundled)
+    const runtime = detectPythonRuntime();
+    console.log(`[ProcessManager] Starting standalone MCP server on port ${MCP_PORT}...`);
+
+    const proc = execa(runtime.python, [
+      'src/mcp_server.py'
+    ], {
+      cwd: runtime.backend,
+      env: {
+        ...process.env,
+        MCP_PORT: String(MCP_PORT),
+        MCP_HOST: '127.0.0.1',
+        PYTHONPATH: runtime.backend,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    } as Options);
+
+    this.processes.set(name, {
+      name,
+      process: proc,
+      port: MCP_PORT,
+      healthy: false,
+    });
+
+    // Log output
+    proc.stdout?.on('data', (data: Buffer) => {
+      console.log(`[MCP] ${data.toString().trim()}`);
+    });
+    proc.stderr?.on('data', (data: Buffer) => {
+      console.error(`[MCP] ${data.toString().trim()}`);
+    });
+
+    proc.on('exit', (code) => {
+      if (!this.shuttingDown) {
+        const count = this.restartCount.get(name) || 0;
+
+        // Circuit breaker: stop after 5 consecutive failures
+        if (count >= 5) {
+          console.error(`[ProcessManager] Circuit breaker: ${name} failed 5 times, giving up`);
+          return;
+        }
+
+        // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
+        const delay = Math.min(2000 * Math.pow(2, count), 60000);
+
+        console.error(`[ProcessManager] MCP exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        this.restartCount.set(name, count + 1);
+        this.lastRestartTime.set(name, Date.now());
+
+        setTimeout(() => this.startMCP(), delay);
+      }
+    });
+
+    // Reset restart counter after 30s uptime (successful start)
+    setTimeout(() => {
+      const proc = this.processes.get(name);
+      if (proc && proc.healthy) {
+        this.restartCount.set(name, 0);
+        console.log(`[ProcessManager] ${name} running stable, reset restart counter`);
+      }
+    }, 30000);
+
+    // Wait for MCP to be ready (try root path)
+    await this.waitForHealth(`http://127.0.0.1:${MCP_PORT}/`, name);
   }
 
   /**
@@ -179,10 +279,33 @@ export class ProcessManager {
 
     proc.on('exit', (code) => {
       if (!this.shuttingDown) {
-        console.error(`[ProcessManager] Evolution exited with code ${code}, restarting...`);
-        setTimeout(() => this.startEvolution(), 5000);
+        const count = this.restartCount.get(name) || 0;
+
+        // Circuit breaker: stop after 5 consecutive failures
+        if (count >= 5) {
+          console.error(`[ProcessManager] Circuit breaker: ${name} failed 5 times, giving up`);
+          return;
+        }
+
+        // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
+        const delay = Math.min(2000 * Math.pow(2, count), 60000);
+
+        console.error(`[ProcessManager] Evolution exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        this.restartCount.set(name, count + 1);
+        this.lastRestartTime.set(name, Date.now());
+
+        setTimeout(() => this.startEvolution(), delay);
       }
     });
+
+    // Reset restart counter after 30s uptime (successful start)
+    setTimeout(() => {
+      const proc = this.processes.get(name);
+      if (proc && proc.healthy) {
+        this.restartCount.set(name, 0);
+        console.log(`[ProcessManager] ${name} running stable, reset restart counter`);
+      }
+    }, 30000);
 
     // Wait for Evolution to be ready
     await this.waitForHealth(`http://127.0.0.1:${port}/`, name, 60000);
@@ -246,10 +369,33 @@ export class ProcessManager {
 
     proc.on('exit', (code) => {
       if (!this.shuttingDown) {
-        console.error(`[ProcessManager] Vite exited with code ${code}, restarting...`);
-        setTimeout(() => this.startVite(), 2000);
+        const count = this.restartCount.get(name) || 0;
+
+        // Circuit breaker: stop after 5 consecutive failures
+        if (count >= 5) {
+          console.error(`[ProcessManager] Circuit breaker: ${name} failed 5 times, giving up`);
+          return;
+        }
+
+        // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
+        const delay = Math.min(2000 * Math.pow(2, count), 60000);
+
+        console.error(`[ProcessManager] Vite exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        this.restartCount.set(name, count + 1);
+        this.lastRestartTime.set(name, Date.now());
+
+        setTimeout(() => this.startVite(), delay);
       }
     });
+
+    // Reset restart counter after 30s uptime (successful start)
+    setTimeout(() => {
+      const proc = this.processes.get(name);
+      if (proc && proc.healthy) {
+        this.restartCount.set(name, 0);
+        console.log(`[ProcessManager] ${name} running stable, reset restart counter`);
+      }
+    }, 30000);
 
     // Give Vite a few seconds to start
     await new Promise((r) => setTimeout(r, 3000));
@@ -269,6 +415,19 @@ export class ProcessManager {
           console.log(`[ProcessManager] ${name} is healthy`);
           const proc = this.processes.get(name);
           if (proc) proc.healthy = true;
+
+          // Release port reservation socket (atomic handoff complete)
+          if (name === 'python') {
+            this.portRegistry.confirmAllocation('python');
+          } else if (name === 'evolution') {
+            this.portRegistry.confirmAllocation('evolution');
+          } else if (name === 'vite') {
+            this.portRegistry.confirmAllocation('vite');
+          }
+
+          // Start active health monitoring (polls every 10s)
+          this.startHealthMonitoring(url, name);
+
           return;
         }
       } catch {
@@ -278,6 +437,51 @@ export class ProcessManager {
     }
 
     console.warn(`[ProcessManager] ${name} health check timed out after ${timeout}ms`);
+  }
+
+  /**
+   * Start active health monitoring for a service (polls every 10s)
+   */
+  private startHealthMonitoring(url: string, name: string): void {
+    // Clear existing interval if any
+    const existingInterval = this.healthCheckIntervals.get(name);
+    if (existingInterval) {
+      clearInterval(existingInterval);
+    }
+
+    // Poll health every 10 seconds
+    const interval = setInterval(async () => {
+      if (this.shuttingDown) {
+        clearInterval(interval);
+        return;
+      }
+
+      try {
+        const response = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(5000) });
+        const proc = this.processes.get(name);
+        if (proc) {
+          const wasHealthy = proc.healthy;
+          proc.healthy = response.ok || response.status < 500;
+
+          // Log state changes
+          if (wasHealthy && !proc.healthy) {
+            console.warn(`[ProcessManager] ${name} became unhealthy`);
+          } else if (!wasHealthy && proc.healthy) {
+            console.log(`[ProcessManager] ${name} recovered to healthy state`);
+          }
+        }
+      } catch (error) {
+        // Network error or timeout - mark as unhealthy
+        const proc = this.processes.get(name);
+        if (proc && proc.healthy) {
+          proc.healthy = false;
+          console.warn(`[ProcessManager] ${name} health check failed, marked unhealthy`);
+        }
+      }
+    }, 10000);
+
+    this.healthCheckIntervals.set(name, interval);
+    console.log(`[ProcessManager] Started active health monitoring for ${name}`);
   }
 
   /**
@@ -303,6 +507,13 @@ export class ProcessManager {
     this.shuttingDown = true;
 
     console.log('[ProcessManager] Shutting down all processes...');
+
+    // Clear all health check intervals
+    for (const [name, interval] of this.healthCheckIntervals) {
+      clearInterval(interval);
+      console.log(`[ProcessManager] Stopped health monitoring for ${name}`);
+    }
+    this.healthCheckIntervals.clear();
 
     const shutdownPromises: Promise<void>[] = [];
 
