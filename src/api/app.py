@@ -253,7 +253,9 @@ async def lifespan(app: FastAPI):
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
 
-    yield
+    # Start MCP app's session manager (required for StreamableHTTP)
+    async with mcp_app.router.lifespan_context(mcp_app):
+        yield
 
     # Shutdown (cleanup if needed)
     logger.info("Shutting down application...")
