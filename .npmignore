@@ -7,6 +7,8 @@
 *.log
 node_modules
 .DS_Store
+pnpm-lock.yaml
+.pnpm-store
 
 # Python source (bundled in .bundled/)
 src/
