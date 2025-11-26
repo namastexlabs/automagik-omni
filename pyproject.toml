@@ -10,6 +10,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.10.6",
+    "pydantic-settings>=2.0.0",
     "pika>=1.3.2",
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
@@ -18,6 +19,7 @@ dependencies = [
     "boto3>=1.34.0",
     "httpx>=0.28.0",
     "fastapi>=0.104.0",
+    "fastmcp>=0.1.0",
     "uvicorn>=0.23.2",
     "alembic>=1.16.2",
     "typer>=0.16.0",
@@ -28,6 +30,7 @@ dependencies = [
     "pytz>=2025.2",
     "aiohttp>=3.12.15",
     "pydub>=0.25.1",
+    "thefuzz>=0.22.1",
 ]
 
 [project.scripts]
@@ -35,6 +38,7 @@ automagik-omni = "src.cli.main_cli:app"
 omnihub = "src.cli.main_cli:app"
 omnihub-legacy = "src.cli.main:run"
 omnihub-instance = "src.cli.instance_cli:app"
+genie-omni-mcp = "src.mcp_tools.genie_omni.__main__:mcp.run"
 
 [build-system]
 requires = ["setuptools>=61.0"]

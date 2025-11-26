@@ -47,6 +47,7 @@ export interface EvolutionInstanceDetail {
   integration?: string;
   createdAt?: string;
   updatedAt?: string;
+  evolution_key?: string;  // Per-instance Evolution API authentication key from Omni DB
   counts: {
     messages: number;
     contacts: number;
@@ -118,12 +119,16 @@ export class HealthChecker {
   private portRegistry: PortRegistry;
   private timeout: number;
   private evolutionApiKey: string;
+  private omniApiKey: string;
   private lastCpuUsage: { user: number; system: number; time: number } | null = null;
 
   constructor(portRegistry: PortRegistry, timeout = 5000) {
     this.portRegistry = portRegistry;
     this.timeout = timeout;
     this.evolutionApiKey = process.env.EVOLUTION_API_KEY ?? '';
+    // Strip surrounding quotes if present (handles both "value" and value)
+    const rawOmniKey = process.env.AUTOMAGIK_OMNI_API_KEY ?? '';
+    this.omniApiKey = rawOmniKey.replace(/^["']|["']$/g, '');
   }
 
   /**
@@ -478,6 +483,54 @@ export class HealthChecker {
   }
 
   /**
+   * Fetch instance evolution_key values from Omni Python API
+   */
+  private async getOmniInstanceKeys(): Promise<Map<string, string>> {
+    const pythonPort = this.portRegistry.getPort('python');
+    if (!pythonPort) return new Map();
+
+    const url = `http://127.0.0.1:${pythonPort}/api/v1/instances`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'x-api-key': this.omniApiKey,
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        return new Map();
+      }
+
+      interface OmniInstance {
+        name: string;
+        evolution_key?: string;
+      }
+
+      const instances = await response.json() as OmniInstance[];
+      const keyMap = new Map<string, string>();
+
+      for (const instance of instances) {
+        if (instance.name && instance.evolution_key) {
+          keyMap.set(instance.name, instance.evolution_key);
+        }
+      }
+
+      return keyMap;
+    } catch {
+      return new Map();
+    }
+  }
+
+  /**
    * Check health of a single service
    */
   private async checkService(url: string): Promise<ServiceHealth> {
@@ -535,13 +588,14 @@ export class HealthChecker {
     const evolutionUrl = this.getEvolutionUrl();
     const viteUrl = this.getViteUrl();
 
-    const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances, evolutionProcess, serverStats] = await Promise.all([
+    const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances, evolutionProcess, serverStats, omniInstanceKeys] = await Promise.all([
       pythonUrl ? this.checkService(pythonUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
       evolutionUrl ? this.checkService(evolutionUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
       viteUrl ? this.checkService(viteUrl) : Promise.resolve(undefined),
       this.getEvolutionInstances(),
       this.getEvolutionProcessStats(),
       this.getServerStats(),
+      this.getOmniInstanceKeys(),
     ]);
 
     // Gateway stats
@@ -551,6 +605,16 @@ export class HealthChecker {
       latency: 0,
       details: gatewayStats,
     };
+
+    // Merge evolution_key from Omni API into Evolution instance details
+    if (evolutionInstances && omniInstanceKeys.size > 0) {
+      for (const detail of evolutionInstances.details) {
+        const evolutionKey = omniInstanceKeys.get(detail.name);
+        if (evolutionKey) {
+          detail.evolution_key = evolutionKey;
+        }
+      }
+    }
 
     // Enrich Evolution health with instance stats, details, and process stats
     if (evolutionHealth.status === 'up') {
