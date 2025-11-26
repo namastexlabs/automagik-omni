@@ -14,7 +14,7 @@ from .config import OmniConfig
 
 logger = logging.getLogger(__name__)
 
-# Initialize MCP server
+# Initialize MCP server (no auth - handled by Omni API layer)
 mcp = FastMCP("genie-omni")
 
 # Global client and config (initialized on first use)
