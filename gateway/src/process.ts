@@ -30,7 +30,7 @@ function detectPythonRuntime(): { python: string; backend: string; mode: 'develo
   }
 
   // Production/bundled mode: use extracted Python from user home
-  const bundledRoot = join(homedir(), '.automagik-omni');
+  const bundledRoot = join(homedir(), 'automagik', 'omni');
   const pythonBin = process.platform === 'win32'
     ? join(bundledRoot, 'python', 'Scripts', 'python.exe')
     : join(bundledRoot, 'python', 'bin', 'python');
