@@ -253,10 +253,7 @@ async def lifespan(app: FastAPI):
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
 
-    # MCP app manages its own lifespan via its task groups
-    # We need to enter its lifespan context
-    async with mcp_app.lifespan(app):
-        yield
+    yield
 
     # Shutdown (cleanup if needed)
     logger.info("Shutting down application...")
