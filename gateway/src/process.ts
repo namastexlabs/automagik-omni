@@ -253,12 +253,19 @@ export class ProcessManager {
 
     console.log(`[ProcessManager] Starting Evolution API on port ${port}...`);
 
-    const proc = execa('npm', ['run', 'start'], {
+    // Detect package manager (prefer pnpm over npm)
+    const usesPnpm = existsSync(join(evolutionDir, 'pnpm-lock.yaml'));
+    const packageManager = usesPnpm ? 'pnpm' : 'npm';
+
+    console.log(`[ProcessManager] Using ${packageManager} for Evolution API`);
+
+    const proc = execa(packageManager, ['run', 'start'], {
       cwd: evolutionDir,
       env: {
         ...process.env,
         SERVER_PORT: String(port),
         SERVER_URL: `http://localhost:${port}`,
+        NODE_ENV: 'production',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     } as Options);
@@ -309,6 +316,85 @@ export class ProcessManager {
 
     // Wait for Evolution to be ready
     await this.waitForHealth(`http://127.0.0.1:${port}/`, name, 60000);
+  }
+
+  /**
+   * Start Discord service manager (manages all Discord bot instances)
+   */
+  async startDiscord(): Promise<void> {
+    const name = 'discord';
+
+    console.log(`[ProcessManager] Starting Discord service manager...`);
+
+    const runtime = detectPythonRuntime();
+
+    const proc = execa(runtime.python, [
+      'src/commands/discord_service_manager.py'
+    ], {
+      cwd: runtime.backend,
+      env: {
+        ...process.env,
+        PYTHONPATH: runtime.backend,
+        AUTOMAGIK_OMNI_API_HOST: '127.0.0.1',
+        AUTOMAGIK_OMNI_API_PORT: String(this.portRegistry.getPort('python') || 8882),
+        DISCORD_HEALTH_CHECK_TIMEOUT: '60',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    } as Options);
+
+    this.processes.set(name, {
+      name,
+      process: proc,
+      port: 0,
+      healthy: false,
+    });
+
+    proc.stdout?.on('data', (data: Buffer) => {
+      console.log(`[Discord] ${data.toString().trim()}`);
+    });
+    proc.stderr?.on('data', (data: Buffer) => {
+      console.error(`[Discord] ${data.toString().trim()}`);
+    });
+
+    proc.on('exit', (code) => {
+      if (!this.shuttingDown) {
+        const count = this.restartCount.get(name) || 0;
+
+        // Circuit breaker: stop after 5 consecutive failures
+        if (count >= 5) {
+          console.error(`[ProcessManager] Circuit breaker: ${name} failed 5 times, giving up`);
+          return;
+        }
+
+        // Exponential backoff: 5s, 10s, 20s, 40s, 60s (capped at 60s)
+        const delay = Math.min(5000 * Math.pow(2, count), 60000);
+
+        console.error(`[ProcessManager] Discord exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        this.restartCount.set(name, count + 1);
+        this.lastRestartTime.set(name, Date.now());
+
+        setTimeout(() => this.startDiscord(), delay);
+      }
+    });
+
+    // Reset restart counter after 30s uptime (successful start)
+    setTimeout(() => {
+      const proc = this.processes.get(name);
+      if (proc && proc.healthy) {
+        this.restartCount.set(name, 0);
+        console.log(`[ProcessManager] ${name} running stable, reset restart counter`);
+      }
+    }, 30000);
+
+    // Discord service manager doesn't have HTTP health endpoint
+    // Wait 3s and mark healthy if process still running
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const p = this.processes.get(name);
+    if (p) {
+      p.healthy = true;
+      console.log(`[ProcessManager] ${name} is healthy`);
+    }
   }
 
   /**
