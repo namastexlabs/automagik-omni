@@ -72,7 +72,6 @@ from src.api.routes.omni import router as omni_router
 from src.api.routes.access import router as access_router
 from src.db.database import create_tables, SessionLocal
 from src.utils.datetime_utils import utcnow
-from src.api.mcp_integration import create_mcp_app
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -174,11 +173,24 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return masked
 
 
+class LazyDBInitMiddleware(BaseHTTPMiddleware):
+    """Middleware to defer database migrations until first request (saves ~2.5s startup)."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Run migrations on first non-health request
+        if not _MIGRATIONS_READY and request.url.path != "/health":
+            logger.info("First request detected, running database migrations...")
+            try:
+                _ensure_database_ready()
+            except Exception as e:
+                logger.error(f"Database initialization failed: {e}")
+                raise HTTPException(status_code=503, detail="Database initialization failed")
+
+        return await call_next(request)
+
+
 # Note: create_tables() has been moved to lifespan function to ensure proper test isolation
 # Database tables will be created during app startup in the lifespan function
-
-# Create MCP ASGI app with authentication (must be before lifespan function)
-mcp_app = create_mcp_app()
 
 
 @asynccontextmanager
@@ -190,12 +202,13 @@ async def lifespan(app: FastAPI):
     environment = os.environ.get("ENVIRONMENT")
 
     if environment != "test":
-        _ensure_database_ready(force=True)
+        # Database initialization moved to middleware (lazy init on first request)
+        # This saves ~2.5s on cold start - migrations run only when needed
 
-        # After migrations succeed, ensure tables exist for runtime checks
+        # Still create tables structure for runtime checks (fast operation)
         try:
             create_tables()
-            logger.info("✅ Database tables created/verified")
+            logger.info("✅ Database tables structure created/verified (migrations deferred to first request)")
         except Exception as e:
             logger.error(f"❌ Failed to create database tables: {e}")
             # Let the app continue - tables might already exist
@@ -253,9 +266,7 @@ async def lifespan(app: FastAPI):
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
 
-    # Start MCP app's session manager (required for StreamableHTTP)
-    async with mcp_app.router.lifespan_context(mcp_app):
-        yield
+    yield
 
     # Shutdown (cleanup if needed)
     logger.info("Shutting down application...")
@@ -330,9 +341,11 @@ app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"]
 # Include access control management routes
 app.include_router(access_router, prefix="/api/v1", tags=["access"])
 
-# Mount MCP server at /mcp endpoint
-app.mount("/mcp", mcp_app)
-logger.info("MCP server mounted at /mcp endpoint")
+# Note: MCP server now runs as standalone service on port 18880
+# Gateway proxies /mcp requests directly to standalone MCP server
+
+# Add lazy DB initialization middleware (runs before other middleware)
+app.add_middleware(LazyDBInitMiddleware)
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)

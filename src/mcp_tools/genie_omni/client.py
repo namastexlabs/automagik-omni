@@ -68,6 +68,16 @@ class OmniClient:
         self.headers = {"x-api-key": config.api_key, "Content-Type": "application/json"}
         self.timeout = httpx.Timeout(config.timeout)
 
+        # Persistent client with connection pooling for performance
+        self._client = httpx.AsyncClient(
+            timeout=self.timeout,
+            limits=httpx.Limits(
+                max_keepalive_connections=20,
+                max_connections=50,
+                keepalive_expiry=30.0
+            )
+        )
+
     async def _request(
         self,
         method: str,
@@ -78,31 +88,30 @@ class OmniClient:
         """Make HTTP request with error handling"""
         url = f"{self.base_url}{endpoint}"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.request(
-                    method=method,
-                    url=url,
-                    headers=self.headers,
-                    json=json,
-                    params=params,
-                )
-                response.raise_for_status()
+        try:
+            response = await self._client.request(
+                method=method,
+                url=url,
+                headers=self.headers,
+                json=json,
+                params=params,
+            )
+            response.raise_for_status()
 
-                # Handle empty responses
-                if response.status_code == 204:
-                    return {"success": True}
+            # Handle empty responses
+            if response.status_code == 204:
+                return {"success": True}
 
-                return response.json()
+            return response.json()
 
-            except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
-                raise Exception(
-                    f"API error: {e.response.status_code} - {e.response.text}"
-                )
-            except Exception as e:
-                logger.error(f"Request failed: {str(e)}")
-                raise
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
+            raise Exception(
+                f"API error: {e.response.status_code} - {e.response.text}"
+            )
+        except Exception as e:
+            logger.error(f"Request failed: {str(e)}")
+            raise
 
     # Instance Operations
     async def list_instances(
@@ -409,41 +418,40 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                payload: Dict[str, Any] = {
-                    "number": remote_jid,
-                    "text": text
+        try:
+            payload: Dict[str, Any] = {
+                "number": remote_jid,
+                "text": text
+            }
+
+            if delay:
+                payload["delay"] = delay
+
+            if quoted_msg_id:
+                payload["quoted"] = {
+                    "key": {
+                        "remoteJid": remote_jid,
+                        "fromMe": from_me,
+                        "id": quoted_msg_id
+                    }
                 }
 
-                if delay:
-                    payload["delay"] = delay
-
-                if quoted_msg_id:
-                    payload["quoted"] = {
-                        "key": {
-                            "remoteJid": remote_jid,
-                            "fromMe": from_me,
-                            "id": quoted_msg_id
-                        }
-                    }
-
-                response = await client.post(
-                    f"{instance.evolution_url}/message/sendText/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+            response = await self._client.post(
+                f"{instance.evolution_url}/message/sendText/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_send_text_quoted(
         self, instance_name: str, remote_jid: str, text: str, quoted_msg_id: str, from_me: bool = False
@@ -468,31 +476,30 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/message/sendReaction/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/message/sendReaction/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "key": {
+                        "remoteJid": remote_jid,
+                        "fromMe": from_me,
+                        "id": message_id
                     },
-                    json={
-                        "key": {
-                            "remoteJid": remote_jid,
-                            "fromMe": from_me,
-                            "id": message_id
-                        },
-                        "reaction": emoji
-                    }
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+                    "reaction": emoji
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_find_messages(
         self, instance_name: str, remote_jid: str, limit: int = 50
@@ -507,30 +514,29 @@ class OmniClient:
             raise Exception("Evolution API not configured for this instance")
 
         # Call Evolution API directly
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/chat/findMessages/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "where": {"key": {"remoteJid": remote_jid}},
-                        "limit": limit,
-                        "sort": {"messageTimestamp": -1}  # Newest first
-                    }
-                )
-                response.raise_for_status()
-                result = response.json()
-                logger.info(f"Evolution API response: {result}")
-                return result
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/chat/findMessages/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "where": {"key": {"remoteJid": remote_jid}},
+                    "limit": limit,
+                    "sort": {"messageTimestamp": -1}  # Newest first
+                }
+            )
+            response.raise_for_status()
+            result = response.json()
+            logger.info(f"Evolution API response: {result}")
+            return result
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_send_location(
         self, instance_name: str, remote_jid: str, latitude: float, longitude: float,
@@ -554,24 +560,23 @@ class OmniClient:
         if address:
             payload["address"] = address
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/message/sendLocation/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/message/sendLocation/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_delete_message(
         self, instance_name: str, remote_jid: str, message_id: str, from_me: bool = True
@@ -583,29 +588,28 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.request(
-                    method="DELETE",
-                    url=f"{instance.evolution_url}/chat/deleteMessageForEveryone/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "id": message_id,
-                        "remoteJid": remote_jid,
-                        "fromMe": from_me
-                    }
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.request(
+                method="DELETE",
+                url=f"{instance.evolution_url}/chat/deleteMessageForEveryone/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "id": message_id,
+                    "remoteJid": remote_jid,
+                    "fromMe": from_me
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_send_presence(
         self, instance_name: str, remote_jid: str, presence: str, delay: int = 3000
@@ -622,31 +626,30 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/chat/sendPresence/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "number": remote_jid,
-                        "options": {
-                            "delay": delay,
-                            "presence": presence,
-                            "number": remote_jid
-                        }
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/chat/sendPresence/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "number": remote_jid,
+                    "options": {
+                        "delay": delay,
+                        "presence": presence,
+                        "number": remote_jid
                     }
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_update_message(
         self, instance_name: str, remote_jid: str, message_id: str, new_text: str, from_me: bool = True
@@ -658,32 +661,31 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/chat/updateMessage/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "number": remote_jid,
-                        "text": new_text,
-                        "key": {
-                            "remoteJid": remote_jid,
-                            "fromMe": from_me,
-                            "id": message_id
-                        }
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/chat/updateMessage/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "number": remote_jid,
+                    "text": new_text,
+                    "key": {
+                        "remoteJid": remote_jid,
+                        "fromMe": from_me,
+                        "id": message_id
                     }
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_check_is_whatsapp(
         self, instance_name: str, phone_numbers: List[str]
@@ -694,26 +696,25 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/chat/whatsappNumbers/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "numbers": phone_numbers
-                    }
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/chat/whatsappNumbers/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "numbers": phone_numbers
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_send_poll(
         self, instance_name: str, remote_jid: str, name: str, options: List[str], selectable_count: int = 1
@@ -725,29 +726,28 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/message/sendPoll/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "number": remote_jid,
-                        "name": name,
-                        "selectableCount": selectable_count,
-                        "values": options
-                    }
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/message/sendPoll/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "number": remote_jid,
+                    "name": name,
+                    "selectableCount": selectable_count,
+                    "values": options
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_send_sticker(
         self, instance_name: str, remote_jid: str, sticker_url: str,
@@ -760,34 +760,33 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                payload: Dict[str, Any] = {
-                    "number": remote_jid,
-                    "sticker": sticker_url
-                }
+        try:
+            payload: Dict[str, Any] = {
+                "number": remote_jid,
+                "sticker": sticker_url
+            }
 
-                if delay:
-                    payload["delay"] = delay
-                if quoted_message_id:
-                    payload["quoted"] = {"key": {"id": quoted_message_id}}
+            if delay:
+                payload["delay"] = delay
+            if quoted_message_id:
+                payload["quoted"] = {"key": {"id": quoted_message_id}}
 
-                response = await client.post(
-                    f"{instance.evolution_url}/message/sendSticker/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+            response = await self._client.post(
+                f"{instance.evolution_url}/message/sendSticker/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_send_media(
         self, instance_name: str, remote_jid: str,
@@ -809,55 +808,54 @@ class OmniClient:
         if not media_url and not media_base64:
             raise Exception("Either media_url or media_base64 must be provided")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                payload: Dict[str, Any] = {
-                    "number": remote_jid,
-                    "mediatype": media_type  # Required: image, video, or document
-                }
+        try:
+            payload: Dict[str, Any] = {
+                "number": remote_jid,
+                "mediatype": media_type  # Required: image, video, or document
+            }
 
-                # Add media (URL or base64)
-                if media_base64:
-                    payload["media"] = media_base64  # Evolution API uses "media" for both URL and base64
-                    if filename:
-                        payload["fileName"] = filename
-                elif media_url:
-                    payload["media"] = media_url
+            # Add media (URL or base64)
+            if media_base64:
+                payload["media"] = media_base64  # Evolution API uses "media" for both URL and base64
+                if filename:
+                    payload["fileName"] = filename
+            elif media_url:
+                payload["media"] = media_url
 
-                # Add optional fields
-                if caption:
-                    payload["caption"] = caption
-                if mime_type:
-                    payload["mimetype"] = mime_type
-                if delay:
-                    payload["delay"] = delay
-                if quoted_message_id:
-                    payload["quoted"] = {"key": {"id": quoted_message_id}}
+            # Add optional fields
+            if caption:
+                payload["caption"] = caption
+            if mime_type:
+                payload["mimetype"] = mime_type
+            if delay:
+                payload["delay"] = delay
+            if quoted_message_id:
+                payload["quoted"] = {"key": {"id": quoted_message_id}}
 
-                # Determine endpoint based on media type
-                endpoint_map = {
-                    "image": "sendMedia",
-                    "video": "sendMedia",
-                    "document": "sendMedia"
-                }
-                endpoint = endpoint_map.get(media_type, "sendMedia")
+            # Determine endpoint based on media type
+            endpoint_map = {
+                "image": "sendMedia",
+                "video": "sendMedia",
+                "document": "sendMedia"
+            }
+            endpoint = endpoint_map.get(media_type, "sendMedia")
 
-                response = await client.post(
-                    f"{instance.evolution_url}/message/{endpoint}/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+            response = await self._client.post(
+                f"{instance.evolution_url}/message/{endpoint}/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_send_contact(
         self, instance_name: str, remote_jid: str, contacts: List[Dict[str, Any]],
@@ -870,50 +868,49 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                # Convert contact fields from snake_case to camelCase for Evolution API
-                evolution_contacts = []
-                for contact in contacts:
-                    evolution_contact = {}
-                    if "full_name" in contact:
-                        evolution_contact["fullName"] = contact["full_name"]
-                    if "phone_number" in contact:
-                        evolution_contact["phoneNumber"] = contact["phone_number"]
-                    if "email" in contact:
-                        evolution_contact["email"] = contact["email"]
-                    if "organization" in contact:
-                        evolution_contact["organization"] = contact["organization"]
-                    if "url" in contact:
-                        evolution_contact["url"] = contact["url"]
-                    evolution_contacts.append(evolution_contact)
+        try:
+            # Convert contact fields from snake_case to camelCase for Evolution API
+            evolution_contacts = []
+            for contact in contacts:
+                evolution_contact = {}
+                if "full_name" in contact:
+                    evolution_contact["fullName"] = contact["full_name"]
+                if "phone_number" in contact:
+                    evolution_contact["phoneNumber"] = contact["phone_number"]
+                if "email" in contact:
+                    evolution_contact["email"] = contact["email"]
+                if "organization" in contact:
+                    evolution_contact["organization"] = contact["organization"]
+                if "url" in contact:
+                    evolution_contact["url"] = contact["url"]
+                evolution_contacts.append(evolution_contact)
 
-                payload: Dict[str, Any] = {
-                    "number": remote_jid,
-                    "contact": evolution_contacts
-                }
+            payload: Dict[str, Any] = {
+                "number": remote_jid,
+                "contact": evolution_contacts
+            }
 
-                if delay:
-                    payload["delay"] = delay
-                if quoted_message_id:
-                    payload["quoted"] = {"key": {"id": quoted_message_id}}
+            if delay:
+                payload["delay"] = delay
+            if quoted_message_id:
+                payload["quoted"] = {"key": {"id": quoted_message_id}}
 
-                response = await client.post(
-                    f"{instance.evolution_url}/message/sendContact/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+            response = await self._client.post(
+                f"{instance.evolution_url}/message/sendContact/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_find_chats(
         self, instance_name: str
@@ -924,24 +921,23 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    f"{instance.evolution_url}/chat/findChats/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={}
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.post(
+                f"{instance.evolution_url}/chat/findChats/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json={}
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_fetch_all_groups(
         self, instance_name: str, get_participants: bool = True
@@ -952,23 +948,22 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.get(
-                    f"{instance.evolution_url}/group/fetchAllGroups/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key
-                    },
-                    params={"getParticipants": str(get_participants).lower()}
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.get(
+                f"{instance.evolution_url}/group/fetchAllGroups/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key
+                },
+                params={"getParticipants": str(get_participants).lower()}
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_find_group_members(
         self, instance_name: str, group_jid: str
@@ -979,23 +974,22 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.get(
-                    f"{instance.evolution_url}/group/participants/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key
-                    },
-                    params={"groupJid": group_jid}
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+        try:
+            response = await self._client.get(
+                f"{instance.evolution_url}/group/participants/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key
+                },
+                params={"groupJid": group_jid}
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
 
     async def evolution_get_base64_media(
         self, instance_name: str, message_id: str, convert_to_mp4: bool = False
@@ -1010,30 +1004,33 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                payload = {
-                    "message": {
-                        "key": {
-                            "id": message_id
-                        }
-                    },
-                    "convertToMp4": convert_to_mp4
-                }
+        try:
+            payload = {
+                "message": {
+                    "key": {
+                        "id": message_id
+                    }
+                },
+                "convertToMp4": convert_to_mp4
+            }
 
-                response = await client.post(
-                    f"{instance.evolution_url}/chat/getBase64FromMediaMessage/{instance_name}",
-                    headers={
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
-                raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                logger.error(f"Evolution API request failed: {str(e)}")
-                raise
+            response = await self._client.post(
+                f"{instance.evolution_url}/chat/getBase64FromMediaMessage/{instance_name}",
+                headers={
+                    "apikey": instance.evolution_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Evolution API error {e.response.status_code}: {e.response.text}")
+            raise Exception(f"Evolution API error: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            logger.error(f"Evolution API request failed: {str(e)}")
+            raise
+
+    async def close(self):
+        """Close the HTTP client and release connection pool resources"""
+        await self._client.aclose()
