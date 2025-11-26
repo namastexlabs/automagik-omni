@@ -1,19 +1,61 @@
 {
-	"name": "automagik-omni",
-	"version": "0.5.2",
+	"name": "@automagik/omni",
+	"version": "0.6.0",
+	"description": "Multi-channel messaging hub with WhatsApp, Discord support. Single-port gateway with embedded Python backend.",
 	"type": "module",
 	"workspaces": [
 		"gateway",
 		"resources/ui"
 	],
+	"bin": {
+		"omni": "./bin/omni.js",
+		"automagik-omni": "./bin/omni.js"
+	},
+	"main": "./gateway/dist/index.js",
+	"types": "./gateway/dist/index.d.ts",
+	"exports": {
+		".": "./gateway/dist/index.js",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"bin",
+		"gateway/dist",
+		".bundled",
+		"resources/ui/dist",
+		"README.md",
+		"LICENSE"
+	],
 	"scripts": {
 		"dev": "NODE_ENV=development tsx gateway/src/index.ts --dev",
 		"start": "node gateway/dist/index.js",
-		"build": "npm run build -w gateway && npm run build -w resources/ui",
+		"build": "npm run build:gateway && npm run build:ui && npm run bundle:python",
 		"build:gateway": "npm run build -w gateway",
 		"build:ui": "npm run build -w resources/ui",
-		"gateway:dev": "npm run dev -w gateway"
+		"bundle:python": "./scripts/bundle-python.sh",
+		"gateway:dev": "npm run dev -w gateway",
+		"prepublishOnly": "npm run build"
 	},
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"os": [
+		"darwin",
+		"linux",
+		"win32"
+	],
+	"cpu": [
+		"x64",
+		"arm64"
+	],
+	"keywords": [
+		"messaging",
+		"whatsapp",
+		"discord",
+		"omnichannel",
+		"chatbot",
+		"automation",
+		"api"
+	],
 	"devDependencies": {
 		"@playwright/test": "^1.56.1",
 		"tsx": "^4.19.2"
