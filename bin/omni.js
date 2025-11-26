@@ -27,7 +27,7 @@ async function extractBundledBackend() {
   if (!existsSync(BUNDLED_SRC)) {
     console.error('❌ Error: Bundled Python backend not found.');
     console.error('   This package may be corrupted or incomplete.');
-    console.error('   Try reinstalling: npm install -g @automagik/omni');
+    console.error('   Try reinstalling: pnpm add -g @automagik/omni');
     process.exit(1);
   }
 
