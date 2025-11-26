@@ -516,23 +516,23 @@ export const api = {
 
     // Connection
     async getConnectionState(instanceName: string): Promise<any> {
-      return evolutionRequest(`/instance/connectionState/${instanceName}`);
+      return evolutionRequest(`/instance/connectionState/${instanceName}`, {}, instanceName);
     },
 
     async restart(instanceName: string): Promise<any> {
       return evolutionRequest(`/instance/restart/${instanceName}`, {
         method: 'POST',
-      });
+      }, instanceName);
     },
 
     async logout(instanceName: string): Promise<any> {
       return evolutionRequest(`/instance/logout/${instanceName}`, {
         method: 'DELETE',
-      });
+      }, instanceName);
     },
 
     async connect(instanceName: string): Promise<any> {
-      return evolutionRequest(`/instance/connect/${instanceName}`);
+      return evolutionRequest(`/instance/connect/${instanceName}`, {}, instanceName);
     },
 
     // Webhook
@@ -576,26 +576,26 @@ export const api = {
       return evolutionRequest(`/chat/findChats/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(params || {}),
-      });
+      }, instanceName);
     },
 
     async findMessages(instanceName: string, params: { where: { key: { remoteJid: string } }; limit?: number }): Promise<any> {
       return evolutionRequest(`/chat/findMessages/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(params),
-      });
+      }, instanceName);
     },
 
     async findContacts(instanceName: string, params?: any): Promise<any> {
       return evolutionRequest(`/chat/findContacts/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(params || {}),
-      });
+      }, instanceName);
     },
 
     // Groups
     async fetchAllGroups(instanceName: string): Promise<any[]> {
-      return evolutionRequest(`/group/fetchAllGroups/${instanceName}?getParticipants=false`);
+      return evolutionRequest(`/group/fetchAllGroups/${instanceName}?getParticipants=false`, {}, instanceName);
     },
 
     // Messages
@@ -654,9 +654,17 @@ export const api = {
 // Evolution API helper (direct to Evolution via gateway)
 const EVOLUTION_BASE_URL = '/evolution';
 
+// Store instance keys for per-instance authentication
+let instanceKeys: Map<string, string> = new Map();
+
+export function setInstanceKey(instanceName: string, evolutionKey: string) {
+  instanceKeys.set(instanceName, evolutionKey);
+}
+
 async function evolutionRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  instanceName?: string
 ): Promise<T> {
   const apiKey = getApiKey();
 
@@ -666,11 +674,21 @@ async function evolutionRequest<T>(
 
   const url = `${EVOLUTION_BASE_URL}${endpoint}`;
 
+  // Determine Evolution API key to use (per-instance > localStorage > env var)
+  let evolutionApiKey = '';
+  if (instanceName && instanceKeys.has(instanceName)) {
+    // Use per-instance key if available
+    evolutionApiKey = instanceKeys.get(instanceName)!;
+  } else {
+    // Fall back to localStorage or bootstrap key
+    evolutionApiKey = localStorage.getItem('evolution_api_key') || import.meta.env.VITE_EVOLUTION_API_KEY || '';
+  }
+
   const response = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'apikey': localStorage.getItem('evolution_api_key') || import.meta.env.VITE_EVOLUTION_API_KEY || '',
+      'apikey': evolutionApiKey,
       ...options.headers,
     },
   });

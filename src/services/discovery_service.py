@@ -175,6 +175,13 @@ class DiscoveryService:
             db_instance.owner_jid = evo_instance.ownerJid
             updated = True
 
+        # Sync Evolution's instance token (per-instance authentication)
+        # This allows auto-generated keys to work with Evolution API
+        if evo_instance.token and db_instance.evolution_key != evo_instance.token:
+            db_instance.evolution_key = evo_instance.token
+            updated = True
+            logger.info(f"Synced Evolution token for {db_instance.name}")
+
         return updated
 
     async def _create_instance_from_evolution(
@@ -209,15 +216,16 @@ class DiscoveryService:
             # Normalize the name for our database but keep original for Evolution API
             normalized_name = normalize_instance_name(evo_instance.instanceName)
 
-            # Auto-generate a unique API key for this instance (transparent to user)
-            auto_generated_key = _generate_api_key()
+            # Use Evolution's instance token as the auth key (per-instance authentication)
+            # If Evolution doesn't provide a token, fall back to generating one
+            instance_token = evo_instance.token if evo_instance.token else _generate_api_key()
 
             new_instance = InstanceConfig(
                 name=normalized_name,
                 channel_type="whatsapp",
                 default_agent=evo_instance.profileName or "default-agent",
                 evolution_url=evolution_url,
-                evolution_key=auto_generated_key,  # Use auto-generated key instead of passed-in credentials
+                evolution_key=instance_token,  # Use Evolution's per-instance token
                 agent_api_url="http://localhost:8000",  # Default agent URL
                 agent_api_key="default-key",  # Default agent key
                 whatsapp_instance=evo_instance.instanceName,  # Preserve original case for Evolution API calls
