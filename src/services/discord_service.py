@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, List
 
 from src.db.database import SessionLocal
 from src.db.models import InstanceConfig
-from src.channels.discord.bot_manager import DiscordBotManager
+from src.channels.discord.bot_manager import DiscordBotManager, DISCORD_AVAILABLE
 from src.services.message_router import MessageRouter
 from src.core.telemetry import track_command
 from src.utils.health_check import wait_for_api_health
@@ -25,6 +25,18 @@ class DiscordService:
 
     def __init__(self):
         """Initialize the Discord service."""
+        if not DISCORD_AVAILABLE:
+            logger.warning(
+                "Discord service unavailable: discord.py not installed. "
+                "Install with: uv sync --extra discord"
+            )
+            self.bot_manager = None
+            self._running_instances = {}
+            self._event_loop = None
+            self._loop_thread = None
+            self.lock = threading.Lock()
+            self.message_router = None
+            return
         self.lock = threading.Lock()
         self.message_router = MessageRouter()
         self.bot_manager = DiscordBotManager(self.message_router)

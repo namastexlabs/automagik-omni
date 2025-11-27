@@ -13,11 +13,25 @@ from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable
+from typing import TYPE_CHECKING, Dict, List, Optional, Any, Callable
 from datetime import datetime
 
-import discord
-from discord import VoiceClient, AudioSource
+# Discord is an optional dependency - guard the import
+try:
+    import discord
+    from discord import VoiceClient, AudioSource
+    DISCORD_VOICE_AVAILABLE = True
+except ImportError:
+    discord = None
+    VoiceClient = None
+    AudioSource = None
+    DISCORD_VOICE_AVAILABLE = False
+
+# For type hints when discord is not available
+if TYPE_CHECKING:
+    import discord as discord_types
+else:
+    discord_types = discord
 
 from ...core.exceptions import AutomagikError
 
@@ -307,23 +321,27 @@ class VoiceSession:
             logger.error(f"Recording simulation error: {e}")
 
 
-class AutomagikAudioSource(AudioSource):
-    """Custom audio source for Discord voice streaming."""
+# Only define AudioSource subclass if discord is available
+if DISCORD_VOICE_AVAILABLE and AudioSource is not None:
+    class AutomagikAudioSource(AudioSource):
+        """Custom audio source for Discord voice streaming."""
 
-    def __init__(self, audio_buffer: AudioBuffer):
-        self.buffer = audio_buffer
-        self.volume = 0.5
+        def __init__(self, audio_buffer: AudioBuffer):
+            self.buffer = audio_buffer
+            self.volume = 0.5
 
-    def read(self) -> bytes:
-        """Read 20ms of audio data (960 samples at 48kHz)."""
-        # This is a synchronous method required by Discord
-        # We need to implement a way to get data from async buffer
-        # For now, return silence if no data available
-        return b"\x00" * 3840  # 960 samples * 2 channels * 2 bytes
+        def read(self) -> bytes:
+            """Read 20ms of audio data (960 samples at 48kHz)."""
+            # This is a synchronous method required by Discord
+            # We need to implement a way to get data from async buffer
+            # For now, return silence if no data available
+            return b"\x00" * 3840  # 960 samples * 2 channels * 2 bytes
 
-    def cleanup(self):
-        """Cleanup resources."""
-        pass
+        def cleanup(self):
+            """Cleanup resources."""
+            pass
+else:
+    AutomagikAudioSource = None
 
 
 class DiscordVoiceManager:
@@ -374,12 +392,12 @@ class DiscordVoiceManager:
                 except Exception as e:
                     logger.error(f"Event handler error for {event}: {e}")
 
-    async def connect_voice(self, instance_name: str, voice_channel_id: int, bot_client: discord.Client) -> bool:
+    async def connect_voice(self, instance_name: str, voice_channel_id: int, bot_client: "discord.Client") -> bool:
         """Connect to a voice channel."""
         try:
             # Get voice channel
             channel = bot_client.get_channel(voice_channel_id)
-            if not channel or not isinstance(channel, discord.VoiceChannel):
+            if not channel or not isinstance(channel, "discord.VoiceChannel"):
                 raise AutomagikError(f"Voice channel {voice_channel_id} not found or invalid")
 
             guild_id = channel.guild.id
@@ -639,9 +657,9 @@ class DiscordVoiceManager:
 
     async def on_voice_state_update(
         self,
-        member: discord.Member,
-        before: discord.VoiceState,
-        after: discord.VoiceState,
+        member: "discord.Member",
+        before: "discord.VoiceState",
+        after: "discord.VoiceState",
     ):
         """Handle voice state updates."""
         try:
@@ -658,7 +676,7 @@ class DiscordVoiceManager:
         except Exception as e:
             logger.error(f"Voice state update handling failed: {e}")
 
-    async def on_speaking(self, member: discord.Member, before: bool, after: bool):
+    async def on_speaking(self, member: "discord.Member", before: bool, after: bool):
         """Handle speaking state changes."""
         try:
             # Find session for this guild

@@ -17,8 +17,15 @@ from aiohttp import web
 
 from sqlalchemy.exc import DatabaseError
 
-import discord
-from discord.ext import commands
+# Discord is an optional dependency - guard the import
+try:
+    import discord
+    from discord.ext import commands
+    DISCORD_AVAILABLE = True
+except ImportError:
+    discord = None
+    commands = None
+    DISCORD_AVAILABLE = False
 
 from src.services.message_router import MessageRouter
 from ...core.exceptions import AutomagikError
@@ -208,6 +215,11 @@ class DiscordBotManager:
     """Discord bot lifecycle manager with automagik integration."""
 
     def __init__(self, message_router: MessageRouter):
+        if not DISCORD_AVAILABLE:
+            raise ImportError(
+                "discord.py is required for Discord integration. "
+                "Install with: uv sync --extra discord"
+            )
         self.message_router = message_router
         self.bots: Dict[str, AutomagikBot] = {}
         self.bot_tasks: Dict[str, asyncio.Task] = {}

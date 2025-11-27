@@ -35,7 +35,7 @@ try:
 
     ChannelHandlerFactory.register_handler("discord", DiscordChatHandler)
     logger.info("Discord chat handler registered")
-except ImportError as e:
+except (ImportError, AttributeError) as e:
     logger.info(f"Discord dependencies not installed. Discord support disabled. ({str(e)})")
 
 
