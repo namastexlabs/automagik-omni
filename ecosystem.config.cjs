@@ -25,10 +25,13 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
+// Determine port for naming
+const OMNI_PORT = envVars.OMNI_PORT || envVars.AUTOMAGIK_OMNI_API_PORT || '8882';
+
 module.exports = {
   apps: [
     {
-      name: 'Omni Gateway',
+      name: `${OMNI_PORT}-automagik-omni`,
       cwd: PROJECT_ROOT,
       script: 'node',
       args: 'gateway/dist/index.js',
@@ -36,9 +39,9 @@ module.exports = {
       env: {
         ...envVars,
         NODE_ENV: 'production',
-        OMNI_PORT: envVars.OMNI_PORT || envVars.AUTOMAGIK_OMNI_API_PORT || '8882',
+        OMNI_PORT: OMNI_PORT,
         PYTHONPATH: PROJECT_ROOT,
-        PROCESS_TITLE: 'Omni Gateway'
+        PROCESS_TITLE: `${OMNI_PORT}-automagik-omni`
       },
       instances: 1,
       exec_mode: 'fork',
