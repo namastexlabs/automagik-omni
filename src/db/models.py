@@ -1,12 +1,7 @@
 """
 SQLAlchemy models for multi-tenant instance configuration and user management.
-
-Supports dual database architecture:
-- SQLite: Global settings (bootstrap safety, always available)
-- PostgreSQL: Runtime data with omni_ prefix (shared with Evolution API)
 """
 
-import os
 import uuid
 from enum import Enum
 from sqlalchemy import (
@@ -18,58 +13,10 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     CheckConstraint,
-    Text,
 )
 from sqlalchemy.orm import relationship
 from .database import Base
 from src.utils.datetime_utils import datetime_utcnow
-
-
-def _get_table_prefix() -> str:
-    """Get table prefix based on database type (evaluated at import time)."""
-    db_type = os.getenv("AUTOMAGIK_OMNI_DB_TYPE", "sqlite").lower()
-    if db_type == "postgresql":
-        return os.getenv("AUTOMAGIK_OMNI_TABLE_PREFIX", "omni_")
-    return ""
-
-
-def _prefixed_table(name: str) -> str:
-    """Return table name with prefix for runtime tables."""
-    return f"{_get_table_prefix()}{name}"
-
-
-# Table prefix for runtime data (entities, instances, users, etc.)
-# Global settings tables are NOT prefixed (they stay in SQLite)
-_TABLE_PREFIX = _get_table_prefix()
-
-
-class Entity(Base):
-    """
-    Entity represents a person or company that owns multiple channel integrations.
-
-    This enables omnichannel presence where one AI assistant can be present
-    across all networks (WhatsApp, Discord, Telegram, etc.) for the same entity.
-    """
-
-    __tablename__ = f"{_TABLE_PREFIX}entities"
-
-    # Primary key
-    id = Column(Integer, primary_key=True, index=True)
-
-    # Entity identification
-    name = Column(String, nullable=False, index=True)  # e.g., "John Doe", "Acme Corp"
-    entity_type = Column(String, default="person", nullable=False)  # "person" | "company"
-    description = Column(Text, nullable=True)  # Optional description
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
-
-    # Relationships
-    instances = relationship("InstanceConfig", back_populates="entity")
-
-    def __repr__(self):
-        return f"<Entity(id={self.id}, name='{self.name}', type='{self.entity_type}')>"
 
 
 class InstanceConfig(Base):
@@ -78,7 +25,7 @@ class InstanceConfig(Base):
     Each instance can have different Evolution API and Agent API configurations.
     """
 
-    __tablename__ = f"{_TABLE_PREFIX}instance_configs"
+    __tablename__ = "omni_instance_configs"
 
     # Primary key
     id = Column(Integer, primary_key=True, index=True)
@@ -142,15 +89,11 @@ class InstanceConfig(Base):
     # Message splitting control
     enable_auto_split = Column(Boolean, default=True, nullable=False)  # Auto-split messages on \n\n
 
-    # Entity relationship (for omnichannel grouping)
-    entity_id = Column(Integer, ForeignKey(f"{_TABLE_PREFIX}entities.id"), nullable=True, index=True)
-
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
 
     # Relationships
-    entity = relationship("Entity", back_populates="instances")
     users = relationship(
         "User",
         back_populates="instance",
@@ -220,7 +163,7 @@ class User(Base):
     agents, and interactions while tracking their most recent session info.
     """
 
-    __tablename__ = f"{_TABLE_PREFIX}users"
+    __tablename__ = "omni_users"
 
     # Stable primary identifier (never changes)
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
@@ -230,7 +173,7 @@ class User(Base):
     whatsapp_jid = Column(String, nullable=False, index=True)  # Formatted WhatsApp ID
 
     # Instance relationship
-    instance_name = Column(String, ForeignKey(f"{_TABLE_PREFIX}instance_configs.name"), nullable=False, index=True)
+    instance_name = Column(String, ForeignKey("omni_instance_configs.name"), nullable=False, index=True)
     instance = relationship("InstanceConfig", back_populates="users")
 
     # User information
@@ -264,13 +207,13 @@ class UserExternalId(Base):
     and links them to a stable local User.
     """
 
-    __tablename__ = f"{_TABLE_PREFIX}user_external_ids"
+    __tablename__ = "omni_user_external_ids"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey(f"{_TABLE_PREFIX}users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("omni_users.id", ondelete="CASCADE"), nullable=False, index=True)
     provider = Column(String, nullable=False, index=True)  # e.g., 'whatsapp', 'discord'
     external_id = Column(String, nullable=False, index=True)
-    instance_name = Column(String, ForeignKey(f"{_TABLE_PREFIX}instance_configs.name"), nullable=True, index=True)
+    instance_name = Column(String, ForeignKey("omni_instance_configs.name"), nullable=True, index=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
@@ -305,7 +248,7 @@ class AccessRuleType(str, Enum):
 class AccessRule(Base):
     """Allow/block phone number rules optionally scoped to an instance."""
 
-    __tablename__ = f"{_TABLE_PREFIX}access_rules"
+    __tablename__ = "omni_access_rules"
     __table_args__ = (
         UniqueConstraint(
             "instance_name",
@@ -322,7 +265,7 @@ class AccessRule(Base):
     id = Column(Integer, primary_key=True, index=True)
     instance_name = Column(
         String,
-        ForeignKey(f"{_TABLE_PREFIX}instance_configs.name", ondelete="CASCADE"),
+        ForeignKey("omni_instance_configs.name", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
@@ -361,7 +304,7 @@ class SettingValueType(str, Enum):
 class GlobalSetting(Base):
     """Global application settings with type safety and validation."""
 
-    __tablename__ = "global_settings"
+    __tablename__ = "omni_global_settings"
 
     # Primary key
     id = Column(Integer, primary_key=True, index=True)
@@ -403,10 +346,10 @@ class GlobalSetting(Base):
 class SettingChangeHistory(Base):
     """Audit trail for global setting changes."""
 
-    __tablename__ = "setting_change_history"
+    __tablename__ = "omni_setting_change_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    setting_id = Column(Integer, ForeignKey("global_settings.id", ondelete="CASCADE"), nullable=False, index=True)
+    setting_id = Column(Integer, ForeignKey("omni_global_settings.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Change tracking
     old_value = Column(String, nullable=True)

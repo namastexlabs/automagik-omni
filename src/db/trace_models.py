@@ -20,13 +20,13 @@ class MessageTrace(Base):
     from webhook reception to final response delivery.
     """
 
-    __tablename__ = "message_traces"
+    __tablename__ = "omni_message_traces"
 
     # Unique trace ID for the entire message lifecycle
     trace_id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
 
     # Instance and message identification
-    instance_name = Column(String, ForeignKey("instance_configs.name"), index=True)
+    instance_name = Column(String, ForeignKey("omni_instance_configs.name"), index=True)
     whatsapp_message_id = Column(String, index=True)  # Evolution message ID
 
     # Sender information
@@ -61,7 +61,7 @@ class MessageTrace(Base):
 
     # Access rule tracking
     blocked_by_access_rule = Column(Boolean, default=False, index=True)
-    access_rule_id = Column(Integer, ForeignKey("access_rules.id"), nullable=True)
+    access_rule_id = Column(Integer, ForeignKey("omni_access_rules.id"), nullable=True)
     blocking_reason = Column(String)
 
     # Performance metrics
@@ -119,10 +119,10 @@ class TracePayload(Base):
     Payloads are compressed to save space.
     """
 
-    __tablename__ = "trace_payloads"
+    __tablename__ = "omni_trace_payloads"
 
     id = Column(Integer, primary_key=True)
-    trace_id = Column(String, ForeignKey("message_traces.trace_id"), index=True)
+    trace_id = Column(String, ForeignKey("omni_message_traces.trace_id"), index=True)
 
     # Stage and payload identification
     stage = Column(String, index=True)  # webhook_received, agent_request, agent_response, evolution_send
