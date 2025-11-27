@@ -203,6 +203,11 @@ help: ## Show this help message
 	@echo -e "$(FONT_BOLD)Quality Checks:$(FONT_RESET)"
 	@echo -e "  $(FONT_CYAN)check          $(FONT_RESET) Quick check: quality + tests"
 	@echo ""
+	@echo -e "$(FONT_BOLD)Cleanup & Uninstall:$(FONT_RESET)"
+	@echo -e "  $(FONT_RED)uninstall      $(FONT_RESET) Uninstall Omni Hub (preserves data)"
+	@echo -e "  $(FONT_RED)uninstall-full $(FONT_RESET) Full uninstall including all data (DESTRUCTIVE)"
+	@echo -e "  $(FONT_YELLOW)clean          $(FONT_RESET) Clean build artifacts and cache"
+	@echo ""
 
 # ===========================================
 # 🎮 Discord Bot Management
@@ -885,6 +890,167 @@ uninstall-service: stop-local ## Uninstall local PM2 service
 	@pm2 delete automagik-omni 2>/dev/null || true
 	@pm2 save --force
 	@$(call print_success,Local PM2 service uninstalled)
+
+.PHONY: uninstall uninstall-full
+uninstall: ## 🗑️ Uninstall Omni Hub (interactive, preserves data)
+	@echo ""
+	@echo -e "$(FONT_RED)╔══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_RED)║$(FONT_RESET)           $(FONT_YELLOW)⚠️  UNINSTALL OMNI HUB$(FONT_RESET)                            $(FONT_RED)║$(FONT_RESET)"
+	@echo -e "$(FONT_RED)╚══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)This will remove the following:$(FONT_RESET)"
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)📦 Dependencies:$(FONT_RESET)"
+	@[ -d ".venv" ] && echo -e "     • Python virtual environment (.venv/)" || true
+	@[ -d "gateway/node_modules" ] && echo -e "     • Gateway node_modules" || true
+	@[ -d "resources/ui/node_modules" ] && echo -e "     • UI node_modules" || true
+	@[ -d "resources/evolution-api/node_modules" ] && echo -e "     • Evolution API node_modules" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)🔨 Build artifacts:$(FONT_RESET)"
+	@[ -d "gateway/dist" ] && echo -e "     • Gateway build (gateway/dist/)" || true
+	@[ -d "resources/ui/dist" ] && echo -e "     • UI build (resources/ui/dist/)" || true
+	@[ -d "dist" ] && echo -e "     • Package dist (dist/)" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)🧹 Cache & temp files:$(FONT_RESET)"
+	@echo -e "     • Python cache (__pycache__, .pytest_cache)"
+	@echo -e "     • Coverage reports (.coverage, htmlcov/)"
+	@[ -d "logs" ] && echo -e "     • Log files (logs/)" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)⚙️  Services:$(FONT_RESET)"
+	@if command -v pm2 >/dev/null 2>&1 && pm2 list 2>/dev/null | grep -q "automagik-omni\|$(OMNI_PORT)"; then \
+		echo -e "     • PM2 process (will be stopped and deleted)"; \
+	else \
+		echo -e "     • $(FONT_DIM)No PM2 processes found$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@echo -e "  $(FONT_GREEN)✓ PRESERVED:$(FONT_RESET)"
+	@echo -e "     • Configuration file (.env)"
+	@echo -e "     • Database data ($$HOME/automagik-omni/)"
+	@echo -e "     • Evolution PGlite data ($$HOME/data/evolution-pglite/)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)💡 To also delete data, run: $(FONT_PURPLE)make uninstall-full$(FONT_RESET)"
+	@echo ""
+	@read -p "Proceed with uninstall? [y/N] " yn; \
+	case $$yn in \
+		[Yy]*) \
+			echo ""; \
+			$(MAKE) --no-print-directory _do-uninstall; \
+			;; \
+		*) \
+			echo -e "$(FONT_YELLOW)$(INFO) Uninstall cancelled$(FONT_RESET)"; \
+			;; \
+	esac
+
+uninstall-full: ## 🗑️ Full uninstall including all data (DESTRUCTIVE)
+	@echo ""
+	@echo -e "$(FONT_RED)╔══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_RED)║$(FONT_RESET)        $(FONT_RED)⚠️  FULL UNINSTALL - DATA WILL BE DELETED$(FONT_RESET)           $(FONT_RED)║$(FONT_RESET)"
+	@echo -e "$(FONT_RED)╚══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_RED)This will PERMANENTLY DELETE:$(FONT_RESET)"
+	@echo ""
+	@echo -e "  $(FONT_RED)💀 ALL DATA (UNRECOVERABLE):$(FONT_RESET)"
+	@[ -f ".env" ] && echo -e "     • Configuration file (.env)" || true
+	@[ -d "$$HOME/automagik-omni" ] && echo -e "     • Omni data directory ($$HOME/automagik-omni/)" || true
+	@[ -d "$$HOME/data/evolution-pglite" ] && echo -e "     • Evolution database ($$HOME/data/evolution-pglite/)" || true
+	@[ -f "omni.db" ] && echo -e "     • SQLite database (omni.db)" || true
+	@[ -d "logs" ] && echo -e "     • All log files (logs/)" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)📦 Plus everything from regular uninstall$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_RED)⚠️  This action cannot be undone!$(FONT_RESET)"
+	@echo ""
+	@read -p "Type 'DELETE' to confirm full uninstall: " confirm; \
+	if [ "$$confirm" = "DELETE" ]; then \
+		echo ""; \
+		$(MAKE) --no-print-directory _do-uninstall; \
+		$(MAKE) --no-print-directory _do-wipe-data; \
+	else \
+		echo -e "$(FONT_YELLOW)$(INFO) Uninstall cancelled (confirmation not matched)$(FONT_RESET)"; \
+	fi
+
+# Internal targets (not shown in help)
+.PHONY: _do-uninstall _do-wipe-data
+
+_do-uninstall:
+	@echo -e "$(FONT_PURPLE)$(HUB) Starting uninstall...$(FONT_RESET)"
+	@echo ""
+	@# Stop PM2 services
+	@if command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Stopping PM2 services...$(FONT_RESET)"; \
+		pm2 stop all 2>/dev/null || true; \
+		pm2 delete all 2>/dev/null || true; \
+		pm2 save --force 2>/dev/null || true; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 services stopped$(FONT_RESET)"; \
+	fi
+	@# Remove Python venv
+	@if [ -d ".venv" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing Python virtual environment...$(FONT_RESET)"; \
+		rm -rf .venv; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Virtual environment removed$(FONT_RESET)"; \
+	fi
+	@# Remove node_modules
+	@for dir in gateway resources/ui resources/evolution-api; do \
+		if [ -d "$$dir/node_modules" ]; then \
+			echo -e "$(FONT_CYAN)$(INFO) Removing $$dir/node_modules...$(FONT_RESET)"; \
+			rm -rf "$$dir/node_modules"; \
+		fi; \
+	done
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Node modules removed$(FONT_RESET)"
+	@# Remove build artifacts
+	@echo -e "$(FONT_CYAN)$(INFO) Removing build artifacts...$(FONT_RESET)"
+	@rm -rf gateway/dist resources/ui/dist dist build *.egg-info
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Build artifacts removed$(FONT_RESET)"
+	@# Remove cache
+	@echo -e "$(FONT_CYAN)$(INFO) Removing cache files...$(FONT_RESET)"
+	@rm -rf .pytest_cache .ruff_cache .coverage htmlcov .mypy_cache
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Cache files removed$(FONT_RESET)"
+	@# Remove logs
+	@if [ -d "logs" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing log files...$(FONT_RESET)"; \
+		rm -rf logs; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Logs removed$(FONT_RESET)"; \
+	fi
+	@# Remove lock files (optional, regenerated on install)
+	@rm -f uv.lock pnpm-lock.yaml 2>/dev/null || true
+	@echo ""
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Uninstall complete!$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)To reinstall, run: $(FONT_PURPLE)make install$(FONT_RESET)"
+	@echo ""
+
+_do-wipe-data:
+	@echo -e "$(FONT_RED)$(WARNING) Wiping all data...$(FONT_RESET)"
+	@# Remove .env
+	@if [ -f ".env" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing .env...$(FONT_RESET)"; \
+		rm -f .env; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) .env removed$(FONT_RESET)"; \
+	fi
+	@# Remove Omni data directory
+	@if [ -d "$$HOME/automagik-omni" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing $$HOME/automagik-omni/...$(FONT_RESET)"; \
+		rm -rf "$$HOME/automagik-omni"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Omni data directory removed$(FONT_RESET)"; \
+	fi
+	@# Remove Evolution PGlite data
+	@if [ -d "$$HOME/data/evolution-pglite" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing Evolution database...$(FONT_RESET)"; \
+		rm -rf "$$HOME/data/evolution-pglite"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution database removed$(FONT_RESET)"; \
+	fi
+	@# Remove local SQLite database
+	@if [ -f "omni.db" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing SQLite database...$(FONT_RESET)"; \
+		rm -f omni.db; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database removed$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Data wipe complete!$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)Omni Hub has been fully removed from this system.$(FONT_RESET)"
+	@echo ""
 
 # ===========================================
 # 🚀 Quick Commands
