@@ -582,6 +582,8 @@ jobs:
           else
             echo "ruff_failed=false" >> $GITHUB_OUTPUT
           fi
+          # Fail the step if linting issues found (enforce quality gates)
+          exit ${RUFF_FAILED:-0}
 
       - name: Run Ruff formatter check
         id: ruff-format
@@ -593,6 +595,8 @@ jobs:
           else
             echo "format_failed=false" >> $GITHUB_OUTPUT
           fi
+          # Fail the step if formatting issues found (enforce quality gates)
+          exit ${FORMAT_FAILED:-0}
 
       - name: Comment lint results on PR
         if: github.event_name == 'pull_request' && (steps.ruff.outputs.ruff_failed == 'true' || steps.ruff-format.outputs.format_failed == 'true')
