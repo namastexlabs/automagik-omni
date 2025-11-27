@@ -175,12 +175,8 @@ class DiscoveryService:
             db_instance.owner_jid = evo_instance.ownerJid
             updated = True
 
-        # Sync Evolution's instance token (per-instance authentication)
-        # This allows auto-generated keys to work with Evolution API
-        if evo_instance.token and db_instance.evolution_key != evo_instance.token:
-            db_instance.evolution_key = evo_instance.token
-            updated = True
-            logger.info(f"Synced Evolution token for {db_instance.name}")
+        # DEPRECATED: Token sync removed (Option A: Bootstrap Key Only)
+        # Per-instance tokens are no longer used for authentication
 
         return updated
 
@@ -272,15 +268,24 @@ class DiscoveryService:
             logger.warning(f"Instance {instance_name} not found in database")
             return None
 
-        if not db_instance.evolution_url or not db_instance.evolution_key:
-            logger.warning(f"Instance {instance_name} missing Evolution API credentials")
+        if not db_instance.evolution_url:
+            logger.warning(f"Instance {instance_name} missing Evolution URL")
             return None
 
         try:
-            # Create Evolution client with instance-specific credentials
+            # Create Evolution client with bootstrap key (Option A: Bootstrap Key Only)
             from src.channels.whatsapp.evolution_client import EvolutionClient
+            from src.config import config
 
-            evolution_client = EvolutionClient(db_instance.evolution_url, db_instance.evolution_key)
+            # Always use bootstrap key from environment
+            bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+            if not bootstrap_key:
+                logger.warning("No Evolution API key configured, cannot sync instance status")
+                return None
+
+            # Pass instance name for logging/debugging only (auth uses bootstrap key)
+            whatsapp_instance_name = db_instance.whatsapp_instance or instance_name
+            evolution_client = EvolutionClient(db_instance.evolution_url, bootstrap_key, whatsapp_instance_name)
 
             # Get current status from Evolution
             connection_state = await evolution_client.get_connection_state(instance_name)

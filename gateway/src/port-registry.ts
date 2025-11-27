@@ -77,22 +77,18 @@ export class PortRegistry extends EventEmitter {
       const port = range.min + ((startOffset + i) % rangeSize);
       const socket = await this.tryReservePort(port);
       if (socket) {
+        // Release socket IMMEDIATELY after confirming port is free (FIX: prevents subprocess binding conflict)
+        socket.close();
+
         const allocation: PortAllocation = {
           serviceId,
           port,
           allocatedAt: new Date(),
-          reservationSocket: socket,
+          // No reservationSocket - already released
         };
         this.allocations.set(serviceId, allocation);
         this.emit('allocated', allocation);
-        console.log(`[PortRegistry] Allocated ${serviceId} -> ${port} (socket held for atomic handoff)`);
-
-        // Auto-release reservation after 30s if not confirmed
-        setTimeout(() => {
-          if (allocation.reservationSocket && !allocation.reservationSocket.listening) {
-            this.confirmAllocation(serviceId);
-          }
-        }, 30000);
+        console.log(`[PortRegistry] Allocated ${serviceId} -> ${port} (ready for subprocess)`);
 
         return allocation;
       }

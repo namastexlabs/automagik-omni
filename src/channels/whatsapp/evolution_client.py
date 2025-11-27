@@ -51,20 +51,23 @@ class EvolutionCreateRequest(BaseModel):
 class EvolutionClient:
     """Client for Evolution API operations."""
 
-    def __init__(self, base_url: str, api_key: str):
+    def __init__(self, base_url: str, api_key: str, instance_name: Optional[str] = None):
         """
         Initialize Evolution API client.
 
         Args:
             base_url: Evolution API base URL
             api_key: Evolution API authentication key
+            instance_name: WhatsApp instance name (for automatic 401 recovery)
         """
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
+        self.instance_name = instance_name
         self.headers = {"apikey": api_key, "Content-Type": "application/json"}
+        self._retry_attempted = False  # Circuit breaker for bounded retry
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
-        """Make HTTP request to Evolution API."""
+        """Make HTTP request to Evolution API with automatic 401 recovery."""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
 
         # DEBUG logging for request details
@@ -87,6 +90,26 @@ class EvolutionClient:
                 response.raise_for_status()
                 return response.json()
             except httpx.HTTPStatusError as e:
+                # Automatic 401 recovery with bounded retry (max 1 attempt)
+                if e.response.status_code == 401 and not self._retry_attempted and self.instance_name:
+                    logger.warning(
+                        f"401 Unauthorized for instance '{self.instance_name}' - attempting automatic token refresh"
+                    )
+
+                    # Try to refresh the instance token ONCE
+                    fresh_key = await self._refresh_instance_key()
+                    if fresh_key:
+                        logger.info(f"Successfully refreshed token for '{self.instance_name}' - retrying request")
+                        self.api_key = fresh_key
+                        self.headers["apikey"] = fresh_key
+                        self._retry_attempted = True  # Circuit breaker - prevent infinite loops
+
+                        # Retry the request ONCE with fresh key
+                        return await self._request(method, endpoint, **kwargs)
+                    else:
+                        logger.error(f"Failed to refresh token for '{self.instance_name}' - 401 recovery unsuccessful")
+
+                # Either not 401, retry already attempted, or no instance_name - propagate error
                 error_text = e.response.text
                 logger.error(f"Evolution API error {e.response.status_code}: {error_text}")
                 logger.debug(f"Failed request details - URL: {url}, Method: {method}")
@@ -99,6 +122,89 @@ class EvolutionClient:
                 logger.debug(f"Failed request details - URL: {url}, Method: {method}")
                 logger.debug(f"Exception type: {type(e).__name__}")
                 raise Exception(f"Evolution API request failed: {str(e)}")
+
+    async def _refresh_instance_key(self) -> Optional[str]:
+        """
+        Fetch fresh authentication token from Evolution API for this instance.
+
+        Uses the bootstrap key (EVOLUTION_API_KEY) to query Evolution API for the
+        instance's current token, then updates the database cache.
+
+        Returns:
+            Fresh token string if successful, None otherwise
+        """
+        if not self.instance_name:
+            logger.warning("Cannot refresh token - no instance_name provided")
+            return None
+
+        try:
+            # Use bootstrap key to query Evolution API
+            bootstrap_key = config.get_env("EVOLUTION_API_KEY")
+            if not bootstrap_key:
+                logger.error("EVOLUTION_API_KEY not set - cannot refresh instance token")
+                return None
+
+            logger.debug(f"Querying Evolution API for fresh token (instance: {self.instance_name})")
+
+            # Create temporary client with bootstrap key (no instance_name to avoid recursion)
+            discovery_client = EvolutionClient(self.base_url, bootstrap_key)
+
+            # Fetch instance data from Evolution API
+            instances = await discovery_client.fetch_instances(self.instance_name)
+
+            if not instances:
+                logger.error(f"Instance '{self.instance_name}' not found in Evolution API")
+                return None
+
+            fresh_token = instances[0].token
+            if not fresh_token:
+                logger.error(f"No token returned by Evolution API for instance '{self.instance_name}'")
+                return None
+
+            logger.debug(f"Fresh token retrieved from Evolution API: {'*' * len(fresh_token)}")
+
+            # Update database cache with fresh token
+            await self._update_db_token(fresh_token)
+
+            return fresh_token
+
+        except Exception as e:
+            logger.error(f"Failed to refresh instance token for '{self.instance_name}': {e}")
+            return None
+
+    async def _update_db_token(self, fresh_token: str) -> None:
+        """
+        Update database cache with fresh Evolution API token.
+
+        Args:
+            fresh_token: New token to store in database
+        """
+        try:
+            # Import here to avoid circular dependencies
+            from src.db.database import SessionLocal
+            from src.db.models import InstanceConfig
+
+            session = SessionLocal()
+            try:
+                # Find instance by whatsapp_instance name
+                db_instance = (
+                    session.query(InstanceConfig)
+                    .filter(InstanceConfig.whatsapp_instance == self.instance_name)
+                    .first()
+                )
+
+                if db_instance:
+                    db_instance.evolution_key = fresh_token
+                    session.commit()
+                    logger.info(f"Updated database cache with fresh token for '{self.instance_name}'")
+                else:
+                    logger.warning(f"Instance '{self.instance_name}' not found in database - cannot update token cache")
+            finally:
+                session.close()
+
+        except Exception as e:
+            logger.error(f"Failed to update database token cache for '{self.instance_name}': {e}")
+            # Don't raise - token refresh was successful, DB update is best-effort
 
     async def create_instance(self, request: EvolutionCreateRequest) -> Dict[str, Any]:
         """Create a new WhatsApp instance in Evolution API."""
