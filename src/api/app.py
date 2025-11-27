@@ -223,6 +223,17 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Failed to load access control rules: {e}")
             # Continue without access control cache - will be loaded on first use
+
+        # Bootstrap global settings (auto-generate Evolution API key if needed)
+        try:
+            from src.db.bootstrap_settings import bootstrap_global_settings
+
+            with SessionLocal() as db:
+                bootstrap_global_settings(db)
+            logger.info("✅ Global settings bootstrapped")
+        except Exception as e:
+            logger.error(f"❌ Failed to bootstrap global settings: {e}")
+            # Continue - settings will be created on first use if needed
     else:
         logger.info("Skipping database setup in test environment")
 
@@ -340,6 +351,11 @@ app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"]
 
 # Include access control management routes
 app.include_router(access_router, prefix="/api/v1", tags=["access"])
+
+# Include global settings management routes
+from src.api.routes.settings import router as settings_router
+
+app.include_router(settings_router, prefix="/api/v1", tags=["settings"])
 
 # Note: MCP server now runs as standalone service on port 18880
 # Gateway proxies /mcp requests directly to standalone MCP server

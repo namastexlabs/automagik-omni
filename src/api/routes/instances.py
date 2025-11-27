@@ -444,13 +444,16 @@ async def list_instances(
             try:
                 from src.channels.whatsapp.evolution_client import EvolutionClient
                 from src.config import config
+                from src.services.settings_service import settings_service
 
-                # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
-                evolution_url = instance.evolution_url or config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
-                bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+                # Get bootstrap key from database (with .env fallback)
+                evolution_url = instance.evolution_url or settings_service.get_setting_value("evolution_api_url", db, default="http://localhost:8080")
+                bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
+                if not bootstrap_key:
+                    bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
                 if not bootstrap_key:
-                    logger.warning(f"No Evolution API key configured for {instance.name}, skipping status check")
+                    logger.warning(f"No Evolution API key found in database or environment for {instance.name}, skipping status check")
                     instance_dict["evolution_status"] = None
                 else:
                     # Pass instance name for logging/debugging only (auth uses bootstrap key)
@@ -561,11 +564,15 @@ async def get_instance(
         try:
             from src.channels.whatsapp.evolution_client import EvolutionClient
             from src.config import config
+            from src.services.settings_service import settings_service
 
-            # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
-            bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+            # Get bootstrap key from database (with .env fallback)
+            bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
             if not bootstrap_key:
-                logger.warning(f"No Evolution API key configured, skipping status check for {instance.name}")
+                bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+
+            if not bootstrap_key:
+                logger.warning(f"No Evolution API key found in database or environment, skipping status check for {instance.name}")
             else:
                 # Pass instance name for logging/debugging only (auth uses bootstrap key)
                 whatsapp_instance_name = instance.whatsapp_instance or instance.name

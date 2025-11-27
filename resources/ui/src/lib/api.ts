@@ -649,6 +649,42 @@ export const api = {
       });
     },
   },
+
+  // Global Settings API
+  settings: {
+    async list(category?: string): Promise<any[]> {
+      const queryParams = category ? `?category=${encodeURIComponent(category)}` : '';
+      return apiRequest(`/settings${queryParams}`);
+    },
+
+    async get(key: string): Promise<any> {
+      return apiRequest(`/settings/${encodeURIComponent(key)}`);
+    },
+
+    async create(data: any): Promise<any> {
+      return apiRequest('/settings', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async update(key: string, data: any): Promise<any> {
+      return apiRequest(`/settings/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async delete(key: string): Promise<void> {
+      return apiRequest(`/settings/${encodeURIComponent(key)}`, {
+        method: 'DELETE',
+      });
+    },
+
+    async getHistory(key: string, limit: number = 50): Promise<any[]> {
+      return apiRequest(`/settings/${encodeURIComponent(key)}/history?limit=${limit}`);
+    },
+  },
 };
 
 // Evolution API helper (direct to Evolution via gateway)

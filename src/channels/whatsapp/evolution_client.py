@@ -127,7 +127,7 @@ class EvolutionClient:
         """
         Fetch fresh authentication token from Evolution API for this instance.
 
-        Uses the bootstrap key (EVOLUTION_API_KEY) to query Evolution API for the
+        Uses the bootstrap key from database to query Evolution API for the
         instance's current token, then updates the database cache.
 
         Returns:
@@ -138,10 +138,12 @@ class EvolutionClient:
             return None
 
         try:
-            # Use bootstrap key to query Evolution API
-            bootstrap_key = config.get_env("EVOLUTION_API_KEY")
+            # Use bootstrap key from database to query Evolution API
+            from src.services.settings_service import get_evolution_api_key_global
+
+            bootstrap_key = get_evolution_api_key_global()
             if not bootstrap_key:
-                logger.error("EVOLUTION_API_KEY not set - cannot refresh instance token")
+                logger.error("Evolution API key not found in database or environment - cannot refresh instance token")
                 return None
 
             logger.debug(f"Querying Evolution API for fresh token (instance: {self.instance_name})")
@@ -363,16 +365,18 @@ def get_evolution_client() -> EvolutionClient:
     global evolution_client
 
     if evolution_client is None:
-        # Use environment variables for Evolution API configuration
+        # Use database settings with .env fallback
+        from src.services.settings_service import get_evolution_api_key_global
+
         evolution_url = replace_localhost_with_ipv4(config.get_env("EVOLUTION_API_URL", "http://localhost:8080"))
-        evolution_key = config.get_env("EVOLUTION_API_KEY", "")
+        evolution_key = get_evolution_api_key_global()
 
         logger.debug(f"Evolution API configuration - URL: {evolution_url}")
         logger.debug(f"Evolution API configuration - Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}")
 
         if not evolution_key:
-            logger.error("EVOLUTION_API_KEY not configured in environment")
-            raise Exception("EVOLUTION_API_KEY not configured")
+            logger.error("Evolution API key not found in database or environment")
+            raise Exception("Evolution API key not configured")
 
         evolution_client = EvolutionClient(evolution_url, evolution_key)
         logger.info(f"Evolution API client initialized: {evolution_url}")

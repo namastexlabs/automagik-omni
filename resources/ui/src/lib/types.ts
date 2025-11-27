@@ -273,3 +273,51 @@ export const EVOLUTION_EVENTS = [
 ] as const;
 
 export type EvolutionEventType = typeof EVOLUTION_EVENTS[number];
+
+// Global Settings Types
+export type SettingValueType = 'string' | 'integer' | 'boolean' | 'json' | 'secret';
+
+export interface GlobalSetting {
+  id: number;
+  key: string;
+  value: string | null;
+  value_type: SettingValueType;
+  category?: string;
+  description?: string;
+  is_secret: boolean;
+  is_required: boolean;
+  default_value?: string;
+  validation_rules?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface SettingCreateRequest {
+  key: string;
+  value: string;
+  value_type: SettingValueType;
+  category?: string;
+  description?: string;
+  is_secret?: boolean;
+  is_required?: boolean;
+  default_value?: string;
+  validation_rules?: Record<string, any>;
+}
+
+export interface SettingUpdateRequest {
+  value: string;
+  updated_by?: string;
+  change_reason?: string;
+}
+
+export interface SettingChangeHistory {
+  id: number;
+  setting_id: number;
+  old_value?: string;
+  new_value?: string;
+  changed_by?: string;
+  changed_at: string;
+  change_reason?: string;
+}

@@ -289,3 +289,77 @@ class AccessRule(Base):
     def is_allow(self) -> bool:
         """Convenience flag for allow rules."""
         return self.rule_enum is AccessRuleType.ALLOW
+
+
+class SettingValueType(str, Enum):
+    """Enumeration of supported setting value types."""
+
+    STRING = "string"
+    INTEGER = "integer"
+    BOOLEAN = "boolean"
+    JSON = "json"
+    SECRET = "secret"
+
+
+class GlobalSetting(Base):
+    """Global application settings with type safety and validation."""
+
+    __tablename__ = "global_settings"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Setting identification
+    key = Column(String, unique=True, nullable=False, index=True)  # e.g., "evolution_api_key"
+    value = Column(String, nullable=True)  # Stored as string, cast based on value_type
+    value_type = Column(String(20), nullable=False, default="string")  # SettingValueType enum
+
+    # Metadata
+    category = Column(String, nullable=True, index=True)  # e.g., "api", "integration", "system"
+    description = Column(String, nullable=True)  # Human-readable description
+    is_secret = Column(Boolean, default=False, nullable=False)  # UI masking hint
+    is_required = Column(Boolean, default=False, nullable=False)  # Validation flag
+    default_value = Column(String, nullable=True)  # Default fallback
+
+    # Validation rules (JSON stored as string)
+    validation_rules = Column(String, nullable=True)  # JSON: min, max, pattern, etc.
+
+    # Audit trail
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+    created_by = Column(String, nullable=True)  # API key identifier or user
+    updated_by = Column(String, nullable=True)  # API key identifier or user
+
+    # Relationships
+    change_history = relationship(
+        "SettingChangeHistory",
+        back_populates="setting",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self):
+        masked_value = "***" if self.is_secret else self.value
+        return f"<GlobalSetting(key='{self.key}', value='{masked_value}', type='{self.value_type}')>"
+
+
+class SettingChangeHistory(Base):
+    """Audit trail for global setting changes."""
+
+    __tablename__ = "setting_change_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    setting_id = Column(Integer, ForeignKey("global_settings.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Change tracking
+    old_value = Column(String, nullable=True)
+    new_value = Column(String, nullable=True)
+    changed_by = Column(String, nullable=True)
+    changed_at = Column(DateTime, default=datetime_utcnow, nullable=False, index=True)
+    change_reason = Column(String, nullable=True)  # Optional user-provided reason
+
+    # Relationship
+    setting = relationship("GlobalSetting", back_populates="change_history")
+
+    def __repr__(self):
+        return f"<SettingChangeHistory(setting_id={self.setting_id}, changed_at='{self.changed_at}', changed_by='{self.changed_by}')>"

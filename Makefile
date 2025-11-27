@@ -317,6 +317,14 @@ install: ## $(ROCKET) Full production installation (inspired by automagik-tools)
 	@# Phase 2: Environment
 	$(call print_status,Phase 2/7: Setting up environment...)
 	@$(call ensure_env_file)
+	@# Auto-generate Evolution API key if not exists (Omni owns Evolution)
+	@if ! grep -q "EVOLUTION_API_KEY=" .env 2>/dev/null; then \
+		GENERATED_KEY=$$(openssl rand -hex 16); \
+		echo "EVOLUTION_API_KEY=$$GENERATED_KEY" >> .env; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution API key generated: $$GENERATED_KEY$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_CYAN)$(INFO) Using existing Evolution API key$(FONT_RESET)"; \
+	fi
 	$(call print_success,Environment configured!)
 	@echo ""
 

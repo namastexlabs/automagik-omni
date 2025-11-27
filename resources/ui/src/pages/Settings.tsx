@@ -1,15 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { api, getApiKey } from '@/lib/api';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Settings as SettingsIcon, Key, Info, Moon, Sun } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Info, Moon, Sun, Database, ArrowRight } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { data: health } = useQuery({
     queryKey: ['health'],
     queryFn: () => api.health(),
@@ -69,6 +72,28 @@ export default function Settings() {
                     <code className="text-sm text-muted-foreground">{health.version}</code>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Global Settings Link */}
+            <Card className="border-border elevation-md hover:elevation-lg transition-all cursor-pointer" onClick={() => navigate('/global-settings')}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-primary" />
+                    <CardTitle>Global Settings</CardTitle>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <CardDescription>Manage system-wide configuration and Evolution API settings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Configure Evolution API credentials, system limits, and other global settings that apply across all instances.
+                </p>
+                <Button className="mt-4" onClick={(e) => { e.stopPropagation(); navigate('/global-settings'); }}>
+                  Open Global Settings
+                </Button>
               </CardContent>
             </Card>
 
