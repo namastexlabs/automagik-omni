@@ -462,6 +462,98 @@ jobs:
           echo "❌ Tests failed! Please fix the failing tests before merging."
           exit 1
 
+  test-ui:
+    name: UI Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: resources/ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: resources/ui
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: resources/ui
+        run: npx playwright install chromium --with-deps
+
+      - name: Set up Python for backend
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e .
+
+      - name: Start backend services
+        run: |
+          mkdir -p data
+          export DATABASE_URL=sqlite:///data/test.db
+          export AUTOMAGIK_OMNI_API_KEY=test-api-key-for-playwright
+          export TEST_API_KEY=test-api-key-for-playwright
+          python -c "
+          from sqlalchemy import create_engine
+          from src.db.models import Base
+          import os
+          engine = create_engine(os.environ['DATABASE_URL'])
+          Base.metadata.create_all(engine)
+          "
+          # Start backend in background
+          nohup python -m uvicorn src.api.app:app --host 0.0.0.0 --port 8882 > backend.log 2>&1 &
+          echo $! > backend.pid
+          # Wait for backend to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8882/health > /dev/null; then
+              echo "Backend is ready"
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run Playwright tests (headless)
+        working-directory: resources/ui
+        run: npm run test:e2e
+        env:
+          CI: true
+          TEST_API_KEY: test-api-key-for-playwright
+
+      - name: Upload Playwright test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: resources/ui/playwright-report/
+          retention-days: 7
+
+      - name: Upload Playwright test videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-videos
+          path: resources/ui/test-results/
+          retention-days: 7
+
+      - name: Stop backend services
+        if: always()
+        run: |
+          if [ -f backend.pid ]; then
+            kill $(cat backend.pid) || true
+            rm backend.pid
+          fi
+
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest
@@ -530,16 +622,17 @@ jobs:
 
   all-checks-passed:
     name: All Checks Passed
-    needs: [test, lint]
+    needs: [test, test-ui, lint]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
       - name: Check results
         run: |
-          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.lint.result }}" != "success" ]; then
+          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.test-ui.result }}" != "success" ] || [ "${{ needs.lint.result }}" != "success" ]; then
             echo "❌ Some checks failed!"
             echo "Test result: ${{ needs.test.result }}"
+            echo "UI test result: ${{ needs.test-ui.result }}"
             echo "Lint result: ${{ needs.lint.result }}"
             exit 1
           else
