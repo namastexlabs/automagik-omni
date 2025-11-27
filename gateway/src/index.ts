@@ -118,13 +118,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     // Start standalone MCP server (eliminates double proxy layer)
     await processManager.startMCP();
 
-    // Start Evolution API (core service - fail fast if it won't start)
+    // Start Evolution API (WhatsApp channel - optional, soft-fail like Discord)
     try {
       await processManager.startEvolution();
     } catch (error) {
-      console.error('[Gateway] Evolution API failed to start:', error);
-      console.error('[Gateway] Evolution is core to Omni - this is a critical failure');
-      throw error; // Fail fast if Evolution won't start
+      console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
+      console.warn('[Gateway] WhatsApp functionality will be unavailable');
+      console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
     }
 
     // Start Discord service manager (optional but recommended)

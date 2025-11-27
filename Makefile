@@ -141,11 +141,16 @@ help: ## Show this help message
 	@echo -e "  $(FONT_CYAN)up             $(FONT_RESET) Quick start: install + dev server"
 	@echo -e "  $(FONT_GREEN)deploy-service $(FONT_RESET) Deploy as service: install + service + start"
 	@echo ""
+	@echo -e "$(FONT_BOLD)Modular Installation (pick what you need):$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)install-core   $(FONT_RESET) Install Omni Hub core only (fastest, no channels)"
+	@echo -e "  $(FONT_GREEN)install-whatsapp$(FONT_RESET) Add WhatsApp channel (Evolution API)"
+	@echo -e "  $(FONT_GREEN)install-discord $(FONT_RESET) Add Discord channel (discord.py)"
+	@echo -e "  $(FONT_GREEN)install-channels$(FONT_RESET) Install all available channels"
+	@echo ""
 	@echo -e "$(FONT_BOLD)Development:$(FONT_RESET)"
-	@echo -e "  $(FONT_CYAN)install        $(FONT_RESET) Install Omni core deps (WhatsApp/Evolution) with optional Discord prompt"
-	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install only Omni core dependencies (Python)"
-	@echo -e "  $(FONT_CYAN)install-evolution$(FONT_RESET) Install Evolution API dependencies (Node.js)"
-	@echo -e "  $(FONT_CYAN)install-discord $(FONT_RESET) Install optional Discord extras"
+	@echo -e "  $(FONT_CYAN)install        $(FONT_RESET) Full install (core + Evolution + gateway + UI)"
+	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install Python dependencies only"
+	@echo -e "  $(FONT_CYAN)install-evolution$(FONT_RESET) Install Evolution API (Node.js)"
 	@echo -e "  $(FONT_CYAN)dev            $(FONT_RESET) Start Omni development server with auto-reload"
 	@echo -e "  $(FONT_CYAN)dev-all        $(FONT_RESET) Start Omni + Evolution API in development mode"
 	@echo -e "  $(FONT_CYAN)test           $(FONT_RESET) Run the test suite"
@@ -452,6 +457,47 @@ install-evolution: ## Install Evolution API dependencies (Node.js)
 	@mkdir -p "$$HOME/data/evolution-pglite"
 	$(call print_info,PGlite database will be created automatically on first run at $$HOME/data/evolution-pglite)
 	$(call print_success,Evolution API dependencies installed)
+
+# ===========================================
+# 🧩 Modular Channel Installation (Omni Hub as Empty Vessel)
+# ===========================================
+# Omni Hub is designed as an "empty vessel" that administers channels.
+# Users install only the integrations they want, keeping the core lightweight.
+
+.PHONY: install-core install-whatsapp install-channels
+
+install-core: ## Install core Omni Hub only (no channel dependencies - fastest install)
+	$(call check_prerequisites)
+	$(call ensure_env_file)
+	$(call print_status,Installing Omni Hub core (minimal - no channels))
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) This installs the Omni Hub core without any channel integrations.$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)$(INFO) Channel integrations can be added later with:$(FONT_RESET)"
+	@echo -e "    $(FONT_PURPLE)make install-whatsapp$(FONT_RESET)  - WhatsApp via Evolution API"
+	@echo -e "    $(FONT_PURPLE)make install-discord$(FONT_RESET)   - Discord bot support"
+	@echo ""
+	@$(UV) sync
+	$(call print_success,Omni Hub core installed (no channels))
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) To add channel support, run:$(FONT_RESET)"
+	@echo -e "    $(FONT_PURPLE)make install-whatsapp$(FONT_RESET)  for WhatsApp"
+	@echo -e "    $(FONT_PURPLE)make install-discord$(FONT_RESET)   for Discord"
+
+install-whatsapp: install-evolution ## Install WhatsApp/Evolution channel support
+	$(call print_success,WhatsApp channel ready! Evolution API installed.)
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) WhatsApp instances can be created via:$(FONT_RESET)"
+	@echo -e "    $(FONT_PURPLE)Dashboard:$(FONT_RESET) http://localhost:8882 → Create Instance → WhatsApp"
+	@echo -e "    $(FONT_PURPLE)API:$(FONT_RESET)       POST /api/v1/instances with channel_type='whatsapp'"
+
+install-channels: install-whatsapp install-discord ## Install all available channels
+	$(call print_success,All channels installed (WhatsApp + Discord))
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) Available channels:$(FONT_RESET)"
+	@echo -e "    $(FONT_GREEN)✅$(FONT_RESET) WhatsApp (via Evolution API)"
+	@echo -e "    $(FONT_GREEN)✅$(FONT_RESET) Discord (via discord.py)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) Coming soon: Telegram, Slack, Instagram, LinkedIn, Gmail, Calendar$(FONT_RESET)"
 
 .PHONY: setup
 setup: ## Complete setup for fresh deployment (install all deps + migrations + PM2)

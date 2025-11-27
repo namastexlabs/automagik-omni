@@ -13,10 +13,40 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     CheckConstraint,
+    Text,
 )
 from sqlalchemy.orm import relationship
 from .database import Base
 from src.utils.datetime_utils import datetime_utcnow
+
+
+class Entity(Base):
+    """
+    Entity represents a person or company that owns multiple channel integrations.
+
+    This enables omnichannel presence where one AI assistant can be present
+    across all networks (WhatsApp, Discord, Telegram, etc.) for the same entity.
+    """
+
+    __tablename__ = "entities"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Entity identification
+    name = Column(String, nullable=False, index=True)  # e.g., "John Doe", "Acme Corp"
+    entity_type = Column(String, default="person", nullable=False)  # "person" | "company"
+    description = Column(Text, nullable=True)  # Optional description
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    # Relationships
+    instances = relationship("InstanceConfig", back_populates="entity")
+
+    def __repr__(self):
+        return f"<Entity(id={self.id}, name='{self.name}', type='{self.entity_type}')>"
 
 
 class InstanceConfig(Base):
@@ -89,11 +119,15 @@ class InstanceConfig(Base):
     # Message splitting control
     enable_auto_split = Column(Boolean, default=True, nullable=False)  # Auto-split messages on \n\n
 
+    # Entity relationship (for omnichannel grouping)
+    entity_id = Column(Integer, ForeignKey("entities.id"), nullable=True, index=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
 
     # Relationships
+    entity = relationship("Entity", back_populates="instances")
     users = relationship(
         "User",
         back_populates="instance",
