@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { setApiKey, api } from '@/lib/api';
+import { setApiKey, api } from '@/lib';
 import { Sparkles, Lock } from 'lucide-react';
 
 export default function Login() {

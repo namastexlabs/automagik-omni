@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { cn } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { cn, api } from '@/lib';
 
 interface MessageBubbleProps {
   message: any;

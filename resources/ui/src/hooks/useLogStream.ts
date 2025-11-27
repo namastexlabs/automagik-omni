@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, type LogEntry, type LogServiceName, type LogService } from '@/lib/api';
+import { api, type LogEntry, type LogServiceName, type LogService } from '@/lib';
 
 interface UseLogStreamOptions {
   services?: LogServiceName[];

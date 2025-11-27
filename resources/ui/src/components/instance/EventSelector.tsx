@@ -1,6 +1,6 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { EVOLUTION_EVENTS } from '@/lib/types';
+import { EVOLUTION_EVENTS } from '@/lib';
 
 interface EventSelectorProps {
   selectedEvents: string[];

@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
 
 interface SettingsSheetProps {
   instanceName: string;

@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { EventSelector } from '@/components/instance/EventSelector';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
 
 interface RabbitMQSheetProps {
   instanceName: string;

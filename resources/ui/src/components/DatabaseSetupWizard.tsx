@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { api, DatabaseTestResponse, TestResult } from '@/lib/api';
+import { api, DatabaseTestResponse, TestResult } from '@/lib';
 import {
   Database,
   Server,

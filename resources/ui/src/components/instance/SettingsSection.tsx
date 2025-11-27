@@ -12,7 +12,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
 
 interface SettingsSectionProps {
   instanceName: string;

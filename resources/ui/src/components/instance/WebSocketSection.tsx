@@ -13,7 +13,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { EventSelector } from './EventSelector';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
 
 interface WebSocketSectionProps {
   instanceName: string;

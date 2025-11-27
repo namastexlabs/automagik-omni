@@ -15,9 +15,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
+import type { InstanceConfig, InstanceCreateRequest, InstanceUpdateRequest } from '@/lib';
 import { AlertCircle, Loader2, MessageSquare, Mail, Calendar, Briefcase, Video, Globe } from 'lucide-react';
-import type { InstanceConfig, InstanceCreateRequest, InstanceUpdateRequest } from '@/lib/types';
 
 // Channel catalog - matches backend CHANNEL_CATALOG
 const CHANNEL_CATALOG = {

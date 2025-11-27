@@ -22,7 +22,7 @@ import {
   Settings,
   ScrollText,
 } from 'lucide-react';
-import type { InstanceConfig } from '@/lib/types';
+import type { InstanceConfig } from '@/lib';
 
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
