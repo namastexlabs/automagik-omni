@@ -76,6 +76,19 @@ export class ProcessManager {
   }
 
   /**
+   * Check if lazy channel loading is enabled.
+   * When enabled, channels start on-demand (first instance creation) rather than at gateway startup.
+   *
+   * Environment variable: LAZY_CHANNELS=true
+   *
+   * @returns true if lazy loading is enabled
+   */
+  isLazyModeEnabled(): boolean {
+    const value = process.env.LAZY_CHANNELS;
+    return value === 'true' || value === '1';
+  }
+
+  /**
    * Check if a channel is enabled via environment variable.
    * Channels are enabled by default unless explicitly disabled.
    *
@@ -97,6 +110,49 @@ export class ProcessManager {
     }
 
     return true;
+  }
+
+  /**
+   * Check if a channel process is currently running.
+   *
+   * @param channel - Channel name (e.g., 'evolution', 'discord')
+   * @returns true if the channel process is running
+   */
+  isChannelRunning(channel: string): boolean {
+    const proc = this.processes.get(channel);
+    return proc !== undefined && proc.exitCode === null;
+  }
+
+  /**
+   * Ensure a channel is running. Starts the channel if not already running.
+   * Used for on-demand channel startup in lazy mode.
+   *
+   * @param channel - Channel name (e.g., 'evolution', 'discord')
+   * @returns Promise that resolves when channel is running
+   */
+  async ensureChannelRunning(channel: string): Promise<void> {
+    if (this.isChannelRunning(channel)) {
+      console.log(`[ProcessManager] ${channel} channel already running`);
+      return;
+    }
+
+    if (!this.isChannelEnabled(channel)) {
+      console.log(`[ProcessManager] ${channel} channel is disabled, not starting`);
+      return;
+    }
+
+    console.log(`[ProcessManager] Starting ${channel} channel on-demand...`);
+
+    switch (channel.toLowerCase()) {
+      case 'evolution':
+        await this.startEvolution();
+        break;
+      case 'discord':
+        await this.startDiscord();
+        break;
+      default:
+        console.warn(`[ProcessManager] Unknown channel: ${channel}`);
+    }
   }
 
   /**
