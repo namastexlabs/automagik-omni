@@ -10,7 +10,12 @@ from typing import Dict, Any, Optional, List
 
 from src.db.database import SessionLocal
 from src.db.models import InstanceConfig
-from src.channels.discord.bot_manager import DiscordBotManager, DISCORD_AVAILABLE
+# Discord is optional - guard the import
+try:
+    from src.channels.discord.bot_manager import DiscordBotManager, DISCORD_AVAILABLE
+except ImportError:
+    DiscordBotManager = None
+    DISCORD_AVAILABLE = False
 from src.services.message_router import MessageRouter
 from src.core.telemetry import track_command
 from src.utils.health_check import wait_for_api_health

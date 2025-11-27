@@ -26,6 +26,9 @@ except ImportError:
     discord = None
     commands = None
     DISCORD_AVAILABLE = False
+    # Early exit - raise ImportError to prevent class definitions from executing
+    # This is caught by src/channels/discord/__init__.py
+    raise ImportError("discord.py not installed")
 
 from src.services.message_router import MessageRouter
 from ...core.exceptions import AutomagikError
