@@ -27,11 +27,13 @@ class WhatsAppChannelHandler(ChannelHandler):
 
     def _get_evolution_client(self, instance: InstanceConfig) -> EvolutionClient:
         """Get Evolution client for this specific instance."""
-        # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
+        from src.services.settings_service import get_evolution_api_key_global
+
+        # Always use bootstrap key from database (with .env fallback)
         evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
             config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         )
-        bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+        bootstrap_key = get_evolution_api_key_global()
 
         logger.debug(f"Instance config - URL: {instance.evolution_url}")
         logger.debug(f"Final config - URL: {evolution_url}, Using bootstrap key")

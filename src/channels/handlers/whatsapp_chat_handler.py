@@ -22,11 +22,13 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
 
     def _get_omni_evolution_client(self, instance: InstanceConfig) -> OmniEvolutionClient:
         """Get unified Evolution client for this specific instance."""
-        # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
+        from src.services.settings_service import get_evolution_api_key_global
+
+        # Get bootstrap key from database (with .env fallback)
         evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
             config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         )
-        bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+        bootstrap_key = get_evolution_api_key_global()
 
         # Validate configuration (same as parent class)
         if evolution_url.lower() in ["string", "null", "undefined", ""]:

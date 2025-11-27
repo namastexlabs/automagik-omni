@@ -46,16 +46,21 @@ class DiscoveryService:
         """
         logger.info("Starting Evolution instance discovery...")
 
-        # Get bootstrap credentials from environment
+        # Get bootstrap credentials from database (with .env fallback)
         from src.config import config
+        from src.services.settings_service import settings_service
 
-        global_url = config.get_env("EVOLUTION_URL", "http://localhost:18082")
-        bootstrap_key = config.get_env("EVOLUTION_API_KEY")
+        global_url = settings_service.get_setting_value("evolution_api_url", db, default="http://localhost:18082")
+        bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
+
+        # Fallback to .env for backward compatibility during transition
+        if not bootstrap_key:
+            bootstrap_key = config.get_env("EVOLUTION_API_KEY")
 
         if not bootstrap_key:
             logger.warning(
-                "No EVOLUTION_API_KEY found in environment. "
-                "Please set EVOLUTION_API_KEY in .env to enable WhatsApp instance discovery."
+                "No Evolution API key found in database or environment. "
+                "The key should be auto-generated on first startup."
             )
             return []
 
@@ -273,14 +278,18 @@ class DiscoveryService:
             return None
 
         try:
-            # Create Evolution client with bootstrap key (Option A: Bootstrap Key Only)
+            # Create Evolution client with bootstrap key from database
             from src.channels.whatsapp.evolution_client import EvolutionClient
             from src.config import config
+            from src.services.settings_service import settings_service
 
-            # Always use bootstrap key from environment
-            bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+            # Get bootstrap key from database (with .env fallback)
+            bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
             if not bootstrap_key:
-                logger.warning("No Evolution API key configured, cannot sync instance status")
+                bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+
+            if not bootstrap_key:
+                logger.warning("No Evolution API key found in database or environment, cannot sync instance status")
                 return None
 
             # Pass instance name for logging/debugging only (auth uses bootstrap key)

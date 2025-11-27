@@ -10,6 +10,7 @@ import Instances from './pages/Instances';
 import Contacts from './pages/Contacts';
 import Chats from './pages/Chats';
 import Settings from './pages/Settings';
+import GlobalSettings from './pages/GlobalSettings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -83,6 +84,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/global-settings"
+              element={
+                <ProtectedRoute>
+                  <GlobalSettings />
                 </ProtectedRoute>
               }
             />
