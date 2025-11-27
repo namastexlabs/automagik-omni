@@ -456,11 +456,8 @@ install-evolution: ## Install Evolution API dependencies (Node.js)
 			exit 1; \
 		fi; \
 	}
-	$(call print_status,Generating Prisma client for PGlite)
-	@cd resources/evolution-api && DATABASE_PROVIDER=pglite npm run db:generate
-	$(call print_status,Creating Evolution API PGlite database directory)
-	@mkdir -p "$$HOME/data/evolution-pglite"
-	$(call print_info,PGlite database will be created automatically on first run at $$HOME/data/evolution-pglite)
+	$(call print_status,Generating Prisma client for PostgreSQL)
+	@cd resources/evolution-api && DATABASE_PROVIDER=postgresql npm run db:generate
 	$(call print_success,Evolution API dependencies installed)
 
 # ===========================================
@@ -926,7 +923,6 @@ uninstall: ## 🗑️ Uninstall Omni Hub (interactive, preserves data)
 	@echo -e "  $(FONT_GREEN)✓ PRESERVED:$(FONT_RESET)"
 	@echo -e "     • Configuration file (.env)"
 	@echo -e "     • Database data ($$HOME/automagik-omni/)"
-	@echo -e "     • Evolution PGlite data ($$HOME/data/evolution-pglite/)"
 	@echo ""
 	@echo -e "$(FONT_CYAN)💡 To also delete data, run: $(FONT_PURPLE)make uninstall-full$(FONT_RESET)"
 	@echo ""
@@ -952,7 +948,6 @@ uninstall-full: ## 🗑️ Full uninstall including all data (DESTRUCTIVE)
 	@echo -e "  $(FONT_RED)💀 ALL DATA (UNRECOVERABLE):$(FONT_RESET)"
 	@[ -f ".env" ] && echo -e "     • Configuration file (.env)" || true
 	@[ -d "$$HOME/automagik-omni" ] && echo -e "     • Omni data directory ($$HOME/automagik-omni/)" || true
-	@[ -d "$$HOME/data/evolution-pglite" ] && echo -e "     • Evolution database ($$HOME/data/evolution-pglite/)" || true
 	@[ -f "omni.db" ] && echo -e "     • SQLite database (omni.db)" || true
 	@[ -d "logs" ] && echo -e "     • All log files (logs/)" || true
 	@echo ""
@@ -1034,12 +1029,6 @@ _do-wipe-data:
 		echo -e "$(FONT_CYAN)$(INFO) Removing $$HOME/automagik-omni/...$(FONT_RESET)"; \
 		rm -rf "$$HOME/automagik-omni"; \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) Omni data directory removed$(FONT_RESET)"; \
-	fi
-	@# Remove Evolution PGlite data
-	@if [ -d "$$HOME/data/evolution-pglite" ]; then \
-		echo -e "$(FONT_CYAN)$(INFO) Removing Evolution database...$(FONT_RESET)"; \
-		rm -rf "$$HOME/data/evolution-pglite"; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution database removed$(FONT_RESET)"; \
 	fi
 	@# Remove local SQLite database
 	@if [ -f "omni.db" ]; then \

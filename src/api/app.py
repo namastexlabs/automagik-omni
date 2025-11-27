@@ -357,6 +357,11 @@ from src.api.routes.settings import router as settings_router
 
 app.include_router(settings_router, prefix="/api/v1", tags=["settings"])
 
+# Include database configuration routes (for wizard UI)
+from src.api.routes.database_config import router as database_config_router
+
+app.include_router(database_config_router, prefix="/api/v1", tags=["Database Configuration"])
+
 # Note: MCP server now runs as standalone service on port 18880
 # Gateway proxies /mcp requests directly to standalone MCP server
 
