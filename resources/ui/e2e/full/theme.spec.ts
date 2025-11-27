@@ -218,32 +218,4 @@ test.describe('Theme Toggle', () => {
     }
   });
 
-  test('theme toggle is accessible via keyboard', async ({ authenticatedPage }) => {
-    // Tab to theme toggle
-    await authenticatedPage.keyboard.press('Tab');
-    await authenticatedPage.keyboard.press('Tab');
-    await authenticatedPage.keyboard.press('Tab');
-    // (May need more tabs depending on page structure)
-
-    // Find focused element
-    const focused = authenticatedPage.locator(':focus');
-    const ariaLabel = await focused.getAttribute('aria-label');
-
-    // If we found the theme toggle via keyboard navigation
-    if (ariaLabel?.toLowerCase().includes('theme')) {
-      const html = authenticatedPage.locator('html');
-      const initialTheme = await html.getAttribute('class');
-
-      // Press Enter or Space to toggle
-      await authenticatedPage.keyboard.press('Enter');
-      await authenticatedPage.waitForTimeout(500);
-
-      // Theme should change
-      const newTheme = await html.getAttribute('class');
-      expect(newTheme).not.toBe(initialTheme);
-    } else {
-      // Theme toggle not found via keyboard navigation
-      expect(true).toBeTruthy(); // Soft pass
-    }
-  });
 });

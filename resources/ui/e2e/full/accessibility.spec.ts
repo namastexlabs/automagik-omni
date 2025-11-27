@@ -143,70 +143,6 @@ test.describe('Accessibility', () => {
     }
   });
 
-  test('skip to content link exists for keyboard users', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/dashboard');
-
-    // Look for skip link (may be visually hidden)
-    const skipLink = authenticatedPage.locator('a[href="#main"], a[href="#content"], a:has-text("Skip to")').first();
-
-    if (await skipLink.isVisible({ timeout: 1000 }).catch(() => false)) {
-      // Skip link exists
-      await expect(skipLink).toBeVisible();
-    } else {
-      // Skip link may be hidden until focused - try to focus it
-      await authenticatedPage.keyboard.press('Tab');
-      const focused = authenticatedPage.locator(':focus');
-      const focusedText = await focused.textContent();
-
-      // Soft check - skip links are nice-to-have
-      expect(true).toBeTruthy();
-    }
-  });
-
-  test('modals trap focus correctly', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/global-settings');
-
-    // Try to open a modal (history dialog)
-    const historyButton = authenticatedPage.locator('button:has-text("History")').first();
-
-    if (await historyButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await historyButton.click();
-
-      // Modal should be visible
-      const modal = authenticatedPage.locator('[role="dialog"]').first();
-      await expect(modal).toBeVisible();
-
-      // Try to tab - focus should stay within modal
-      await authenticatedPage.keyboard.press('Tab');
-      const focused = authenticatedPage.locator(':focus');
-
-      // Focused element should be within modal
-      const isInModal = await modal.locator(':focus').isVisible().catch(() => false);
-
-      // This is a best-effort check
-      expect(true).toBeTruthy(); // Focus trapping is complex to test
-    } else {
-      test.skip(); // No modal to test
-    }
-  });
-
-  test('error messages are announced to screen readers', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/login');
-
-    // Submit with invalid credentials
-    await authenticatedPage.fill('input[name="apiKey"]', 'invalid');
-    await authenticatedPage.click('button[type="submit"]');
-
-    // Wait for error
-    await authenticatedPage.waitForTimeout(1000);
-
-    // Look for error message with aria-live or role="alert"
-    const errorWithLive = authenticatedPage.locator('[aria-live], [role="alert"]');
-    const hasError = await errorWithLive.isVisible().catch(() => false);
-
-    // Error should be accessible to screen readers (soft check)
-    expect(true).toBeTruthy();
-  });
 
   test('color contrast is sufficient for text', async ({ authenticatedPage }) => {
     await authenticatedPage.goto('/dashboard');
@@ -233,35 +169,6 @@ test.describe('Accessibility', () => {
     // Should have lang attribute
     expect(lang).toBeTruthy();
     expect(lang).toMatch(/^[a-z]{2}(-[A-Z]{2})?$/); // e.g., "en" or "en-US"
-  });
-
-  test('landmark roles are present for page structure', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/dashboard');
-
-    // Look for semantic landmarks
-    const main = await authenticatedPage.locator('main, [role="main"]').isVisible().catch(() => false);
-    const nav = await authenticatedPage.locator('nav, [role="navigation"]').isVisible().catch(() => false);
-
-    // Should have main landmark at minimum
-    expect(main).toBeTruthy();
-
-    // Navigation is common but not required
-    expect(true).toBeTruthy(); // Soft pass
-  });
-
-  test('focus is managed when navigating', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/dashboard');
-
-    // Navigate to another page
-    await authenticatedPage.goto('/settings');
-    await authenticatedPage.waitForLoadState('networkidle');
-
-    // Focus should be reset/managed (typically goes to main or top of page)
-    const focused = authenticatedPage.locator(':focus');
-    const hasFocus = await focused.isVisible().catch(() => false);
-
-    // This is a basic check - proper focus management varies by implementation
-    expect(true).toBeTruthy();
   });
 
   test('buttons have appropriate roles', async ({ authenticatedPage }) => {

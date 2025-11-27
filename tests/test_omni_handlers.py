@@ -27,17 +27,15 @@ from src.api.schemas.omni import (
 from src.db.models import InstanceConfig
 
 
-# Global patches for external dependencies
-@pytest.fixture(autouse=True)
+# Fixture for httpx mocking - use explicitly where needed
+@pytest.fixture
 def mock_httpx_client():
-    """Mock httpx.AsyncClient globally to prevent real HTTP requests."""
+    """Mock httpx.AsyncClient to prevent real HTTP requests."""
     with patch("httpx.AsyncClient") as mock_client:
-        # Create a mock client instance
         client_instance = AsyncMock()
         client_instance.__aenter__ = AsyncMock(return_value=client_instance)
         client_instance.__aexit__ = AsyncMock(return_value=None)
 
-        # Mock the request method to prevent actual HTTP calls
         mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.text = '{"status": "success", "data": []}'
@@ -48,34 +46,43 @@ def mock_httpx_client():
         yield mock_client
 
 
-@pytest.fixture(autouse=True)
+# Fixture for discord.py mocking - use explicitly where needed
+@pytest.fixture
 def mock_discord_py():
-    """Mock discord.py dependencies globally, even if the optional package is absent."""
-    created_stub = False
+    """Mock discord.py dependencies, even if the optional package is absent."""
+    # Save any existing discord modules (including namespace packages from tests/channels/discord)
+    old_discord = sys.modules.get("discord")
+    old_discord_utils = sys.modules.get("discord.utils")
 
-    if "discord" not in sys.modules:
-        created_stub = True
-        discord_stub = types.ModuleType("discord")
-        discord_stub.Client = object()
-        discord_stub.Intents = object()
+    # Always create our stub to avoid namespace package conflicts
+    discord_stub = types.ModuleType("discord")
+    discord_stub.Client = MagicMock()
+    discord_stub.Intents = MagicMock()
 
-        utils_stub = types.ModuleType("discord.utils")
-        utils_stub.get = lambda *args, **kwargs: None
+    utils_stub = types.ModuleType("discord.utils")
+    utils_stub.get = lambda *args, **kwargs: None
 
-        discord_stub.utils = utils_stub
+    discord_stub.utils = utils_stub
 
-        sys.modules["discord"] = discord_stub
-        sys.modules["discord.utils"] = utils_stub
+    sys.modules["discord"] = discord_stub
+    sys.modules["discord.utils"] = utils_stub
 
     try:
-        with patch("discord.Client"), patch("discord.Intents"), patch("discord.utils.get"):
-            yield
+        yield
     finally:
-        if created_stub:
+        # Restore original state
+        if old_discord is not None:
+            sys.modules["discord"] = old_discord
+        else:
             sys.modules.pop("discord", None)
+
+        if old_discord_utils is not None:
+            sys.modules["discord.utils"] = old_discord_utils
+        else:
             sys.modules.pop("discord.utils", None)
 
 
+@pytest.mark.usefixtures("mock_httpx_client")
 class TestWhatsAppChatHandler:
     """Comprehensive tests for WhatsAppChatHandler."""
 
@@ -263,12 +270,15 @@ class TestWhatsAppChatHandler:
         with pytest.raises(Exception, match="Instance not found"):
             await handler.get_contacts(mock_instance_config, page=1, page_size=50)
 
+    @patch("src.services.settings_service.get_evolution_api_key_global")
     @patch("src.channels.handlers.whatsapp_chat_handler.OmniEvolutionClient")
-    def test_evolution_client_configuration_validation(self, mock_client_class, handler, mock_instance_config):
-        """Test Evolution API client configuration validation."""
-        # Test with valid configuration - should not raise exception
+    def test_evolution_client_configuration_validation(
+        self, mock_client_class, mock_get_key, handler, mock_instance_config
+    ):
+        """Test Evolution API client is created with valid configuration."""
+        # Setup valid configuration
         mock_instance_config.evolution_url = "https://api.evolution.test"
-        mock_instance_config.evolution_key = "valid-key"
+        mock_get_key.return_value = "valid-global-key"
 
         # Mock client creation
         mock_client_instance = MagicMock()
@@ -277,7 +287,11 @@ class TestWhatsAppChatHandler:
         # Should create client successfully
         client = handler._get_omni_evolution_client(mock_instance_config)
         assert client is not None
-        mock_client_class.assert_called_once_with("https://api.evolution.test", "valid-key")
+        mock_client_class.assert_called_once()
+        # Verify correct args: (url, bootstrap_key, instance_name)
+        call_args = mock_client_class.call_args[0]
+        assert call_args[0] == "https://api.evolution.test"
+        assert call_args[1] == "valid-global-key"
 
     @patch("src.channels.handlers.whatsapp_chat_handler.WhatsAppChatHandler._get_omni_evolution_client")
     @pytest.mark.asyncio
@@ -340,6 +354,7 @@ class TestWhatsAppChatHandler:
         assert chat.name == "Specific Chat"
 
 
+@pytest.mark.usefixtures("mock_httpx_client", "mock_discord_py")
 class TestDiscordChatHandler:
     """Comprehensive tests for DiscordChatHandler."""
 
@@ -548,6 +563,7 @@ class TestDiscordChatHandler:
         assert chat is None
 
 
+@pytest.mark.usefixtures("mock_httpx_client", "mock_discord_py")
 class TestHandlerErrorScenarios:
     """Test error scenarios common to both handlers."""
 
@@ -589,6 +605,7 @@ class TestHandlerErrorScenarios:
             await handler.get_contacts(config, page=1, page_size=50)
 
 
+@pytest.mark.usefixtures("mock_httpx_client", "mock_discord_py")
 class TestOmniHandlerIntegration:
     """Integration tests for omni handlers."""
 
