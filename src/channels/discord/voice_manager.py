@@ -26,6 +26,9 @@ except ImportError:
     VoiceClient = None
     AudioSource = None
     DISCORD_VOICE_AVAILABLE = False
+    # Early exit - raise ImportError to prevent class definitions from executing
+    # This is caught by src/channels/discord/__init__.py
+    raise ImportError("discord.py not installed")
 
 # For type hints when discord is not available
 if TYPE_CHECKING:
