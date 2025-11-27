@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, TraceAnalytics, HealthResponse, ServerStats } from '@/lib/api';
+import { api, TraceAnalytics, HealthResponse, ServerStats, cn } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,6 @@ import {
   MemoryStick,
   MonitorCog,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 function formatUptime(seconds: number): string {
   if (!seconds || seconds < 0) return 'N/A';

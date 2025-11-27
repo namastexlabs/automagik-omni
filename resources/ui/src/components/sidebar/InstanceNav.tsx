@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Activity, Wifi, Settings, Webhook, Radio, Server, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { cn, api } from '@/lib';
 import { ConnectionSheet } from '@/components/sheets/ConnectionSheet';
 import { SettingsSheet } from '@/components/sheets/SettingsSheet';
 import { WebhookSheet } from '@/components/sheets/WebhookSheet';

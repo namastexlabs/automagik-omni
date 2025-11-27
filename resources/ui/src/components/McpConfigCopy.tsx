@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Wrench, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
-import { getApiKey } from '@/lib/api';
+import { getApiKey } from '@/lib';
 
 export function McpConfigCopy() {
   const [copied, setCopied] = useState(false);

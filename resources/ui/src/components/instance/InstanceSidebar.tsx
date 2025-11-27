@@ -4,7 +4,7 @@ import { SettingsSection } from './SettingsSection';
 import { WebhookSection } from './WebhookSection';
 import { WebSocketSection } from './WebSocketSection';
 import { RabbitMQSection } from './RabbitMQSection';
-import type { InstanceConfig } from '@/lib/types';
+import type { InstanceConfig } from '@/lib';
 
 interface InstanceSidebarProps {
   instance: InstanceConfig;

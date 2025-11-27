@@ -5,8 +5,7 @@ import { Sidebar } from './Sidebar';
 import { StatusFooter } from './StatusFooter';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { cn } from '@/lib/utils';
-import { removeApiKey } from '@/lib/api';
+import { cn, removeApiKey } from '@/lib';
 
 interface DashboardLayoutProps {
   children: ReactNode;

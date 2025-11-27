@@ -1,12 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, TraceAnalytics, HealthResponse } from '@/lib/api';
+import { api, TraceAnalytics, HealthResponse, cn } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBreakdownChart } from '../charts/StatusBreakdownChart';
 import { MessageTypesChart } from '../charts/MessageTypesChart';
 import { useTimeRange } from '../TimeRangeSelector';
 import { MessageSquare, CheckCircle, Clock, Server, Circle } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface MetricCardProps {
   title: string;

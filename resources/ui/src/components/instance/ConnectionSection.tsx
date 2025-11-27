@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { api } from '@/lib/api';
-import type { InstanceConfig } from '@/lib/types';
+import { api } from '@/lib';
+import type { InstanceConfig } from '@/lib';
 
 interface ConnectionSectionProps {
   instanceName: string;

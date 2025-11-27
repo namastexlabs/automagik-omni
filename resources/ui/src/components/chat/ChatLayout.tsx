@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/resizable';
 import { ChatList } from './ChatList';
 import { ChatView } from './ChatView';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
 
 interface ChatLayoutProps {
   instanceName: string;

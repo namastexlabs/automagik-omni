@@ -6,14 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { api } from '@/lib/api';
+import { api, formatRelativeTime } from '@/lib';
+import type { OmniContact, OmniContactStatus } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { AlertCircle, Search, Users as UsersIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatRelativeTime } from '@/lib/utils';
-import type { OmniContact, OmniContactStatus } from '@/lib/types';
 
 export default function Contacts() {
   const [selectedInstance, setSelectedInstance] = useState<string>('');

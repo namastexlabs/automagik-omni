@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { QrCode, Settings as SettingsIcon, Trash2, Loader2, AlertTriangle, MessageSquare } from 'lucide-react';
-import type { InstanceConfig } from '@/lib/types';
+import type { InstanceConfig } from '@/lib';
 
 interface InstanceCardProps {
   instance: InstanceConfig;

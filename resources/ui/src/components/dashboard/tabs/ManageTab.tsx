@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api, HealthResponse, setInstanceKey } from '@/lib/api';
+import { api, HealthResponse, setInstanceKey, cn } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,7 +46,6 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 // Evolution instance detail from health endpoint
 interface EvolutionInstanceDetail {

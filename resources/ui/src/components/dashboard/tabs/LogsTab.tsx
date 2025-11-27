@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useLogStream } from '@/hooks/useLogStream';
-import { api, type LogEntry, type LogServiceName, type Pm2Status } from '@/lib/api';
+import { api, type LogEntry, type LogServiceName, type Pm2Status, cn } from '@/lib';
 import {
   ScrollText,
   Wifi,
@@ -37,7 +37,6 @@ import {
   MemoryStick,
   Cpu,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 const SERVICE_COLORS: Record<LogServiceName, string> = {
   api: 'bg-blue-500/20 text-blue-400 border-blue-500/30',

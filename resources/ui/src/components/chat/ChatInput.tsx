@@ -18,8 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { cn, api } from '@/lib';
 
 interface ChatInputProps {
   instanceName: string;

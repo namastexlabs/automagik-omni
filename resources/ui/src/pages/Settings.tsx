@@ -4,12 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { api, getApiKey } from '@/lib/api';
+import { api, getApiKey, formatDateTime } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Settings as SettingsIcon, Key, Info, Moon, Sun, Database, ArrowRight } from 'lucide-react';
-import { formatDateTime } from '@/lib/utils';
 
 export default function Settings() {
   const navigate = useNavigate();

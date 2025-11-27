@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { api, cn } from '@/lib';
 import { Circle, Loader2, Database, Server, MessageSquare, Cpu } from 'lucide-react';
 import {
   Tooltip,

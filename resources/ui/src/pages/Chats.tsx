@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatLayout } from '@/components/chat/ChatLayout';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
 
 export default function Chats() {
   const [selectedInstance, setSelectedInstance] = useState<string>('');

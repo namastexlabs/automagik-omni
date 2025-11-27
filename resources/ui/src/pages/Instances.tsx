@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
+import type { InstanceConfig } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { InstanceDialog } from '@/components/InstanceDialog';
@@ -12,7 +13,6 @@ import { InstanceCard } from '@/components/InstanceCard';
 import { Plus, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { InstanceConfig } from '@/lib/types';
 
 export default function Instances() {
   const queryClient = useQueryClient();

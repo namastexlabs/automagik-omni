@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
-import { api } from '@/lib/api';
+import { api } from '@/lib';
 
 interface ChatViewProps {
   instanceName: string;

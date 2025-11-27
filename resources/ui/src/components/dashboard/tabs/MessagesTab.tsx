@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, TraceAnalytics, Trace } from '@/lib/api';
+import { api, TraceAnalytics, Trace, cn } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MessageTypesChart } from '../charts/MessageTypesChart';
 import { useTimeRange } from '../TimeRangeSelector';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
 function StatusBadge({ status }: { status: Trace['status'] }) {

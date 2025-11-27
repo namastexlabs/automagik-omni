@@ -6,13 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { api } from '@/lib/api';
+import { api, GlobalSetting, formatDateTime } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { DatabaseSetupWizard } from '@/components/DatabaseSetupWizard';
 import { Settings as SettingsIcon, Save, Eye, EyeOff, History, RefreshCw, Database } from 'lucide-react';
-import { GlobalSetting } from '@/lib/types';
-import { formatDateTime } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
