@@ -115,6 +115,41 @@ export interface RestartResult {
   message: string;
 }
 
+// Database Configuration Types
+export interface DatabaseConfigResponse {
+  db_type: string;
+  use_postgres: boolean;
+  postgres_url_configured: boolean;
+  table_prefix: string;
+  pool_size: number;
+  pool_max_overflow: number;
+}
+
+export interface TestResult {
+  ok: boolean;
+  message: string;
+  latency_ms?: number;
+}
+
+export interface DatabaseTestResponse {
+  success: boolean;
+  tests: Record<string, TestResult>;
+  total_latency_ms: number;
+}
+
+export interface DatabaseApplyResponse {
+  success: boolean;
+  message: string;
+  requires_restart: boolean;
+}
+
+export interface EvolutionDetectResponse {
+  found: boolean;
+  source: string | null;
+  url_masked: string | null;
+  message: string;
+}
+
 // API Key management
 export function getApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
@@ -683,6 +718,31 @@ export const api = {
 
     async getHistory(key: string, limit: number = 50): Promise<any[]> {
       return apiRequest(`/settings/${encodeURIComponent(key)}/history?limit=${limit}`);
+    },
+  },
+
+  // Database Configuration API
+  database: {
+    async getConfig(): Promise<DatabaseConfigResponse> {
+      return apiRequest('/database/config');
+    },
+
+    async testConnection(url: string): Promise<DatabaseTestResponse> {
+      return apiRequest('/database/test', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      });
+    },
+
+    async apply(dbType: string, postgresUrl?: string): Promise<DatabaseApplyResponse> {
+      return apiRequest('/database/apply', {
+        method: 'POST',
+        body: JSON.stringify({ db_type: dbType, postgres_url: postgresUrl }),
+      });
+    },
+
+    async detectEvolution(): Promise<EvolutionDetectResponse> {
+      return apiRequest('/database/detect-evolution');
     },
   },
 };
