@@ -8,7 +8,7 @@ import pytest
 import time
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -603,21 +603,22 @@ class TestInstanceOperationEndpoints(TestAPIEndpoints):
     def test_discover_instances(self, test_client, mention_api_headers):
         """Test discovering Evolution instances."""
         with patch("src.services.discovery_service.discovery_service") as mock_service:
-            # Make discover_evolution_instances async and return mock InstanceConfig objects
-            async def mock_discover_instances(*args, **kwargs):
-                # Create mock InstanceConfig-like objects
-                mock_instance = type(
-                    "MockInstance",
-                    (),
-                    {
-                        "name": "discovered-1",
-                        "is_active": True,
-                        "agent_id": "test-agent-id",
-                    },
-                )()
-                return [mock_instance]
-
-            mock_service.discover_evolution_instances = mock_discover_instances
+            # Create mock InstanceConfig-like object with all required attributes
+            mock_instance = type(
+                "MockInstance",
+                (),
+                {
+                    "name": "discovered-1",
+                    "is_active": True,
+                    "agent_id": "test-agent-id",
+                    "whatsapp_instance": "discovered-1",
+                    "profile_name": "Test Profile",
+                    "evolution_key": "test-key",
+                    "evolution_url": "http://test:8080",
+                },
+            )()
+            # Use AsyncMock for async method
+            mock_service.discover_evolution_instances = AsyncMock(return_value=[mock_instance])
 
             response = test_client.post("/api/v1/instances/discover", headers=mention_api_headers)
             assert response.status_code == 200

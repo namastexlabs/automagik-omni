@@ -28,8 +28,8 @@ test.describe('Global Settings', () => {
       .isVisible()
       .catch(() => false);
 
-    // At least one category should be present
-    expect(hasSystemCategory || true).toBeTruthy(); // Integration is guaranteed
+    // At least one category should be present (Integration is guaranteed to exist)
+    expect(hasSystemCategory).toBeTruthy();
 
     // Verify evolution_api_key setting is displayed
     await expect(authenticatedPage.locator('text=evolution_api_key')).toBeVisible();
@@ -65,7 +65,8 @@ test.describe('Global Settings', () => {
 
     await expect(keyElement).toBeVisible();
 
-    // Value should contain masking (***) const textContent = await keyElement.textContent();
+    // Value should contain masking (***)
+    const textContent = await keyElement.textContent();
     expect(textContent).toContain('***');
   });
 

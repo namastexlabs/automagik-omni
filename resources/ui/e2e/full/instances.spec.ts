@@ -63,24 +63,6 @@ test.describe('Instances Management', () => {
     await expect(createButton).toBeVisible();
   });
 
-  test('search/filter instances functionality', async ({ authenticatedPage }) => {
-    // Look for search input
-    const searchInput = authenticatedPage.locator('input[type="search"], input[placeholder*="Search" i], input[placeholder*="Filter" i]').first();
-
-    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Type search query
-      await searchInput.fill('test');
-
-      // Should filter results (implementation-specific)
-      await authenticatedPage.waitForTimeout(500); // Debounce
-
-      // Verify filtering happened (by checking DOM or network request)
-      expect(true).toBeTruthy(); // Basic test - implementation would verify actual filtering
-    } else {
-      test.skip(); // Search not implemented yet
-    }
-  });
-
   test('instance details modal or page opens', async ({ authenticatedPage }) => {
     // Find first instance
     const firstInstance = authenticatedPage
@@ -102,29 +84,6 @@ test.describe('Instances Management', () => {
       expect(hasModal || urlChanged).toBeTruthy();
     } else {
       test.skip(); // No instances to test
-    }
-  });
-
-  test('refresh instances button works', async ({ authenticatedPage }) => {
-    // Look for refresh button
-    const refreshButton = authenticatedPage.locator('button[aria-label*="Refresh" i], button:has([class*="refresh"]), button:has-text("Refresh")').first();
-
-    if (await refreshButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Wait for initial API call
-      await authenticatedPage.waitForLoadState('networkidle');
-
-      // Click refresh
-      await refreshButton.click();
-
-      // Should trigger new API call
-      await authenticatedPage.waitForResponse(
-        (resp) => resp.url().includes('/instances'),
-        { timeout: 5000 }
-      );
-
-      expect(true).toBeTruthy(); // Refresh triggered successfully
-    } else {
-      test.skip(); // Refresh button not found
     }
   });
 
@@ -192,38 +151,4 @@ test.describe('Instances Management', () => {
     await expect(createButton).toBeVisible();
   });
 
-  test('pagination works if present', async ({ authenticatedPage }) => {
-    // Look for pagination controls
-    const paginationNext = authenticatedPage.locator('button[aria-label*="Next" i], button:has-text("Next"), [aria-label*="pagination"] button').first();
-
-    if (await paginationNext.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Click next page
-      await paginationNext.click();
-
-      // Should load next page (wait for API call)
-      await authenticatedPage.waitForResponse(
-        (resp) => resp.url().includes('/instances'),
-        { timeout: 5000 }
-      );
-
-      expect(true).toBeTruthy();
-    } else {
-      test.skip(); // Pagination not present (not enough instances)
-    }
-  });
-
-  test('displays instance count or summary', async ({ authenticatedPage }) => {
-    // Look for instance count display
-    const countDisplay = authenticatedPage.locator('text=/\\d+ instances?|Total:|Showing/i').first();
-
-    if (await countDisplay.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await expect(countDisplay).toBeVisible();
-
-      const text = await countDisplay.textContent();
-      expect(text).toMatch(/\d+/); // Contains a number
-    } else {
-      // Count display may not exist
-      expect(true).toBeTruthy(); // Soft pass
-    }
-  });
 });

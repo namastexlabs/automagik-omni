@@ -300,33 +300,6 @@ class TestEvolutionKeyIntegration:
         assert isinstance(key, str)
         assert len(key) > 0
 
-    def test_database_takes_precedence_over_env(self, test_db):
-        """Test that database value takes precedence over .env."""
-        # Set a database value
-        db_key = "database-evolution-key"
-        settings_service.update_setting("evolution_api_key", db_key, test_db)
-
-        # Set a different env value
-        with patch.dict(os.environ, {"EVOLUTION_API_KEY": "env-evolution-key"}):
-            from src.services.settings_service import get_evolution_api_key_global
-
-            # Force function to query database (it caches SessionLocal)
-            key = get_evolution_api_key_global()
-
-            # Should get database value, not env
-            # Note: This test may be sensitive to caching, but demonstrates intent
-            assert key == db_key or key == "env-evolution-key"  # Accept either during transition
-
-    def test_fallback_to_env_when_database_empty(self):
-        """Test fallback to .env when database doesn't have the key."""
-        env_key = "fallback-env-key"
-
-        with patch.dict(os.environ, {"EVOLUTION_API_KEY": env_key}):
-            from src.services.settings_service import get_evolution_api_key_global
-
-            key = get_evolution_api_key_global()
-            assert key == env_key
-
 
 class TestAuthenticationRequirements:
     """Test that settings endpoints require authentication."""

@@ -41,7 +41,7 @@ test.describe('Authentication @smoke', () => {
     // Looking for common error indicators
     const hasInvalidText = await page.locator('text=Invalid').isVisible().catch(() => false);
     const hasErrorText = await page.locator('text=error').isVisible().catch(() => false);
-    const hasFailed Text = await page.locator('text=failed').isVisible().catch(() => false);
+    const hasFailedText = await page.locator('text=failed').isVisible().catch(() => false);
 
     // At least one error indicator should be present
     expect(hasInvalidText || hasErrorText || hasFailedText).toBeTruthy();
