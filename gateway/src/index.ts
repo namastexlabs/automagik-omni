@@ -118,21 +118,27 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     // Start standalone MCP server (eliminates double proxy layer)
     await processManager.startMCP();
 
-    // Start Evolution API (WhatsApp channel - optional, soft-fail like Discord)
-    try {
-      await processManager.startEvolution();
-    } catch (error) {
-      console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
-      console.warn('[Gateway] WhatsApp functionality will be unavailable');
-      console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
-    }
+    // Channel startup behavior depends on LAZY_CHANNELS environment variable
+    if (processManager.isLazyModeEnabled()) {
+      console.log('[Gateway] Lazy channel mode enabled - channels will start on-demand');
+      console.log('[Gateway] Set LAZY_CHANNELS=false to auto-start channels at boot');
+    } else {
+      // Start Evolution API (WhatsApp channel - optional, soft-fail like Discord)
+      try {
+        await processManager.startEvolution();
+      } catch (error) {
+        console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
+        console.warn('[Gateway] WhatsApp functionality will be unavailable');
+        console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
+      }
 
-    // Start Discord service manager (optional but recommended)
-    try {
-      await processManager.startDiscord();
-    } catch (error) {
-      console.warn('[Gateway] Discord service failed to start, continuing without it');
-      console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
+      // Start Discord service manager (optional but recommended)
+      try {
+        await processManager.startDiscord();
+      } catch (error) {
+        console.warn('[Gateway] Discord service failed to start, continuing without it');
+        console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
+      }
     }
 
     // Start Vite in dev mode
@@ -437,11 +443,57 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
         port: GATEWAY_PORT,
         mode: DEV_MODE ? 'development' : 'production',
         proxyOnly: PROXY_ONLY,
+        lazyChannels: processManager.isLazyModeEnabled(),
         uptime: process.uptime(),
       },
       ports: portRegistry.toJSON(),
       processes: processManager.getStatus(),
     };
+  });
+
+  // ============================================================
+  // Channel management endpoints (for on-demand startup)
+  // ============================================================
+
+  // List available channels and their status
+  fastify.get('/gateway/channels', async () => {
+    const channels = ['evolution', 'discord'];
+    return {
+      lazyMode: processManager.isLazyModeEnabled(),
+      channels: channels.map(channel => ({
+        name: channel,
+        enabled: processManager.isChannelEnabled(channel),
+        running: processManager.isChannelRunning(channel),
+      })),
+    };
+  });
+
+  // Start a channel on-demand
+  fastify.post<{ Params: { channel: string } }>('/gateway/channels/:channel/start', async (request, reply) => {
+    const { channel } = request.params;
+    const validChannels = ['evolution', 'discord'];
+
+    if (!validChannels.includes(channel.toLowerCase())) {
+      reply.status(400);
+      return { error: `Invalid channel: ${channel}. Valid channels: ${validChannels.join(', ')}` };
+    }
+
+    if (!processManager.isChannelEnabled(channel)) {
+      reply.status(400);
+      return { error: `Channel ${channel} is disabled via ${channel.toUpperCase()}_ENABLED=false` };
+    }
+
+    if (processManager.isChannelRunning(channel)) {
+      return { status: 'already_running', channel };
+    }
+
+    try {
+      await processManager.ensureChannelRunning(channel);
+      return { status: 'started', channel };
+    } catch (error) {
+      reply.status(500);
+      return { error: `Failed to start ${channel}: ${error instanceof Error ? error.message : error}` };
+    }
   });
 
   // Cleanup on shutdown (idempotent - safe to call multiple times)
