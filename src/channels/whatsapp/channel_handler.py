@@ -27,18 +27,14 @@ class WhatsAppChannelHandler(ChannelHandler):
 
     def _get_evolution_client(self, instance: InstanceConfig) -> EvolutionClient:
         """Get Evolution client for this specific instance."""
-        # Use instance-specific credentials if available, otherwise fall back to global
+        # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
         evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
             config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         )
-        evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
+        bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
-        logger.debug(
-            f"Instance config - URL: {instance.evolution_url}, Key: {'*' * len(instance.evolution_key) if instance.evolution_key else 'NOT SET'}"
-        )
-        logger.debug(
-            f"Final config - URL: {evolution_url}, Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}"
-        )
+        logger.debug(f"Instance config - URL: {instance.evolution_url}")
+        logger.debug(f"Final config - URL: {evolution_url}, Using bootstrap key")
 
         # Validate configuration values
         if evolution_url.lower() in ["string", "null", "undefined", ""]:
@@ -49,14 +45,14 @@ class WhatsAppChannelHandler(ChannelHandler):
                 f"Invalid Evolution URL: '{evolution_url}'. Please provide a valid URL like 'http://localhost:8080'"
             )
 
-        if not evolution_key or evolution_key.lower() in [
+        if not bootstrap_key or bootstrap_key.lower() in [
             "string",
             "null",
             "undefined",
             "",
         ]:
-            logger.error(f"Invalid Evolution API key detected: '{evolution_key}'. Please provide a valid API key.")
-            raise Exception(f"Invalid Evolution API key: '{evolution_key}'. Please provide a valid API key.")
+            logger.error(f"Invalid Evolution API key detected: '{bootstrap_key}'. Please provide a valid API key.")
+            raise Exception(f"Invalid Evolution API key: '{bootstrap_key}'. Please provide a valid API key.")
 
         if not evolution_url.startswith(("http://", "https://")):
             logger.error(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
@@ -66,10 +62,12 @@ class WhatsAppChannelHandler(ChannelHandler):
 
         logger.debug(f"Creating Evolution client for instance '{instance.name}' - URL: {evolution_url}")
         logger.debug(
-            f"Using Evolution API key: {evolution_key[:8]}{'*' * (len(evolution_key) - 8) if len(evolution_key) > 8 else evolution_key}"
+            f"Using Evolution bootstrap key: {bootstrap_key[:8]}{'*' * (len(bootstrap_key) - 8) if len(bootstrap_key) > 8 else bootstrap_key}"
         )
 
-        return EvolutionClient(evolution_url, evolution_key)
+        # Pass instance name for logging/debugging only (auth uses bootstrap key)
+        whatsapp_instance_name = instance.whatsapp_instance or instance.name
+        return EvolutionClient(evolution_url, bootstrap_key, whatsapp_instance_name)
 
     async def create_instance(self, instance: InstanceConfig, **kwargs) -> Dict[str, Any]:
         """Create a new WhatsApp instance in Evolution API or use existing one."""

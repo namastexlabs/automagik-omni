@@ -445,15 +445,17 @@ async def list_instances(
                 from src.channels.whatsapp.evolution_client import EvolutionClient
                 from src.config import config
 
-                # Use instance-specific URL or fall back to global config
+                # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
                 evolution_url = instance.evolution_url or config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
-                evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
+                bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
-                if not evolution_key:
+                if not bootstrap_key:
                     logger.warning(f"No Evolution API key configured for {instance.name}, skipping status check")
                     instance_dict["evolution_status"] = None
                 else:
-                    evolution_client = EvolutionClient(evolution_url, evolution_key)
+                    # Pass instance name for logging/debugging only (auth uses bootstrap key)
+                    whatsapp_instance_name = instance.whatsapp_instance or instance.name
+                    evolution_client = EvolutionClient(evolution_url, bootstrap_key, whatsapp_instance_name)
 
                     # Get connection state
                     state_response = await evolution_client.get_connection_state(instance.name)
@@ -555,30 +557,38 @@ async def get_instance(
             "Skipping Evolution status lookup for %s in test environment",
             instance.name,
         )
-    elif include_status and instance.channel_type == "whatsapp" and instance.evolution_url and instance.evolution_key:
+    elif include_status and instance.channel_type == "whatsapp" and instance.evolution_url:
         try:
             from src.channels.whatsapp.evolution_client import EvolutionClient
+            from src.config import config
 
-            evolution_client = EvolutionClient(instance.evolution_url, instance.evolution_key)
-
-            # Get connection state using fetch_instances (more accurate than get_connection_state)
-            evolution_instances = await evolution_client.fetch_instances(instance.name)
-            logger.debug(f"Evolution status for {instance.name}: {evolution_instances}")
-
-            # Parse the response
-            if evolution_instances and len(evolution_instances) > 0:
-                evolution_instance = evolution_instances[0]
-                instance_dict["evolution_status"] = EvolutionStatusInfo(
-                    state=evolution_instance.status,
-                    owner_jid=evolution_instance.ownerJid,
-                    profile_name=evolution_instance.profileName,
-                    profile_picture_url=evolution_instance.profilePicUrl,
-                    last_updated=datetime.now(),
-                )
+            # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
+            bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+            if not bootstrap_key:
+                logger.warning(f"No Evolution API key configured, skipping status check for {instance.name}")
             else:
-                instance_dict["evolution_status"] = EvolutionStatusInfo(
-                    error="Instance not found in Evolution API", last_updated=datetime.now()
-                )
+                # Pass instance name for logging/debugging only (auth uses bootstrap key)
+                whatsapp_instance_name = instance.whatsapp_instance or instance.name
+                evolution_client = EvolutionClient(instance.evolution_url, bootstrap_key, whatsapp_instance_name)
+
+                # Get connection state using fetch_instances (more accurate than get_connection_state)
+                evolution_instances = await evolution_client.fetch_instances(instance.name)
+                logger.debug(f"Evolution status for {instance.name}: {evolution_instances}")
+
+                # Parse the response
+                if evolution_instances and len(evolution_instances) > 0:
+                    evolution_instance = evolution_instances[0]
+                    instance_dict["evolution_status"] = EvolutionStatusInfo(
+                        state=evolution_instance.status,
+                        owner_jid=evolution_instance.ownerJid,
+                        profile_name=evolution_instance.profileName,
+                        profile_picture_url=evolution_instance.profilePicUrl,
+                        last_updated=datetime.now(),
+                    )
+                else:
+                    instance_dict["evolution_status"] = EvolutionStatusInfo(
+                        error="Instance not found in Evolution API", last_updated=datetime.now()
+                    )
 
         except Exception as e:
             logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")

@@ -115,6 +115,17 @@ define ensure_env_file
 	fi
 endef
 
+define prompt_user
+	@read -p "$(1) [y/N] " -n 1 -r REPLY; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		exit 0; \
+	else \
+		echo -e "$(FONT_YELLOW)Skipped.$(FONT_RESET)"; \
+		exit 1; \
+	fi
+endef
+
 # Function removed - now using PM2 for service management
 
 # ===========================================
@@ -287,16 +298,105 @@ evo: evo-start ## Quick alias to start Evolution API
 # 🏗️ Development Commands
 # ===========================================
 .PHONY: install install-omni install-discord install-evolution
-install: ## Install Omni core dependencies with optional Discord extras
-	$(MAKE) install-omni
-	$(MAKE) install-evolution
-	@read -r -p "Install optional Discord extras? [y/N] " choice; \
-	if [ "$$choice" = "y" ] || [ "$$choice" = "Y" ]; then \
-		$(MAKE) install-discord; \
-	else \
-		echo "$(FONT_YELLOW)$(WARNING) Skipping Discord optional extras$(FONT_RESET)"; \
+install: ## $(ROCKET) Full production installation (inspired by automagik-tools)
+	@$(call show_automagik_logo)
+	$(call print_status,Starting automagik-omni installation...)
+	@echo ""
+
+	@# Phase 1: Prerequisites
+	$(call print_status,Phase 1/7: Checking prerequisites...)
+	@$(call check_prerequisites)
+	@if ! command -v pnpm >/dev/null 2>&1; then \
+		$(call print_error,pnpm not found); \
+		echo -e "$(FONT_YELLOW)💡 Install pnpm: npm install -g pnpm$(FONT_RESET)"; \
+		exit 1; \
 	fi
-	$(call print_success_with_logo,Dependencies installed successfully)
+	$(call print_success,Prerequisites verified!)
+	@echo ""
+
+	@# Phase 2: Environment
+	$(call print_status,Phase 2/7: Setting up environment...)
+	@$(call ensure_env_file)
+	$(call print_success,Environment configured!)
+	@echo ""
+
+	@# Phase 3: Python dependencies
+	$(call print_status,Phase 3/7: Installing Python dependencies...)
+	@$(UV) sync
+	$(call print_success,Python dependencies installed!)
+	@echo ""
+
+	@# Phase 4: Gateway build
+	$(call print_status,Phase 4/7: Building Gateway...)
+	@cd gateway && pnpm install --silent
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway built successfully!)
+	@echo ""
+
+	@# Phase 5: UI build
+	$(call print_status,Phase 5/7: Building UI...)
+	@cd resources/ui && pnpm install --silent
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI built successfully!)
+	@echo ""
+
+	@# Phase 6: PM2 setup
+	$(call print_status,Phase 6/7: PM2 Process Manager)
+	@if command -v pm2 >/dev/null 2>&1; then \
+		PM2_VERSION=$$(pm2 --version 2>/dev/null || echo "unknown"); \
+		$(call print_success,PM2 $$PM2_VERSION already installed); \
+	else \
+		$(call print_warning,PM2 not installed); \
+		echo -e "$(FONT_CYAN)PM2 is a process manager for Node.js applications.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Features: auto-restart, log management, monitoring$(FONT_RESET)"; \
+		$(call prompt_user,Install PM2 globally?) || exit 0; \
+		$(call print_status,Installing PM2...); \
+		npm install -g pm2 || { \
+			$(call print_error,PM2 installation failed); \
+			echo -e "$(FONT_YELLOW)💡 Try: sudo npm install -g pm2$(FONT_RESET)"; \
+			exit 1; \
+		}; \
+		PM2_VERSION=$$(pm2 --version); \
+		$(call print_success,PM2 $$PM2_VERSION installed!); \
+		pm2 update 2>/dev/null || true; \
+	fi
+	@echo ""
+
+	@# Phase 7: Service setup
+	$(call print_status,Phase 7/7: Service Setup)
+	@if command -v pm2 >/dev/null 2>&1; then \
+		$(call prompt_user,Start omni-gateway service now?) || { \
+			$(call print_info,Service not started); \
+			echo ""; \
+			$(call print_success_with_logo,Installation complete!); \
+			echo ""; \
+			echo -e "$(FONT_CYAN)💡 To start services manually:$(FONT_RESET)"; \
+			echo -e "  $(FONT_PURPLE)make prod-start$(FONT_RESET)"; \
+			exit 0; \
+		}; \
+		$(call print_status,Starting services...); \
+		pm2 start ecosystem.config.js 2>/dev/null || pm2 restart "Omni Gateway" 2>/dev/null; \
+		pm2 save --force; \
+		$(call print_success,Services started!); \
+		echo ""; \
+		$(call print_status,Running health checks...); \
+		sleep 3; \
+		$(MAKE) health 2>/dev/null || $(call print_warning,Health check failed - service may need more time); \
+		echo ""; \
+		$(call prompt_user,View recent logs?) && { \
+			echo ""; \
+			pm2 logs "Omni Gateway" --lines 50 --nostream; \
+			echo ""; \
+		} || true; \
+	fi
+	@echo ""
+	@$(call print_success_with_logo,Installation complete!)
+	@echo ""
+	@echo -e "$(FONT_CYAN)💡 Useful commands:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)make health$(FONT_RESET)        # Check service health"
+	@echo -e "  $(FONT_PURPLE)make prod-status$(FONT_RESET)   # View PM2 status"
+	@echo -e "  $(FONT_PURPLE)make prod-logs$(FONT_RESET)     # View logs"
+	@echo ""
 
 install-omni: ## Install Omni core dependencies (WhatsApp/Evolution stack)
 	$(call check_prerequisites)
@@ -1157,3 +1257,99 @@ prod-build: ## 🔨 Rebuild Gateway and UI (for updates)
 	@cd resources/ui && pnpm run build
 	$(call print_success,UI rebuilt)
 	$(call print_info,Run 'make prod-restart' to apply changes)
+
+# ===========================================
+# 🏥 Health Checks
+# ===========================================
+.PHONY: health
+health: ## 🏥 Health check for all services
+	@echo ""
+	$(call print_status,Running health checks...)
+	@echo ""
+	@echo "🌐 Gateway Health:"
+	@if curl -s http://localhost:8882/health >/dev/null 2>&1; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Gateway healthy (http://localhost:8882)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_RED)$(ERROR) Gateway unhealthy or not running$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@echo "🐍 Python API Health:"
+	@if curl -s http://localhost:8000/health >/dev/null 2>&1; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Python API healthy (http://localhost:8000)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) Python API health check failed (may use different port or endpoint)$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@if command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_PURPLE)$(HUB) PM2 Status:$(FONT_RESET)"; \
+		pm2 status 2>/dev/null || echo -e "$(FONT_YELLOW)$(WARNING) PM2 not running$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed$(FONT_RESET)"; \
+	fi
+	@echo ""
+
+# ===========================================
+# 🚀 Installation & Updates
+# ===========================================
+.PHONY: update
+update: ## 🔄 Update installation (git pull + deps + rebuild + restart + health check)
+	$(call print_status,Updating automagik-omni...)
+	@echo ""
+
+	@# Step 1: Git pull
+	$(call print_status,Pulling latest changes from git...)
+	@git pull || { \
+		$(call print_error,Git pull failed); \
+		exit 1; \
+	}
+	$(call print_success,Latest changes pulled!)
+	@echo ""
+
+	@# Step 2: Update dependencies and rebuild
+	$(call print_status,Updating dependencies and rebuilding...)
+	@echo ""
+	$(call print_status,Installing Python dependencies...)
+	@$(UV) sync
+	$(call print_success,Python dependencies updated!)
+	@echo ""
+	$(call print_status,Rebuilding Gateway...)
+	@cd gateway && pnpm install
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway rebuilt!)
+	@echo ""
+	$(call print_status,Rebuilding UI...)
+	@cd resources/ui && pnpm install
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI rebuilt!)
+	@echo ""
+
+	@# Step 3: Restart services
+	$(call print_status,Restarting services...)
+	@# Restart PM2 gateway
+	@if command -v pm2 >/dev/null 2>&1 && pm2 show "Omni Gateway" >/dev/null 2>&1; then \
+		pm2 restart "Omni Gateway"; \
+		$(call print_success,PM2 gateway restarted); \
+	fi
+	@# Restart Python API (systemd)
+	@if command -v systemctl >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Attempting to restart Python API (requires sudo)...$(FONT_RESET)"; \
+		sudo systemctl restart omni-python 2>/dev/null && $(call print_success,Python API restarted) || \
+		$(call print_warning,Could not restart Python API via systemd (may not be installed as service)); \
+	fi
+	@echo ""
+
+	@# Step 4: Health check
+	$(call print_status,Running health checks...)
+	@sleep 2
+	@$(MAKE) health || { \
+		$(call print_warning,Health check failed - service may need more time to start); \
+	}
+
+	@# Success summary
+	@echo ""
+	@$(call print_success_with_logo,Update completed successfully!)
+	@echo -e "$(FONT_CYAN)💡 Useful commands:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)make health$(FONT_RESET)        # Run health check again"
+	@echo -e "  $(FONT_PURPLE)make prod-status$(FONT_RESET)   # Check PM2 status"
+	@echo -e "  $(FONT_PURPLE)make prod-logs$(FONT_RESET)     # View recent logs"
+	@echo ""

@@ -22,11 +22,11 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
 
     def _get_omni_evolution_client(self, instance: InstanceConfig) -> OmniEvolutionClient:
         """Get unified Evolution client for this specific instance."""
-        # Use instance-specific credentials if available, otherwise fall back to global
+        # Always use bootstrap key from environment (Option A: Bootstrap Key Only)
         evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
             config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         )
-        evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
+        bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
         # Validate configuration (same as parent class)
         if evolution_url.lower() in ["string", "null", "undefined", ""]:
@@ -37,7 +37,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 f"Invalid Evolution URL: '{evolution_url}'. Please provide a valid URL like 'http://localhost:8080'"
             )
 
-        if not evolution_key or evolution_key.lower() in [
+        if not bootstrap_key or bootstrap_key.lower() in [
             "string",
             "null",
             "undefined",
@@ -50,7 +50,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             logger.error(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
             raise Exception(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
 
-        return OmniEvolutionClient(evolution_url, evolution_key)
+        # Pass instance name for logging/debugging only (auth uses bootstrap key)
+        whatsapp_instance_name = instance.whatsapp_instance or instance.name
+        return OmniEvolutionClient(evolution_url, bootstrap_key, whatsapp_instance_name)
 
     async def get_contacts(
         self,

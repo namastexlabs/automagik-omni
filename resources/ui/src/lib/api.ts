@@ -654,10 +654,12 @@ export const api = {
 // Evolution API helper (direct to Evolution via gateway)
 const EVOLUTION_BASE_URL = '/evolution';
 
-// Store instance keys for per-instance authentication
+// DEPRECATED: Instance keys are no longer used (Option A: Bootstrap Key Only)
+// Kept for backwards compatibility only
 let instanceKeys: Map<string, string> = new Map();
 
 export function setInstanceKey(instanceName: string, evolutionKey: string) {
+  // No-op: Instance keys are deprecated, always use bootstrap key
   instanceKeys.set(instanceName, evolutionKey);
 }
 
@@ -674,14 +676,11 @@ async function evolutionRequest<T>(
 
   const url = `${EVOLUTION_BASE_URL}${endpoint}`;
 
-  // Determine Evolution API key to use (per-instance > localStorage > env var)
-  let evolutionApiKey = '';
-  if (instanceName && instanceKeys.has(instanceName)) {
-    // Use per-instance key if available
-    evolutionApiKey = instanceKeys.get(instanceName)!;
-  } else {
-    // Fall back to localStorage or bootstrap key
-    evolutionApiKey = localStorage.getItem('evolution_api_key') || import.meta.env.VITE_EVOLUTION_API_KEY || '';
+  // Always use bootstrap key (global authentication)
+  const evolutionApiKey = import.meta.env.VITE_EVOLUTION_API_KEY || '';
+
+  if (!evolutionApiKey) {
+    throw new Error('VITE_EVOLUTION_API_KEY not configured');
   }
 
   const response = await fetch(url, {
