@@ -697,22 +697,22 @@ play: play-full ## Run visual Playwright E2E tests (human-watchable)
 
 play-full: ## Run comprehensive Playwright tests in headed mode
 	$(call print_status,Running comprehensive Playwright tests (headed mode))
-	@cd resources/ui && npm run test:e2e:ui
+	@cd resources/ui && pnpm run test:e2e:ui
 	$(call print_success,Playwright tests completed)
 
 play-quick: ## Run quick smoke tests in headed mode
 	$(call print_status,Running quick smoke tests (headed mode))
-	@cd resources/ui && npm run test:quick:ui
+	@cd resources/ui && pnpm run test:quick:ui
 	$(call print_success,Quick smoke tests completed)
 
 test-ui: ## Run UI tests in headless mode (for CI)
 	$(call print_status,Running UI tests (headless))
-	@cd resources/ui && npm run test:e2e
+	@cd resources/ui && pnpm run test:e2e
 	$(call print_success,UI tests completed)
 
 test-ui-quick: ## Run quick UI tests in headless mode
 	$(call print_status,Running quick UI tests (headless))
-	@cd resources/ui && npm run test:quick
+	@cd resources/ui && pnpm run test:quick
 	$(call print_success,Quick UI tests completed)
 
 wait-for-services: ## Wait for services to be healthy
