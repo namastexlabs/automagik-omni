@@ -352,20 +352,21 @@ install: ## $(ROCKET) Full production installation (inspired by automagik-tools)
 	$(call print_status,Phase 6/7: PM2 Process Manager)
 	@if command -v pm2 >/dev/null 2>&1; then \
 		PM2_VERSION=$$(pm2 --version 2>/dev/null || echo "unknown"); \
-		$(call print_success,PM2 $$PM2_VERSION already installed); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 $$PM2_VERSION already installed$(FONT_RESET)"; \
 	else \
-		$(call print_warning,PM2 not installed); \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)PM2 is a process manager for Node.js applications.$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)Features: auto-restart, log management, monitoring$(FONT_RESET)"; \
-		$(call prompt_user,Install PM2 globally?) || exit 0; \
-		$(call print_status,Installing PM2...); \
+		read -p "Install PM2 globally? [y/N] " yn; \
+		case $$yn in [Yy]*) ;; *) exit 0 ;; esac; \
+		echo -e "$(FONT_PURPLE)$(HUB) Installing PM2...$(FONT_RESET)"; \
 		npm install -g pm2 || { \
-			$(call print_error,PM2 installation failed); \
+			echo -e "$(FONT_RED)$(ERROR) PM2 installation failed$(FONT_RESET)"; \
 			echo -e "$(FONT_YELLOW)💡 Try: sudo npm install -g pm2$(FONT_RESET)"; \
 			exit 1; \
 		}; \
 		PM2_VERSION=$$(pm2 --version); \
-		$(call print_success,PM2 $$PM2_VERSION installed!); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 $$PM2_VERSION installed!$(FONT_RESET)"; \
 		pm2 update 2>/dev/null || true; \
 	fi
 	@echo ""
@@ -373,24 +374,25 @@ install: ## $(ROCKET) Full production installation (inspired by automagik-tools)
 	@# Phase 7: Service setup
 	$(call print_status,Phase 7/7: Starting Services Automatically...)
 	@if command -v pm2 >/dev/null 2>&1; then \
-		$(call print_status,Starting services...); \
-		pm2 start ecosystem.config.js 2>/dev/null || pm2 restart "Omni Gateway" 2>/dev/null; \
+		echo -e "$(FONT_PURPLE)$(HUB) Starting services...$(FONT_RESET)"; \
+		pm2 start ecosystem.config.cjs 2>/dev/null || pm2 restart "$(OMNI_PORT)-automagik-omni" 2>/dev/null; \
 		pm2 save --force; \
-		$(call print_success,Services started!); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Services started!$(FONT_RESET)"; \
 		echo ""; \
-		$(call print_status,Waiting for services to be ready...); \
-		$(MAKE) wait-for-services 2>/dev/null || $(call print_warning,Health check failed - services may need more time); \
+		echo -e "$(FONT_PURPLE)$(HUB) Waiting for services to be ready...$(FONT_RESET)"; \
+		$(MAKE) wait-for-services 2>/dev/null || echo -e "$(FONT_YELLOW)$(WARNING) Health check failed - services may need more time$(FONT_RESET)"; \
 	else \
-		$(call print_warning,PM2 not installed - services not started); \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed - services not started$(FONT_RESET)"; \
 	fi
 	@echo ""
 	@$(call print_success_with_logo,Installation complete! Services are running.)
 	@echo ""
-	@echo -e "$(FONT_CYAN)🎉 Installation complete! Services are running:$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)🎉 Installation complete! Gateway running on port $(OMNI_PORT):$(FONT_RESET)"
 	@echo ""
-	@echo -e "   $(FONT_PURPLE)📡 Gateway:    $(FONT_RESET)http://localhost:8880"
-	@echo -e "   $(FONT_PURPLE)🐍 Python API: $(FONT_RESET)http://localhost:8882"
-	@echo -e "   $(FONT_PURPLE)🌐 UI:         $(FONT_RESET)http://localhost:9882"
+	@echo -e "   $(FONT_PURPLE)📡 Gateway:$(FONT_RESET)    http://localhost:$(OMNI_PORT)"
+	@echo -e "   $(FONT_PURPLE)🌐 Dashboard:$(FONT_RESET)  http://localhost:$(OMNI_PORT)/"
+	@echo -e "   $(FONT_PURPLE)🔍 Health:$(FONT_RESET)     http://localhost:$(OMNI_PORT)/health"
+	@echo -e "   $(FONT_PURPLE)📚 API Docs:$(FONT_RESET)   http://localhost:$(OMNI_PORT)/docs"
 	@echo ""
 	@echo -e "$(FONT_CYAN)📋 Available commands:$(FONT_RESET)"
 	@echo -e "  $(FONT_PURPLE)make dev$(FONT_RESET)        - Start development mode"
@@ -667,19 +669,10 @@ test-ui-quick: ## Run quick UI tests in headless mode
 
 wait-for-services: ## Wait for services to be healthy
 	$(call print_status,Checking service health...)
-	@echo "Waiting for Gateway (port 8880)..."
+	@echo "Waiting for Gateway (port $(OMNI_PORT))..."
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -s http://localhost:8880/health > /dev/null 2>&1; then \
-			$(call print_success,Gateway ready); \
-			break; \
-		fi; \
-		echo "⏳ Attempt $$i/10..."; \
-		sleep 2; \
-	done
-	@echo "Waiting for Python API (port 8882)..."
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -s http://localhost:8882/health > /dev/null 2>&1; then \
-			$(call print_success,Python API ready); \
+		if curl -s http://localhost:$(OMNI_PORT)/health > /dev/null 2>&1; then \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Gateway ready$(FONT_RESET)"; \
 			break; \
 		fi; \
 		echo "⏳ Attempt $$i/10..."; \
@@ -1374,8 +1367,8 @@ update: ## 🔄 Update installation (git pull + deps + rebuild + restart + healt
 	@# Step 3: Restart services
 	$(call print_status,Restarting services...)
 	@# Restart PM2 gateway
-	@if command -v pm2 >/dev/null 2>&1 && pm2 show "Omni Gateway" >/dev/null 2>&1; then \
-		pm2 restart "Omni Gateway"; \
+	@if command -v pm2 >/dev/null 2>&1 && pm2 show "$(OMNI_PORT)-automagik-omni" >/dev/null 2>&1; then \
+		pm2 restart "$(OMNI_PORT)-automagik-omni"; \
 		$(call print_success,PM2 gateway restarted); \
 	fi
 	@# Restart Python API (systemd)
