@@ -4,10 +4,11 @@
  */
 
 import { execa, type ExecaChildProcess, type Options } from 'execa';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
+import { createConnection } from 'node:net';
 import { PortRegistry } from './port-registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -72,6 +73,30 @@ export class ProcessManager {
 
     // Note: Signal handlers are registered in index.ts to avoid duplicates
     // The main() function will call processManager.shutdown() on SIGTERM/SIGINT
+  }
+
+  /**
+   * Check if a channel is enabled via environment variable.
+   * Channels are enabled by default unless explicitly disabled.
+   *
+   * Environment variables:
+   *   - EVOLUTION_ENABLED=false  - Disable WhatsApp/Evolution
+   *   - DISCORD_ENABLED=false    - Disable Discord
+   *
+   * @param channel - Channel name (e.g., 'evolution', 'discord')
+   * @returns true if enabled (default), false if explicitly disabled
+   */
+  isChannelEnabled(channel: string): boolean {
+    const envKey = `${channel.toUpperCase()}_ENABLED`;
+    const value = process.env[envKey];
+
+    // Disabled only if explicitly set to 'false' or '0'
+    if (value === 'false' || value === '0') {
+      console.log(`[ProcessManager] ${channel} channel disabled via ${envKey}=${value}`);
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -239,6 +264,13 @@ export class ProcessManager {
    */
   async startEvolution(): Promise<void> {
     const name = 'evolution';
+
+    // Check if channel is enabled via environment
+    if (!this.isChannelEnabled(name)) {
+      console.log('[ProcessManager] Evolution/WhatsApp channel disabled, skipping...');
+      return;
+    }
+
     const port = this.portRegistry.getPort('evolution');
     if (!port) {
       throw new Error('Evolution port not allocated in registry');
@@ -324,6 +356,12 @@ export class ProcessManager {
   async startDiscord(): Promise<void> {
     const name = 'discord';
 
+    // Check if channel is enabled via environment
+    if (!this.isChannelEnabled(name)) {
+      console.log('[ProcessManager] Discord channel disabled, skipping...');
+      return;
+    }
+
     console.log(`[ProcessManager] Starting Discord service manager...`);
 
     const runtime = detectPythonRuntime();
@@ -386,15 +424,115 @@ export class ProcessManager {
       }
     }, 30000);
 
-    // Discord service manager doesn't have HTTP health endpoint
-    // Wait 3s and mark healthy if process still running
-    await new Promise((r) => setTimeout(r, 3000));
+    // Discord service manager creates Unix sockets for each bot instance
+    // Poll the sockets directory until at least one Discord socket responds healthy
+    await this.waitForDiscordHealth(name, 60000);
+  }
 
-    const p = this.processes.get(name);
-    if (p) {
-      p.healthy = true;
-      console.log(`[ProcessManager] ${name} is healthy`);
+  /**
+   * Wait for Discord health by polling Unix socket endpoints
+   * Discord bots create sockets at ~/automagik-omni/sockets/discord-{instance}.sock
+   */
+  private async waitForDiscordHealth(name: string, timeout = 60000): Promise<void> {
+    const start = Date.now();
+    const checkInterval = 2000;
+
+    // Socket directory paths (matches ipc_config.py logic)
+    const userSocketDir = join(homedir(), 'automagik-omni', 'sockets');
+    const defaultSocketDir = '/automagik-omni/sockets';
+
+    const getSocketDir = (): string => {
+      const envDir = process.env.AUTOMAGIK_SOCKET_DIR;
+      if (envDir) return envDir.replace('~', homedir());
+      if (existsSync(defaultSocketDir)) return defaultSocketDir;
+      return userSocketDir;
+    };
+
+    console.log(`[ProcessManager] Waiting for Discord health via Unix sockets...`);
+
+    while (Date.now() - start < timeout) {
+      try {
+        const socketDir = getSocketDir();
+
+        if (existsSync(socketDir)) {
+          const files = readdirSync(socketDir);
+          const discordSockets = files.filter((f) => f.startsWith('discord-') && f.endsWith('.sock'));
+
+          if (discordSockets.length > 0) {
+            // Try to connect to each socket and check health
+            for (const socketFile of discordSockets) {
+              const socketPath = join(socketDir, socketFile);
+              const healthy = await this.checkUnixSocketHealth(socketPath);
+
+              if (healthy) {
+                console.log(`[ProcessManager] Discord socket ${socketFile} is healthy`);
+                const proc = this.processes.get(name);
+                if (proc) proc.healthy = true;
+                return;
+              }
+            }
+            console.log(`[ProcessManager] Found ${discordSockets.length} Discord socket(s), waiting for healthy status...`);
+          }
+        }
+      } catch {
+        // Socket dir not ready yet
+      }
+
+      await new Promise((r) => setTimeout(r, checkInterval));
     }
+
+    // Timeout - mark healthy anyway if process is still running
+    // Discord may have no instances configured, which is valid
+    const proc = this.processes.get(name);
+    if (proc?.process && !proc.process.killed) {
+      proc.healthy = true;
+      console.log(`[ProcessManager] Discord process running (no instances found or timeout), marking healthy`);
+    } else {
+      console.warn(`[ProcessManager] Discord health check timed out after ${timeout}ms`);
+    }
+  }
+
+  /**
+   * Check health of a Unix socket endpoint
+   */
+  private checkUnixSocketHealth(socketPath: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = createConnection(socketPath);
+      let responseData = '';
+
+      socket.setTimeout(5000);
+
+      socket.on('connect', () => {
+        // Send HTTP GET request for /health
+        socket.write('GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n');
+      });
+
+      socket.on('data', (data) => {
+        responseData += data.toString();
+      });
+
+      socket.on('end', () => {
+        try {
+          // Parse HTTP response - look for JSON body
+          const bodyStart = responseData.indexOf('\r\n\r\n');
+          if (bodyStart !== -1) {
+            const body = responseData.slice(bodyStart + 4);
+            const json = JSON.parse(body);
+            resolve(json.status === 'ok' && json.bot_connected === true);
+          } else {
+            resolve(false);
+          }
+        } catch {
+          resolve(false);
+        }
+      });
+
+      socket.on('error', () => resolve(false));
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve(false);
+      });
+    });
   }
 
   /**
