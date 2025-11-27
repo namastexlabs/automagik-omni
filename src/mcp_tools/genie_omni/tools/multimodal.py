@@ -124,7 +124,14 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     )
 
                 # Convert MP3 to OGG/Opus for WhatsApp voice notes
-                from pydub import AudioSegment
+                try:
+                    from pydub import AudioSegment
+                except ImportError:
+                    return (
+                        f"✅ Speech generated ({file_size:.2f} KB)\n"
+                        f"❌ pydub not installed. Install with: pip install 'automagik-omni[whatsapp]'\n"
+                        f"Audio saved at: {output_path}"
+                    )
                 import base64
 
                 # Convert to OGG/Opus format (WhatsApp native voice note format)
