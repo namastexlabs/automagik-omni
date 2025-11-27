@@ -661,8 +661,12 @@ make evo-status       # Check Evolution API status
 make evo-logs         # Tail Evolution API logs
 
 # Testing & Quality
-make test             # Run test suite
-make test-coverage    # Run tests with coverage report
+make test             # Run backend test suite (Python + pytest)
+make test-coverage    # Run backend tests with coverage report
+make test-ui          # Run UI tests (Playwright, headless)
+make test-ui-quick    # Run quick UI smoke tests (headless)
+make play             # Run visual E2E tests (watch in browser)
+make play-quick       # Run quick visual smoke tests
 make lint             # Check code with ruff
 make format           # Format code with ruff
 make typecheck        # Type check with mypy
@@ -674,6 +678,46 @@ make cli-instances    # List instances via CLI
 make cli-create       # Create instance via CLI (interactive)
 make validate         # Run multi-tenancy validation
 ```
+
+### Testing
+
+**Backend Testing (Python)**
+
+Run the Python test suite with pytest:
+
+```bash
+make test              # Run all Python tests
+make test-coverage     # Run tests with coverage report
+```
+
+**Frontend Testing (Playwright)**
+
+End-to-end tests for the UI using Playwright:
+
+```bash
+# Visual testing (headed mode - watch tests in browser)
+make play              # Run comprehensive E2E tests (~5-10 min)
+make play-quick        # Run quick smoke tests (~2 min)
+
+# Headless testing (background execution)
+make test-ui           # Run all UI tests (for CI)
+make test-ui-quick     # Run quick smoke tests (for CI)
+```
+
+**Test Structure:**
+- **Smoke Tests** (`resources/ui/e2e/smoke/`) - Critical path validation (~2 min)
+  - Authentication (5 tests)
+  - Navigation (7 tests)
+  - Health checks (7 tests)
+- **Comprehensive Tests** (`resources/ui/e2e/full/`) - Full feature coverage (~5-10 min)
+  - Global Settings (13 tests)
+  - Instances Management (12 tests)
+  - Theme Toggle (8 tests)
+  - Accessibility/WCAG (15 tests)
+
+**Total: 67 E2E tests** covering authentication, navigation, features, and accessibility.
+
+See [`resources/ui/e2e/README.md`](resources/ui/e2e/README.md) for detailed testing documentation.
 
 ### Docker Deployment
 

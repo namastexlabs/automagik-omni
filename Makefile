@@ -371,39 +371,34 @@ install: ## $(ROCKET) Full production installation (inspired by automagik-tools)
 	@echo ""
 
 	@# Phase 7: Service setup
-	$(call print_status,Phase 7/7: Service Setup)
+	$(call print_status,Phase 7/7: Starting Services Automatically...)
 	@if command -v pm2 >/dev/null 2>&1; then \
-		$(call prompt_user,Start omni-gateway service now?) || { \
-			$(call print_info,Service not started); \
-			echo ""; \
-			$(call print_success_with_logo,Installation complete!); \
-			echo ""; \
-			echo -e "$(FONT_CYAN)💡 To start services manually:$(FONT_RESET)"; \
-			echo -e "  $(FONT_PURPLE)make prod-start$(FONT_RESET)"; \
-			exit 0; \
-		}; \
 		$(call print_status,Starting services...); \
 		pm2 start ecosystem.config.js 2>/dev/null || pm2 restart "Omni Gateway" 2>/dev/null; \
 		pm2 save --force; \
 		$(call print_success,Services started!); \
 		echo ""; \
-		$(call print_status,Running health checks...); \
-		sleep 3; \
-		$(MAKE) health 2>/dev/null || $(call print_warning,Health check failed - service may need more time); \
-		echo ""; \
-		$(call prompt_user,View recent logs?) && { \
-			echo ""; \
-			pm2 logs "Omni Gateway" --lines 50 --nostream; \
-			echo ""; \
-		} || true; \
+		$(call print_status,Waiting for services to be ready...); \
+		$(MAKE) wait-for-services 2>/dev/null || $(call print_warning,Health check failed - services may need more time); \
+	else \
+		$(call print_warning,PM2 not installed - services not started); \
 	fi
 	@echo ""
-	@$(call print_success_with_logo,Installation complete!)
+	@$(call print_success_with_logo,Installation complete! Services are running.)
 	@echo ""
-	@echo -e "$(FONT_CYAN)💡 Useful commands:$(FONT_RESET)"
-	@echo -e "  $(FONT_PURPLE)make health$(FONT_RESET)        # Check service health"
-	@echo -e "  $(FONT_PURPLE)make prod-status$(FONT_RESET)   # View PM2 status"
-	@echo -e "  $(FONT_PURPLE)make prod-logs$(FONT_RESET)     # View logs"
+	@echo -e "$(FONT_CYAN)🎉 Installation complete! Services are running:$(FONT_RESET)"
+	@echo ""
+	@echo -e "   $(FONT_PURPLE)📡 Gateway:    $(FONT_RESET)http://localhost:8880"
+	@echo -e "   $(FONT_PURPLE)🐍 Python API: $(FONT_RESET)http://localhost:8882"
+	@echo -e "   $(FONT_PURPLE)🌐 UI:         $(FONT_RESET)http://localhost:9882"
+	@echo ""
+	@echo -e "$(FONT_CYAN)📋 Available commands:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)make dev$(FONT_RESET)        - Start development mode"
+	@echo -e "  $(FONT_PURPLE)make play$(FONT_RESET)       - Run visual E2E tests"
+	@echo -e "  $(FONT_PURPLE)make play-quick$(FONT_RESET) - Run quick smoke tests"
+	@echo -e "  $(FONT_PURPLE)make stop$(FONT_RESET)       - Stop all services"
+	@echo -e "  $(FONT_PURPLE)make test$(FONT_RESET)       - Run Python tests"
+	@echo -e "  $(FONT_PURPLE)make test-ui$(FONT_RESET)    - Run UI tests (headless)"
 	@echo ""
 
 install-omni: ## Install Omni core dependencies (WhatsApp/Evolution stack)
@@ -646,6 +641,51 @@ test-sqlite: ## Force tests to use SQLite (override PostgreSQL if set)
 	@unset POSTGRES_HOST POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB TEST_DATABASE_URL && \
 	$(UV) run pytest tests/ -v --tb=short
 	$(call print_success,SQLite tests completed)
+
+.PHONY: play play-full play-quick test-ui test-ui-quick wait-for-services
+play: play-full ## Run visual Playwright E2E tests (human-watchable)
+
+play-full: ## Run comprehensive Playwright tests in headed mode
+	$(call print_status,Running comprehensive Playwright tests (headed mode))
+	@cd resources/ui && npm run test:e2e:ui
+	$(call print_success,Playwright tests completed)
+
+play-quick: ## Run quick smoke tests in headed mode
+	$(call print_status,Running quick smoke tests (headed mode))
+	@cd resources/ui && npm run test:quick:ui
+	$(call print_success,Quick smoke tests completed)
+
+test-ui: ## Run UI tests in headless mode (for CI)
+	$(call print_status,Running UI tests (headless))
+	@cd resources/ui && npm run test:e2e
+	$(call print_success,UI tests completed)
+
+test-ui-quick: ## Run quick UI tests in headless mode
+	$(call print_status,Running quick UI tests (headless))
+	@cd resources/ui && npm run test:quick
+	$(call print_success,Quick UI tests completed)
+
+wait-for-services: ## Wait for services to be healthy
+	$(call print_status,Checking service health...)
+	@echo "Waiting for Gateway (port 8880)..."
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://localhost:8880/health > /dev/null 2>&1; then \
+			$(call print_success,Gateway ready); \
+			break; \
+		fi; \
+		echo "⏳ Attempt $$i/10..."; \
+		sleep 2; \
+	done
+	@echo "Waiting for Python API (port 8882)..."
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://localhost:8882/health > /dev/null 2>&1; then \
+			$(call print_success,Python API ready); \
+			break; \
+		fi; \
+		echo "⏳ Attempt $$i/10..."; \
+		sleep 2; \
+	done
+	$(call print_success,All services healthy!)
 
 .PHONY: lint
 lint: ## Run code linting with ruff
