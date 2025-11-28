@@ -283,15 +283,16 @@ def _print_error_trace(error: Exception) -> None:
     """Print a detailed error trace for database connection failures."""
     import traceback
     import re
-    
+
     # Get database URL safely (mask password)
     try:
         from .database import get_database_url
+
         url = get_database_url()
-        safe_url = re.sub(r':([^@]+)@', ':****@', url) if '@' in url else url
+        safe_url = re.sub(r":([^@]+)@", ":****@", url) if "@" in url else url
     except Exception:
         safe_url = "<unable to get database URL>"
-    
+
     print(f"""
 ================================================================================
 DATABASE CONNECTION FAILED
@@ -337,7 +338,6 @@ def auto_migrate() -> bool:
             _print_error_trace(e)
             raise SystemExit(f"DATABASE CONNECTION FAILED: {e}")
 
-
         current_revision = get_current_revision()
         head_revision = get_head_revision()
         has_tables = check_database_exists()
@@ -369,7 +369,6 @@ def auto_migrate() -> bool:
 
                 # Write directly to alembic_version table (bypass Alembic completely)
                 from src.db.database import get_db
-                from sqlalchemy import text
 
                 db = next(get_db())
                 try:
