@@ -526,11 +526,11 @@ setup: ## Complete setup for fresh deployment (install all deps + migrations + P
 		exit 0; \
 	fi
 	@echo ""
-	$(call print_status,Phase 1: Cleaning existing PM2 processes)
+	$(call print_status,Phase 1: Cleaning existing Omni PM2 processes)
 	@if command -v pm2 >/dev/null 2>&1; then \
-		pm2 stop all 2>/dev/null || true; \
-		pm2 delete all 2>/dev/null || true; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 processes cleaned$(FONT_RESET)"; \
+		pm2 stop "*automagik-omni*" 2>/dev/null || true; \
+		pm2 delete "*automagik-omni*" 2>/dev/null || true; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Omni PM2 processes cleaned$(FONT_RESET)"; \
 	else \
 		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed - will skip service management$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)$(INFO) Install PM2 with: npm install -g pm2$(FONT_RESET)"; \
@@ -970,13 +970,13 @@ uninstall-full: ## 🗑️ Full uninstall including all data (DESTRUCTIVE)
 _do-uninstall:
 	@echo -e "$(FONT_PURPLE)$(HUB) Starting uninstall...$(FONT_RESET)"
 	@echo ""
-	@# Stop PM2 services
+	@# Stop PM2 services (only Omni-related)
 	@if command -v pm2 >/dev/null 2>&1; then \
-		echo -e "$(FONT_CYAN)$(INFO) Stopping PM2 services...$(FONT_RESET)"; \
-		pm2 stop all 2>/dev/null || true; \
-		pm2 delete all 2>/dev/null || true; \
+		echo -e "$(FONT_CYAN)$(INFO) Stopping Omni PM2 services...$(FONT_RESET)"; \
+		pm2 stop "*automagik-omni*" 2>/dev/null || true; \
+		pm2 delete "*automagik-omni*" 2>/dev/null || true; \
 		pm2 save --force 2>/dev/null || true; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 services stopped$(FONT_RESET)"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Omni PM2 services stopped$(FONT_RESET)"; \
 	fi
 	@# Remove Python venv
 	@if [ -d ".venv" ]; then \
