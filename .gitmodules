@@ -1,4 +1,4 @@
-[submodule "resources/evolution-api"]
-	path = resources/evolution-api
+[submodule "resources/omni-whatsapp-core"]
+	path = resources/omni-whatsapp-core
 	url = https://github.com/namastexlabs/evolution-api.git
 	branch = main
