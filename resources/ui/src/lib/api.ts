@@ -150,6 +150,20 @@ export interface EvolutionDetectResponse {
   message: string;
 }
 
+export interface RedisTestResponse {
+  success: boolean;
+  tests: Record<string, TestResult>;
+  total_latency_ms: number;
+}
+
+export interface RedisConfig {
+  enabled: boolean;
+  url?: string;
+  prefixKey?: string;
+  ttl?: number;
+  saveInstances?: boolean;
+}
+
 // API Key management
 export function getApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
@@ -734,10 +748,29 @@ export const api = {
       });
     },
 
-    async apply(dbType: string, postgresUrl?: string): Promise<DatabaseApplyResponse> {
+    async testRedisConnection(url: string): Promise<RedisTestResponse> {
+      return apiRequest('/database/redis/test', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      });
+    },
+
+    async apply(
+      dbType: string,
+      postgresUrl?: string,
+      redisConfig?: RedisConfig
+    ): Promise<DatabaseApplyResponse> {
       return apiRequest('/database/apply', {
         method: 'POST',
-        body: JSON.stringify({ db_type: dbType, postgres_url: postgresUrl }),
+        body: JSON.stringify({
+          db_type: dbType,
+          postgres_url: postgresUrl,
+          redis_enabled: redisConfig?.enabled ?? false,
+          redis_url: redisConfig?.url,
+          redis_prefix_key: redisConfig?.prefixKey ?? 'evolution',
+          redis_ttl: redisConfig?.ttl ?? 604800,
+          redis_save_instances: redisConfig?.saveInstances ?? true,
+        }),
       });
     },
 

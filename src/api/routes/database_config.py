@@ -91,6 +91,12 @@ class DatabaseApplyRequest(BaseModel):
 
     db_type: str = Field(..., description="Database type: 'sqlite' or 'postgresql'")
     postgres_url: Optional[str] = Field(None, description="PostgreSQL connection URL")
+    # Redis configuration
+    redis_enabled: Optional[bool] = Field(False, description="Enable Redis cache")
+    redis_url: Optional[str] = Field(None, description="Redis connection URL")
+    redis_prefix_key: Optional[str] = Field("evolution", description="Redis key prefix")
+    redis_ttl: Optional[int] = Field(604800, description="Redis TTL in seconds (default: 7 days)")
+    redis_save_instances: Optional[bool] = Field(True, description="Save WhatsApp instances in Redis")
 
 
 class DatabaseApplyResponse(BaseModel):
@@ -99,6 +105,20 @@ class DatabaseApplyResponse(BaseModel):
     success: bool
     message: str
     requires_restart: bool
+
+
+class RedisTestRequest(BaseModel):
+    """Schema for Redis connection test request."""
+
+    url: str = Field(..., description="Redis connection URL to test")
+
+
+class RedisTestResponse(BaseModel):
+    """Schema for Redis connection test response."""
+
+    success: bool
+    tests: dict[str, TestResult]
+    total_latency_ms: float
 
 
 # Helper functions
@@ -207,6 +227,92 @@ def _test_write_read(url: str) -> TestResult:
         return TestResult(ok=False, message=f"Read/write test error: {str(e)[:100]}")
 
 
+# Redis Helper Functions
+
+
+def _test_redis_tcp_connection(url: str) -> TestResult:
+    """Test TCP connectivity to Redis server."""
+    start = time.time()
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 6379
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        result = sock.connect_ex((host, port))
+        sock.close()
+
+        latency = (time.time() - start) * 1000
+
+        if result == 0:
+            return TestResult(ok=True, message=f"TCP connection to {host}:{port} successful", latency_ms=latency)
+        else:
+            return TestResult(ok=False, message=f"Cannot reach {host}:{port} - connection refused")
+
+    except socket.gaierror:
+        return TestResult(ok=False, message="DNS resolution failed - hostname not found")
+    except socket.timeout:
+        return TestResult(ok=False, message="TCP connection timed out after 5 seconds")
+    except Exception as e:
+        return TestResult(ok=False, message=f"TCP test error: {str(e)}")
+
+
+def _test_redis_auth(url: str) -> TestResult:
+    """Test Redis authentication and basic operations."""
+    start = time.time()
+    try:
+        import redis
+
+        client = redis.from_url(url, socket_timeout=10)
+
+        # Test PING
+        response = client.ping()
+        if not response:
+            return TestResult(ok=False, message="Redis PING failed")
+
+        latency = (time.time() - start) * 1000
+        client.close()
+        return TestResult(ok=True, message="Redis authentication successful", latency_ms=latency)
+
+    except redis.AuthenticationError:
+        return TestResult(ok=False, message="Authentication failed - invalid password")
+    except redis.ConnectionError as e:
+        return TestResult(ok=False, message=f"Connection error: {str(e)[:100]}")
+    except Exception as e:
+        return TestResult(ok=False, message=f"Redis auth test error: {str(e)[:100]}")
+
+
+def _test_redis_write_read(url: str) -> TestResult:
+    """Test Redis write/read operations."""
+    start = time.time()
+    try:
+        import redis
+
+        client = redis.from_url(url, socket_timeout=10)
+
+        # Test SET/GET/DEL
+        test_key = "_omni_redis_test"
+        test_value = "test_value_" + str(time.time())
+
+        client.set(test_key, test_value, ex=60)  # 60 second TTL
+        retrieved = client.get(test_key)
+        client.delete(test_key)
+
+        if retrieved and retrieved.decode("utf-8") == test_value:
+            latency = (time.time() - start) * 1000
+            client.close()
+            return TestResult(ok=True, message="Read/write operations verified", latency_ms=latency)
+        else:
+            client.close()
+            return TestResult(ok=False, message="Read/write verification failed - data mismatch")
+
+    except Exception as e:
+        return TestResult(ok=False, message=f"Read/write test error: {str(e)[:100]}")
+
+
 # API Endpoints
 
 
@@ -309,6 +415,72 @@ async def test_database_connection(
 
 
 @router.post(
+    "/redis/test",
+    response_model=RedisTestResponse,
+    summary="Test Redis Connection",
+    description="Test Redis connection with tiered validation (TCP, auth, read/write)",
+)
+async def test_redis_connection(
+    request: RedisTestRequest,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Test Redis connection with tiered validation.
+
+    Tests performed in order:
+    1. TCP connectivity check
+    2. Authentication test (PING)
+    3. Write/read test (SET/GET/DEL)
+
+    If any test fails, subsequent tests are skipped.
+    """
+    start_time = time.time()
+    tests: dict[str, TestResult] = {}
+
+    # Validate URL format
+    if not request.url.startswith("redis://") and not request.url.startswith("rediss://"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="URL must start with 'redis://' or 'rediss://'",
+        )
+
+    # Test 1: TCP connectivity
+    tcp_result = _test_redis_tcp_connection(request.url)
+    tests["tcp"] = tcp_result
+
+    if not tcp_result.ok:
+        return RedisTestResponse(
+            success=False,
+            tests=tests,
+            total_latency_ms=(time.time() - start_time) * 1000,
+        )
+
+    # Test 2: Authentication
+    auth_result = _test_redis_auth(request.url)
+    tests["auth"] = auth_result
+
+    if not auth_result.ok:
+        return RedisTestResponse(
+            success=False,
+            tests=tests,
+            total_latency_ms=(time.time() - start_time) * 1000,
+        )
+
+    # Test 3: Write/Read
+    rw_result = _test_redis_write_read(request.url)
+    tests["write_read"] = rw_result
+
+    total_latency = (time.time() - start_time) * 1000
+    all_passed = all(t.ok for t in tests.values())
+
+    return RedisTestResponse(
+        success=all_passed,
+        tests=tests,
+        total_latency_ms=total_latency,
+    )
+
+
+@router.post(
     "/apply",
     response_model=DatabaseApplyResponse,
     summary="Apply Database Configuration",
@@ -369,12 +541,95 @@ async def apply_database_config(
                     is_secret=True,
                 )
 
+            # Save Redis configuration
+            if request.redis_enabled and request.redis_url:
+                _set_or_update_setting(
+                    db,
+                    key="cache_redis_enabled",
+                    value="true",
+                    value_type="boolean",
+                    category="cache",
+                    description="Enable Redis cache for Evolution API",
+                )
+                _set_or_update_setting(
+                    db,
+                    key="cache_redis_uri",
+                    value=request.redis_url,
+                    value_type="secret",
+                    category="cache",
+                    description="Redis connection URL",
+                    is_secret=True,
+                )
+                _set_or_update_setting(
+                    db,
+                    key="cache_redis_prefix_key",
+                    value=request.redis_prefix_key or "evolution",
+                    value_type="string",
+                    category="cache",
+                    description="Redis key prefix",
+                )
+                _set_or_update_setting(
+                    db,
+                    key="cache_redis_ttl",
+                    value=str(request.redis_ttl or 604800),
+                    value_type="integer",
+                    category="cache",
+                    description="Redis TTL in seconds",
+                )
+                _set_or_update_setting(
+                    db,
+                    key="cache_redis_save_instances",
+                    value="true" if request.redis_save_instances else "false",
+                    value_type="boolean",
+                    category="cache",
+                    description="Save WhatsApp instances in Redis",
+                )
+                _set_or_update_setting(
+                    db,
+                    key="cache_local_enabled",
+                    value="false",
+                    value_type="boolean",
+                    category="cache",
+                    description="Enable local cache (disabled when Redis is enabled)",
+                )
+            elif not request.redis_enabled:
+                # Disable Redis, enable local cache
+                _set_or_update_setting(
+                    db,
+                    key="cache_redis_enabled",
+                    value="false",
+                    value_type="boolean",
+                    category="cache",
+                    description="Enable Redis cache for Evolution API",
+                )
+                _set_or_update_setting(
+                    db,
+                    key="cache_local_enabled",
+                    value="true",
+                    value_type="boolean",
+                    category="cache",
+                    description="Enable local cache",
+                )
+
             db.commit()
+
+            # Build response message
+            env_vars = [f"AUTOMAGIK_OMNI_DB_TYPE={request.db_type}"]
+            if request.db_type == "postgresql":
+                env_vars.append("AUTOMAGIK_OMNI_POSTGRES_URL")
+            if request.redis_enabled:
+                env_vars.extend([
+                    "CACHE_REDIS_ENABLED=true",
+                    "CACHE_REDIS_URI",
+                    f"CACHE_REDIS_PREFIX_KEY={request.redis_prefix_key or 'evolution'}",
+                    f"CACHE_REDIS_TTL={request.redis_ttl or 604800}",
+                    f"CACHE_REDIS_SAVE_INSTANCES={'true' if request.redis_save_instances else 'false'}",
+                    "CACHE_LOCAL_ENABLED=false",
+                ])
 
             return DatabaseApplyResponse(
                 success=True,
-                message=f"Database configuration saved. Set AUTOMAGIK_OMNI_DB_TYPE={request.db_type} "
-                + (f"and AUTOMAGIK_OMNI_POSTGRES_URL in your environment, then restart the application." if request.db_type == "postgresql" else "in your environment, then restart the application."),
+                message=f"Configuration saved. Set the following environment variables and restart: {', '.join(env_vars)}",
                 requires_restart=True,
             )
 
