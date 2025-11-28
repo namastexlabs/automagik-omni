@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { api, DatabaseTestResponse, TestResult } from '@/lib';
+import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { api, DatabaseTestResponse, RedisTestResponse, TestResult } from '@/lib';
 import {
   Database,
   Server,
@@ -19,6 +21,9 @@ import {
   ArrowLeft,
   RefreshCw,
   Zap,
+  HardDrive,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 type WizardStep = 'select' | 'configure' | 'confirm';
@@ -32,6 +37,15 @@ export function DatabaseSetupWizard({ onComplete }: DatabaseSetupWizardProps) {
   const [dbType, setDbType] = useState<'sqlite' | 'postgresql'>('sqlite');
   const [postgresUrl, setPostgresUrl] = useState('');
   const [testResult, setTestResult] = useState<DatabaseTestResponse | null>(null);
+
+  // Redis configuration state
+  const [redisEnabled, setRedisEnabled] = useState(false);
+  const [redisUrl, setRedisUrl] = useState('');
+  const [redisPrefixKey, setRedisPrefixKey] = useState('evolution');
+  const [redisTtl, setRedisTtl] = useState(604800);
+  const [redisSaveInstances, setRedisSaveInstances] = useState(true);
+  const [redisTestResult, setRedisTestResult] = useState<RedisTestResponse | null>(null);
+  const [showAdvancedRedis, setShowAdvancedRedis] = useState(false);
 
   // Fetch current config
   const { data: currentConfig, isLoading: configLoading } = useQuery({
@@ -58,9 +72,28 @@ export function DatabaseSetupWizard({ onComplete }: DatabaseSetupWizardProps) {
     },
   });
 
+  // Test Redis connection
+  const redisTestMutation = useMutation({
+    mutationFn: (url: string) => api.database.testRedisConnection(url),
+    onSuccess: (data) => {
+      setRedisTestResult(data);
+    },
+  });
+
   // Apply configuration
   const applyMutation = useMutation({
-    mutationFn: () => api.database.apply(dbType, dbType === 'postgresql' ? postgresUrl : undefined),
+    mutationFn: () =>
+      api.database.apply(
+        dbType,
+        dbType === 'postgresql' ? postgresUrl : undefined,
+        {
+          enabled: redisEnabled,
+          url: redisEnabled ? redisUrl : undefined,
+          prefixKey: redisPrefixKey,
+          ttl: redisTtl,
+          saveInstances: redisSaveInstances,
+        }
+      ),
     onSuccess: () => {
       onComplete?.();
     },
@@ -72,12 +105,20 @@ export function DatabaseSetupWizard({ onComplete }: DatabaseSetupWizardProps) {
     }
   };
 
+  const handleTestRedisConnection = () => {
+    if (redisUrl) {
+      redisTestMutation.mutate(redisUrl);
+    }
+  };
+
   const handleDetectEvolution = () => {
     detectMutation.mutate();
   };
 
   const canProceedToConfigure = dbType === 'sqlite' || (dbType === 'postgresql');
-  const canProceedToConfirm = dbType === 'sqlite' || (testResult?.success === true);
+  const canProceedToConfirm =
+    (dbType === 'sqlite' || testResult?.success === true) &&
+    (!redisEnabled || redisTestResult?.success === true);
 
   const renderTestResult = (name: string, result: TestResult) => {
     const Icon = result.ok ? CheckCircle2 : XCircle;
@@ -285,6 +326,139 @@ export function DatabaseSetupWizard({ onComplete }: DatabaseSetupWizardProps) {
               </>
             )}
 
+            {/* Redis Cache Configuration (Optional) */}
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <Label className="text-base font-semibold">Redis Cache (Optional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Enable Redis caching for faster instance restarts and better performance
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={redisEnabled}
+                  onCheckedChange={setRedisEnabled}
+                />
+              </div>
+
+              {redisEnabled && (
+                <div className="space-y-4 pl-7">
+                  <div className="space-y-2">
+                    <Label htmlFor="redis-url">Redis Connection URL</Label>
+                    <Input
+                      id="redis-url"
+                      type="password"
+                      placeholder="redis://localhost:6379/6"
+                      value={redisUrl}
+                      onChange={(e) => setRedisUrl(e.target.value)}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Redis URL for Evolution API cache (e.g., redis://localhost:6379/6)
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={handleTestRedisConnection}
+                    disabled={!redisUrl || redisTestMutation.isPending}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    {redisTestMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Testing Redis Connection...
+                      </>
+                    ) : (
+                      <>
+                        <HardDrive className="h-4 w-4 mr-2" />
+                        Test Redis Connection
+                      </>
+                    )}
+                  </Button>
+
+                  {redisTestResult && (
+                    <div className="space-y-2 p-4 bg-muted rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold">Redis Test Results</span>
+                        <Badge variant={redisTestResult.success ? 'default' : 'destructive'}>
+                          {redisTestResult.success ? 'All Passed' : 'Failed'}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        {Object.entries(redisTestResult.tests).map(([name, result]) =>
+                          renderTestResult(name, result)
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground pt-2">
+                        Total time: {redisTestResult.total_latency_ms.toFixed(0)}ms
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Advanced Options */}
+                  <Collapsible open={showAdvancedRedis} onOpenChange={setShowAdvancedRedis}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                      {showAdvancedRedis ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      Advanced options
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="redis-prefix">Key Prefix</Label>
+                        <Input
+                          id="redis-prefix"
+                          type="text"
+                          placeholder="evolution"
+                          value={redisPrefixKey}
+                          onChange={(e) => setRedisPrefixKey(e.target.value)}
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Prefix for all Redis keys (default: evolution)
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="redis-ttl">TTL (seconds)</Label>
+                        <Input
+                          id="redis-ttl"
+                          type="number"
+                          placeholder="604800"
+                          value={redisTtl}
+                          onChange={(e) => setRedisTtl(parseInt(e.target.value) || 604800)}
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Time-to-live for cached data in seconds (default: 604800 = 7 days)
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="redis-save-instances">Save Instances in Redis</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Store WhatsApp instance state in Redis for faster restarts
+                          </p>
+                        </div>
+                        <Switch
+                          id="redis-save-instances"
+                          checked={redisSaveInstances}
+                          onCheckedChange={setRedisSaveInstances}
+                        />
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => setStep('select')}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -317,6 +491,19 @@ export function DatabaseSetupWizard({ onComplete }: DatabaseSetupWizardProps) {
                         Table Prefix: <code>omni_</code>
                       </li>
                       <li>Connection URL configured</li>
+                    </>
+                  )}
+                  <li>
+                    Redis Cache: <strong>{redisEnabled ? 'Enabled' : 'Disabled'}</strong>
+                  </li>
+                  {redisEnabled && (
+                    <>
+                      <li>Redis URL configured</li>
+                      <li>
+                        Key Prefix: <code>{redisPrefixKey}</code>
+                      </li>
+                      <li>TTL: {redisTtl} seconds</li>
+                      <li>Save Instances: {redisSaveInstances ? 'Yes' : 'No'}</li>
                     </>
                   )}
                 </ul>
