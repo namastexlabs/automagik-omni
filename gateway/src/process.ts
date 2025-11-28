@@ -431,7 +431,7 @@ export class ProcessManager {
         PYTHONPATH: runtime.backend,
         AUTOMAGIK_OMNI_API_HOST: '127.0.0.1',
         AUTOMAGIK_OMNI_API_PORT: String(this.portRegistry.getPort('python') || 8882),
-        DISCORD_HEALTH_CHECK_TIMEOUT: '60',
+        DISCORD_HEALTH_CHECK_TIMEOUT: '10',  // Reduced from 60s - Discord starts quickly
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     } as Options);
@@ -482,14 +482,15 @@ export class ProcessManager {
 
     // Discord service manager creates Unix sockets for each bot instance
     // Poll the sockets directory until at least one Discord socket responds healthy
-    await this.waitForDiscordHealth(name, 60000);
+    // Reduced timeout from 60s to 10s - Discord starts quickly if configured
+    await this.waitForDiscordHealth(name, 10000);
   }
 
   /**
    * Wait for Discord health by polling Unix socket endpoints
    * Discord bots create sockets at ~/automagik-omni/sockets/discord-{instance}.sock
    */
-  private async waitForDiscordHealth(name: string, timeout = 60000): Promise<void> {
+  private async waitForDiscordHealth(name: string, timeout = 10000): Promise<void> {
     const start = Date.now();
     const checkInterval = 2000;
 
