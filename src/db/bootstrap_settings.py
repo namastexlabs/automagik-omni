@@ -188,6 +188,9 @@ def _bootstrap_setup_completed(db: Session) -> None:
     - Existing instances in omni_instance_configs table
     - Existing database_type configuration
 
+    The flag is recalculated on every startup to handle cases where users
+    delete their database for a fresh install.
+
     Args:
         db: Database session
     """
@@ -196,11 +199,8 @@ def _bootstrap_setup_completed(db: Session) -> None:
     # Check if setup_completed already exists in database
     existing = settings_service.get_setting("setup_completed", db)
 
-    if existing:
-        logger.info(f"setup_completed flag already exists: {existing.value}")
-        return
-
-    # Auto-detect existing installation
+    # ALWAYS run auto-detection (don't return early)
+    # This ensures we detect fresh installs even if flag previously existed
     is_existing_install = False
 
     # Check 1: Do any instances exist?
@@ -216,7 +216,7 @@ def _bootstrap_setup_completed(db: Session) -> None:
             is_existing_install = True
             logger.info(f"Existing installation detected: database_type = {db_type_setting.value}")
 
-    # Set setup_completed flag
+    # Calculate what value SHOULD be based on current state
     setup_value = "true" if is_existing_install else "false"
     description = (
         "Initial setup wizard completed (existing installation detected)"
@@ -224,20 +224,40 @@ def _bootstrap_setup_completed(db: Session) -> None:
         else "Initial setup wizard has not been completed yet"
     )
 
-    try:
-        settings_service.create_setting(
-            key="setup_completed",
-            value=setup_value,
-            value_type=SettingValueType.BOOLEAN,
-            category="system",
-            description=description,
-            is_secret=False,
-            is_required=False,
-            default_value="false",
-            created_by="system_bootstrap",
-            db=db
-        )
-        logger.info(f"setup_completed flag set to '{setup_value}' ({description})")
-    except Exception as e:
-        logger.error(f"Failed to create setup_completed setting: {e}")
-        raise
+    if existing:
+        # Setting exists - check if it needs updating
+        current_is_true = existing.value.lower() in ("true", "1", "yes")
+        should_be_true = is_existing_install
+
+        if current_is_true == should_be_true:
+            # Value is already correct, no update needed
+            logger.info(f"setup_completed flag is correct: {existing.value}")
+            return
+        else:
+            # Value changed (e.g., user deleted DB for fresh install)
+            logger.info(f"Recalculating setup_completed: {existing.value} -> {setup_value}")
+            try:
+                settings_service.update_setting("setup_completed", setup_value, db)
+                logger.info(f"setup_completed flag updated to '{setup_value}'")
+            except Exception as e:
+                logger.error(f"Failed to update setup_completed setting: {e}")
+                raise
+    else:
+        # Create new setting (first time)
+        try:
+            settings_service.create_setting(
+                key="setup_completed",
+                value=setup_value,
+                value_type=SettingValueType.BOOLEAN,
+                category="system",
+                description=description,
+                is_secret=False,
+                is_required=False,
+                default_value="false",
+                created_by="system_bootstrap",
+                db=db
+            )
+            logger.info(f"setup_completed flag created: '{setup_value}' ({description})")
+        except Exception as e:
+            logger.error(f"Failed to create setup_completed setting: {e}")
+            raise
