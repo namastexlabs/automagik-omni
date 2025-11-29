@@ -73,15 +73,28 @@ def bootstrap_global_settings(db: Session) -> None:
             "is_required": False,
             "default_value": "true",
         },
+        {
+            "key": "setup_completed",
+            "value": None,  # Will be set by auto-detection below
+            "value_type": SettingValueType.BOOLEAN,
+            "category": "system",
+            "description": "Tracks whether initial setup wizard has been completed",
+            "is_secret": False,
+            "is_required": False,
+            "default_value": "false",
+        },
     ]
 
     # Handle Evolution API key separately (auto-generation or migration)
     _bootstrap_evolution_key(db)
 
+    # Handle setup_completed flag with auto-detection
+    _bootstrap_setup_completed(db)
+
     # Create other default settings
     for setting_def in default_settings:
-        # Skip evolution_api_key (handled separately above)
-        if setting_def["key"] == "evolution_api_key":
+        # Skip evolution_api_key and setup_completed (handled separately above)
+        if setting_def["key"] in ("evolution_api_key", "setup_completed"):
             continue
 
         existing = settings_service.get_setting(setting_def["key"], db)
@@ -160,4 +173,71 @@ def _bootstrap_evolution_key(db: Session) -> None:
         logger.info(f"Evolution API key stored in database ({migration_source})")
     except Exception as e:
         logger.error(f"Failed to create evolution_api_key setting: {e}")
+        raise
+
+
+def _bootstrap_setup_completed(db: Session) -> None:
+    """
+    Bootstrap setup_completed flag with auto-detection of existing installations.
+
+    This handles two scenarios:
+    1. Fresh install → Set to "false" (requires onboarding)
+    2. Existing install → Set to "true" (skip onboarding)
+
+    Auto-detection checks for:
+    - Existing instances in omni_instance_configs table
+    - Existing database_type configuration
+
+    Args:
+        db: Database session
+    """
+    from src.db.models import InstanceConfig
+
+    # Check if setup_completed already exists in database
+    existing = settings_service.get_setting("setup_completed", db)
+
+    if existing:
+        logger.info(f"setup_completed flag already exists: {existing.value}")
+        return
+
+    # Auto-detect existing installation
+    is_existing_install = False
+
+    # Check 1: Do any instances exist?
+    instance_count = db.query(InstanceConfig).count()
+    if instance_count > 0:
+        is_existing_install = True
+        logger.info(f"Existing installation detected: {instance_count} instances found")
+
+    # Check 2: Is database_type already configured?
+    if not is_existing_install:
+        db_type_setting = settings_service.get_setting("database_type", db)
+        if db_type_setting:
+            is_existing_install = True
+            logger.info(f"Existing installation detected: database_type = {db_type_setting.value}")
+
+    # Set setup_completed flag
+    setup_value = "true" if is_existing_install else "false"
+    description = (
+        "Initial setup wizard completed (existing installation detected)"
+        if is_existing_install
+        else "Initial setup wizard has not been completed yet"
+    )
+
+    try:
+        settings_service.create_setting(
+            key="setup_completed",
+            value=setup_value,
+            value_type=SettingValueType.BOOLEAN,
+            category="system",
+            description=description,
+            is_secret=False,
+            is_required=False,
+            default_value="false",
+            created_by="system_bootstrap",
+            db=db
+        )
+        logger.info(f"setup_completed flag set to '{setup_value}' ({description})")
+    except Exception as e:
+        logger.error(f"Failed to create setup_completed setting: {e}")
         raise

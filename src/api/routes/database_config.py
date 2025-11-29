@@ -340,11 +340,10 @@ async def get_database_config(
     "/test",
     response_model=DatabaseTestResponse,
     summary="Test Database Connection",
-    description="Test PostgreSQL connection with tiered validation (TCP, auth, permissions, read/write)",
+    description="Test PostgreSQL connection with tiered validation (TCP, auth, permissions, read/write). Public endpoint for onboarding.",
 )
 async def test_database_connection(
     request: DatabaseTestRequest,
-    api_key: str = Depends(verify_api_key),
 ):
     """
     Test PostgreSQL connection with tiered validation.
