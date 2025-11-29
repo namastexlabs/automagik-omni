@@ -19,6 +19,11 @@ import {
   validateDbNumber,
 } from '@/lib/database-url-utils';
 import {
+  useFieldValidation,
+  validationRules,
+  type ValidationState,
+} from '@/hooks/useFieldValidation';
+import {
   Database,
   Server,
   CheckCircle2,
@@ -32,6 +37,7 @@ import {
   HardDrive,
   ChevronDown,
   ChevronRight,
+  Check,
 } from 'lucide-react';
 
 type WizardStep = 'select' | 'configure' | 'confirm';
@@ -68,6 +74,19 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
   // Track auto-detection status
   const [autoDetected, setAutoDetected] = useState(false);
+
+  // Field validation (PostgreSQL)
+  const pgHostValidation = useFieldValidation(pgHost, validationRules.pgHost);
+  const pgPortValidation = useFieldValidation(pgPort, validationRules.pgPort);
+  const pgUsernameValidation = useFieldValidation(pgUsername, validationRules.pgUsername);
+  const pgPasswordValidation = useFieldValidation(pgPassword, validationRules.pgPassword);
+  const pgDatabaseValidation = useFieldValidation(pgDatabase, validationRules.pgDatabase);
+
+  // Field validation (Redis)
+  const redisHostValidation = useFieldValidation(redisHost, validationRules.redisHost);
+  const redisPortValidation = useFieldValidation(redisPort, validationRules.redisPort);
+  const redisPasswordValidation = useFieldValidation(redisPassword, validationRules.redisPassword);
+  const redisDbNumberValidation = useFieldValidation(redisDbNumber, validationRules.redisDbNumber);
 
   // Fetch current config
   const { data: currentConfig, isLoading: configLoading } = useQuery({
@@ -232,6 +251,20 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
     (dbType === 'sqlite' || testResult?.success === true) &&
     (!redisEnabled || redisTestResult?.success === true);
 
+  // Helper: Get border color class based on validation state
+  const getValidationClass = (state: ValidationState): string => {
+    switch (state) {
+      case 'valid':
+        return 'border-green-500 focus-visible:ring-green-500';
+      case 'invalid':
+        return 'border-red-500 focus-visible:ring-red-500';
+      case 'typing':
+        return 'border-blue-500 focus-visible:ring-blue-500';
+      default:
+        return '';
+    }
+  };
+
   const renderTestResult = (name: string, result: TestResult) => {
     const Icon = result.ok ? CheckCircle2 : XCircle;
     const colorClass = result.ok ? 'text-green-500' : 'text-red-500';
@@ -368,62 +401,123 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="pg-host">Host</Label>
+                      <Label htmlFor="pg-host" className="flex items-center gap-2">
+                        Host
+                        {pgHostValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                        {pgHostValidation.state === 'invalid' && (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                      </Label>
                       <Input
                         id="pg-host"
                         type="text"
                         placeholder="localhost"
                         value={pgHost}
                         onChange={(e) => setPgHost(e.target.value)}
+                        className={getValidationClass(pgHostValidation.state)}
                       />
+                      {pgHostValidation.error && (
+                        <p className="text-xs text-red-500">{pgHostValidation.error}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pg-port">Port</Label>
+                      <Label htmlFor="pg-port" className="flex items-center gap-2">
+                        Port
+                        {pgPortValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                        {pgPortValidation.state === 'invalid' && (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                      </Label>
                       <Input
                         id="pg-port"
                         type="text"
                         placeholder="5432"
                         value={pgPort}
                         onChange={(e) => setPgPort(e.target.value)}
+                        className={getValidationClass(pgPortValidation.state)}
                       />
+                      {pgPortValidation.error && (
+                        <p className="text-xs text-red-500">{pgPortValidation.error}</p>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="pg-username">Username</Label>
+                      <Label htmlFor="pg-username" className="flex items-center gap-2">
+                        Username
+                        {pgUsernameValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                        {pgUsernameValidation.state === 'invalid' && (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                      </Label>
                       <Input
                         id="pg-username"
                         type="text"
                         placeholder="postgres"
                         value={pgUsername}
                         onChange={(e) => setPgUsername(e.target.value)}
+                        className={getValidationClass(pgUsernameValidation.state)}
                       />
+                      {pgUsernameValidation.error && (
+                        <p className="text-xs text-red-500">{pgUsernameValidation.error}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pg-password">Password</Label>
+                      <Label htmlFor="pg-password" className="flex items-center gap-2">
+                        Password
+                        {pgPasswordValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                        {pgPasswordValidation.state === 'invalid' && (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                      </Label>
                       <Input
                         id="pg-password"
                         type="password"
                         placeholder="••••••••"
                         value={pgPassword}
                         onChange={(e) => setPgPassword(e.target.value)}
+                        className={getValidationClass(pgPasswordValidation.state)}
                       />
+                      {pgPasswordValidation.error && (
+                        <p className="text-xs text-red-500">{pgPasswordValidation.error}</p>
+                      )}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="pg-database">Database Name</Label>
+                    <Label htmlFor="pg-database" className="flex items-center gap-2">
+                      Database Name
+                      {pgDatabaseValidation.state === 'valid' && (
+                        <Check className="h-3 w-3 text-green-500" />
+                      )}
+                      {pgDatabaseValidation.state === 'invalid' && (
+                        <XCircle className="h-3 w-3 text-red-500" />
+                      )}
+                    </Label>
                     <Input
                       id="pg-database"
                       type="text"
                       placeholder="evolution"
                       value={pgDatabase}
                       onChange={(e) => setPgDatabase(e.target.value)}
+                      className={getValidationClass(pgDatabaseValidation.state)}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      The database name used by Evolution API (typically 'evolution')
-                    </p>
+                    {pgDatabaseValidation.error ? (
+                      <p className="text-xs text-red-500">{pgDatabaseValidation.error}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        The database name used by Evolution API (typically 'evolution')
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -529,50 +623,96 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                 <div className="space-y-4 pl-7">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="redis-host">Host</Label>
+                      <Label htmlFor="redis-host" className="flex items-center gap-2">
+                        Host
+                        {redisHostValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                        {redisHostValidation.state === 'invalid' && (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                      </Label>
                       <Input
                         id="redis-host"
                         type="text"
                         placeholder="localhost"
                         value={redisHost}
                         onChange={(e) => setRedisHost(e.target.value)}
+                        className={getValidationClass(redisHostValidation.state)}
                       />
+                      {redisHostValidation.error && (
+                        <p className="text-xs text-red-500">{redisHostValidation.error}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="redis-port">Port</Label>
+                      <Label htmlFor="redis-port" className="flex items-center gap-2">
+                        Port
+                        {redisPortValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                        {redisPortValidation.state === 'invalid' && (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                      </Label>
                       <Input
                         id="redis-port"
                         type="text"
                         placeholder="6379"
                         value={redisPort}
                         onChange={(e) => setRedisPort(e.target.value)}
+                        className={getValidationClass(redisPortValidation.state)}
                       />
+                      {redisPortValidation.error && (
+                        <p className="text-xs text-red-500">{redisPortValidation.error}</p>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="redis-password">Password (Optional)</Label>
+                      <Label htmlFor="redis-password" className="flex items-center gap-2">
+                        Password (Optional)
+                        {redisPasswordValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                      </Label>
                       <Input
                         id="redis-password"
                         type="password"
                         placeholder="Leave empty if none"
                         value={redisPassword}
                         onChange={(e) => setRedisPassword(e.target.value)}
+                        className={getValidationClass(redisPasswordValidation.state)}
                       />
+                      {redisPasswordValidation.error && (
+                        <p className="text-xs text-red-500">{redisPasswordValidation.error}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="redis-db">Database Number</Label>
+                      <Label htmlFor="redis-db" className="flex items-center gap-2">
+                        Database Number
+                        {redisDbNumberValidation.state === 'valid' && (
+                          <Check className="h-3 w-3 text-green-500" />
+                        )}
+                        {redisDbNumberValidation.state === 'invalid' && (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                      </Label>
                       <Input
                         id="redis-db"
                         type="text"
                         placeholder="0"
                         value={redisDbNumber}
                         onChange={(e) => setRedisDbNumber(e.target.value)}
+                        className={getValidationClass(redisDbNumberValidation.state)}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Typically 0-15 (Evolution usually uses 6)
-                      </p>
+                      {redisDbNumberValidation.error ? (
+                        <p className="text-xs text-red-500">{redisDbNumberValidation.error}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Typically 0-15 (Evolution usually uses 6)
+                        </p>
+                      )}
                     </div>
                   </div>
 
