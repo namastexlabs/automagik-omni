@@ -836,6 +836,42 @@ export const api = {
       }
       return response.json();
     },
+
+    // Database testing methods for onboarding (no auth required)
+    async testPostgresConnection(url: string): Promise<DatabaseTestResponse> {
+      const response = await fetch(`${API_BASE_URL}/database/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to test PostgreSQL connection');
+      }
+      return response.json();
+    },
+
+    async testRedisConnection(url: string): Promise<RedisTestResponse> {
+      const response = await fetch(`${API_BASE_URL}/database/redis/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to test Redis connection');
+      }
+      return response.json();
+    },
+
+    async detectEvolution(): Promise<EvolutionDetectResponse> {
+      const response = await fetch(`${API_BASE_URL}/database/detect-evolution`);
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to detect Evolution configuration');
+      }
+      return response.json();
+    },
   },
 };
 

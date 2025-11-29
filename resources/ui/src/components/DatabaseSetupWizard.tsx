@@ -101,7 +101,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
   // Detect Evolution database
   const detectMutation = useMutation({
-    mutationFn: () => api.database.detectEvolution(),
+    mutationFn: () => isFirstRun ? api.setup.detectEvolution() : api.database.detectEvolution(),
     onSuccess: (data) => {
       if (data.found) {
         // Auto-populate PostgreSQL fields (password excluded for security)
@@ -130,7 +130,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
   // Test connection
   const testMutation = useMutation({
-    mutationFn: (url: string) => api.database.testConnection(url),
+    mutationFn: (url: string) => isFirstRun ? api.setup.testPostgresConnection(url) : api.database.testConnection(url),
     onSuccess: (data) => {
       setTestResult(data);
     },
@@ -138,7 +138,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
   // Test Redis connection
   const redisTestMutation = useMutation({
-    mutationFn: (url: string) => api.database.testRedisConnection(url),
+    mutationFn: (url: string) => isFirstRun ? api.setup.testRedisConnection(url) : api.database.testRedisConnection(url),
     onSuccess: (data) => {
       setRedisTestResult(data);
     },
@@ -509,12 +509,8 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                       onChange={(e) => setPgDatabase(e.target.value)}
                       className={getValidationClass(pgDatabaseValidation.state)}
                     />
-                    {pgDatabaseValidation.error ? (
+                    {pgDatabaseValidation.error && (
                       <p className="text-xs text-red-500">{pgDatabaseValidation.error}</p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        The database name used by Evolution API (typically 'evolution')
-                      </p>
                     )}
                   </div>
                 </div>
@@ -705,12 +701,8 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                         onChange={(e) => setRedisDbNumber(e.target.value)}
                         className={getValidationClass(redisDbNumberValidation.state)}
                       />
-                      {redisDbNumberValidation.error ? (
+                      {redisDbNumberValidation.error && (
                         <p className="text-xs text-red-500">{redisDbNumberValidation.error}</p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Typically 0-15 (Evolution usually uses 6)
-                        </p>
                       )}
                     </div>
                   </div>
