@@ -217,7 +217,9 @@ def _bootstrap_setup_completed(db: Session) -> None:
             logger.info(f"Existing installation detected: database_type = {db_type_setting.value}")
 
     # Calculate what value SHOULD be based on current state
-    setup_value = "true" if is_existing_install else "false"
+    # Use boolean values (not strings) for proper serialization
+    setup_value_bool = is_existing_install
+    setup_value_str = "true" if is_existing_install else "false"
     description = (
         "Initial setup wizard completed (existing installation detected)"
         if is_existing_install
@@ -235,29 +237,31 @@ def _bootstrap_setup_completed(db: Session) -> None:
             return
         else:
             # Value changed (e.g., user deleted DB for fresh install)
-            logger.info(f"Recalculating setup_completed: {existing.value} -> {setup_value}")
+            logger.info(f"Recalculating setup_completed: {existing.value} -> {setup_value_str}")
             try:
-                settings_service.update_setting("setup_completed", setup_value, db)
-                logger.info(f"setup_completed flag updated to '{setup_value}'")
+                # Pass boolean (not string) for proper type conversion
+                settings_service.update_setting("setup_completed", setup_value_bool, db)
+                logger.info(f"setup_completed flag updated to '{setup_value_str}'")
             except Exception as e:
                 logger.error(f"Failed to update setup_completed setting: {e}")
                 raise
     else:
         # Create new setting (first time)
         try:
+            # Pass boolean (not string) for proper type conversion
             settings_service.create_setting(
                 key="setup_completed",
-                value=setup_value,
+                value=setup_value_bool,
                 value_type=SettingValueType.BOOLEAN,
                 category="system",
                 description=description,
                 is_secret=False,
                 is_required=False,
-                default_value="false",
+                default_value=False,  # Use boolean, not string
                 created_by="system_bootstrap",
                 db=db
             )
-            logger.info(f"setup_completed flag created: '{setup_value}' ({description})")
+            logger.info(f"setup_completed flag created: '{setup_value_str}' ({description})")
         except Exception as e:
             logger.error(f"Failed to create setup_completed setting: {e}")
             raise

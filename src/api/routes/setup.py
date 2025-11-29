@@ -275,15 +275,15 @@ async def complete_setup(db: Session = Depends(get_db)):
                     message="Setup was already marked as complete"
                 )
 
-            # Update existing setting to "true"
-            settings_service.update_setting("setup_completed", "true", db)
+            # Update existing setting to True (boolean, not string)
+            settings_service.update_setting("setup_completed", True, db)
             logger.info("Marked setup as completed (updated existing flag)")
 
         else:
             # Create the setting (shouldn't normally happen, but handle gracefully)
             settings_service.create_setting(
                 key="setup_completed",
-                value="true",
+                value=True,  # Use boolean, not string
                 value_type=SettingValueType.BOOLEAN,
                 db=db,
                 category="system",
