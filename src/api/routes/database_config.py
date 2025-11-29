@@ -445,11 +445,10 @@ async def test_database_connection(
     "/redis/test",
     response_model=RedisTestResponse,
     summary="Test Redis Connection",
-    description="Test Redis connection with tiered validation (TCP, auth, read/write)",
+    description="Test Redis connection with tiered validation (TCP, auth, read/write). Public endpoint for onboarding.",
 )
 async def test_redis_connection(
     request: RedisTestRequest,
-    api_key: str = Depends(verify_api_key),
 ):
     """
     Test Redis connection with tiered validation.
@@ -675,11 +674,9 @@ async def apply_database_config(
     "/detect-evolution",
     response_model=EvolutionDetectResponse,
     summary="Detect Evolution API Database",
-    description="Attempt to detect Evolution API's database configuration with parsed field objects",
+    description="Attempt to detect Evolution API's database configuration with parsed field objects. Public endpoint for onboarding.",
 )
-async def detect_evolution_database(
-    api_key: str = Depends(verify_api_key),
-):
+async def detect_evolution_database():
     """
     Attempt to detect Evolution API's database configuration.
 
