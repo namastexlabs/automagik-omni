@@ -165,6 +165,7 @@ help: ## Show this help message
 	@echo -e "  $(FONT_GREEN)start-local    $(FONT_RESET) Start local PM2 service"
 	@echo -e "  $(FONT_GREEN)stop-local     $(FONT_RESET) Stop local PM2 service"
 	@echo -e "  $(FONT_GREEN)restart-local  $(FONT_RESET) Restart local PM2 service"
+	@echo -e "  $(FONT_GREEN)reload         $(FONT_RESET) 🔄 Full reload (clean caches + rebuild UI + restart)"
 	@echo -e "  $(FONT_GREEN)status-local   $(FONT_RESET) Check local PM2 service status"
 	@echo -e "  $(FONT_GREEN)logs-local     $(FONT_RESET) Show local PM2 service logs"
 	@echo -e "  $(FONT_GREEN)logs-follow-local$(FONT_RESET) Follow local PM2 service logs"
@@ -769,7 +770,7 @@ quality: lint typecheck ## Run all code quality checks
 # ===========================================
 # 🔧 Local PM2 Management
 # ===========================================
-.PHONY: setup-pm2 start-local stop-local restart-local status-local logs-local logs-follow-local
+.PHONY: setup-pm2 start-local stop-local restart-local reload status-local logs-local logs-follow-local
 
 setup-pm2: ## Setup local PM2 ecosystem
 	$(call print_status,Setting up local PM2 ecosystem)
@@ -797,6 +798,28 @@ restart-local: ## Restart local PM2 service
 	@$(call check_pm2)
 	@pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js
 	@$(call print_success,Local PM2 service restarted)
+
+reload: ## 🔄 Full reload (stop, clean caches, rebuild UI, restart)
+	$(call print_status,Stopping service...)
+	@pm2 stop "$(OMNI_PORT)-automagik-omni" 2>/dev/null || true
+	$(call print_status,Clearing caches...)
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@rm -rf resources/ui/dist 2>/dev/null || true
+	@rm -rf resources/ui/node_modules/.vite 2>/dev/null || true
+	$(call print_status,Rebuilding UI...)
+	@cd resources/ui && pnpm install --silent
+	@cd resources/ui && pnpm run build
+	$(call print_status,Starting service...)
+	@pm2 start ecosystem.config.cjs 2>/dev/null || pm2 restart "$(OMNI_PORT)-automagik-omni"
+	$(call print_status,Waiting for health (up to 30s)...)
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$(OMNI_PORT)/health >/dev/null 2>&1; then \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Reload complete! Health check passed$(FONT_RESET)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo -e "$(FONT_YELLOW)$(WARNING) Service started but health check timeout$(FONT_RESET)"
 
 status-local: ## Check local PM2 service status
 	$(call print_status,Checking local PM2 service status)
