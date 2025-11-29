@@ -11,6 +11,14 @@ import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { api, DatabaseTestResponse, RedisTestResponse, TestResult } from '@/lib';
 import {
+  buildPostgresUrl,
+  buildRedisUrl,
+  type PostgresUrlComponents,
+  type RedisUrlComponents,
+  validatePort,
+  validateDbNumber,
+} from '@/lib/database-url-utils';
+import {
   Database,
   Server,
   CheckCircle2,
@@ -36,12 +44,22 @@ interface DatabaseSetupWizardProps {
 export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: DatabaseSetupWizardProps) {
   const [step, setStep] = useState<WizardStep>('select');
   const [dbType, setDbType] = useState<'sqlite' | 'postgresql'>('sqlite');
-  const [postgresUrl, setPostgresUrl] = useState('');
+
+  // PostgreSQL connection fields (individual)
+  const [pgHost, setPgHost] = useState('localhost');
+  const [pgPort, setPgPort] = useState('5432');
+  const [pgUsername, setPgUsername] = useState('postgres');
+  const [pgPassword, setPgPassword] = useState('');
+  const [pgDatabase, setPgDatabase] = useState('evolution');
   const [testResult, setTestResult] = useState<DatabaseTestResponse | null>(null);
 
-  // Redis configuration state
+  // Redis connection fields (individual)
   const [redisEnabled, setRedisEnabled] = useState(false);
-  const [redisUrl, setRedisUrl] = useState('');
+  const [redisHost, setRedisHost] = useState('localhost');
+  const [redisPort, setRedisPort] = useState('6379');
+  const [redisPassword, setRedisPassword] = useState('');
+  const [redisDbNumber, setRedisDbNumber] = useState('0');
+  const [redisTls, setRedisTls] = useState(false);
   const [redisPrefixKey, setRedisPrefixKey] = useState('evolution');
   const [redisTtl, setRedisTtl] = useState(604800);
   const [redisSaveInstances, setRedisSaveInstances] = useState(true);
@@ -84,13 +102,45 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   // Apply configuration
   const applyMutation = useMutation({
     mutationFn: async () => {
+      // Build URLs from individual fields
+      let postgresUrl: string | undefined;
+      let redisUrl: string | undefined;
+
+      if (dbType === 'postgresql') {
+        try {
+          postgresUrl = buildPostgresUrl({
+            host: pgHost,
+            port: pgPort,
+            username: pgUsername,
+            password: pgPassword,
+            database: pgDatabase,
+          });
+        } catch (error) {
+          throw new Error(`Invalid PostgreSQL configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      if (redisEnabled) {
+        try {
+          redisUrl = buildRedisUrl({
+            host: redisHost,
+            port: redisPort,
+            password: redisPassword,
+            dbNumber: redisDbNumber,
+            tls: redisTls,
+          });
+        } catch (error) {
+          throw new Error(`Invalid Redis configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       if (isFirstRun) {
         // First-run mode: Just pass config up, don't call backend
         const config = {
           db_type: dbType,
-          postgres_url: dbType === 'postgresql' ? postgresUrl : undefined,
+          postgres_url: postgresUrl,
           redis_enabled: redisEnabled,
-          redis_url: redisEnabled ? redisUrl : undefined,
+          redis_url: redisUrl,
           redis_prefix_key: redisPrefixKey,
           redis_ttl: redisTtl,
           redis_save_instances: redisSaveInstances,
@@ -100,10 +150,10 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
         // Settings mode: Call backend API as normal
         return api.database.apply(
           dbType,
-          dbType === 'postgresql' ? postgresUrl : undefined,
+          postgresUrl,
           {
             enabled: redisEnabled,
-            url: redisEnabled ? redisUrl : undefined,
+            url: redisUrl,
             prefixKey: redisPrefixKey,
             ttl: redisTtl,
             saveInstances: redisSaveInstances,
@@ -123,14 +173,32 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   });
 
   const handleTestConnection = () => {
-    if (postgresUrl) {
+    try {
+      const postgresUrl = buildPostgresUrl({
+        host: pgHost,
+        port: pgPort,
+        username: pgUsername,
+        password: pgPassword,
+        database: pgDatabase,
+      });
       testMutation.mutate(postgresUrl);
+    } catch (error) {
+      console.error('Failed to build PostgreSQL URL:', error);
     }
   };
 
   const handleTestRedisConnection = () => {
-    if (redisUrl) {
+    try {
+      const redisUrl = buildRedisUrl({
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        dbNumber: redisDbNumber,
+        tls: redisTls,
+      });
       redisTestMutation.mutate(redisUrl);
+    } catch (error) {
+      console.error('Failed to build Redis URL:', error);
     }
   };
 
@@ -256,9 +324,9 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
               </Alert>
             ) : (
               <>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="postgres-url">PostgreSQL Connection URL</Label>
+                    <Label className="text-base font-semibold">PostgreSQL Connection</Label>
                     <Button
                       size="sm"
                       variant="outline"
@@ -273,17 +341,69 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                       Detect Evolution
                     </Button>
                   </div>
-                  <Input
-                    id="postgres-url"
-                    type="password"
-                    placeholder="postgresql://user:password@localhost:5432/database"
-                    value={postgresUrl}
-                    onChange={(e) => setPostgresUrl(e.target.value)}
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter the same PostgreSQL URL used by Evolution API to share the database.
+                  <p className="text-sm text-muted-foreground">
+                    Enter the same PostgreSQL connection details used by Evolution API to share the database.
                   </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pg-host">Host</Label>
+                      <Input
+                        id="pg-host"
+                        type="text"
+                        placeholder="localhost"
+                        value={pgHost}
+                        onChange={(e) => setPgHost(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pg-port">Port</Label>
+                      <Input
+                        id="pg-port"
+                        type="text"
+                        placeholder="5432"
+                        value={pgPort}
+                        onChange={(e) => setPgPort(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pg-username">Username</Label>
+                      <Input
+                        id="pg-username"
+                        type="text"
+                        placeholder="postgres"
+                        value={pgUsername}
+                        onChange={(e) => setPgUsername(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pg-password">Password</Label>
+                      <Input
+                        id="pg-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={pgPassword}
+                        onChange={(e) => setPgPassword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="pg-database">Database Name</Label>
+                    <Input
+                      id="pg-database"
+                      type="text"
+                      placeholder="evolution"
+                      value={pgDatabase}
+                      onChange={(e) => setPgDatabase(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The database name used by Evolution API (typically 'evolution')
+                    </p>
+                  </div>
                 </div>
 
                 {detectMutation.data && (
@@ -310,7 +430,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                 <div className="space-y-2">
                   <Button
                     onClick={handleTestConnection}
-                    disabled={!postgresUrl || testMutation.isPending}
+                    disabled={!pgHost || !pgPort || !pgUsername || !pgPassword || !pgDatabase || testMutation.isPending}
                     variant="secondary"
                     className="w-full"
                   >
@@ -369,24 +489,72 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
               {redisEnabled && (
                 <div className="space-y-4 pl-7">
-                  <div className="space-y-2">
-                    <Label htmlFor="redis-url">Redis Connection URL</Label>
-                    <Input
-                      id="redis-url"
-                      type="password"
-                      placeholder="redis://localhost:6379/6"
-                      value={redisUrl}
-                      onChange={(e) => setRedisUrl(e.target.value)}
-                      className="font-mono"
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="redis-host">Host</Label>
+                      <Input
+                        id="redis-host"
+                        type="text"
+                        placeholder="localhost"
+                        value={redisHost}
+                        onChange={(e) => setRedisHost(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="redis-port">Port</Label>
+                      <Input
+                        id="redis-port"
+                        type="text"
+                        placeholder="6379"
+                        value={redisPort}
+                        onChange={(e) => setRedisPort(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="redis-password">Password (Optional)</Label>
+                      <Input
+                        id="redis-password"
+                        type="password"
+                        placeholder="Leave empty if none"
+                        value={redisPassword}
+                        onChange={(e) => setRedisPassword(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="redis-db">Database Number</Label>
+                      <Input
+                        id="redis-db"
+                        type="text"
+                        placeholder="0"
+                        value={redisDbNumber}
+                        onChange={(e) => setRedisDbNumber(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Typically 0-15 (Evolution usually uses 6)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="redis-tls">Use TLS (rediss://)</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Enable secure connection with TLS/SSL
+                      </p>
+                    </div>
+                    <Switch
+                      id="redis-tls"
+                      checked={redisTls}
+                      onCheckedChange={setRedisTls}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Redis URL for Evolution API cache (e.g., redis://localhost:6379/6)
-                    </p>
                   </div>
 
                   <Button
                     onClick={handleTestRedisConnection}
-                    disabled={!redisUrl || redisTestMutation.isPending}
+                    disabled={!redisHost || !redisPort || !redisDbNumber || redisTestMutation.isPending}
                     variant="secondary"
                     className="w-full"
                   >
