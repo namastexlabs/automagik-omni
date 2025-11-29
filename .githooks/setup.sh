@@ -1,5 +1,10 @@
 #!/bin/bash
-# Setup script for git hooks
+# Setup script for git hooks and submodules
+
+echo "🔧 Initializing git submodules..."
+git submodule update --init --recursive
+echo "✅ Git submodules initialized!"
+echo ""
 
 echo "🔧 Setting up git hooks..."
 

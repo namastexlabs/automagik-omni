@@ -324,6 +324,12 @@ install: ## $(ROCKET) Full production installation (inspired by automagik-tools)
 	$(call print_success,Prerequisites verified!)
 	@echo ""
 
+	@# Phase 1.5: Initialize git submodules (if not already initialized)
+	$(call print_status,Initializing git submodules...)
+	@git submodule update --init --recursive
+	$(call print_success,Git submodules initialized!)
+	@echo ""
+
 	@# Phase 2: Environment
 	$(call print_status,Phase 2/7: Setting up environment...)
 	@$(call ensure_env_file)
