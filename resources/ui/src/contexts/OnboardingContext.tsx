@@ -31,9 +31,9 @@ interface OnboardingProviderProps {
 
 export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const [state, setState] = useState<OnboardingState>({
-    requiresSetup: false,
-    setupComplete: true,
-    currentStep: 'complete',
+    requiresSetup: true,      // Assume setup needed until backend confirms otherwise
+    setupComplete: false,     // Assume not complete until verified
+    currentStep: 'setup',     // Start at setup step
     isLoading: true,
     error: null,
   });
@@ -66,6 +66,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       console.error('Failed to check setup status:', error);
       setState(prev => ({
         ...prev,
+        requiresSetup: true,    // Fail-safe: assume setup needed when backend unreachable
+        setupComplete: false,
+        currentStep: 'setup',
         isLoading: false,
         error: 'Failed to check setup status. Please check if the backend is running.',
       }));
