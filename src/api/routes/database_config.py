@@ -121,6 +121,34 @@ class RedisTestResponse(BaseModel):
     total_latency_ms: float
 
 
+class DetectedPostgresFields(BaseModel):
+    """Detected PostgreSQL connection fields (password excluded)."""
+
+    host: str
+    port: str
+    username: str
+    database: str
+
+
+class DetectedRedisFields(BaseModel):
+    """Detected Redis connection fields (password excluded)."""
+
+    host: str
+    port: str
+    dbNumber: str
+    tls: bool
+
+
+class EvolutionDetectResponse(BaseModel):
+    """Schema for Evolution API database detection response."""
+
+    found: bool
+    source: Optional[str] = None
+    message: str
+    postgresql: Optional[DetectedPostgresFields] = None
+    redis: Optional[DetectedRedisFields] = None
+
+
 # Helper functions
 
 
@@ -645,8 +673,9 @@ async def apply_database_config(
 
 @router.get(
     "/detect-evolution",
+    response_model=EvolutionDetectResponse,
     summary="Detect Evolution API Database",
-    description="Attempt to detect Evolution API's database configuration",
+    description="Attempt to detect Evolution API's database configuration with parsed field objects",
 )
 async def detect_evolution_database(
     api_key: str = Depends(verify_api_key),
@@ -655,40 +684,85 @@ async def detect_evolution_database(
     Attempt to detect Evolution API's database configuration.
 
     Looks for common Evolution API environment variables and returns
-    the PostgreSQL URL if found.
+    parsed connection fields (passwords excluded for security).
     """
     import os
+    from urllib.parse import urlparse
 
     # Common Evolution API database env vars
-    evolution_vars = [
+    postgres_vars = [
         "DATABASE_CONNECTION_URI",
         "EVOLUTION_DATABASE_URL",
         "DATABASE_URL",
     ]
 
-    for var in evolution_vars:
+    redis_vars = [
+        "CACHE_REDIS_URI",
+        "REDIS_URI",
+        "REDIS_URL",
+    ]
+
+    postgres_fields = None
+    redis_fields = None
+    source_var = None
+
+    # Detect PostgreSQL configuration
+    for var in postgres_vars:
         value = os.getenv(var)
         if value and value.startswith("postgresql://"):
-            # Mask the password in the response
-            from urllib.parse import urlparse, urlunparse
+            try:
+                parsed = urlparse(value)
+                postgres_fields = DetectedPostgresFields(
+                    host=parsed.hostname or "localhost",
+                    port=str(parsed.port) if parsed.port else "5432",
+                    username=parsed.username or "",
+                    database=parsed.pathname.lstrip("/") if parsed.pathname else "",
+                )
+                source_var = var
+            except Exception as e:
+                logger.error(f"Failed to parse PostgreSQL URL from {var}: {e}")
+                continue
+            break
 
-            parsed = urlparse(value)
-            if parsed.password:
-                masked = parsed._replace(netloc=f"{parsed.username}:***@{parsed.hostname}:{parsed.port}")
-                masked_url = urlunparse(masked)
-            else:
-                masked_url = value
+    # Detect Redis configuration
+    for var in redis_vars:
+        value = os.getenv(var)
+        if value and (value.startswith("redis://") or value.startswith("rediss://")):
+            try:
+                parsed = urlparse(value)
+                redis_fields = DetectedRedisFields(
+                    host=parsed.hostname or "localhost",
+                    port=str(parsed.port) if parsed.port else "6379",
+                    dbNumber=parsed.pathname.lstrip("/") if parsed.pathname else "0",
+                    tls=value.startswith("rediss://"),
+                )
+                if not source_var:
+                    source_var = var
+            except Exception as e:
+                logger.error(f"Failed to parse Redis URL from {var}: {e}")
+                continue
+            break
 
-            return {
-                "found": True,
-                "source": var,
-                "url_masked": masked_url,
-                "message": f"Found PostgreSQL URL in {var}",
-            }
+    # Build response
+    if postgres_fields or redis_fields:
+        parts = []
+        if postgres_fields:
+            parts.append(f"PostgreSQL at {postgres_fields.host}:{postgres_fields.port}")
+        if redis_fields:
+            parts.append(f"Redis at {redis_fields.host}:{redis_fields.port}")
 
-    return {
-        "found": False,
-        "source": None,
-        "url_masked": None,
-        "message": "No Evolution API database configuration detected",
-    }
+        return EvolutionDetectResponse(
+            found=True,
+            source=source_var,
+            message=f"Detected Evolution API configuration: {', '.join(parts)}",
+            postgresql=postgres_fields,
+            redis=redis_fields,
+        )
+    else:
+        return EvolutionDetectResponse(
+            found=False,
+            source=None,
+            message="No Evolution API database configuration detected",
+            postgresql=None,
+            redis=None,
+        )

@@ -66,6 +66,9 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   const [redisTestResult, setRedisTestResult] = useState<RedisTestResponse | null>(null);
   const [showAdvancedRedis, setShowAdvancedRedis] = useState(false);
 
+  // Track auto-detection status
+  const [autoDetected, setAutoDetected] = useState(false);
+
   // Fetch current config
   const { data: currentConfig, isLoading: configLoading } = useQuery({
     queryKey: ['database-config'],
@@ -76,9 +79,27 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   const detectMutation = useMutation({
     mutationFn: () => api.database.detectEvolution(),
     onSuccess: (data) => {
-      if (data.found && data.url_masked) {
-        // Note: we only get masked URL, user needs to enter full URL
-        // But we can show them it was detected
+      if (data.found) {
+        // Auto-populate PostgreSQL fields (password excluded for security)
+        if (data.postgresql) {
+          setPgHost(data.postgresql.host);
+          setPgPort(data.postgresql.port);
+          setPgUsername(data.postgresql.username);
+          setPgDatabase(data.postgresql.database);
+          // Password must be entered manually for security
+        }
+
+        // Auto-populate Redis fields (password excluded for security)
+        if (data.redis) {
+          setRedisEnabled(true);
+          setRedisHost(data.redis.host);
+          setRedisPort(data.redis.port);
+          setRedisDbNumber(data.redis.dbNumber);
+          setRedisTls(data.redis.tls);
+          // Password must be entered manually for security
+        }
+
+        setAutoDetected(true);
       }
     },
   });
@@ -414,13 +435,30 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                       <AlertTriangle className="h-4 w-4" />
                     )}
                     <AlertTitle>
-                      {detectMutation.data.found ? 'Evolution Database Detected' : 'Not Detected'}
+                      {detectMutation.data.found ? 'Evolution Configuration Detected' : 'Not Detected'}
                     </AlertTitle>
                     <AlertDescription>
                       {detectMutation.data.message}
-                      {detectMutation.data.url_masked && (
-                        <div className="mt-1 font-mono text-xs">
-                          Detected URL: {detectMutation.data.url_masked}
+                      {detectMutation.data.found && detectMutation.data.postgresql && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-sm font-medium">✓ Fields auto-populated (enter password to complete):</p>
+                          <ul className="list-disc list-inside text-xs font-mono ml-2">
+                            <li>Host: {detectMutation.data.postgresql.host}</li>
+                            <li>Port: {detectMutation.data.postgresql.port}</li>
+                            <li>Username: {detectMutation.data.postgresql.username}</li>
+                            <li>Database: {detectMutation.data.postgresql.database}</li>
+                          </ul>
+                        </div>
+                      )}
+                      {detectMutation.data.found && detectMutation.data.redis && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-sm font-medium">✓ Redis auto-populated:</p>
+                          <ul className="list-disc list-inside text-xs font-mono ml-2">
+                            <li>Host: {detectMutation.data.redis.host}</li>
+                            <li>Port: {detectMutation.data.redis.port}</li>
+                            <li>Database: {detectMutation.data.redis.dbNumber}</li>
+                            <li>TLS: {detectMutation.data.redis.tls ? 'Enabled' : 'Disabled'}</li>
+                          </ul>
                         </div>
                       )}
                     </AlertDescription>

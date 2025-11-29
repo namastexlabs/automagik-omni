@@ -143,11 +143,26 @@ export interface DatabaseApplyResponse {
   requires_restart: boolean;
 }
 
+export interface DetectedPostgresFields {
+  host: string;
+  port: string;
+  username: string;
+  database: string;
+}
+
+export interface DetectedRedisFields {
+  host: string;
+  port: string;
+  dbNumber: string;
+  tls: boolean;
+}
+
 export interface EvolutionDetectResponse {
   found: boolean;
   source: string | null;
-  url_masked: string | null;
   message: string;
+  postgresql: DetectedPostgresFields | null;
+  redis: DetectedRedisFields | null;
 }
 
 export interface RedisTestResponse {
