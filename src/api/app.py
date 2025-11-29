@@ -324,6 +324,11 @@ app = FastAPI(
     ],
 )
 
+# Include setup routes (unauthenticated, for onboarding)
+from src.api.routes.setup import router as setup_router
+
+app.include_router(setup_router, prefix="/api/v1", tags=["Setup"])
+
 # Include omni communication routes under instances namespace (for unified API)
 app.include_router(
     omni_router,

@@ -778,6 +778,50 @@ export const api = {
       return apiRequest('/database/detect-evolution');
     },
   },
+
+  // Setup API (unauthenticated endpoints for onboarding)
+  setup: {
+    async status(): Promise<{ requires_setup: boolean; db_type: string | null }> {
+      const response = await fetch(`${API_BASE_URL}/setup/status`);
+      if (!response.ok) {
+        throw new Error('Failed to check setup status');
+      }
+      return response.json();
+    },
+
+    async initialize(config: {
+      db_type: 'sqlite' | 'postgresql';
+      postgres_url?: string;
+      redis_enabled: boolean;
+      redis_url?: string;
+      redis_prefix_key?: string;
+      redis_ttl?: number;
+      redis_save_instances?: boolean;
+    }): Promise<{ success: boolean; message: string }> {
+      const response = await fetch(`${API_BASE_URL}/setup/initialize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Setup initialization failed' }));
+        throw new Error(error.detail || 'Setup initialization failed');
+      }
+      return response.json();
+    },
+
+    async complete(): Promise<{ success: boolean; message: string }> {
+      const response = await fetch(`${API_BASE_URL}/setup/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to complete setup' }));
+        throw new Error(error.detail || 'Failed to complete setup');
+      }
+      return response.json();
+    },
+  },
 };
 
 // Evolution API helper (direct to Evolution via gateway)

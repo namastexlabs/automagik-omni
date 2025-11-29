@@ -29,10 +29,11 @@ import {
 type WizardStep = 'select' | 'configure' | 'confirm';
 
 interface DatabaseSetupWizardProps {
-  onComplete?: () => void;
+  onComplete?: (config?: any) => void;
+  isFirstRun?: boolean;
 }
 
-export function DatabaseSetupWizard({ onComplete }: DatabaseSetupWizardProps) {
+export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: DatabaseSetupWizardProps) {
   const [step, setStep] = useState<WizardStep>('select');
   const [dbType, setDbType] = useState<'sqlite' | 'postgresql'>('sqlite');
   const [postgresUrl, setPostgresUrl] = useState('');
@@ -82,20 +83,42 @@ export function DatabaseSetupWizard({ onComplete }: DatabaseSetupWizardProps) {
 
   // Apply configuration
   const applyMutation = useMutation({
-    mutationFn: () =>
-      api.database.apply(
-        dbType,
-        dbType === 'postgresql' ? postgresUrl : undefined,
-        {
-          enabled: redisEnabled,
-          url: redisEnabled ? redisUrl : undefined,
-          prefixKey: redisPrefixKey,
-          ttl: redisTtl,
-          saveInstances: redisSaveInstances,
-        }
-      ),
-    onSuccess: () => {
-      onComplete?.();
+    mutationFn: async () => {
+      if (isFirstRun) {
+        // First-run mode: Just pass config up, don't call backend
+        const config = {
+          db_type: dbType,
+          postgres_url: dbType === 'postgresql' ? postgresUrl : undefined,
+          redis_enabled: redisEnabled,
+          redis_url: redisEnabled ? redisUrl : undefined,
+          redis_prefix_key: redisPrefixKey,
+          redis_ttl: redisTtl,
+          redis_save_instances: redisSaveInstances,
+        };
+        return config;
+      } else {
+        // Settings mode: Call backend API as normal
+        return api.database.apply(
+          dbType,
+          dbType === 'postgresql' ? postgresUrl : undefined,
+          {
+            enabled: redisEnabled,
+            url: redisEnabled ? redisUrl : undefined,
+            prefixKey: redisPrefixKey,
+            ttl: redisTtl,
+            saveInstances: redisSaveInstances,
+          }
+        );
+      }
+    },
+    onSuccess: (data) => {
+      if (isFirstRun) {
+        // Pass config to parent
+        onComplete?.(data);
+      } else {
+        // Just call completion callback
+        onComplete?.();
+      }
     },
   });
 

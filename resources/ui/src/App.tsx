@@ -3,7 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { ForgeInspector as AutomagikForgeWebCompanion } from 'forge-inspector';
 import { ThemeProvider } from './components/ThemeProvider';
-import { isAuthenticated } from './lib/api';
+import { OnboardingProvider, useOnboarding } from './contexts/OnboardingContext';
+import { SetupGuard } from './components/SetupGuard';
+import LoadingScreen from './components/LoadingScreen';
+import { isAuthenticated, getApiKey } from './lib/api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Instances from './pages/Instances';
@@ -11,6 +14,8 @@ import Contacts from './pages/Contacts';
 import Chats from './pages/Chats';
 import Settings from './pages/Settings';
 import GlobalSettings from './pages/GlobalSettings';
+import DatabaseSetup from './pages/onboarding/DatabaseSetup';
+import ApiKey from './pages/onboarding/ApiKey';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,74 +36,121 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return isAuthenticated() ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 }
 
+// Root redirect with onboarding check
+function RootRedirect() {
+  const { requiresSetup, isLoading } = useOnboarding();
+  const authenticated = isAuthenticated();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (requiresSetup) {
+    return <Navigate to="/onboarding/setup" replace />;
+  }
+
+  if (!authenticated) {
+    return <Navigate to="/onboarding/api-key" replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
+}
+
 function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <Toaster richColors position="top-right" />
-        <AutomagikForgeWebCompanion />
-        <BrowserRouter>
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/instances"
-              element={
-                <ProtectedRoute>
-                  <Instances />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/contacts"
-              element={
-                <ProtectedRoute>
-                  <Contacts />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/chats"
-              element={
-                <ProtectedRoute>
-                  <Chats />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/global-settings"
-              element={
-                <ProtectedRoute>
-                  <GlobalSettings />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </BrowserRouter>
+        <OnboardingProvider>
+          <Toaster richColors position="top-right" />
+          <AutomagikForgeWebCompanion />
+          <BrowserRouter>
+            <Routes>
+              {/* Root redirect with onboarding check */}
+              <Route path="/" element={<RootRedirect />} />
+
+              {/* Onboarding routes (no auth required) */}
+              <Route path="/onboarding/setup" element={<DatabaseSetup />} />
+              <Route path="/onboarding/api-key" element={<ApiKey />} />
+
+              {/* Login route (legacy, wrapped with SetupGuard) */}
+              <Route
+                path="/login"
+                element={
+                  <SetupGuard>
+                    <PublicRoute>
+                      <Login />
+                    </PublicRoute>
+                  </SetupGuard>
+                }
+              />
+
+              {/* Protected routes (wrapped with SetupGuard) */}
+              <Route
+                path="/dashboard"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/instances"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Instances />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/contacts"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Contacts />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/chats"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Chats />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Settings />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/global-settings"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <GlobalSettings />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+
+              {/* Catch-all redirect */}
+              <Route path="*" element={<RootRedirect />} />
+            </Routes>
+          </BrowserRouter>
+        </OnboardingProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
