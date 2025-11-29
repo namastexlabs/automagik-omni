@@ -15,8 +15,6 @@ import {
   buildRedisUrl,
   type PostgresUrlComponents,
   type RedisUrlComponents,
-  validatePort,
-  validateDbNumber,
 } from '@/lib/database-url-utils';
 import {
   useFieldValidation,
@@ -39,6 +37,8 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 type WizardStep = 'select' | 'configure' | 'confirm';
@@ -75,6 +75,10 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
   // Track auto-detection status
   const [autoDetected, setAutoDetected] = useState(false);
+
+  // Password visibility toggles
+  const [showPgPassword, setShowPgPassword] = useState(false);
+  const [showRedisPassword, setShowRedisPassword] = useState(false);
 
   // Field validation (PostgreSQL)
   const pgHostValidation = useFieldValidation(pgHost, validationRules.pgHost);
@@ -382,7 +386,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                     Enter the same PostgreSQL connection details used by Evolution API to share the database.
                   </p>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pg-host" className="flex items-center gap-2">
                         Host
@@ -429,7 +433,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pg-username" className="flex items-center gap-2">
                         Username
@@ -462,14 +466,25 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                           <XCircle className="h-3 w-3 text-red-500" />
                         )}
                       </Label>
-                      <Input
-                        id="pg-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={pgPassword}
-                        onChange={(e) => setPgPassword(e.target.value)}
-                        className={getValidationClass(pgPasswordValidation.state)}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="pg-password"
+                          type={showPgPassword ? 'text' : 'password'}
+                          placeholder="••••••••"
+                          value={pgPassword}
+                          onChange={(e) => setPgPassword(e.target.value)}
+                          className={`${getValidationClass(pgPasswordValidation.state)} pr-10`}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowPgPassword(!showPgPassword)}
+                        >
+                          {showPgPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                       {pgPasswordValidation.error && (
                         <p className="text-xs text-red-500">{pgPasswordValidation.error}</p>
                       )}
@@ -594,7 +609,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
               {redisEnabled && (
                 <div className="space-y-4 pl-7">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="redis-host" className="flex items-center gap-2">
                         Host
@@ -641,7 +656,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="redis-password" className="flex items-center gap-2">
                         Password (Optional)
@@ -649,14 +664,25 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                           <Check className="h-3 w-3 text-green-500" />
                         )}
                       </Label>
-                      <Input
-                        id="redis-password"
-                        type="password"
-                        placeholder="Leave empty if none"
-                        value={redisPassword}
-                        onChange={(e) => setRedisPassword(e.target.value)}
-                        className={getValidationClass(redisPasswordValidation.state)}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="redis-password"
+                          type={showRedisPassword ? 'text' : 'password'}
+                          placeholder="Leave empty if none"
+                          value={redisPassword}
+                          onChange={(e) => setRedisPassword(e.target.value)}
+                          className={`${getValidationClass(redisPasswordValidation.state)} pr-10`}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowRedisPassword(!showRedisPassword)}
+                        >
+                          {showRedisPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                       {redisPasswordValidation.error && (
                         <p className="text-xs text-red-500">{redisPasswordValidation.error}</p>
                       )}
