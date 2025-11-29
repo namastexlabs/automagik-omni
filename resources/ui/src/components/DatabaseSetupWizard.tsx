@@ -23,6 +23,7 @@ import {
   validationRules,
   type ValidationState,
 } from '@/hooks/useFieldValidation';
+import { TestProgress } from '@/components/TestProgress';
 import {
   Database,
   Server,
@@ -263,24 +264,6 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
       default:
         return '';
     }
-  };
-
-  const renderTestResult = (name: string, result: TestResult) => {
-    const Icon = result.ok ? CheckCircle2 : XCircle;
-    const colorClass = result.ok ? 'text-green-500' : 'text-red-500';
-
-    return (
-      <div key={name} className="flex items-center gap-2 text-sm">
-        <Icon className={`h-4 w-4 ${colorClass}`} />
-        <span className="capitalize font-medium">{name.replace('_', ' ')}</span>
-        <span className="text-muted-foreground">{result.message}</span>
-        {result.latency_ms && (
-          <Badge variant="outline" className="text-xs">
-            {result.latency_ms.toFixed(0)}ms
-          </Badge>
-        )}
-      </div>
-    );
   };
 
   if (configLoading) {
@@ -581,22 +564,12 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                 </div>
 
                 {testResult && (
-                  <div className="space-y-2 p-4 bg-muted rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold">Connection Test Results</span>
-                      <Badge variant={testResult.success ? 'default' : 'destructive'}>
-                        {testResult.success ? 'All Passed' : 'Failed'}
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      {Object.entries(testResult.tests).map(([name, result]) =>
-                        renderTestResult(name, result)
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground pt-2">
-                      Total time: {testResult.total_latency_ms.toFixed(0)}ms
-                    </div>
-                  </div>
+                  <TestProgress
+                    tests={testResult.tests}
+                    totalLatency={testResult.total_latency_ms}
+                    isPending={testMutation.isPending}
+                    testType="postgresql"
+                  />
                 )}
               </>
             )}
@@ -750,22 +723,12 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                   </Button>
 
                   {redisTestResult && (
-                    <div className="space-y-2 p-4 bg-muted rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold">Redis Test Results</span>
-                        <Badge variant={redisTestResult.success ? 'default' : 'destructive'}>
-                          {redisTestResult.success ? 'All Passed' : 'Failed'}
-                        </Badge>
-                      </div>
-                      <div className="space-y-1">
-                        {Object.entries(redisTestResult.tests).map(([name, result]) =>
-                          renderTestResult(name, result)
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground pt-2">
-                        Total time: {redisTestResult.total_latency_ms.toFixed(0)}ms
-                      </div>
-                    </div>
+                    <TestProgress
+                      tests={redisTestResult.tests}
+                      totalLatency={redisTestResult.total_latency_ms}
+                      isPending={redisTestMutation.isPending}
+                      testType="redis"
+                    />
                   )}
 
                   {/* Advanced Options */}
