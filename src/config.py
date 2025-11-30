@@ -5,15 +5,18 @@ Loads configuration from environment variables.
 
 import os
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import Any
 import pytz
 from datetime import datetime
 
-# Load environment variables from .env file
+# Load environment variables from .env file (optional - only if file exists)
 # This should be the ONLY place where load_dotenv is called in the entire application
-load_dotenv(override=True)
+# .env is now optional - all settings can be configured via database or auto-generated
+if Path(".env").exists():
+    load_dotenv(override=True)
 
 # Get logger for this module
 logger = logging.getLogger(__name__)

@@ -8,6 +8,8 @@ from src.core.telemetry import track_command, telemetry_client
 from src.cli.instance_cli import app as instance_app
 from src.cli.telemetry_cli import app as telemetry_app
 from src.cli.discord_cli import app as discord_app
+from src.cli.reset_cli import app as reset_app
+from src.cli.key_cli import app as key_app
 from src.api.app import prepare_runtime
 
 # Create main app
@@ -16,6 +18,8 @@ app = typer.Typer(help="Automagik Omni: Multi-tenant omnichannel messaging hub")
 app.add_typer(instance_app, name="instance", help="Instance management commands")
 app.add_typer(telemetry_app, name="telemetry", help="Telemetry management commands")
 app.add_typer(discord_app, name="discord", help="Discord bot management commands")
+app.add_typer(reset_app, name="reset", help="Reset and maintenance commands")
+app.add_typer(key_app, name="key", help="API key management commands")
 
 
 @app.callback()
