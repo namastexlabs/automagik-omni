@@ -34,9 +34,10 @@ class InstanceConfig(Base):
     name = Column(String, unique=True, index=True, nullable=False)  # e.g., "flashinho_v2"
     channel_type = Column(String, default="whatsapp", nullable=False)  # "whatsapp", "slack", "discord"
 
-    # Evolution API configuration (WhatsApp-specific)
-    evolution_url = Column(String, nullable=True)  # Made nullable for other channels
-    evolution_key = Column(String, nullable=True)  # Made nullable for other channels
+    # WhatsApp Web API configuration (via Evolution API)
+    # Use whatsapp_web_url/whatsapp_web_key property aliases for new code
+    evolution_url = Column(String, nullable=True)  # Alias: whatsapp_web_url
+    evolution_key = Column(String, nullable=True)  # Alias: whatsapp_web_key
 
     # Channel-specific configuration
     whatsapp_instance = Column(String, nullable=True)  # WhatsApp: instance name
@@ -130,6 +131,25 @@ class InstanceConfig(Base):
     def streaming_enabled(self) -> bool:
         """Check if streaming is enabled."""
         return self.agent_stream_mode and self.is_hive
+
+    # WhatsApp Web API aliases (clean naming for evolution_* columns)
+    @property
+    def whatsapp_web_url(self) -> str | None:
+        """Alias for evolution_url - WhatsApp Web API URL."""
+        return self.evolution_url
+
+    @whatsapp_web_url.setter
+    def whatsapp_web_url(self, value: str | None) -> None:
+        self.evolution_url = value
+
+    @property
+    def whatsapp_web_key(self) -> str | None:
+        """Alias for evolution_key - WhatsApp Web API key."""
+        return self.evolution_key
+
+    @whatsapp_web_key.setter
+    def whatsapp_web_key(self, value: str | None) -> None:
+        self.evolution_key = value
 
     def get_agent_config(self) -> dict:
         """Get unified agent configuration as dictionary."""

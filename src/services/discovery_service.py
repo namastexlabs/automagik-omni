@@ -1,5 +1,7 @@
 """
-Discovery service for auto-detecting Evolution instances and syncing with database.
+Discovery service for auto-detecting WhatsApp Web instances and syncing with database.
+
+Note: Uses Evolution API as the underlying protocol for WhatsApp Web connectivity.
 """
 
 import logging
@@ -24,19 +26,21 @@ def _generate_api_key() -> str:
 
 
 class DiscoveryService:
-    """Service for discovering and syncing Evolution instances."""
+    """Service for discovering and syncing WhatsApp Web instances via Evolution API."""
 
     def __init__(self):
         """Initialize discovery service."""
-        self.evolution_client = None
+        self.whatsapp_web_client = None  # EvolutionClient instance for API calls
 
     async def discover_evolution_instances(self, db: Session) -> List[InstanceConfig]:
         """
-        Discover Evolution instances using bootstrap credentials from environment.
+        Discover WhatsApp Web instances using bootstrap credentials from database.
 
-        Always uses the bootstrap EVOLUTION_API_KEY from environment for authentication
-        with Evolution API, regardless of database state. Per-instance evolution_keys
+        Always uses the bootstrap WhatsApp Web API key from database for authentication
+        with Evolution API, regardless of per-instance state. Per-instance whatsapp_web_keys
         are generated locally and stored for display/reference only.
+
+        Note: Method name kept as 'discover_evolution_instances' for backward compatibility.
 
         Args:
             db: Database session
@@ -44,7 +48,7 @@ class DiscoveryService:
         Returns:
             List of discovered/synced instances
         """
-        logger.info("Starting Evolution instance discovery...")
+        logger.info("Starting WhatsApp Web instance discovery via Evolution API...")
 
         # Get bootstrap credentials from database (with .env fallback)
         from src.config import config
@@ -59,7 +63,7 @@ class DiscoveryService:
 
         if not bootstrap_key:
             logger.warning(
-                "No Evolution API key found in database or environment. "
+                "No WhatsApp Web API key found in database or environment. "
                 "The key should be auto-generated on first startup."
             )
             return []
@@ -78,7 +82,7 @@ class DiscoveryService:
 
         synced_instances = []
 
-        logger.info(f"Using bootstrap EVOLUTION_API_KEY for instance discovery (URL: {global_url})")
+        logger.info(f"Using bootstrap WhatsApp Web API key for instance discovery (URL: {global_url})")
 
         # Query Evolution API using bootstrap credentials
         try:
@@ -257,24 +261,24 @@ class DiscoveryService:
 
     async def sync_instance_status(self, instance_name: str, db: Session) -> Optional[Dict[str, Any]]:
         """
-        Sync a specific instance's status with Evolution API.
+        Sync a specific instance's status with WhatsApp Web API (via Evolution).
 
         Args:
             instance_name: Name of instance to sync
             db: Database session
 
         Returns:
-            Evolution connection state or None if sync failed
+            WhatsApp Web connection state or None if sync failed
         """
-        # Get the instance to get its Evolution API credentials
+        # Get the instance to get its WhatsApp Web API credentials
         db_instance = db.query(InstanceConfig).filter(InstanceConfig.name == instance_name).first()
 
         if not db_instance:
             logger.warning(f"Instance {instance_name} not found in database")
             return None
 
-        if not db_instance.evolution_url:
-            logger.warning(f"Instance {instance_name} missing Evolution URL")
+        if not db_instance.whatsapp_web_url:  # Use alias
+            logger.warning(f"Instance {instance_name} missing WhatsApp Web API URL")
             return None
 
         try:
@@ -289,7 +293,7 @@ class DiscoveryService:
                 bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
             if not bootstrap_key:
-                logger.warning("No Evolution API key found in database or environment, cannot sync instance status")
+                logger.warning("No WhatsApp Web API key found in database or environment, cannot sync instance status")
                 return None
 
             # Pass instance name for logging/debugging only (auth uses bootstrap key)

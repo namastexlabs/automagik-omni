@@ -8,7 +8,8 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
+from typing import Any
 
 from src.api.deps import get_database, verify_api_key
 from src.db.models import InstanceConfig
@@ -53,12 +54,24 @@ class InstanceConfigCreate(BaseModel):
     name: str
     channel_type: str = Field(default="whatsapp", description="Channel type: whatsapp, slack, discord")
 
-    # Channel-specific fields (optional based on type)
-    evolution_url: Optional[str] = Field(None, description="Evolution API URL (WhatsApp)")
-    evolution_key: Optional[str] = Field(None, description="Evolution API key (WhatsApp)")
+    # WhatsApp Web API configuration (accepts both new and legacy field names)
+    whatsapp_web_url: Optional[str] = Field(None, description="WhatsApp Web API URL")
+    whatsapp_web_key: Optional[str] = Field(None, description="WhatsApp Web API key")
     whatsapp_instance: Optional[str] = Field(None, description="WhatsApp instance name")
     session_id_prefix: Optional[str] = Field(None, description="Session ID prefix (WhatsApp)")
     webhook_base64: Optional[bool] = Field(None, description="Send base64 encoded data in webhooks (WhatsApp)")
+
+    @model_validator(mode='before')
+    @classmethod
+    def migrate_legacy_evolution_fields(cls, data: Any) -> Any:
+        """Accept legacy evolution_* field names and map to whatsapp_web_*."""
+        if isinstance(data, dict):
+            # Map legacy field names to new names
+            if 'evolution_url' in data and 'whatsapp_web_url' not in data:
+                data['whatsapp_web_url'] = data.pop('evolution_url')
+            if 'evolution_key' in data and 'whatsapp_web_key' not in data:
+                data['whatsapp_web_key'] = data.pop('evolution_key')
+        return data
 
     # Discord-specific fields
     discord_bot_token: Optional[str] = Field(None, description="Discord bot token (Discord)")
@@ -103,11 +116,24 @@ class InstanceConfigUpdate(BaseModel):
     """Schema for updating instance configuration."""
 
     channel_type: Optional[str] = None
-    evolution_url: Optional[str] = None
-    evolution_key: Optional[str] = None
+
+    # WhatsApp Web API configuration (accepts both new and legacy field names)
+    whatsapp_web_url: Optional[str] = None
+    whatsapp_web_key: Optional[str] = None
     whatsapp_instance: Optional[str] = None
     session_id_prefix: Optional[str] = None
     webhook_base64: Optional[bool] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def migrate_legacy_evolution_fields(cls, data: Any) -> Any:
+        """Accept legacy evolution_* field names and map to whatsapp_web_*."""
+        if isinstance(data, dict):
+            if 'evolution_url' in data and 'whatsapp_web_url' not in data:
+                data['whatsapp_web_url'] = data.pop('evolution_url')
+            if 'evolution_key' in data and 'whatsapp_web_key' not in data:
+                data['whatsapp_web_key'] = data.pop('evolution_key')
+        return data
 
     # Discord-specific fields
     discord_bot_token: Optional[str] = None
@@ -135,8 +161,8 @@ class InstanceConfigUpdate(BaseModel):
     enable_auto_split: Optional[bool] = None
 
 
-class EvolutionStatusInfo(BaseModel):
-    """Schema for Evolution API status information."""
+class WhatsAppWebStatusInfo(BaseModel):
+    """Schema for WhatsApp Web API connection status information."""
 
     state: Optional[str] = None
     owner_jid: Optional[str] = None
@@ -146,17 +172,23 @@ class EvolutionStatusInfo(BaseModel):
     error: Optional[str] = None
 
 
+# Backward compatibility alias
+EvolutionStatusInfo = WhatsAppWebStatusInfo
+
+
 class InstanceConfigResponse(BaseModel):
     """Schema for instance configuration response."""
 
     id: int
     name: str
     channel_type: str
-    evolution_url: Optional[str]
-    evolution_key: Optional[str]
-    whatsapp_instance: Optional[str]
-    session_id_prefix: Optional[str]
-    webhook_base64: Optional[bool]
+
+    # WhatsApp Web API configuration (use new names in responses)
+    whatsapp_web_url: Optional[str] = None
+    whatsapp_web_key: Optional[str] = None
+    whatsapp_instance: Optional[str] = None
+    session_id_prefix: Optional[str] = None
+    webhook_base64: Optional[bool] = None
 
     # Discord-specific fields - SECURITY FIX: Don't expose actual token
     has_discord_bot_token: Optional[bool] = None  # Security: Don't expose actual token
@@ -175,14 +207,14 @@ class InstanceConfigResponse(BaseModel):
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
 
-    # Profile information from Evolution API
+    # Profile information from WhatsApp Web API
     profile_name: Optional[str] = None
     profile_pic_url: Optional[str] = None
     owner_jid: Optional[str] = None
 
     created_at: datetime
     updated_at: datetime
-    evolution_status: Optional[EvolutionStatusInfo] = None
+    whatsapp_web_status: Optional[WhatsAppWebStatusInfo] = None
 
     # Unified agent fields
     agent_instance_type: Optional[str] = None
@@ -212,10 +244,10 @@ async def create_instance(
     logger.info(f"Creating instance: {instance_data.name}")
     payload_data = instance_data.model_dump()
     # Mask sensitive fields for logging - SECURITY FIX: Added Discord token masking
-    if "evolution_key" in payload_data and payload_data["evolution_key"]:
-        payload_data["evolution_key"] = (
-            f"{payload_data['evolution_key'][:4]}***{payload_data['evolution_key'][-4:]}"
-            if len(payload_data["evolution_key"]) > 8
+    if "whatsapp_web_key" in payload_data and payload_data["whatsapp_web_key"]:
+        payload_data["whatsapp_web_key"] = (
+            f"{payload_data['whatsapp_web_key'][:4]}***{payload_data['whatsapp_web_key'][-4:]}"
+            if len(payload_data["whatsapp_web_key"]) > 8
             else "***"
         )
     if "agent_api_key" in payload_data and payload_data["agent_api_key"]:
@@ -236,7 +268,7 @@ async def create_instance(
         )
 
     if instance_data.channel_type == "whatsapp":
-        if instance_data.evolution_url and instance_data.evolution_url.lower() in [
+        if instance_data.whatsapp_web_url and instance_data.whatsapp_web_url.lower() in [
             "string",
             "null",
             "undefined",
@@ -244,10 +276,10 @@ async def create_instance(
         ]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid evolution_url. Please provide a valid Evolution API URL (e.g., http://localhost:8080).",
+                detail="Invalid whatsapp_web_url. Please provide a valid WhatsApp Web API URL (e.g., http://localhost:8080).",
             )
 
-        if instance_data.evolution_key and instance_data.evolution_key.lower() in [
+        if instance_data.whatsapp_web_key and instance_data.whatsapp_web_key.lower() in [
             "string",
             "null",
             "undefined",
@@ -255,7 +287,7 @@ async def create_instance(
         ]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid evolution_key. Please provide a valid Evolution API key.",
+                detail="Invalid whatsapp_web_key. Please provide a valid WhatsApp Web API key.",
             )
 
     # Normalize instance name for API compatibility
@@ -297,6 +329,13 @@ async def create_instance(
 
     # Create database instance first (without creation parameters)
     db_instance_data = instance_data.model_dump(exclude={"phone_number", "auto_qr", "integration"}, exclude_unset=False)
+
+    # Map WhatsApp Web API field names to database column names
+    # (Schema uses whatsapp_web_*, DB uses evolution_* for backward compatibility)
+    if "whatsapp_web_url" in db_instance_data:
+        db_instance_data["evolution_url"] = db_instance_data.pop("whatsapp_web_url")
+    if "whatsapp_web_key" in db_instance_data:
+        db_instance_data["evolution_key"] = db_instance_data.pop("whatsapp_web_key")
 
     # Replace localhost with actual IPv4 addresses in URLs
     db_instance_data = ensure_ipv4_in_config(db_instance_data)
@@ -400,8 +439,8 @@ async def list_instances(
             "id": instance.id,
             "name": instance.name,
             "channel_type": instance.channel_type,
-            "evolution_url": instance.evolution_url,
-            "evolution_key": instance.evolution_key,
+            "whatsapp_web_url": instance.whatsapp_web_url,  # Use property alias
+            "whatsapp_web_key": instance.whatsapp_web_key,  # Use property alias
             "whatsapp_instance": instance.whatsapp_instance,
             "session_id_prefix": instance.session_id_prefix,
             "webhook_base64": instance.webhook_base64,
@@ -454,7 +493,7 @@ async def list_instances(
 
                 if not bootstrap_key:
                     logger.warning(f"No Evolution API key found in database or environment for {instance.name}, skipping status check")
-                    instance_dict["evolution_status"] = None
+                    instance_dict["whatsapp_web_status"] = None
                 else:
                     # Pass instance name for logging/debugging only (auth uses bootstrap key)
                     whatsapp_instance_name = instance.whatsapp_instance or instance.name
@@ -467,7 +506,7 @@ async def list_instances(
                     # Parse the response
                     if isinstance(state_response, dict) and "instance" in state_response:
                         instance_info = state_response["instance"]
-                        instance_dict["evolution_status"] = EvolutionStatusInfo(
+                        instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(
                             state=instance_info.get("state"),
                             owner_jid=instance_info.get("ownerJid"),
                             profile_name=instance_info.get("profileName"),
@@ -475,13 +514,13 @@ async def list_instances(
                             last_updated=datetime.now(),
                         )
                     else:
-                        instance_dict["evolution_status"] = EvolutionStatusInfo(
+                        instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(
                             error="Invalid response format", last_updated=datetime.now()
                         )
 
             except Exception as e:
                 logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")
-                instance_dict["evolution_status"] = EvolutionStatusInfo(error=str(e), last_updated=datetime.now())
+                instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(error=str(e), last_updated=datetime.now())
 
         response_instances.append(InstanceConfigResponse(**instance_dict))
 
@@ -508,8 +547,8 @@ async def get_instance(
         "id": instance.id,
         "name": instance.name,
         "channel_type": instance.channel_type,
-        "evolution_url": instance.evolution_url,
-        "evolution_key": instance.evolution_key,
+        "whatsapp_web_url": instance.whatsapp_web_url,  # Use property alias
+        "whatsapp_web_key": instance.whatsapp_web_key,  # Use property alias
         "whatsapp_instance": instance.whatsapp_instance,
         "session_id_prefix": instance.session_id_prefix,
         "webhook_base64": instance.webhook_base64,
@@ -585,7 +624,7 @@ async def get_instance(
                 # Parse the response
                 if evolution_instances and len(evolution_instances) > 0:
                     evolution_instance = evolution_instances[0]
-                    instance_dict["evolution_status"] = EvolutionStatusInfo(
+                    instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(
                         state=evolution_instance.status,
                         owner_jid=evolution_instance.ownerJid,
                         profile_name=evolution_instance.profileName,
@@ -593,13 +632,13 @@ async def get_instance(
                         last_updated=datetime.now(),
                     )
                 else:
-                    instance_dict["evolution_status"] = EvolutionStatusInfo(
+                    instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(
                         error="Instance not found in Evolution API", last_updated=datetime.now()
                     )
 
         except Exception as e:
             logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")
-            instance_dict["evolution_status"] = EvolutionStatusInfo(error=str(e), last_updated=datetime.now())
+            instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(error=str(e), last_updated=datetime.now())
 
     return InstanceConfigResponse(**instance_dict)
 
@@ -621,6 +660,13 @@ async def update_instance(
 
     # Get only provided fields (exclude None values from update)
     update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
+
+    # Map WhatsApp Web API field names to database column names
+    # (Schema uses whatsapp_web_*, DB uses evolution_* for backward compatibility)
+    if "whatsapp_web_url" in update_dict:
+        update_dict["evolution_url"] = update_dict.pop("whatsapp_web_url")
+    if "whatsapp_web_key" in update_dict:
+        update_dict["evolution_key"] = update_dict.pop("whatsapp_web_key")
 
     # Replace localhost with actual IPv4 addresses in URLs
     if update_dict:

@@ -1,6 +1,9 @@
 """
-Evolution API message sender for WhatsApp.
-Handles sending messages back to Evolution API using webhook payload information.
+WhatsApp Web API message sender.
+Handles sending messages back to WhatsApp via Evolution API using webhook payload information.
+
+Note: Uses Evolution API as the underlying protocol for WhatsApp Web connectivity.
+Class alias: WhatsAppWebSender (preferred for new code)
 """
 
 import logging
@@ -14,26 +17,31 @@ import random
 from .mention_parser import WhatsAppMentionParser
 
 # Configure logging
-logger = logging.getLogger("src.channels.whatsapp.evolution_api_sender")
+logger = logging.getLogger("src.channels.whatsapp.whatsapp_web_sender")
 
 
 class EvolutionApiSender:
-    """Client for sending messages to Evolution API."""
+    """
+    Client for sending messages to WhatsApp via Evolution API.
+
+    Note: Class name kept as 'EvolutionApiSender' for backward compatibility.
+    Use the 'WhatsAppWebSender' alias for new code.
+    """
 
     def __init__(self, config_override=None):
         """
-        Initialize the sender.
+        Initialize the WhatsApp Web sender.
 
         Args:
             config_override: Optional InstanceConfig object for per-instance configuration
         """
         if config_override:
-            # Use per-instance configuration
-            self.server_url = config_override.evolution_url or None
-            self.api_key = config_override.evolution_key or None
+            # Use per-instance configuration (using property aliases)
+            self.server_url = config_override.whatsapp_web_url or None
+            self.api_key = config_override.whatsapp_web_key or None
             self.instance_name = config_override.whatsapp_instance
             self.config = config_override  # Store config for accessing enable_auto_split
-            logger.info(f"Evolution API sender initialized for instance '{config_override.name}'")
+            logger.info(f"WhatsApp Web sender initialized for instance '{config_override.name}'")
         else:
             # Initialize with empty values (will be set from webhook)
             self.server_url = None
@@ -804,5 +812,11 @@ class PresenceUpdater:
                 time.sleep(2)
 
 
+# Class alias for new code (preferred naming)
+WhatsAppWebSender = EvolutionApiSender
+
 # Create singleton instance
 evolution_api_sender = EvolutionApiSender()
+
+# Alias for new code (preferred naming)
+whatsapp_web_sender = evolution_api_sender

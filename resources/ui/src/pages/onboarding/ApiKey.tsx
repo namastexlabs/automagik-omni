@@ -22,13 +22,41 @@ export default function ApiKey() {
   useEffect(() => {
     const fetchApiKey = async () => {
       try {
+        // Try setup endpoint first (works during onboarding)
         const result = await api.setup.getApiKey();
         if (result.api_key) {
           setGeneratedKey(result.api_key);
           setApiKey(result.api_key);
         }
       } catch (err) {
-        console.error('Failed to fetch API key:', err);
+        console.error('Setup API key fetch failed:', err);
+        const errorMsg = err instanceof Error ? err.message : '';
+
+        // If setup is already complete, try recovery endpoint (localhost-only)
+        if (errorMsg.includes('Setup already completed') || errorMsg.includes('403')) {
+          try {
+            const recoveryResult = await api.recovery.getApiKey();
+            if (recoveryResult.api_key) {
+              setGeneratedKey(recoveryResult.api_key);
+              setApiKey(recoveryResult.api_key);
+              return; // Success via recovery
+            }
+          } catch (recoveryErr) {
+            console.error('Recovery API key fetch failed:', recoveryErr);
+            const recoveryMsg = recoveryErr instanceof Error ? recoveryErr.message : '';
+
+            if (recoveryMsg.includes('localhost') || recoveryMsg.includes('403')) {
+              setError(
+                'Setup is complete. To recover your API key, access this page from the server machine (localhost) ' +
+                'or check your database: SELECT value FROM omni_global_settings WHERE key="omni_api_key"'
+              );
+            } else {
+              setError('Could not retrieve API key. Please check the server logs.');
+            }
+            return;
+          }
+        }
+
         setError('Could not retrieve API key. Please try refreshing the page.');
       } finally {
         setIsLoading(false);

@@ -350,28 +350,64 @@ class SettingsService:
 settings_service = SettingsService()
 
 
-# Helper function for getting Evolution API key without db session
-def get_evolution_api_key_global() -> str:
+# Helper functions for WhatsApp Web API (via Evolution API)
+# Note: evolution_api_key is the underlying database key for backward compatibility
+
+
+def get_whatsapp_web_api_key_global() -> str:
     """
-    Get Evolution API key from database with .env fallback.
+    Get WhatsApp Web API key from database with .env fallback.
 
     This is a convenience function for code that doesn't have a db session.
     It creates a temporary session to fetch the key.
 
     Returns:
-        Evolution API key string
+        WhatsApp Web API key string
     """
     from src.db.database import SessionLocal
     from src.config import config
 
-    # Try database first
+    # Try database first (stored as evolution_api_key for backward compatibility)
     try:
         with SessionLocal() as db:
             key = settings_service.get_setting_value("evolution_api_key", db, default=None)
             if key:
                 return key
     except Exception as e:
-        logger.warning(f"Failed to get Evolution API key from database: {e}")
+        logger.warning(f"Failed to get WhatsApp Web API key from database: {e}")
 
     # Fallback to .env (backward compatibility during transition)
     return config.get_env("EVOLUTION_API_KEY", "")
+
+
+def get_whatsapp_web_api_url_global() -> str:
+    """
+    Get WhatsApp Web API URL from database with .env fallback.
+
+    Returns:
+        WhatsApp Web API URL string
+    """
+    from src.db.database import SessionLocal
+    from src.config import config
+
+    # Try database first (stored as evolution_api_url for backward compatibility)
+    try:
+        with SessionLocal() as db:
+            url = settings_service.get_setting_value("evolution_api_url", db, default=None)
+            if url:
+                return url
+    except Exception as e:
+        logger.warning(f"Failed to get WhatsApp Web API URL from database: {e}")
+
+    # Fallback to .env
+    return config.get_env("EVOLUTION_URL", "http://localhost:18082")
+
+
+# Backward compatibility alias
+def get_evolution_api_key_global() -> str:
+    """
+    Alias for get_whatsapp_web_api_key_global().
+
+    Deprecated: Use get_whatsapp_web_api_key_global() instead.
+    """
+    return get_whatsapp_web_api_key_global()
