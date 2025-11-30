@@ -52,7 +52,7 @@ export default function DatabaseSetup() {
   return (
     <OnboardingLayout
       currentStep={1}
-      totalSteps={2}
+      totalSteps={3}
       title="Welcome to Automagik Omni"
     >
       <div className="p-8">

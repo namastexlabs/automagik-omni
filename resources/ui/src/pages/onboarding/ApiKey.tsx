@@ -4,13 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import OnboardingLayout from '@/components/OnboardingLayout';
-import { useOnboarding } from '@/contexts/OnboardingContext';
+// Note: useOnboarding removed - setup completion moved to ChannelSetup
 import { setApiKey as saveApiKey, api } from '@/lib/api';
 import { Lock, Loader2, CheckCircle2, Copy, Check, AlertTriangle, Key } from 'lucide-react';
 
 export default function ApiKey() {
   const navigate = useNavigate();
-  const { completeSetup } = useOnboarding();
   const [apiKey, setApiKey] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,14 +89,8 @@ export default function ApiKey() {
       const isValid = await api.testAuth();
 
       if (isValid) {
-        // Mark setup complete in backend
-        await api.setup.complete();
-
-        // Update context
-        await completeSetup();
-
-        // Navigate to dashboard
-        navigate('/dashboard');
+        // Navigate to channel setup (final step)
+        navigate('/onboarding/channels');
       } else {
         setError('Invalid API key. Please check and try again.');
         // Clear invalid key from localStorage
@@ -115,7 +108,7 @@ export default function ApiKey() {
 
   if (isLoading) {
     return (
-      <OnboardingLayout currentStep={2} totalSteps={2} title="API Key">
+      <OnboardingLayout currentStep={2} totalSteps={3} title="API Key">
         <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-4" />
           <p className="text-gray-600">Generating your API key...</p>
@@ -127,7 +120,7 @@ export default function ApiKey() {
   return (
     <OnboardingLayout
       currentStep={2}
-      totalSteps={2}
+      totalSteps={3}
       title="API Key"
     >
       <div className="p-8">
@@ -220,12 +213,12 @@ export default function ApiKey() {
             {isValidating ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Completing Setup...
+                Validating...
               </>
             ) : (
               <>
                 <CheckCircle2 className="mr-2 h-5 w-5" />
-                Complete Setup
+                Continue to Channels
               </>
             )}
           </Button>
