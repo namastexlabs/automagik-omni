@@ -142,7 +142,7 @@ export default function Login() {
               </div>
             </div>
             <p className="text-xs text-center text-muted-foreground bg-blue-50 p-3 rounded-lg border border-blue-100">
-              🔒 Your API key is stored locally and encrypted. It never leaves your device.
+              🔒 You'll stay logged in on this browser.
             </p>
           </form>
         </CardContent>
