@@ -16,6 +16,7 @@ import Settings from './pages/Settings';
 import GlobalSettings from './pages/GlobalSettings';
 import DatabaseSetup from './pages/onboarding/DatabaseSetup';
 import ApiKey from './pages/onboarding/ApiKey';
+import ChannelSetup from './pages/onboarding/ChannelSetup';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +72,7 @@ function App() {
               {/* Onboarding routes (no auth required) */}
               <Route path="/onboarding/setup" element={<DatabaseSetup />} />
               <Route path="/onboarding/api-key" element={<ApiKey />} />
+              <Route path="/onboarding/channels" element={<ChannelSetup />} />
 
               {/* Login route (legacy, wrapped with SetupGuard) */}
               <Route

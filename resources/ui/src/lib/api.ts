@@ -933,6 +933,61 @@ export const api = {
       }
       return response.json();
     },
+
+    // Channel configuration methods
+    async getChannelsStatus(): Promise<{
+      whatsapp: { enabled: boolean; configured: boolean; status: string; message?: string };
+      discord: { enabled: boolean; configured: boolean; status: string; message?: string };
+    }> {
+      const response = await fetch(`${API_BASE_URL}/setup/channels/status`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to get channels status' }));
+        throw new Error(error.detail || 'Failed to get channels status');
+      }
+      return response.json();
+    },
+
+    async configureChannels(config: {
+      whatsapp_enabled: boolean;
+      discord_enabled: boolean;
+      discord_instance_name?: string;
+      discord_bot_token?: string;
+      discord_client_id?: string;
+    }): Promise<{
+      success: boolean;
+      message: string;
+      whatsapp_status: string;
+      discord_status: string;
+    }> {
+      const response = await fetch(`${API_BASE_URL}/setup/channels/configure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to configure channels' }));
+        throw new Error(error.detail || 'Failed to configure channels');
+      }
+      return response.json();
+    },
+
+    async validateDiscordToken(bot_token: string, client_id: string): Promise<{
+      valid: boolean;
+      bot_name?: string;
+      bot_id?: string;
+      message: string;
+    }> {
+      const response = await fetch(`${API_BASE_URL}/setup/channels/validate-discord`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_token, client_id }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to validate Discord token' }));
+        throw new Error(error.detail || 'Failed to validate Discord token');
+      }
+      return response.json();
+    },
   },
 
   // Recovery API (localhost-only, no auth required)

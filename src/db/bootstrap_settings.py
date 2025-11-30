@@ -2,12 +2,18 @@
 Bootstrap global settings with defaults and migrate from .env.
 
 This module initializes global settings on application startup, including
-auto-generation of the WhatsApp Web API key if not present.
+auto-generation of the unified Omni API key.
 
-Note: Evolution API is the underlying protocol for WhatsApp Web connectivity.
-Settings use both naming conventions for backward compatibility:
-- evolution_api_key / whatsapp_web_api_key (alias)
-- evolution_api_url / whatsapp_web_api_url (alias)
+## Unified Key Architecture
+
+A single `omni_api_key` is used for:
+1. Client → Omni API authentication (x-api-key header)
+2. Omni → Evolution API authentication (apikey header)
+3. Evolution server configuration (AUTHENTICATION_API_KEY)
+
+Legacy `evolution_api_key` is deprecated and migrated to use `omni_api_key`.
+Helper functions (get_evolution_api_key_global, get_whatsapp_web_api_key_global)
+now return `omni_api_key` for backward compatibility.
 """
 
 import logging
@@ -90,13 +96,35 @@ def bootstrap_global_settings(db: Session) -> None:
             "is_required": False,
             "default_value": "false",
         },
+        # Channel configuration settings
+        {
+            "key": "channel_whatsapp_enabled",
+            "value": "true",  # WhatsApp enabled by default (primary channel)
+            "value_type": SettingValueType.BOOLEAN,
+            "category": "channels",
+            "description": "Enable WhatsApp Web channel via Evolution API",
+            "is_secret": False,
+            "is_required": False,
+            "default_value": "true",
+        },
+        {
+            "key": "channel_discord_enabled",
+            "value": "false",  # Discord requires manual configuration
+            "value_type": SettingValueType.BOOLEAN,
+            "category": "channels",
+            "description": "Enable Discord channel (requires bot token setup)",
+            "is_secret": False,
+            "is_required": False,
+            "default_value": "false",
+        },
     ]
 
-    # Handle Evolution API key separately (auto-generation or migration)
-    _bootstrap_evolution_key(db)
-
-    # Handle Omni API key separately (auto-generation or migration)
+    # Handle Omni API key FIRST (unified key architecture)
+    # All other keys derive from omni_api_key
     _bootstrap_omni_api_key(db)
+
+    # Handle Evolution API key migration (deprecated - uses omni_api_key)
+    _bootstrap_evolution_key(db)
 
     # Handle setup_completed flag with auto-detection
     _bootstrap_setup_completed(db)
@@ -135,60 +163,85 @@ def bootstrap_global_settings(db: Session) -> None:
 
 def _bootstrap_evolution_key(db: Session) -> None:
     """
-    Bootstrap WhatsApp Web API key with auto-generation or .env migration.
+    DEPRECATED: Evolution now uses unified omni_api_key.
 
-    Note: Uses 'evolution_api_key' as the database key for backward compatibility.
-    New code should access via settings_service.get_whatsapp_web_api_key_global().
+    This function handles migration for existing installations that have
+    a separate evolution_api_key. New installs use omni_api_key directly.
 
-    This handles three scenarios:
-    1. Fresh install (no .env, no database) → Auto-generate secure key
-    2. Existing .env, no database → Migrate from .env to database
-    3. Database exists → Keep existing value
+    Migration strategy:
+    1. If evolution_api_key exists and differs from omni_api_key → backup and remove
+    2. If evolution_api_key doesn't exist → no action needed (use omni_api_key)
 
     Args:
         db: Database session
     """
-    # Check if evolution_api_key already exists in database
-    existing = settings_service.get_setting("evolution_api_key", db)
+    # Check if legacy evolution_api_key exists
+    existing_evo_key = settings_service.get_setting("evolution_api_key", db)
+    omni_key = settings_service.get_setting("omni_api_key", db)
 
-    if existing:
-        logger.info(f"WhatsApp Web API key already exists in database (key: {existing.key})")
+    if not existing_evo_key:
+        # No legacy key - fresh install or already migrated
+        logger.info("No separate evolution_api_key found - using unified omni_api_key")
         return
 
-    # Try to read from .env first (migration path for existing installations)
-    env_key = config.get_env("EVOLUTION_API_KEY", "")
+    if not omni_key:
+        # Edge case: evolution_api_key exists but omni_api_key doesn't
+        # This shouldn't happen since _bootstrap_omni_api_key runs first
+        logger.warning("evolution_api_key exists but omni_api_key missing - keeping evolution_api_key")
+        return
 
-    # Check if env key is a placeholder value
-    placeholder_values = ["", "your-evolution-api-key-here", "changeme"]
-    if env_key and env_key not in placeholder_values:
-        # Migrate from .env to database
-        logger.info("Migrating WhatsApp Web API key from .env to database")
-        key_value = env_key
-        migration_source = "migrated from .env"
+    # Check if keys are different (need migration)
+    if existing_evo_key.value == omni_key.value:
+        # Keys already match - remove the duplicate
+        logger.info("evolution_api_key matches omni_api_key - removing duplicate")
+        try:
+            # Mark as deprecated but don't delete yet (for backward compatibility)
+            settings_service.update_setting(
+                "evolution_api_key",
+                omni_key.value,  # Ensure it matches omni_api_key
+                db,
+                updated_by="system_bootstrap",
+                change_reason="Unified with omni_api_key (deprecated)"
+            )
+        except Exception as e:
+            logger.warning(f"Could not update evolution_api_key: {e}")
     else:
-        # Auto-generate secure key for fresh install
-        key_value = secrets.token_hex(16)  # 32-character hexadecimal string
-        logger.info(f"Auto-generated WhatsApp Web API key: {key_value[:8]}***{key_value[-4:]}")
-        migration_source = "auto-generated on first startup"
+        # Keys differ - migrate to unified key
+        logger.info("Migrating evolution_api_key to use unified omni_api_key")
+        logger.info(f"Old evolution_api_key will be replaced with omni_api_key")
 
-    # Create setting in database
-    try:
-        settings_service.create_setting(
-            key="evolution_api_key",
-            value=key_value,
-            value_type=SettingValueType.SECRET,
-            category="integration",
-            description=f"WhatsApp Web API authentication key ({migration_source})",
-            is_secret=True,
-            is_required=True,
-            default_value="",
-            created_by="system_bootstrap",
-            db=db
-        )
-        logger.info(f"WhatsApp Web API key stored in database ({migration_source})")
-    except Exception as e:
-        logger.error(f"Failed to create evolution_api_key setting: {e}")
-        raise
+        # Backup old key for reference
+        try:
+            backup_key = f"evolution_api_key_backup_{secrets.token_hex(4)}"
+            settings_service.create_setting(
+                key=backup_key,
+                value=existing_evo_key.value,
+                value_type=SettingValueType.SECRET,
+                category="integration",
+                description="Backup of legacy evolution_api_key before unification",
+                is_secret=True,
+                is_required=False,
+                default_value="",
+                created_by="system_bootstrap",
+                db=db
+            )
+            logger.info(f"Backed up old evolution_api_key to {backup_key}")
+        except Exception as e:
+            logger.warning(f"Could not backup evolution_api_key: {e}")
+
+        # Update evolution_api_key to match omni_api_key
+        try:
+            settings_service.update_setting(
+                "evolution_api_key",
+                omni_key.value,
+                db,
+                updated_by="system_bootstrap",
+                change_reason="Unified with omni_api_key"
+            )
+            logger.info("evolution_api_key now unified with omni_api_key")
+        except Exception as e:
+            logger.error(f"Failed to unify evolution_api_key: {e}")
+            # Non-fatal - system will still work via omni_api_key alias
 
 
 def _bootstrap_omni_api_key(db: Session) -> None:

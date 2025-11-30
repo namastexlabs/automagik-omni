@@ -372,6 +372,11 @@ from src.api.routes.recovery import router as recovery_router
 
 app.include_router(recovery_router, prefix="/api/v1", tags=["Recovery"])
 
+# Include internal routes (localhost-only service-to-service communication)
+from src.api.routes.internal import router as internal_router
+
+app.include_router(internal_router, prefix="/api/v1", tags=["Internal"])
+
 # Note: MCP server now runs as standalone service on port 18880
 # Gateway proxies /mcp requests directly to standalone MCP server
 

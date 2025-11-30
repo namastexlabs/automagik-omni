@@ -350,34 +350,58 @@ class SettingsService:
 settings_service = SettingsService()
 
 
-# Helper functions for WhatsApp Web API (via Evolution API)
-# Note: evolution_api_key is the underlying database key for backward compatibility
+# =============================================================================
+# Unified API Key Architecture
+# =============================================================================
+# A single omni_api_key is used for:
+# 1. Client → Omni API authentication (x-api-key header)
+# 2. Omni → Evolution API authentication (apikey header)
+# 3. Evolution server configuration (AUTHENTICATION_API_KEY)
+#
+# All legacy functions (get_evolution_api_key_global, get_whatsapp_web_api_key_global)
+# now return omni_api_key for backward compatibility.
+# =============================================================================
 
 
-def get_whatsapp_web_api_key_global() -> str:
+def get_omni_api_key_global() -> str:
     """
-    Get WhatsApp Web API key from database with .env fallback.
+    Get the unified Omni API key from database with .env fallback.
 
-    This is a convenience function for code that doesn't have a db session.
-    It creates a temporary session to fetch the key.
+    This is the PRIMARY key used for:
+    - Client authentication to Omni API
+    - Omni authentication to Evolution API
+    - Evolution server configuration
 
     Returns:
-        WhatsApp Web API key string
+        Unified API key string (format: sk-omni-{token})
     """
     from src.db.database import SessionLocal
     from src.config import config
 
-    # Try database first (stored as evolution_api_key for backward compatibility)
+    # Try database first (primary source)
     try:
         with SessionLocal() as db:
-            key = settings_service.get_setting_value("evolution_api_key", db, default=None)
+            key = settings_service.get_setting_value("omni_api_key", db, default=None)
             if key:
                 return key
     except Exception as e:
-        logger.warning(f"Failed to get WhatsApp Web API key from database: {e}")
+        logger.warning(f"Failed to get Omni API key from database: {e}")
 
-    # Fallback to .env (backward compatibility during transition)
-    return config.get_env("EVOLUTION_API_KEY", "")
+    # Fallback to .env (backward compatibility)
+    return config.get_env("AUTOMAGIK_OMNI_API_KEY", "")
+
+
+def get_whatsapp_web_api_key_global() -> str:
+    """
+    Get WhatsApp Web API key (returns unified omni_api_key).
+
+    This is an alias for get_omni_api_key_global() for backward compatibility.
+    The unified key architecture uses omni_api_key for all authentication.
+
+    Returns:
+        Unified API key string
+    """
+    return get_omni_api_key_global()
 
 
 def get_whatsapp_web_api_url_global() -> str:
@@ -406,8 +430,12 @@ def get_whatsapp_web_api_url_global() -> str:
 # Backward compatibility alias
 def get_evolution_api_key_global() -> str:
     """
-    Alias for get_whatsapp_web_api_key_global().
+    Get Evolution API key (returns unified omni_api_key).
 
-    Deprecated: Use get_whatsapp_web_api_key_global() instead.
+    DEPRECATED: Use get_omni_api_key_global() instead.
+    This alias exists for backward compatibility only.
+
+    Returns:
+        Unified API key string
     """
-    return get_whatsapp_web_api_key_global()
+    return get_omni_api_key_global()
