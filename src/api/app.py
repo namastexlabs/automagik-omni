@@ -367,6 +367,11 @@ from src.api.routes.database_config import router as database_config_router
 
 app.include_router(database_config_router, prefix="/api/v1", tags=["Database Configuration"])
 
+# Include recovery routes (localhost-only API key recovery)
+from src.api.routes.recovery import router as recovery_router
+
+app.include_router(recovery_router, prefix="/api/v1", tags=["Recovery"])
+
 # Note: MCP server now runs as standalone service on port 18880
 # Gateway proxies /mcp requests directly to standalone MCP server
 
