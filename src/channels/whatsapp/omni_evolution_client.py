@@ -58,6 +58,33 @@ class OmniEvolutionClient(EvolutionClient):
         # Apply client-side pagination
         return self._apply_pagination(response, page, page_size)
 
+    async def fetch_messages(
+        self, instance_name: str, chat_id: str, page: int = 1, page_size: int = 50, limit: int = 100
+    ) -> Dict[str, Any]:
+        """
+        Fetch messages for a chat with client-side pagination.
+
+        Args:
+            instance_name: Name of the instance
+            chat_id: Chat/conversation identifier
+            page: Page number (1-based)
+            page_size: Number of items per page
+            limit: Maximum number of messages to fetch from API (default: 100)
+
+        Returns:
+            Dictionary with paginated messages and metadata
+        """
+        # Fetch messages from Evolution API
+        # Evolution API: GET /chat/findMessages/{instance}/{chat_id}?limit=X
+        response = await self._request(
+            "GET",
+            f"/chat/findMessages/{quote(instance_name, safe='')}/{quote(chat_id, safe='')}",
+            params={"limit": limit},
+        )
+
+        # Apply client-side pagination
+        return self._apply_pagination(response, page, page_size)
+
     def _apply_pagination(self, response: Any, page: int, page_size: int) -> Dict[str, Any]:
         """
         Apply client-side pagination to Evolution API response.

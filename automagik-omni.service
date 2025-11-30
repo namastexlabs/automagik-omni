@@ -1,0 +1,26 @@
+[Unit]
+Description=Automagik Omni - Multi-Channel Communication Hub
+After=network.target automagik-forge.service
+Documentation=https://github.com/namastexlabs/automagik-omni
+
+[Service]
+Type=forking
+User=produser
+WorkingDirectory=/home/produser/prod/automagik-omni
+Environment="PATH=/home/produser/.nvm/versions/node/v22.21.1/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PM2_HOME=/home/produser/.pm2"
+
+ExecStart=/home/produser/.nvm/versions/node/v22.21.1/bin/pm2 start ecosystem.config.cjs
+ExecStop=/home/produser/.nvm/versions/node/v22.21.1/bin/pm2 stop ecosystem.config.cjs
+ExecReload=/home/produser/.nvm/versions/node/v22.21.1/bin/pm2 restart ecosystem.config.cjs
+
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=400
+StartLimitBurst=3
+
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

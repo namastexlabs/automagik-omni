@@ -379,11 +379,9 @@ class TestGetEvolutionClient:
 
     def test_get_evolution_client_missing_api_key_raises(self):
         """Test that missing API key raises an exception."""
-        with patch("src.channels.whatsapp.evolution_client.config") as mock_config:
-            mock_config.get_env.side_effect = lambda k, d: {
-                "EVOLUTION_API_URL": "http://test.api:8080",
-                "EVOLUTION_API_KEY": "",  # Empty key
-            }.get(k, d)
+        # Mock at source location - function is imported inside get_evolution_client
+        with patch("src.services.settings_service.get_evolution_api_key_global") as mock_get_key:
+            mock_get_key.return_value = ""  # Empty key
 
             # Reset the global singleton
             import src.channels.whatsapp.evolution_client as client_module
@@ -393,7 +391,7 @@ class TestGetEvolutionClient:
             with pytest.raises(Exception) as exc_info:
                 get_evolution_client()
 
-            assert "EVOLUTION_API_KEY not configured" in str(exc_info.value)
+            assert "Evolution API key not configured" in str(exc_info.value)
 
             # Clean up
             client_module.evolution_client = None
@@ -403,20 +401,25 @@ class TestGetEvolutionClient:
         with patch("src.channels.whatsapp.evolution_client.config") as mock_config:
             mock_config.get_env.side_effect = lambda k, d: {
                 "EVOLUTION_API_URL": "http://custom.api:9000",
-                "EVOLUTION_API_KEY": "custom-key-456",
             }.get(k, d)
 
-            # Reset the global singleton
-            import src.channels.whatsapp.evolution_client as client_module
+            # Mock at source location - function is imported inside get_evolution_client
+            with patch(
+                "src.services.settings_service.get_evolution_api_key_global"
+            ) as mock_get_key:
+                mock_get_key.return_value = "custom-key-456"
 
-            client_module.evolution_client = None
+                # Reset the global singleton
+                import src.channels.whatsapp.evolution_client as client_module
 
-            client = get_evolution_client()
+                client_module.evolution_client = None
 
-            # Verify configuration - base_url has trailing slash stripped
-            assert "custom.api:9000" in client.base_url
-            assert client.api_key == "custom-key-456"
-            assert client.headers["apikey"] == "custom-key-456"
+                client = get_evolution_client()
 
-            # Clean up
-            client_module.evolution_client = None
+                # Verify configuration - base_url has trailing slash stripped
+                assert "custom.api:9000" in client.base_url
+                assert client.api_key == "custom-key-456"
+                assert client.headers["apikey"] == "custom-key-456"
+
+                # Clean up
+                client_module.evolution_client = None

@@ -107,11 +107,13 @@ class WhatsAppClient:
             return replace_localhost_with_ipv4("http://localhost:8080")
 
     def _get_api_key(self) -> str:
-        """Get the API key from environment variables or use default."""
-        # Get API key from environment variable
-        api_key = os.getenv("EVOLUTION_API_KEY", "")
+        """Get the API key from database with .env fallback."""
+        from src.services.settings_service import get_evolution_api_key_global
+
+        # Get from database (with .env fallback)
+        api_key = get_evolution_api_key_global()
         if not api_key:
-            logger.warning("EVOLUTION_API_KEY not set in environment variables")
+            logger.warning("Evolution API key not found in database or environment")
         return api_key
 
     def connect(self) -> bool:

@@ -68,13 +68,20 @@ class AgentApiClient:
 
     def health_check(self) -> bool:
         """Check if the API is healthy."""
+        # Import config to check if legacy health check should be skipped
+        from src.config import config
+
         try:
             url = f"{self.api_url}/health"
             response = requests.get(url, timeout=5)
             self.is_healthy = response.status_code == 200
             return self.is_healthy
         except Exception as e:
-            logger.error(f"Health check failed: {e}")
+            # Downgrade to DEBUG if legacy health check is skipped (non-fatal for Omni-only deployments)
+            if config.legacy.skip_health_check:
+                logger.debug(f"Health check failed (legacy Hive API not required): {e}")
+            else:
+                logger.error(f"Health check failed: {e}")
             self.is_healthy = False
             return False
 

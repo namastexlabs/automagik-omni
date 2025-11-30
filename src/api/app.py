@@ -71,6 +71,7 @@ from src.api.routes.instances import router as instances_router
 from src.api.routes.omni import router as omni_router
 from src.api.routes.access import router as access_router
 from src.db.database import create_tables, SessionLocal
+from src.utils.datetime_utils import utcnow
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -172,6 +173,22 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return masked
 
 
+class LazyDBInitMiddleware(BaseHTTPMiddleware):
+    """Middleware to defer database migrations until first request (saves ~2.5s startup)."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Run migrations on first non-health request
+        if not _MIGRATIONS_READY and request.url.path != "/health":
+            logger.info("First request detected, running database migrations...")
+            try:
+                _ensure_database_ready()
+            except Exception as e:
+                logger.error(f"Database initialization failed: {e}")
+                raise HTTPException(status_code=503, detail="Database initialization failed")
+
+        return await call_next(request)
+
+
 # Note: create_tables() has been moved to lifespan function to ensure proper test isolation
 # Database tables will be created during app startup in the lifespan function
 
@@ -185,12 +202,13 @@ async def lifespan(app: FastAPI):
     environment = os.environ.get("ENVIRONMENT")
 
     if environment != "test":
-        _ensure_database_ready(force=True)
+        # Database initialization moved to middleware (lazy init on first request)
+        # This saves ~2.5s on cold start - migrations run only when needed
 
-        # After migrations succeed, ensure tables exist for runtime checks
+        # Still create tables structure for runtime checks (fast operation)
         try:
             create_tables()
-            logger.info("✅ Database tables created/verified")
+            logger.info("✅ Database tables structure created/verified (migrations deferred to first request)")
         except Exception as e:
             logger.error(f"❌ Failed to create database tables: {e}")
             # Let the app continue - tables might already exist
@@ -205,6 +223,17 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"❌ Failed to load access control rules: {e}")
             # Continue without access control cache - will be loaded on first use
+
+        # Bootstrap global settings (auto-generate Evolution API key if needed)
+        try:
+            from src.db.bootstrap_settings import bootstrap_global_settings
+
+            with SessionLocal() as db:
+                bootstrap_global_settings(db)
+            logger.info("✅ Global settings bootstrapped")
+        except Exception as e:
+            logger.error(f"❌ Failed to bootstrap global settings: {e}")
+            # Continue - settings will be created on first use if needed
     else:
         logger.info("Skipping database setup in test environment")
 
@@ -295,6 +324,11 @@ app = FastAPI(
     ],
 )
 
+# Include setup routes (unauthenticated, for onboarding)
+from src.api.routes.setup import router as setup_router
+
+app.include_router(setup_router, prefix="/api/v1", tags=["Setup"])
+
 # Include omni communication routes under instances namespace (for unified API)
 app.include_router(
     omni_router,
@@ -322,6 +356,32 @@ app.include_router(messages_router, prefix="/api/v1/instance", tags=["messages"]
 
 # Include access control management routes
 app.include_router(access_router, prefix="/api/v1", tags=["access"])
+
+# Include global settings management routes
+from src.api.routes.settings import router as settings_router
+
+app.include_router(settings_router, prefix="/api/v1", tags=["settings"])
+
+# Include database configuration routes (for wizard UI)
+from src.api.routes.database_config import router as database_config_router
+
+app.include_router(database_config_router, prefix="/api/v1", tags=["Database Configuration"])
+
+# Include recovery routes (localhost-only API key recovery)
+from src.api.routes.recovery import router as recovery_router
+
+app.include_router(recovery_router, prefix="/api/v1", tags=["Recovery"])
+
+# Include internal routes (localhost-only service-to-service communication)
+from src.api.routes.internal import router as internal_router
+
+app.include_router(internal_router, prefix="/api/v1", tags=["Internal"])
+
+# Note: MCP server now runs as standalone service on port 18880
+# Gateway proxies /mcp requests directly to standalone MCP server
+
+# Add lazy DB initialization middleware (runs before other middleware)
+app.add_middleware(LazyDBInitMiddleware)
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
@@ -419,6 +479,10 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
+# Store API start time for uptime calculation
+_api_start_time = time.time()
+
+
 @app.get("/health", tags=["health"])
 async def health_check():
     """
@@ -426,8 +490,55 @@ async def health_check():
 
     Returns status for API, database, Discord services, and runtime information.
     """
-
+    import os
+    import resource
+    import subprocess
     from datetime import datetime, timezone
+    from src.db import get_engine
+
+    # Get PID
+    pid = os.getpid()
+
+    # Get memory usage (in MB)
+    try:
+        mem_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        # On Linux, ru_maxrss is in KB; on macOS it's in bytes
+        import platform
+        if platform.system() == 'Darwin':
+            memory_mb = round(mem_usage / 1024 / 1024, 1)
+        else:
+            memory_mb = round(mem_usage / 1024, 1)
+    except Exception:
+        memory_mb = None
+
+    # Get CPU percentage using ps command
+    cpu_percent = 0.0
+    try:
+        result = subprocess.run(
+            ['ps', '-p', str(pid), '-o', '%cpu', '--no-headers'],
+            capture_output=True, text=True, timeout=1
+        )
+        cpu_percent = round(float(result.stdout.strip()), 1)
+    except Exception:
+        pass
+
+    # Get database pool stats
+    db_pool_stats = None
+    try:
+        engine = get_engine()
+        pool = engine.pool
+        if hasattr(pool, 'checkedout') and hasattr(pool, 'size'):
+            db_pool_stats = {
+                "pool_size": pool.size(),
+                "checked_out": pool.checkedout(),
+                "overflow": pool.overflow() if hasattr(pool, 'overflow') else 0,
+                "checked_in": pool.checkedin() if hasattr(pool, 'checkedin') else None,
+            }
+    except Exception:
+        pass
+
+    # Calculate uptime
+    uptime_seconds = round(time.time() - _api_start_time)
 
     # Basic API health
     health_status = {
@@ -436,10 +547,21 @@ async def health_check():
         "services": {
             "api": {
                 "status": "up",
+                "uptime": uptime_seconds,
+                "memory_mb": memory_mb,
+                "cpu_percent": cpu_percent,
+                "pid": pid,
                 "checks": {"database": "connected", "runtime": "operational"},
             }
         },
     }
+
+    # Add database pool stats if available
+    if db_pool_stats:
+        health_status["services"]["database"] = {
+            "status": "connected",
+            **db_pool_stats,
+        }
 
     # Check Discord service status if available
     try:
@@ -507,6 +629,37 @@ async def _handle_evolution_webhook(instance_config, request: Request, db: Sessi
 
         # Start message tracing
         with get_trace_context(data, instance_config.name, db) as trace:
+            # Extract sender phone from webhook data for access control check
+            sender_phone = data.get("data", {}).get("key", {}).get("remoteJid", "").split("@")[0]
+
+            # Check access rules BEFORE processing the message
+            from src.services.access_control import access_control_service
+
+            has_access = access_control_service.check_access(
+                phone_number=sender_phone,
+                instance_name=instance_config.name,
+                db=db,
+            )
+
+            if not has_access:
+                # Message blocked by access rule
+                if trace:
+                    trace.update_trace_status(
+                        status="access_denied",
+                        blocked_by_access_rule=True,
+                        blocking_reason=f"Blocked by access rule for phone {sender_phone}",
+                        completed_at=utcnow(),
+                    )
+                logger.info(
+                    f"🚫 Message from {sender_phone} blocked by access rule for instance {instance_config.name}"
+                )
+                return {
+                    "status": "blocked",
+                    "reason": "access_denied",
+                    "phone": sender_phone,
+                    "trace_id": trace.trace_id if trace else None,
+                }
+
             # Update the Evolution API sender with the webhook data
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)

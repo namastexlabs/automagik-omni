@@ -1,8 +1,11 @@
 """
-Discovery service for auto-detecting Evolution instances and syncing with database.
+Discovery service for auto-detecting WhatsApp Web instances and syncing with database.
+
+Note: Uses Evolution API as the underlying protocol for WhatsApp Web connectivity.
 """
 
 import logging
+import secrets
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
@@ -13,19 +16,31 @@ from src.utils.instance_utils import normalize_instance_name
 logger = logging.getLogger(__name__)
 
 
+def _generate_api_key() -> str:
+    """Generate a secure random API key for Evolution instances.
+
+    Returns:
+        32-character hexadecimal string suitable for API authentication
+    """
+    return secrets.token_hex(16)
+
+
 class DiscoveryService:
-    """Service for discovering and syncing Evolution instances."""
+    """Service for discovering and syncing WhatsApp Web instances via Evolution API."""
 
     def __init__(self):
         """Initialize discovery service."""
-        self.evolution_client = None
+        self.whatsapp_web_client = None  # EvolutionClient instance for API calls
 
     async def discover_evolution_instances(self, db: Session) -> List[InstanceConfig]:
         """
-        Discover Evolution instances using existing database configurations.
+        Discover WhatsApp Web instances using bootstrap credentials from database.
 
-        Uses Evolution API credentials from existing instances in the database
-        to discover additional instances from those Evolution API servers.
+        Always uses the bootstrap WhatsApp Web API key from database for authentication
+        with Evolution API, regardless of per-instance state. Per-instance whatsapp_web_keys
+        are generated locally and stored for display/reference only.
+
+        Note: Method name kept as 'discover_evolution_instances' for backward compatibility.
 
         Args:
             db: Database session
@@ -33,79 +48,83 @@ class DiscoveryService:
         Returns:
             List of discovered/synced instances
         """
-        logger.info("Starting Evolution instance discovery...")
+        logger.info("Starting WhatsApp Web instance discovery via Evolution API...")
 
-        # Get existing WhatsApp instances with Evolution API configuration
+        # Get bootstrap credentials from database (with .env fallback)
+        from src.config import config
+        from src.services.settings_service import settings_service
+
+        global_url = settings_service.get_setting_value("evolution_api_url", db, default="http://localhost:18082")
+        bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
+
+        # Fallback to .env for backward compatibility during transition
+        if not bootstrap_key:
+            bootstrap_key = config.get_env("EVOLUTION_API_KEY")
+
+        if not bootstrap_key:
+            logger.warning(
+                "No WhatsApp Web API key found in database or environment. "
+                "The key should be auto-generated on first startup."
+            )
+            return []
+
+        # Get existing WhatsApp instances to track which ones we've already synced
         existing_instances = (
             db.query(InstanceConfig)
             .filter(
                 InstanceConfig.channel_type == "whatsapp",
-                InstanceConfig.evolution_url.isnot(None),
-                InstanceConfig.evolution_key.isnot(None),
             )
             .all()
         )
 
-        if not existing_instances:
-            logger.info("No existing WhatsApp instances with Evolution API config found")
-            return []
+        existing_names = {inst.whatsapp_instance or inst.name for inst in existing_instances}
+        logger.info(f"Found {len(existing_instances)} existing WhatsApp instances in database")
 
         synced_instances = []
 
-        # Group instances by unique Evolution API servers
-        evolution_servers = {}
-        for instance in existing_instances:
-            server_key = f"{instance.evolution_url}::{instance.evolution_key}"
-            if server_key not in evolution_servers:
-                evolution_servers[server_key] = {
-                    "url": instance.evolution_url,
-                    "key": instance.evolution_key,
-                    "instances": [],
-                }
-            evolution_servers[server_key]["instances"].append(instance)
+        logger.info(f"Using bootstrap WhatsApp Web API key for instance discovery (URL: {global_url})")
 
-        logger.info(f"Found {len(evolution_servers)} unique Evolution API servers")
+        # Query Evolution API using bootstrap credentials
+        try:
+            logger.debug(f"Querying Evolution API: {global_url}")
 
-        # Query each Evolution API server
-        for server_info in evolution_servers.values():
-            try:
-                logger.debug(f"Querying Evolution API: {server_info['url']}")
+            from src.channels.whatsapp.evolution_client import EvolutionClient
 
-                # Create client for this specific server
-                from src.channels.whatsapp.evolution_client import EvolutionClient
+            evolution_client = EvolutionClient(global_url, bootstrap_key)
 
-                evolution_client = EvolutionClient(server_info["url"], server_info["key"])
+            # Fetch all instances from Evolution API
+            evolution_instances = await evolution_client.fetch_instances()
+            logger.info(f"Found {len(evolution_instances)} instances on {global_url}")
 
-                # Fetch all instances from this Evolution API
-                evolution_instances = await evolution_client.fetch_instances()
-                logger.info(f"Found {len(evolution_instances)} instances on {server_info['url']}")
+            for evo_instance in evolution_instances:
+                logger.debug(f"Processing Evolution instance: {evo_instance.instanceName}")
 
-                for evo_instance in evolution_instances:
-                    logger.debug(f"Processing Evolution instance: {evo_instance.instanceName}")
+                # Check if instance already exists in database by WhatsApp instance name
+                existing_instance = (
+                    db.query(InstanceConfig).filter(
+                        InstanceConfig.whatsapp_instance == evo_instance.instanceName
+                    ).first()
+                )
 
-                    # Check if instance already exists in database
-                    existing_instance = (
-                        db.query(InstanceConfig).filter(InstanceConfig.name == evo_instance.instanceName).first()
+                if existing_instance:
+                    # Update existing instance with latest Evolution data
+                    updated = self._update_existing_instance(existing_instance, evo_instance)
+                    if updated:
+                        logger.info(f"Updated existing instance: {evo_instance.instanceName}")
+                    synced_instances.append(existing_instance)
+                else:
+                    # Create new instance from Evolution data using bootstrap credentials
+                    new_instance = await self._create_instance_from_evolution(
+                        evo_instance, db, global_url, bootstrap_key
                     )
+                    if new_instance:
+                        logger.info(f"Created new instance from Evolution: {evo_instance.instanceName}")
+                        synced_instances.append(new_instance)
 
-                    if existing_instance:
-                        # Update existing instance with latest Evolution data
-                        updated = self._update_existing_instance(existing_instance, evo_instance)
-                        if updated:
-                            logger.info(f"Updated existing instance: {evo_instance.instanceName}")
-                        synced_instances.append(existing_instance)
-                    else:
-                        # Create new instance from Evolution data using this server's config
-                        new_instance = await self._create_instance_from_evolution(
-                            evo_instance, db, server_info["url"], server_info["key"]
-                        )
-                        if new_instance:
-                            logger.info(f"Created new instance from Evolution: {evo_instance.instanceName}")
-                            synced_instances.append(new_instance)
-
-            except Exception as e:
-                logger.warning(f"Failed to query Evolution API {server_info['url']}: {e}")
-                continue
+        except Exception as e:
+            logger.warning(f"Failed to query Evolution API {global_url}: {e}")
+            import traceback
+            logger.debug(f"Discovery error details: {traceback.format_exc()}")
 
         # Commit all changes
         try:
@@ -165,6 +184,9 @@ class DiscoveryService:
             db_instance.owner_jid = evo_instance.ownerJid
             updated = True
 
+        # DEPRECATED: Token sync removed (Option A: Bootstrap Key Only)
+        # Per-instance tokens are no longer used for authentication
+
         return updated
 
     async def _create_instance_from_evolution(
@@ -199,12 +221,16 @@ class DiscoveryService:
             # Normalize the name for our database but keep original for Evolution API
             normalized_name = normalize_instance_name(evo_instance.instanceName)
 
+            # Use Evolution's instance token as the auth key (per-instance authentication)
+            # If Evolution doesn't provide a token, fall back to generating one
+            instance_token = evo_instance.token if evo_instance.token else _generate_api_key()
+
             new_instance = InstanceConfig(
                 name=normalized_name,
                 channel_type="whatsapp",
                 default_agent=evo_instance.profileName or "default-agent",
                 evolution_url=evolution_url,
-                evolution_key=evolution_key,
+                evolution_key=instance_token,  # Use Evolution's per-instance token
                 agent_api_url="http://localhost:8000",  # Default agent URL
                 agent_api_key="default-key",  # Default agent key
                 whatsapp_instance=evo_instance.instanceName,  # Preserve original case for Evolution API calls
@@ -214,6 +240,8 @@ class DiscoveryService:
                 profile_pic_url=evo_instance.profilePicUrl,
                 owner_jid=evo_instance.ownerJid,
             )
+
+            logger.debug(f"Auto-generated API key for instance {normalized_name}")
 
             # Log normalization if name changed
             if evo_instance.instanceName != normalized_name:
@@ -233,31 +261,44 @@ class DiscoveryService:
 
     async def sync_instance_status(self, instance_name: str, db: Session) -> Optional[Dict[str, Any]]:
         """
-        Sync a specific instance's status with Evolution API.
+        Sync a specific instance's status with WhatsApp Web API (via Evolution).
 
         Args:
             instance_name: Name of instance to sync
             db: Database session
 
         Returns:
-            Evolution connection state or None if sync failed
+            WhatsApp Web connection state or None if sync failed
         """
-        # Get the instance to get its Evolution API credentials
+        # Get the instance to get its WhatsApp Web API credentials
         db_instance = db.query(InstanceConfig).filter(InstanceConfig.name == instance_name).first()
 
         if not db_instance:
             logger.warning(f"Instance {instance_name} not found in database")
             return None
 
-        if not db_instance.evolution_url or not db_instance.evolution_key:
-            logger.warning(f"Instance {instance_name} missing Evolution API credentials")
+        if not db_instance.whatsapp_web_url:  # Use alias
+            logger.warning(f"Instance {instance_name} missing WhatsApp Web API URL")
             return None
 
         try:
-            # Create Evolution client with instance-specific credentials
+            # Create Evolution client with bootstrap key from database
             from src.channels.whatsapp.evolution_client import EvolutionClient
+            from src.config import config
+            from src.services.settings_service import settings_service
 
-            evolution_client = EvolutionClient(db_instance.evolution_url, db_instance.evolution_key)
+            # Get bootstrap key from database (with .env fallback)
+            bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
+            if not bootstrap_key:
+                bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+
+            if not bootstrap_key:
+                logger.warning("No WhatsApp Web API key found in database or environment, cannot sync instance status")
+                return None
+
+            # Pass instance name for logging/debugging only (auth uses bootstrap key)
+            whatsapp_instance_name = db_instance.whatsapp_instance or instance_name
+            evolution_client = EvolutionClient(db_instance.evolution_url, bootstrap_key, whatsapp_instance_name)
 
             # Get current status from Evolution
             connection_state = await evolution_client.get_connection_state(instance_name)

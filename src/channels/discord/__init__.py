@@ -4,6 +4,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Discord components - all optional, guarded by try-except
+DISCORD_COMPONENTS_AVAILABLE = False
+DiscordChannelHandler = None
+DiscordBotManager = None
+DiscordVoiceManager = None
+VoiceSession = None
+STTProvider = None
+TTSProvider = None
+
 try:
     from .channel_handler import DiscordChannelHandler
     from .bot_manager import DiscordBotManager
@@ -13,15 +22,17 @@ try:
         STTProvider,
         TTSProvider,
     )
+    DISCORD_COMPONENTS_AVAILABLE = True
+    logger.info("Discord components loaded successfully")
+except (ImportError, AttributeError) as e:
+    logger.warning(f"Discord components not available: {e}. Install with: uv sync --extra discord")
 
-    __all__ = [
-        "DiscordChannelHandler",
-        "DiscordBotManager",
-        "DiscordVoiceManager",
-        "VoiceSession",
-        "STTProvider",
-        "TTSProvider",
-    ]
-except ImportError as e:
-    logger.warning(f"Discord components not available: {e}")
-    __all__ = []
+__all__ = [
+    "DISCORD_COMPONENTS_AVAILABLE",
+    "DiscordChannelHandler",
+    "DiscordBotManager",
+    "DiscordVoiceManager",
+    "VoiceSession",
+    "STTProvider",
+    "TTSProvider",
+]

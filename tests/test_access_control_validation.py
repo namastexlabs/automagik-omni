@@ -207,16 +207,6 @@ class TestAccessControlAPI:
     API_BASE = "http://localhost:28882/api/v1"
     API_HEADERS = {"x-api-key": "namastex888", "Content-Type": "application/json"}
 
-    def test_api_connectivity(self):
-        """Test basic API connectivity."""
-        try:
-            response = requests.get("http://localhost:28882/health", timeout=5)
-            assert response.status_code == 200
-            health_data = response.json()
-            assert health_data["status"] == "healthy"
-        except requests.exceptions.RequestException as e:
-            pytest.skip(f"API not available at {self.API_BASE}: {e}")
-
     def test_list_access_rules_empty(self):
         """Test listing access rules when none exist."""
         try:

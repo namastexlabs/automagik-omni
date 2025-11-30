@@ -137,25 +137,45 @@ Works seamlessly with the Automagik ecosystem:
 
 ### Installation
 
+#### Option 1: Make Commands (Recommended)
+
 ```bash
 # 1. Clone with submodules (includes Evolution API for WhatsApp)
 git clone --recurse-submodules https://github.com/namastexlabs/automagik-omni.git
 cd automagik-omni
 
-# 2. Run the setup script (installs everything)
-./update-automagik-omni.sh
-# This installs Python deps, Evolution API deps, and runs migrations
+# 2. Install all dependencies (Python + Evolution API + optional Discord)
+make install
+# Installs: Python deps (uv), Evolution API (pnpm/npm), optional Discord
 
 # 3. Configure your API keys
 cp .env.example .env
 nano .env  # Set EVOLUTION_API_KEY and AUTOMAGIK_OMNI_API_KEY
 
-# 4. Start all services with PM2
-pm2 start ecosystem.config.js
+# 4. Start development servers
+make dev-all    # Starts Omni + Evolution API together
+# Or separately:
+make dev        # Omni API only
+make evo        # Evolution API only
 
 # ✅ Done! Services running:
 # - Omni API: http://localhost:8882
 # - Evolution API (WhatsApp): http://localhost:18082
+```
+
+#### Option 2: PM2 Production Setup
+
+```bash
+# After running make install above:
+
+# Start all services with PM2 (production)
+pm2 start ecosystem.config.js
+
+# Monitor services
+pm2 monit
+
+# View logs
+pm2 logs
 ```
 
 **What gets installed:**
@@ -622,24 +642,82 @@ curl -X POST http://localhost:8000/api/v1/instances \
 ### Local Development
 
 ```bash
-# Start with hot reload
-make dev
+# Installation
+make install          # Install all dependencies (Python + Evolution API + optional Discord)
+make install-omni     # Install only Python dependencies
+make install-evolution # Install only Evolution API dependencies
+make install-discord  # Install optional Discord dependencies
 
-# Run tests
-make test
+# Development Servers
+make dev              # Start Omni API with hot reload
+make evo              # Start Evolution API (WhatsApp) with hot reload
+make dev-all          # Start both Omni + Evolution API together
 
-# View logs
-make logs
+# Evolution API Management
+make evo-start        # Start Evolution API in development mode
+make evo-stop         # Stop Evolution API
+make evo-restart      # Restart Evolution API
+make evo-status       # Check Evolution API status
+make evo-logs         # Tail Evolution API logs
 
-# Check code quality
-make lint
-make format
+# Testing & Quality
+make test             # Run backend test suite (Python + pytest)
+make test-coverage    # Run backend tests with coverage report
+make test-ui          # Run UI tests (Playwright, headless)
+make test-ui-quick    # Run quick UI smoke tests (headless)
+make play             # Run visual E2E tests (watch in browser)
+make play-quick       # Run quick visual smoke tests
+make lint             # Check code with ruff
+make format           # Format code with ruff
+make typecheck        # Type check with mypy
+make quality          # Run all quality checks (lint + typecheck)
 
-# Database operations
-make migrate        # Run migrations
-make db-reset      # Reset database (caution!)
-make db-shell      # Open database shell
+# Database Operations
+make db-init          # Initialize database with default instance
+make cli-instances    # List instances via CLI
+make cli-create       # Create instance via CLI (interactive)
+make validate         # Run multi-tenancy validation
 ```
+
+### Testing
+
+**Backend Testing (Python)**
+
+Run the Python test suite with pytest:
+
+```bash
+make test              # Run all Python tests
+make test-coverage     # Run tests with coverage report
+```
+
+**Frontend Testing (Playwright)**
+
+End-to-end tests for the UI using Playwright:
+
+```bash
+# Visual testing (headed mode - watch tests in browser)
+make play              # Run comprehensive E2E tests (~5-10 min)
+make play-quick        # Run quick smoke tests (~2 min)
+
+# Headless testing (background execution)
+make test-ui           # Run all UI tests (for CI)
+make test-ui-quick     # Run quick smoke tests (for CI)
+```
+
+**Test Structure:**
+- **Smoke Tests** (`resources/ui/e2e/smoke/`) - Critical path validation (~2 min)
+  - Authentication (5 tests)
+  - Navigation (7 tests)
+  - Health checks (7 tests)
+- **Comprehensive Tests** (`resources/ui/e2e/full/`) - Full feature coverage (~5-10 min)
+  - Global Settings (13 tests)
+  - Instances Management (12 tests)
+  - Theme Toggle (8 tests)
+  - Accessibility/WCAG (15 tests)
+
+**Total: 67 E2E tests** covering authentication, navigation, features, and accessibility.
+
+See [`resources/ui/e2e/README.md`](resources/ui/e2e/README.md) for detailed testing documentation.
 
 ### Docker Deployment
 

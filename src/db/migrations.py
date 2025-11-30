@@ -13,6 +13,7 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import OperationalError
 
 from .database import get_engine
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -278,6 +279,40 @@ def stamp_database(revision: str = "head", timeout_seconds: int = 5) -> bool:
         return False
 
 
+def _print_error_trace(error: Exception) -> None:
+    """Print a detailed error trace for database connection failures."""
+    import traceback
+    import re
+
+    # Get database URL safely (mask password)
+    try:
+        from .database import get_database_url
+
+        url = get_database_url()
+        safe_url = re.sub(r":([^@]+)@", ":****@", url) if "@" in url else url
+    except Exception:
+        safe_url = "<unable to get database URL>"
+
+    print(f"""
+================================================================================
+DATABASE CONNECTION FAILED
+================================================================================
+URL: {safe_url}
+Error: {type(error).__name__}: {error}
+
+Stack trace:
+{traceback.format_exc()}
+
+Quick fixes:
+1. Check PostgreSQL: pg_isready -h 192.168.112.135 -p 5432
+2. Check credentials in AUTOMAGIK_OMNI_DATABASE_URL
+3. Check database exists: psql -c '\\l'
+
+Copy this block when reporting issues.
+================================================================================
+""")
+
+
 def auto_migrate() -> bool:
     """
     Automatically handle database migrations on startup.
@@ -293,6 +328,15 @@ def auto_migrate() -> bool:
     """
     try:
         logger.debug("Starting automatic database migration check...")
+
+        # Pre-flight connectivity check - fail fast if database is unreachable
+        try:
+            engine = get_engine()
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception as e:
+            _print_error_trace(e)
+            raise SystemExit(f"DATABASE CONNECTION FAILED: {e}")
 
         current_revision = get_current_revision()
         head_revision = get_head_revision()
@@ -311,17 +355,53 @@ def auto_migrate() -> bool:
             return run_migrations()
 
         elif current_revision is None and has_tables:
-            # Existing database without revision tracking - stamp it as current
-            logger.debug("Existing database without revision tracking detected, stamping as current...")
-            success = stamp_database(head_revision)
-            if success:
-                logger.debug("Database successfully stamped with current revision")
-            else:
-                logger.warning("Failed to stamp database, but continuing anyway (database is functional)")
-                # Return True to allow the application to continue
-                # The database is functional, just missing revision tracking
-                return True
-            return success
+            # Existing database without revision tracking - bypass Alembic completely
+            # Desktop installations create tables fresh but without alembic_version
+            logger.debug("Existing database without revision tracking detected, stamping via SQL (desktop mode)...")
+            # Alembic command.stamp() hangs in PyInstaller/Windows desktop environment
+            # Bypass Alembic and write directly to alembic_version table
+            logger.debug("Bypassing Alembic - writing directly to alembic_version table")
+            try:
+                # Get the head revision we need to write
+                config = get_alembic_config()
+                script_dir = ScriptDirectory.from_config(config)
+                head_revision = script_dir.get_current_head()
+
+                # Write directly to alembic_version table (bypass Alembic completely)
+                from src.db.database import get_db
+
+                db = next(get_db())
+                try:
+                    # Create alembic_version table if it doesn't exist
+                    db.execute(
+                        text(
+                            "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+                        )
+                    )
+
+                    # Insert the current head revision
+                    db.execute(
+                        text("INSERT INTO alembic_version (version_num) VALUES (:version)"), {"version": head_revision}
+                    )
+                    db.commit()
+                    logger.debug(f"Database stamped successfully with revision: {head_revision} (direct SQL)")
+                    return True
+                except Exception as db_err:
+                    db.rollback()
+                    logger.error(f"Failed to stamp via direct SQL: {db_err}")
+                    raise
+                finally:
+                    db.close()
+            except Exception as e:
+                logger.warning(f"Direct SQL stamp failed: {e}, falling back to Alembic stamp")
+                # Last resort: try Alembic stamp (will probably hang)
+                try:
+                    command.stamp(config, head_revision)
+                    logger.debug(f"Database stamped via Alembic: {head_revision}")
+                    return True
+                except Exception as stamp_err:
+                    logger.error(f"Alembic stamp also failed: {stamp_err}")
+                    return False
 
         elif current_revision != head_revision:
             # Database needs updating

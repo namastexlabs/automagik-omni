@@ -68,6 +68,14 @@ def _initialize_engine() -> None:
             database_url,
             connect_args={"check_same_thread": False},  # Needed for SQLite
         )
+    elif database_url.startswith("postgresql"):
+        _engine = create_engine(
+            database_url,
+            pool_size=5,
+            max_overflow=10,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+        )
     else:
         _engine = create_engine(database_url)
 

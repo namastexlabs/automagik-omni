@@ -246,12 +246,16 @@ def replace_localhost_with_ipv4(url: str) -> str:
     This function ONLY replaces localhost, 127.0.0.1, and 0.0.0.0 hostnames.
     Proper domains like 'agentsapi.com' or 'api.example.com' are preserved unchanged.
 
+    In desktop mode (AUTOMAGIK_OMNI_DESKTOP_MODE=true), localhost URLs are preserved
+    as-is to allow connections to local services.
+
     Args:
         url: The URL that may contain localhost, 127.0.0.1, or 0.0.0.0
 
     Returns:
         str: The URL with localhost/0.0.0.0 replaced by actual IPv4 address.
              Domain names and external IPs are preserved unchanged.
+             In desktop mode, all URLs are returned unchanged.
 
     Examples:
         >>> replace_localhost_with_ipv4('http://localhost:58881')
@@ -261,7 +265,13 @@ def replace_localhost_with_ipv4(url: str) -> str:
         >>> replace_localhost_with_ipv4('http://192.168.1.100:3000')
         'http://192.168.1.100:3000'  # Unchanged
     """
+    import os
+
     if not url:
+        return url
+
+    # In desktop mode, preserve localhost URLs for local service connections
+    if os.getenv("AUTOMAGIK_OMNI_DESKTOP_MODE", "").lower() in ("true", "1", "yes"):
         return url
 
     # Parse the URL to check if it contains localhost or 0.0.0.0
@@ -340,6 +350,9 @@ def ensure_ipv4_in_config(config_dict: dict, url_fields: Optional[list] = None) 
     This function ONLY replaces localhost-style URLs. Domain names and external IPs
     are preserved unchanged to support cloud-hosted and external agent APIs.
 
+    In desktop mode (AUTOMAGIK_OMNI_DESKTOP_MODE=true), localhost URLs are preserved
+    as-is to allow connections to local services.
+
     Args:
         config_dict: Dictionary containing configuration values
         url_fields: List of field names that contain URLs to process
@@ -354,6 +367,12 @@ def ensure_ipv4_in_config(config_dict: dict, url_fields: Optional[list] = None) 
         >>> ensure_ipv4_in_config({'agent_api_url': 'https://agentsapi.com:8080'})
         {'agent_api_url': 'https://agentsapi.com:8080'}  # Unchanged
     """
+    import os
+
+    # In desktop mode, preserve localhost URLs for local service connections
+    if os.getenv("AUTOMAGIK_OMNI_DESKTOP_MODE", "").lower() in ("true", "1", "yes"):
+        return config_dict.copy()
+
     if url_fields is None:
         # Common URL field names
         url_fields = ["evolution_url", "agent_api_url", "webhook_url", "api_url"]

@@ -5,15 +5,18 @@ Loads configuration from environment variables.
 
 import os
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import Any
 import pytz
 from datetime import datetime
 
-# Load environment variables from .env file
+# Load environment variables from .env file (optional - only if file exists)
 # This should be the ONLY place where load_dotenv is called in the entire application
-load_dotenv(override=True)
+# .env is now optional - all settings can be configured via database or auto-generated
+if Path(".env").exists():
+    load_dotenv(override=True)
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
@@ -45,19 +48,62 @@ class LoggingConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    """Database configuration."""
+    """Database configuration with PostgreSQL and SQLite support."""
 
+    # Database type selection: "sqlite" (default) or "postgresql"
+    db_type: str = Field(
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_DB_TYPE", "sqlite")
+    )
+
+    # SQLite configuration (always used for global_settings bootstrap)
     sqlite_path: str = Field(
         default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", "./data/automagik-omni.db")
     )
+
+    # PostgreSQL configuration (shared with Evolution API)
+    postgres_url: str = Field(
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_POSTGRES_URL", "")
+    )
+
+    # Legacy: explicit database URL override (takes precedence)
     url: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_DATABASE_URL", ""))
+
+    # Table prefix for PostgreSQL (to coexist with Evolution tables)
+    table_prefix: str = Field(
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_TABLE_PREFIX", "omni_")
+    )
+
+    # Connection pooling settings (for PostgreSQL)
+    pool_size: int = Field(
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_SIZE", "3"))
+    )
+    pool_max_overflow: int = Field(
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_MAX_OVERFLOW", "7"))
+    )
+    pool_recycle: int = Field(
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_RECYCLE", "1800"))
+    )
+
+    @property
+    def use_postgres(self) -> bool:
+        """Check if PostgreSQL is configured."""
+        return self.db_type.lower() == "postgresql" and bool(self.postgres_url)
 
     @property
     def database_url(self) -> str:
-        """Get the complete database URL."""
+        """Get the complete database URL for runtime data."""
+        # Explicit URL override takes precedence
         if self.url:
             return self.url
-        # Auto-construct SQLite URL from path
+        # Use PostgreSQL if configured
+        if self.use_postgres:
+            return self.postgres_url
+        # Default to SQLite
+        return f"sqlite:///{self.sqlite_path}"
+
+    @property
+    def global_settings_url(self) -> str:
+        """Get the SQLite URL for global settings (always SQLite for bootstrap safety)."""
         return f"sqlite:///{self.sqlite_path}"
 
 
@@ -78,7 +124,7 @@ class ApiConfig(BaseModel):
     """API Server configuration."""
 
     host: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_HOST", "0.0.0.0"))
-    port: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882")))
+    port: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8881")))
     api_key: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_API_KEY", ""))
     prod_server_url: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_PROD_SERVER_URL", ""))
     title: str = "Automagik Omni API"
@@ -146,6 +192,14 @@ class CorsConfig(BaseModel):
     allow_headers: list[str] = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_CORS_HEADERS", "*").split(","))
 
 
+class LegacyConfig(BaseModel):
+    """Legacy Hive API compatibility configuration."""
+
+    skip_health_check: bool = Field(
+        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_SKIP_LEGACY_HEALTH_CHECK", "false").lower() == "true"
+    )
+
+
 class Config(BaseModel):
     """Main application configuration."""
 
@@ -156,6 +210,7 @@ class Config(BaseModel):
     tracing: TracingConfig = TracingConfig()
     timezone: TimezoneConfig = TimezoneConfig()
     cors: CorsConfig = CorsConfig()
+    legacy: LegacyConfig = LegacyConfig()
 
     @property
     def is_valid(self) -> bool:

@@ -20,13 +20,13 @@ class MessageTrace(Base):
     from webhook reception to final response delivery.
     """
 
-    __tablename__ = "message_traces"
+    __tablename__ = "omni_message_traces"
 
     # Unique trace ID for the entire message lifecycle
     trace_id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
 
     # Instance and message identification
-    instance_name = Column(String, ForeignKey("instance_configs.name"), index=True)
+    instance_name = Column(String, ForeignKey("omni_instance_configs.name"), index=True)
     whatsapp_message_id = Column(String, index=True)  # Evolution message ID
 
     # Sender information
@@ -49,13 +49,20 @@ class MessageTrace(Base):
     processing_started_at = Column(DateTime)
     agent_request_at = Column(DateTime)
     agent_response_at = Column(DateTime)
-    evolution_send_at = Column(DateTime)
+    evolution_send_at = Column(DateTime)  # Alias: whatsapp_web_send_at
     completed_at = Column(DateTime)
 
     # Status tracking
-    status = Column(String, default="received", index=True)  # received, processing, agent_called, completed, failed
+    status = Column(
+        String, default="received", index=True
+    )  # received, processing, agent_called, completed, failed, access_denied
     error_message = Column(Text)
     error_stage = Column(String)  # Stage where error occurred
+
+    # Access rule tracking
+    blocked_by_access_rule = Column(Boolean, default=False, index=True)
+    access_rule_id = Column(Integer, ForeignKey("omni_access_rules.id"), nullable=True)
+    blocking_reason = Column(String)
 
     # Performance metrics
     agent_processing_time_ms = Column(Integer)
@@ -68,15 +75,44 @@ class MessageTrace(Base):
     agent_response_length = Column(Integer)
     agent_tools_used = Column(Integer, default=0)
 
-    # Evolution API response
-    evolution_response_code = Column(Integer)
-    evolution_success = Column(Boolean)
+    # WhatsApp Web API response (via Evolution API)
+    # Use whatsapp_web_* property aliases for new code
+    evolution_response_code = Column(Integer)  # Alias: whatsapp_web_response_code
+    evolution_success = Column(Boolean)  # Alias: whatsapp_web_success
 
     # Relationships
     payloads = relationship("TracePayload", back_populates="trace", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<MessageTrace(trace_id='{self.trace_id}', status='{self.status}', sender='{self.sender_phone}')>"
+
+    # WhatsApp Web API aliases (clean naming for evolution_* columns)
+    @property
+    def whatsapp_web_send_at(self) -> Optional[Any]:
+        """Alias for evolution_send_at - WhatsApp Web API send timestamp."""
+        return self.evolution_send_at
+
+    @whatsapp_web_send_at.setter
+    def whatsapp_web_send_at(self, value: Any) -> None:
+        self.evolution_send_at = value
+
+    @property
+    def whatsapp_web_response_code(self) -> Optional[int]:
+        """Alias for evolution_response_code - WhatsApp Web API response code."""
+        return self.evolution_response_code
+
+    @whatsapp_web_response_code.setter
+    def whatsapp_web_response_code(self, value: Optional[int]) -> None:
+        self.evolution_response_code = value
+
+    @property
+    def whatsapp_web_success(self) -> Optional[bool]:
+        """Alias for evolution_success - WhatsApp Web API success status."""
+        return self.evolution_success
+
+    @whatsapp_web_success.setter
+    def whatsapp_web_success(self, value: Optional[bool]) -> None:
+        self.evolution_success = value
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert trace to dictionary for API responses."""
@@ -94,6 +130,9 @@ class MessageTrace(Base):
             "status": self.status,
             "error_message": self.error_message,
             "error_stage": self.error_stage,
+            "blocked_by_access_rule": self.blocked_by_access_rule,
+            "access_rule_id": self.access_rule_id,
+            "blocking_reason": self.blocking_reason,
             "received_at": self.received_at.isoformat() if self.received_at else None,
             "completed_at": (self.completed_at.isoformat() if self.completed_at else None),
             "agent_processing_time_ms": self.agent_processing_time_ms,
@@ -109,10 +148,10 @@ class TracePayload(Base):
     Payloads are compressed to save space.
     """
 
-    __tablename__ = "trace_payloads"
+    __tablename__ = "omni_trace_payloads"
 
     id = Column(Integer, primary_key=True)
-    trace_id = Column(String, ForeignKey("message_traces.trace_id"), index=True)
+    trace_id = Column(String, ForeignKey("omni_message_traces.trace_id"), index=True)
 
     # Stage and payload identification
     stage = Column(String, index=True)  # webhook_received, agent_request, agent_response, evolution_send

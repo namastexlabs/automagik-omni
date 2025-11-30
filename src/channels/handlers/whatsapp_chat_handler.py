@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 from src.channels.omni_base import OmniChannelHandler
 from src.channels.whatsapp.channel_handler import WhatsAppChannelHandler
 from src.channels.whatsapp.omni_evolution_client import OmniEvolutionClient
-from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo
+from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, OmniMessage
 from src.services.omni_transformers import WhatsAppTransformer
 from src.db.models import InstanceConfig
 from src.config import config
@@ -22,11 +22,13 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
 
     def _get_omni_evolution_client(self, instance: InstanceConfig) -> OmniEvolutionClient:
         """Get unified Evolution client for this specific instance."""
-        # Use instance-specific credentials if available, otherwise fall back to global
+        from src.services.settings_service import get_evolution_api_key_global
+
+        # Get bootstrap key from database (with .env fallback)
         evolution_url = instance.evolution_url or replace_localhost_with_ipv4(
             config.get_env("EVOLUTION_API_URL", "http://localhost:8080")
         )
-        evolution_key = instance.evolution_key or config.get_env("EVOLUTION_API_KEY", "")
+        bootstrap_key = get_evolution_api_key_global()
 
         # Validate configuration (same as parent class)
         if evolution_url.lower() in ["string", "null", "undefined", ""]:
@@ -37,7 +39,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 f"Invalid Evolution URL: '{evolution_url}'. Please provide a valid URL like 'http://localhost:8080'"
             )
 
-        if not evolution_key or evolution_key.lower() in [
+        if not bootstrap_key or bootstrap_key.lower() in [
             "string",
             "null",
             "undefined",
@@ -50,7 +52,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             logger.error(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
             raise Exception(f"Evolution URL missing protocol: '{evolution_url}'. Must start with http:// or https://")
 
-        return OmniEvolutionClient(evolution_url, evolution_key)
+        # Pass instance name for logging/debugging only (auth uses bootstrap key)
+        whatsapp_instance_name = instance.whatsapp_instance or instance.name
+        return OmniEvolutionClient(evolution_url, bootstrap_key, whatsapp_instance_name)
 
     async def get_contacts(
         self,
@@ -151,41 +155,33 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         """
         Get chats/conversations from WhatsApp in unified format with pagination.
 
-        Note: When using chat_type_filter or archived filter, client-side filtering is applied
-        AFTER pagination, which may result in fewer items per page than requested.
-        For accurate page sizes with filters, consider fetching without filters first.
+        Filters are applied BEFORE pagination to ensure accurate results.
         """
         try:
             logger.debug(f"Fetching WhatsApp chats for instance {instance.name} - page: {page}, size: {page_size}")
 
             evolution_client = self._get_omni_evolution_client(instance)
 
-            # Fetch paginated chats from Evolution API (with client-side pagination)
-            chats_response = await evolution_client.fetch_chats(
-                instance_name=instance.name, page=page, page_size=page_size
-            )
+            # Fetch ALL chats from Evolution API (pagination will be applied after filtering)
+            chats_response = await evolution_client.fetch_chats(instance_name=instance.name, page=1, page_size=10000)
 
             logger.debug(f"Evolution API chats response: {chats_response}")
 
-            # Parse response and transform to unified format
-            chats = []
-            total_count = 0
+            # Parse response and collect all chats for filtering
+            all_chats = []
 
-            # Evolution client now returns dict with pagination metadata
+            # Evolution client returns dict with pagination metadata
             if isinstance(chats_response, dict):
-                # Get paginated chat list from response
+                # Get chat list from response
                 chat_list = chats_response.get("chats", chats_response.get("data", []))
-                # CRITICAL: Use total from client, not len(chat_list) which is paginated
-                total_count = chats_response.get("total", 0)
             elif isinstance(chats_response, list):
-                # Fallback for direct list response (shouldn't happen with updated client)
+                # Fallback for direct list response
                 chat_list = chats_response
-                total_count = len(chat_list)
                 logger.warning("Received unpaginated list response from Evolution client")
             else:
                 chat_list = []
-                total_count = 0
 
+            # Transform and filter chats
             if isinstance(chat_list, list):
                 for chat_data in chat_list:
                     try:
@@ -199,30 +195,39 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                         if not chat_data.get("id"):
                             chat_data["id"] = ""
 
-                        # Apply chat type filter if provided (post-pagination filtering)
+                        # Apply chat type filter if provided (pre-pagination filtering)
+                        # CRITICAL: Filter logic must match transformer logic in omni_transformers.py
+                        # - @g.us = group
+                        # - @broadcast = channel
+                        # - everything else (including @s.whatsapp.net) = direct
                         if chat_type_filter:
                             chat_id = chat_data.get("id") or ""
-                            if chat_type_filter == "direct" and not chat_id.endswith("@c.us"):
+                            is_group = chat_id.endswith("@g.us")
+                            is_channel = chat_id.endswith("@broadcast")
+                            is_direct = not is_group and not is_channel
+
+                            if chat_type_filter == "direct" and not is_direct:
                                 continue
-                            elif chat_type_filter == "group" and not chat_id.endswith("@g.us"):
+                            elif chat_type_filter == "group" and not is_group:
                                 continue
-                            elif chat_type_filter == "channel" and not chat_id.endswith("@broadcast"):
+                            elif chat_type_filter == "channel" and not is_channel:
                                 continue
 
-                        # Apply archived filter if provided (post-pagination filtering)
+                        # Apply archived filter if provided (pre-pagination filtering)
                         if archived is not None and chat_data.get("isArchived", False) != archived:
                             continue
 
                         omni_chat = WhatsAppTransformer.chat_to_omni(chat_data, instance.name)
-                        chats.append(omni_chat)
+                        all_chats.append(omni_chat)
                     except Exception as e:
                         logger.warning(f"Failed to transform chat data: {e}")
                         continue
 
-            # NOTE: When filters are applied post-pagination, total_count represents
-            # the total number of chats before filtering, not after.
-            # This is intentional to maintain consistent pagination behavior.
-            # Client-side filtering may result in fewer items per page.
+            # Apply pagination to filtered results
+            total_count = len(all_chats)
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            chats = all_chats[start_idx:end_idx]
 
             logger.info(
                 f"Successfully fetched {len(chats)} WhatsApp chats (total: {total_count}) for instance {instance.name}"
@@ -230,6 +235,19 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             return chats, total_count
 
         except Exception as e:
+            # Check if this is the known Evolution API SQL bug
+            error_message = str(e)
+            if 'near "ON": syntax error' in error_message or 'prisma.$queryRaw' in error_message:
+                logger.warning(
+                    f"Evolution API SQL bug detected for instance {instance.name}. "
+                    f"Returning empty chats list as workaround. "
+                    f"This is a known issue in Evolution API's Prisma SQLite query. "
+                    f"Error: {error_message}"
+                )
+                # Return empty results instead of crashing
+                return [], 0
+
+            # For other errors, re-raise
             logger.error(f"Failed to fetch WhatsApp chats for instance {instance.name}: {e}")
             raise
 
@@ -315,3 +333,64 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         except Exception as e:
             logger.error(f"Failed to fetch WhatsApp chat {chat_id} for instance {instance.name}: {e}")
             return None
+
+    async def get_messages(
+        self,
+        instance: InstanceConfig,
+        chat_id: str,
+        page: int = 1,
+        page_size: int = 50,
+        before_message_id: Optional[str] = None,
+    ) -> Tuple[List[OmniMessage], int]:
+        """
+        Get messages from a WhatsApp chat in omni format.
+        """
+        try:
+            logger.debug(
+                f"Fetching WhatsApp messages for chat {chat_id} in instance {instance.name} - page: {page}, size: {page_size}"
+            )
+
+            evolution_client = self._get_omni_evolution_client(instance)
+
+            # Fetch messages from Evolution API
+            messages_response = await evolution_client.fetch_messages(
+                instance_name=instance.name, chat_id=chat_id, page=page, page_size=page_size, limit=200
+            )
+
+            logger.debug(f"Evolution API messages response: {messages_response}")
+
+            # Parse response and transform to omni format
+            messages = []
+            total_count = 0
+
+            if isinstance(messages_response, dict):
+                # Get paginated message list from response
+                message_list = messages_response.get("messages", messages_response.get("data", []))
+                total_count = messages_response.get("total", 0)
+            elif isinstance(messages_response, list):
+                # Fallback for direct list response
+                message_list = messages_response
+                total_count = len(message_list)
+                logger.warning("Received unpaginated list response from Evolution client")
+            else:
+                message_list = []
+                total_count = 0
+
+            # Transform each message to omni format
+            for msg in message_list:
+                try:
+                    omni_message = WhatsAppTransformer.message_to_omni(msg, instance.name)
+                    messages.append(omni_message)
+                except Exception as transform_error:
+                    logger.warning(f"Failed to transform WhatsApp message: {transform_error}")
+                    continue
+
+            logger.info(
+                f"Successfully fetched {len(messages)} messages (total: {total_count}) for chat {chat_id} in instance {instance.name}"
+            )
+
+            return messages, total_count
+
+        except Exception as e:
+            logger.error(f"Failed to fetch WhatsApp messages for chat {chat_id} in instance {instance.name}: {e}")
+            return [], 0

@@ -115,6 +115,17 @@ define ensure_env_file
 	fi
 endef
 
+define prompt_user
+	@read -p "$(1) [y/N] " -n 1 -r REPLY; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		exit 0; \
+	else \
+		echo -e "$(FONT_YELLOW)Skipped.$(FONT_RESET)"; \
+		exit 1; \
+	fi
+endef
+
 # Function removed - now using PM2 for service management
 
 # ===========================================
@@ -125,11 +136,23 @@ help: ## Show this help message
 	@echo ""
 	@echo -e "$(FONT_PURPLE)$(HUB) Omni-Hub Development & Deployment Commands$(FONT_RESET)"
 	@echo ""
+	@echo -e "$(FONT_BOLD)Quick Start:$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)$(FONT_BOLD)setup          $(FONT_RESET) $(FONT_BOLD)Complete setup for fresh deployment (recommended!)$(FONT_RESET)"
+	@echo -e "  $(FONT_CYAN)up             $(FONT_RESET) Quick start: install + dev server"
+	@echo -e "  $(FONT_GREEN)deploy-service $(FONT_RESET) Deploy as service: install + service + start"
+	@echo ""
+	@echo -e "$(FONT_BOLD)Modular Installation (pick what you need):$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)install-core   $(FONT_RESET) Install Omni Hub core only (fastest, no channels)"
+	@echo -e "  $(FONT_GREEN)install-whatsapp$(FONT_RESET) Add WhatsApp channel (Evolution API)"
+	@echo -e "  $(FONT_GREEN)install-discord $(FONT_RESET) Add Discord channel (discord.py)"
+	@echo -e "  $(FONT_GREEN)install-channels$(FONT_RESET) Install all available channels"
+	@echo ""
 	@echo -e "$(FONT_BOLD)Development:$(FONT_RESET)"
-	@echo -e "  $(FONT_CYAN)install        $(FONT_RESET) Install Omni core deps (WhatsApp/Evolution) with optional Discord prompt"
-	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install only Omni core dependencies"
-	@echo -e "  $(FONT_CYAN)install-discord $(FONT_RESET) Install optional Discord extras"
-	@echo -e "  $(FONT_CYAN)dev            $(FONT_RESET) Start development server with auto-reload"
+	@echo -e "  $(FONT_CYAN)install        $(FONT_RESET) Full install (core + Evolution + gateway + UI)"
+	@echo -e "  $(FONT_CYAN)install-omni   $(FONT_RESET) Install Python dependencies only"
+	@echo -e "  $(FONT_CYAN)install-evolution$(FONT_RESET) Install Evolution API (Node.js)"
+	@echo -e "  $(FONT_CYAN)dev            $(FONT_RESET) Start Omni development server with auto-reload"
+	@echo -e "  $(FONT_CYAN)dev-all        $(FONT_RESET) Start Omni + Evolution API in development mode"
 	@echo -e "  $(FONT_CYAN)test           $(FONT_RESET) Run the test suite"
 	@echo -e "  $(FONT_CYAN)test-coverage  $(FONT_RESET) Run tests with coverage report"
 	@echo -e "  $(FONT_CYAN)lint           $(FONT_RESET) Run code linting with ruff"
@@ -142,6 +165,7 @@ help: ## Show this help message
 	@echo -e "  $(FONT_GREEN)start-local    $(FONT_RESET) Start local PM2 service"
 	@echo -e "  $(FONT_GREEN)stop-local     $(FONT_RESET) Stop local PM2 service"
 	@echo -e "  $(FONT_GREEN)restart-local  $(FONT_RESET) Restart local PM2 service"
+	@echo -e "  $(FONT_GREEN)reload         $(FONT_RESET) 🔄 Full reload (clean caches + rebuild UI + restart)"
 	@echo -e "  $(FONT_GREEN)status-local   $(FONT_RESET) Check local PM2 service status"
 	@echo -e "  $(FONT_GREEN)logs-local     $(FONT_RESET) Show local PM2 service logs"
 	@echo -e "  $(FONT_GREEN)logs-follow-local$(FONT_RESET) Follow local PM2 service logs"
@@ -152,11 +176,19 @@ help: ## Show this help message
 	@echo ""
 	@echo -e "$(FONT_BOLD)Discord Bot Management:$(FONT_RESET)"
 	@echo -e "  $(FONT_PURPLE)discord-start  $(FONT_RESET) Start Discord bot (INSTANCE=name)"
-	@echo -e "  $(FONT_PURPLE)discord-stop   $(FONT_RESET) Stop Discord bot (INSTANCE=name)"  
+	@echo -e "  $(FONT_PURPLE)discord-stop   $(FONT_RESET) Stop Discord bot (INSTANCE=name)"
 	@echo -e "  $(FONT_PURPLE)discord-restart$(FONT_RESET) Restart Discord bot (INSTANCE=name)"
 	@echo -e "  $(FONT_PURPLE)discord-status $(FONT_RESET) Show Discord bot status"
 	@echo -e "  $(FONT_PURPLE)discord-logs   $(FONT_RESET) Show Discord service logs"
 	@echo -e "  $(FONT_PURPLE)discord-list   $(FONT_RESET) List all Discord instances"
+	@echo ""
+	@echo -e "$(FONT_BOLD)Evolution API Management:$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)evo-start      $(FONT_RESET) Start Evolution API server"
+	@echo -e "  $(FONT_GREEN)evo-stop       $(FONT_RESET) Stop Evolution API server"
+	@echo -e "  $(FONT_GREEN)evo-restart    $(FONT_RESET) Restart Evolution API server"
+	@echo -e "  $(FONT_GREEN)evo-status     $(FONT_RESET) Show Evolution API status"
+	@echo -e "  $(FONT_GREEN)evo-logs       $(FONT_RESET) Show Evolution API logs"
+	@echo -e "  $(FONT_GREEN)evo            $(FONT_RESET) Alias for evo-start"
 	@echo ""	@echo -e "$(FONT_BOLD)Database & CLI:$(FONT_RESET)"
 	@echo -e "  $(FONT_YELLOW)db-init        $(FONT_RESET) Initialize database with default instance"
 	@echo -e "  $(FONT_YELLOW)cli-instances  $(FONT_RESET) List all instances via CLI"
@@ -169,10 +201,13 @@ help: ## Show this help message
 	@echo -e "  $(FONT_PURPLE)publish        $(FONT_RESET) Publish to PyPI"
 	@echo -e "  $(FONT_PURPLE)release        $(FONT_RESET) Full release process (quality + test + build)"
 	@echo ""
-	@echo -e "$(FONT_BOLD)Quick Commands:$(FONT_RESET)"
-	@echo -e "  $(FONT_CYAN)up             $(FONT_RESET) Quick start: install + dev server"
+	@echo -e "$(FONT_BOLD)Quality Checks:$(FONT_RESET)"
 	@echo -e "  $(FONT_CYAN)check          $(FONT_RESET) Quick check: quality + tests"
-	@echo -e "  $(FONT_GREEN)deploy-service $(FONT_RESET) Deploy as service: install + service + start"
+	@echo ""
+	@echo -e "$(FONT_BOLD)Cleanup & Uninstall:$(FONT_RESET)"
+	@echo -e "  $(FONT_RED)uninstall      $(FONT_RESET) Uninstall Omni Hub (preserves data)"
+	@echo -e "  $(FONT_RED)uninstall-full $(FONT_RESET) Full uninstall including all data (DESTRUCTIVE)"
+	@echo -e "  $(FONT_YELLOW)clean          $(FONT_RESET) Clean build artifacts and cache"
 	@echo ""
 
 # ===========================================
@@ -221,18 +256,169 @@ discord-list: ## List all Discord instances
 	@uv run python -m src.cli.main_cli discord list
 
 # ===========================================
+# 🐘 Evolution API Management
+# ===========================================
+.PHONY: evo-start evo-stop evo-restart evo-status evo-logs evo
+
+evo-start: ## Start Evolution API server in development mode
+	$(call ensure_env_file)
+	$(call print_status,Starting Evolution API server in development mode)
+	@cd resources/evolution-api && { \
+		if command -v pnpm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using pnpm to start Evolution API$(FONT_RESET)"; \
+			pnpm run dev:server; \
+		elif command -v npm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using npm to start Evolution API$(FONT_RESET)"; \
+			npm run dev:server; \
+		else \
+			echo -e "$(FONT_RED)$(ERROR) Neither pnpm nor npm found!$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
+	}
+
+evo-stop: ## Stop Evolution API server
+	$(call print_status,Stopping Evolution API server)
+	@pkill -f "node.*evolution-api" || echo -e "$(FONT_YELLOW)$(WARNING) Evolution API not running$(FONT_RESET)"
+	$(call print_success,Evolution API server stopped)
+
+evo-restart: evo-stop evo-start ## Restart Evolution API server
+
+evo-status: ## Show Evolution API server status
+	$(call print_status,Checking Evolution API status)
+	@if pgrep -f "node.*evolution-api" > /dev/null; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution API is running$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)PIDs: $$(pgrep -f 'node.*evolution-api' | tr '\n' ' ')$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_RED)$(ERROR) Evolution API is not running$(FONT_RESET)"; \
+	fi
+
+evo-logs: ## Show Evolution API logs
+	$(call print_status,Showing Evolution API logs)
+	@if [ -f logs/evolution-combined.log ]; then \
+		tail -f logs/evolution-combined.log; \
+	elif [ -f resources/evolution-api/logs/app.log ]; then \
+		tail -f resources/evolution-api/logs/app.log; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) No Evolution API logs found$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Start Evolution with: make evo-start$(FONT_RESET)"; \
+	fi
+
+evo: evo-start ## Quick alias to start Evolution API
+
+# ===========================================
 # 🏗️ Development Commands
 # ===========================================
-.PHONY: install install-omni install-discord
-install: ## Install Omni core dependencies with optional Discord extras
-	$(MAKE) install-omni
-	@read -r -p "Install optional Discord extras? [y/N] " choice; \
-	if [ "$$choice" = "y" ] || [ "$$choice" = "Y" ]; then \
-		$(MAKE) install-discord; \
-	else \
-		echo "$(FONT_YELLOW)$(WARNING) Skipping Discord optional extras$(FONT_RESET)"; \
+.PHONY: install install-omni install-discord install-evolution
+install: ## $(ROCKET) Full production installation (inspired by automagik-tools)
+	@$(call show_automagik_logo)
+	$(call print_status,Starting automagik-omni installation...)
+	@echo ""
+
+	@# Phase 1: Prerequisites
+	$(call print_status,Phase 1/7: Checking prerequisites...)
+	@$(call check_prerequisites)
+	@if ! command -v pnpm >/dev/null 2>&1; then \
+		$(call print_error,pnpm not found); \
+		echo -e "$(FONT_YELLOW)💡 Install pnpm: npm install -g pnpm$(FONT_RESET)"; \
+		exit 1; \
 	fi
-	$(call print_success_with_logo,Dependencies installed successfully)
+	$(call print_success,Prerequisites verified!)
+	@echo ""
+
+	@# Phase 1.5: Initialize git submodules (if not already initialized)
+	$(call print_status,Initializing git submodules...)
+	@git submodule update --init --recursive
+	$(call print_success,Git submodules initialized!)
+	@echo ""
+
+	@# Phase 2: Environment
+	$(call print_status,Phase 2/7: Setting up environment...)
+	@$(call ensure_env_file)
+	@# Auto-generate Evolution API key if not exists (Omni owns Evolution)
+	@if ! grep -q "EVOLUTION_API_KEY=" .env 2>/dev/null; then \
+		GENERATED_KEY=$$(openssl rand -hex 16); \
+		echo "EVOLUTION_API_KEY=$$GENERATED_KEY" >> .env; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution API key generated: $$GENERATED_KEY$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_CYAN)$(INFO) Using existing Evolution API key$(FONT_RESET)"; \
+	fi
+	$(call print_success,Environment configured!)
+	@echo ""
+
+	@# Phase 3: Python dependencies
+	$(call print_status,Phase 3/7: Installing Python dependencies...)
+	@$(UV) sync
+	$(call print_success,Python dependencies installed!)
+	@echo ""
+
+	@# Phase 4: Gateway build
+	$(call print_status,Phase 4/7: Building Gateway...)
+	@cd gateway && pnpm install --silent
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway built successfully!)
+	@echo ""
+
+	@# Phase 5: UI build
+	$(call print_status,Phase 5/7: Building UI...)
+	@cd resources/ui && pnpm install --silent
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI built successfully!)
+	@echo ""
+
+	@# Phase 6: PM2 setup
+	$(call print_status,Phase 6/7: PM2 Process Manager)
+	@if command -v pm2 >/dev/null 2>&1; then \
+		PM2_VERSION=$$(pm2 --version 2>/dev/null || echo "unknown"); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 $$PM2_VERSION already installed$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)PM2 is a process manager for Node.js applications.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Features: auto-restart, log management, monitoring$(FONT_RESET)"; \
+		read -p "Install PM2 globally? [y/N] " yn; \
+		case $$yn in [Yy]*) ;; *) exit 0 ;; esac; \
+		echo -e "$(FONT_PURPLE)$(HUB) Installing PM2...$(FONT_RESET)"; \
+		npm install -g pm2 || { \
+			echo -e "$(FONT_RED)$(ERROR) PM2 installation failed$(FONT_RESET)"; \
+			echo -e "$(FONT_YELLOW)💡 Try: sudo npm install -g pm2$(FONT_RESET)"; \
+			exit 1; \
+		}; \
+		PM2_VERSION=$$(pm2 --version); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 $$PM2_VERSION installed!$(FONT_RESET)"; \
+		pm2 update 2>/dev/null || true; \
+	fi
+	@echo ""
+
+	@# Phase 7: Service setup
+	$(call print_status,Phase 7/7: Starting Services Automatically...)
+	@if command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_PURPLE)$(HUB) Starting services...$(FONT_RESET)"; \
+		pm2 start ecosystem.config.cjs 2>/dev/null || pm2 restart "$(OMNI_PORT)-automagik-omni" 2>/dev/null; \
+		pm2 save --force; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Services started!$(FONT_RESET)"; \
+		echo ""; \
+		echo -e "$(FONT_PURPLE)$(HUB) Waiting for services to be ready...$(FONT_RESET)"; \
+		$(MAKE) wait-for-services 2>/dev/null || echo -e "$(FONT_YELLOW)$(WARNING) Health check failed - services may need more time$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed - services not started$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@$(call print_success_with_logo,Installation complete! Services are running.)
+	@echo ""
+	@echo -e "$(FONT_CYAN)🎉 Installation complete! Gateway running on port $(OMNI_PORT):$(FONT_RESET)"
+	@echo ""
+	@echo -e "   $(FONT_PURPLE)📡 Gateway:$(FONT_RESET)    http://localhost:$(OMNI_PORT)"
+	@echo -e "   $(FONT_PURPLE)🌐 Dashboard:$(FONT_RESET)  http://localhost:$(OMNI_PORT)/"
+	@echo -e "   $(FONT_PURPLE)🔍 Health:$(FONT_RESET)     http://localhost:$(OMNI_PORT)/health"
+	@echo -e "   $(FONT_PURPLE)📚 API Docs:$(FONT_RESET)   http://localhost:$(OMNI_PORT)/docs"
+	@echo ""
+	@echo -e "$(FONT_CYAN)📋 Available commands:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)make dev$(FONT_RESET)        - Start development mode"
+	@echo -e "  $(FONT_PURPLE)make play$(FONT_RESET)       - Run visual E2E tests"
+	@echo -e "  $(FONT_PURPLE)make play-quick$(FONT_RESET) - Run quick smoke tests"
+	@echo -e "  $(FONT_PURPLE)make stop$(FONT_RESET)       - Stop all services"
+	@echo -e "  $(FONT_PURPLE)make test$(FONT_RESET)       - Run Python tests"
+	@echo -e "  $(FONT_PURPLE)make test-ui$(FONT_RESET)    - Run UI tests (headless)"
+	@echo ""
 
 install-omni: ## Install Omni core dependencies (WhatsApp/Evolution stack)
 	$(call check_prerequisites)
@@ -252,11 +438,206 @@ install-discord: ## Install optional Discord extras
 	@$(UV) pip install -e '.[discord]'
 	$(call print_success,Discord dependencies installed)
 
-.PHONY: dev
-dev: ## Start development server with auto-reload
+install-evolution: ## Install Evolution API dependencies (Node.js)
+	$(call print_status,Checking Evolution API submodule)
+	@if [ ! -d "resources/evolution-api" ] || [ ! -f "resources/evolution-api/package.json" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Evolution API submodule not initialized$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) Initializing Evolution API submodule...$(FONT_RESET)"; \
+		if ! git ls-tree HEAD resources/evolution-api | grep -q '^160000'; then \
+			echo -e "$(FONT_YELLOW)$(WARNING) Submodule gitlink missing - restoring from repository$(FONT_RESET)"; \
+			git checkout c59bddf -- resources/evolution-api 2>/dev/null || true; \
+		fi; \
+		git submodule sync && git submodule update --init --recursive; \
+	fi
+	$(call print_status,Installing Evolution API dependencies)
+	@cd resources/evolution-api && { \
+		if command -v pnpm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using pnpm for Evolution API installation$(FONT_RESET)"; \
+			pnpm install; \
+		elif command -v npm >/dev/null 2>&1; then \
+			echo -e "$(FONT_CYAN)$(INFO) Using npm for Evolution API installation$(FONT_RESET)"; \
+			npm install; \
+		else \
+			echo -e "$(FONT_RED)$(ERROR) Neither pnpm nor npm found!$(FONT_RESET)"; \
+			echo -e "$(FONT_YELLOW)💡 Install Node.js and npm/pnpm first$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
+	}
+	$(call print_status,Generating Prisma client for PostgreSQL)
+	@cd resources/evolution-api && DATABASE_PROVIDER=postgresql npm run db:generate
+	$(call print_success,Evolution API dependencies installed)
+
+# ===========================================
+# 🧩 Modular Channel Installation (Omni Hub as Empty Vessel)
+# ===========================================
+# Omni Hub is designed as an "empty vessel" that administers channels.
+# Users install only the integrations they want, keeping the core lightweight.
+
+.PHONY: install-core install-whatsapp install-channels
+
+install-core: ## Install core Omni Hub only (no channel dependencies - fastest install)
 	$(call check_prerequisites)
 	$(call ensure_env_file)
-	$(call print_status,Starting development server with auto-reload)
+	$(call print_status,Installing Omni Hub core (minimal - no channels))
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) This installs the Omni Hub core without any channel integrations.$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)$(INFO) Channel integrations can be added later with:$(FONT_RESET)"
+	@echo -e "    $(FONT_PURPLE)make install-whatsapp$(FONT_RESET)  - WhatsApp via Evolution API"
+	@echo -e "    $(FONT_PURPLE)make install-discord$(FONT_RESET)   - Discord bot support"
+	@echo ""
+	@$(UV) sync
+	$(call print_success,Omni Hub core installed (no channels))
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) To add channel support, run:$(FONT_RESET)"
+	@echo -e "    $(FONT_PURPLE)make install-whatsapp$(FONT_RESET)  for WhatsApp"
+	@echo -e "    $(FONT_PURPLE)make install-discord$(FONT_RESET)   for Discord"
+
+install-whatsapp: install-evolution ## Install WhatsApp/Evolution channel support
+	$(call print_success,WhatsApp channel ready! Evolution API installed.)
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) WhatsApp instances can be created via:$(FONT_RESET)"
+	@echo -e "    $(FONT_PURPLE)Dashboard:$(FONT_RESET) http://localhost:8882 → Create Instance → WhatsApp"
+	@echo -e "    $(FONT_PURPLE)API:$(FONT_RESET)       POST /api/v1/instances with channel_type='whatsapp'"
+
+install-channels: install-whatsapp install-discord ## Install all available channels
+	$(call print_success,All channels installed (WhatsApp + Discord))
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) Available channels:$(FONT_RESET)"
+	@echo -e "    $(FONT_GREEN)✅$(FONT_RESET) WhatsApp (via Evolution API)"
+	@echo -e "    $(FONT_GREEN)✅$(FONT_RESET) Discord (via discord.py)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)$(INFO) Coming soon: Telegram, Slack, Instagram, LinkedIn, Gmail, Calendar$(FONT_RESET)"
+
+.PHONY: setup
+setup: ## Complete setup for fresh deployment (install all deps + migrations + PM2)
+	@echo ""
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)╔═══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)║  $(ROCKET) Automagik Omni - Complete Environment Setup        ║$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)╚═══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	$(call check_prerequisites)
+	$(call print_info,This will set up everything needed for clean PM2 startup)
+	@echo ""
+	@echo -e "$(FONT_CYAN)Steps to be performed:$(FONT_RESET)"
+	@echo -e "  1. Stop and clean existing PM2 processes"
+	@echo -e "  2. Install Omni Python dependencies (uv sync)"
+	@echo -e "  3. Install Evolution API (Node.js submodule)"
+	@echo -e "  4. Optionally install Discord support"
+	@echo -e "  5. Create/verify .env configuration"
+	@echo -e "  6. Run database migrations"
+	@echo -e "  7. Start PM2 services"
+	@echo ""
+	@read -r -p "Continue with setup? [Y/n] " choice; \
+	if [ "$$choice" = "n" ] || [ "$$choice" = "N" ]; then \
+		echo "$(FONT_YELLOW)Setup cancelled$(FONT_RESET)"; \
+		exit 0; \
+	fi
+	@echo ""
+	$(call print_status,Phase 1: Cleaning existing Omni PM2 processes)
+	@if command -v pm2 >/dev/null 2>&1; then \
+		pm2 stop "*automagik-omni*" 2>/dev/null || true; \
+		pm2 delete "*automagik-omni*" 2>/dev/null || true; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Omni PM2 processes cleaned$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed - will skip service management$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) Install PM2 with: npm install -g pm2$(FONT_RESET)"; \
+	fi
+	@echo ""
+	$(call print_status,Phase 2: Installing Omni core dependencies)
+	@$(MAKE) install-omni
+	@echo ""
+	$(call print_status,Phase 3: Installing Evolution API)
+	@$(MAKE) install-evolution
+	@echo ""
+	$(call print_status,Phase 4: Discord support installation)
+	@read -r -p "Install optional Discord support? [y/N] " discord_choice; \
+	if [ "$$discord_choice" = "y" ] || [ "$$discord_choice" = "Y" ]; then \
+		$(MAKE) install-discord; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) Skipping Discord - Discord bot will not start$(FONT_RESET)"; \
+	fi
+	@echo ""
+	$(call print_status,Phase 5: Verifying environment configuration)
+	@$(call ensure_env_file)
+	@if [ ! -f .env ]; then \
+		echo -e "$(FONT_RED)$(ERROR) .env file missing!$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@echo -e "$(FONT_CYAN)$(INFO) Checking required environment variables...$(FONT_RESET)"
+	@if ! grep -q "EVOLUTION_API_KEY" .env 2>/dev/null || [ -z "$$(grep EVOLUTION_API_KEY .env | cut -d= -f2)" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) EVOLUTION_API_KEY not set in .env$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) You may need to configure Evolution API credentials$(FONT_RESET)"; \
+	fi
+	@if ! grep -q "AUTOMAGIK_OMNI_API_KEY" .env 2>/dev/null || [ -z "$$(grep AUTOMAGIK_OMNI_API_KEY .env | cut -d= -f2)" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) AUTOMAGIK_OMNI_API_KEY not set in .env$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) You may need to set an API key for security$(FONT_RESET)"; \
+	fi
+	$(call print_success,Environment configuration verified)
+	@echo ""
+	$(call print_status,Phase 6: Running database migrations)
+	@$(UV) run alembic upgrade head
+	$(call print_success,Database migrations completed)
+	@echo ""
+	@if command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_PURPLE)$(HUB) Phase 7: Starting PM2 services$(FONT_RESET)"; \
+		pm2 start ecosystem.config.js; \
+		sleep 3; \
+		echo ""; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 services started$(FONT_RESET)"; \
+		echo ""; \
+		echo -e "$(FONT_CYAN)$(INFO) Checking service health...$(FONT_RESET)"; \
+		pm2 list; \
+		echo ""; \
+		echo -e "$(FONT_GREEN)$(FONT_BOLD)╔═══════════════════════════════════════════════════════════════╗$(FONT_RESET)"; \
+		echo -e "$(FONT_GREEN)$(FONT_BOLD)║  $(CHECKMARK) Setup Complete! Services are running               ║$(FONT_RESET)"; \
+		echo -e "$(FONT_GREEN)$(FONT_BOLD)╚═══════════════════════════════════════════════════════════════╝$(FONT_RESET)"; \
+		echo ""; \
+		echo -e "$(FONT_BOLD)Next steps:$(FONT_RESET)"; \
+		echo -e "  $(FONT_CYAN)• View logs:$(FONT_RESET)       pm2 logs"; \
+		echo -e "  $(FONT_CYAN)• Check status:$(FONT_RESET)    pm2 list"; \
+		echo -e "  $(FONT_CYAN)• Stop services:$(FONT_RESET)   pm2 stop all"; \
+		echo -e "  $(FONT_CYAN)• API Health:$(FONT_RESET)      curl http://localhost:8882/health"; \
+		echo ""; \
+	else \
+		echo ""; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Setup complete - PM2 not installed$(FONT_RESET)"; \
+		echo ""; \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not found - services not started$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)To install PM2: npm install -g pm2$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Then run: pm2 start ecosystem.config.js$(FONT_RESET)"; \
+		echo ""; \
+	fi
+
+.PHONY: dev dev-all
+dev: ## Start Omni development server with auto-reload
+	$(call check_prerequisites)
+	$(call ensure_env_file)
+	$(call print_status,Starting Omni development server with auto-reload)
+	@if [ -f .env ]; then \
+		export $$(cat .env | grep -v '^#' | xargs) && \
+		$(UV) run automagik-omni start --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload; \
+	else \
+		$(UV) run automagik-omni start --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload; \
+	fi
+
+dev-all: ## Start both Omni and Evolution API in development mode (parallel)
+	$(call check_prerequisites)
+	$(call ensure_env_file)
+	$(call print_status,Starting Omni + Evolution API in development mode)
+	@echo -e "$(FONT_CYAN)$(INFO) Starting Evolution API in background...$(FONT_RESET)"
+	@cd resources/evolution-api && { \
+		if command -v pnpm >/dev/null 2>&1; then \
+			pnpm run dev:server > ../../logs/evolution-dev.log 2>&1 & \
+		elif command -v npm >/dev/null 2>&1; then \
+			npm run dev:server > ../../logs/evolution-dev.log 2>&1 & \
+		else \
+			echo -e "$(FONT_RED)$(ERROR) Neither pnpm nor npm found!$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
+	}
+	@sleep 2
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Evolution API started (logs: logs/evolution-dev.log)$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)$(INFO) Starting Omni API server...$(FONT_RESET)"
 	@if [ -f .env ]; then \
 		export $$(cat .env | grep -v '^#' | xargs) && \
 		$(UV) run automagik-omni start --host $${AUTOMAGIK_OMNI_API_HOST:-0.0.0.0} --port $${AUTOMAGIK_OMNI_API_PORT:-8882} --reload; \
@@ -318,6 +699,42 @@ test-sqlite: ## Force tests to use SQLite (override PostgreSQL if set)
 	$(UV) run pytest tests/ -v --tb=short
 	$(call print_success,SQLite tests completed)
 
+.PHONY: play play-full play-quick test-ui test-ui-quick wait-for-services
+play: play-full ## Run visual Playwright E2E tests (human-watchable)
+
+play-full: ## Run comprehensive Playwright tests in headed mode
+	$(call print_status,Running comprehensive Playwright tests (headed mode))
+	@cd resources/ui && pnpm run test:e2e:ui
+	$(call print_success,Playwright tests completed)
+
+play-quick: ## Run quick smoke tests in headed mode
+	$(call print_status,Running quick smoke tests (headed mode))
+	@cd resources/ui && pnpm run test:quick:ui
+	$(call print_success,Quick smoke tests completed)
+
+test-ui: ## Run UI tests in headless mode (for CI)
+	$(call print_status,Running UI tests (headless))
+	@cd resources/ui && pnpm run test:e2e
+	$(call print_success,UI tests completed)
+
+test-ui-quick: ## Run quick UI tests in headless mode
+	$(call print_status,Running quick UI tests (headless))
+	@cd resources/ui && pnpm run test:quick
+	$(call print_success,Quick UI tests completed)
+
+wait-for-services: ## Wait for services to be healthy
+	$(call print_status,Checking service health...)
+	@echo "Waiting for Gateway (port $(OMNI_PORT))..."
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://localhost:$(OMNI_PORT)/health > /dev/null 2>&1; then \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Gateway ready$(FONT_RESET)"; \
+			break; \
+		fi; \
+		echo "⏳ Attempt $$i/10..."; \
+		sleep 2; \
+	done
+	$(call print_success,All services healthy!)
+
 .PHONY: lint
 lint: ## Run code linting with ruff
 	$(call check_prerequisites)
@@ -353,7 +770,7 @@ quality: lint typecheck ## Run all code quality checks
 # ===========================================
 # 🔧 Local PM2 Management
 # ===========================================
-.PHONY: setup-pm2 start-local stop-local restart-local status-local logs-local logs-follow-local
+.PHONY: setup-pm2 start-local stop-local restart-local reload status-local logs-local logs-follow-local
 
 setup-pm2: ## Setup local PM2 ecosystem
 	$(call print_status,Setting up local PM2 ecosystem)
@@ -381,6 +798,28 @@ restart-local: ## Restart local PM2 service
 	@$(call check_pm2)
 	@pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js
 	@$(call print_success,Local PM2 service restarted)
+
+reload: ## 🔄 Full reload (stop, clean caches, rebuild UI, restart)
+	$(call print_status,Stopping service...)
+	@pm2 stop "$(OMNI_PORT)-automagik-omni" 2>/dev/null || true
+	$(call print_status,Clearing caches...)
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@rm -rf resources/ui/dist 2>/dev/null || true
+	@rm -rf resources/ui/node_modules/.vite 2>/dev/null || true
+	$(call print_status,Rebuilding UI...)
+	@cd resources/ui && pnpm install --silent
+	@cd resources/ui && pnpm run build
+	$(call print_status,Starting service...)
+	@pm2 start ecosystem.config.cjs 2>/dev/null || pm2 restart "$(OMNI_PORT)-automagik-omni"
+	$(call print_status,Waiting for health (up to 30s)...)
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$(OMNI_PORT)/health >/dev/null 2>&1; then \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Reload complete! Health check passed$(FONT_RESET)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo -e "$(FONT_YELLOW)$(WARNING) Service started but health check timeout$(FONT_RESET)"
 
 status-local: ## Check local PM2 service status
 	$(call print_status,Checking local PM2 service status)
@@ -477,6 +916,159 @@ uninstall-service: stop-local ## Uninstall local PM2 service
 	@pm2 delete automagik-omni 2>/dev/null || true
 	@pm2 save --force
 	@$(call print_success,Local PM2 service uninstalled)
+
+.PHONY: uninstall uninstall-full
+uninstall: ## 🗑️ Uninstall Omni Hub (interactive, preserves data)
+	@echo ""
+	@echo -e "$(FONT_RED)╔══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_RED)║$(FONT_RESET)           $(FONT_YELLOW)⚠️  UNINSTALL OMNI HUB$(FONT_RESET)                            $(FONT_RED)║$(FONT_RESET)"
+	@echo -e "$(FONT_RED)╚══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)This will remove the following:$(FONT_RESET)"
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)📦 Dependencies:$(FONT_RESET)"
+	@[ -d ".venv" ] && echo -e "     • Python virtual environment (.venv/)" || true
+	@[ -d "gateway/node_modules" ] && echo -e "     • Gateway node_modules" || true
+	@[ -d "resources/ui/node_modules" ] && echo -e "     • UI node_modules" || true
+	@[ -d "resources/evolution-api/node_modules" ] && echo -e "     • Evolution API node_modules" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)🔨 Build artifacts:$(FONT_RESET)"
+	@[ -d "gateway/dist" ] && echo -e "     • Gateway build (gateway/dist/)" || true
+	@[ -d "resources/ui/dist" ] && echo -e "     • UI build (resources/ui/dist/)" || true
+	@[ -d "dist" ] && echo -e "     • Package dist (dist/)" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)🧹 Cache & temp files:$(FONT_RESET)"
+	@echo -e "     • Python cache (__pycache__, .pytest_cache)"
+	@echo -e "     • Coverage reports (.coverage, htmlcov/)"
+	@[ -d "logs" ] && echo -e "     • Log files (logs/)" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)⚙️  Services:$(FONT_RESET)"
+	@if command -v pm2 >/dev/null 2>&1 && pm2 list 2>/dev/null | grep -q "automagik-omni\|$(OMNI_PORT)"; then \
+		echo -e "     • PM2 process (will be stopped and deleted)"; \
+	else \
+		echo -e "     • $(FONT_DIM)No PM2 processes found$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@echo -e "  $(FONT_GREEN)✓ PRESERVED:$(FONT_RESET)"
+	@echo -e "     • Configuration file (.env)"
+	@echo -e "     • Database data ($$HOME/automagik-omni/)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)💡 To also delete data, run: $(FONT_PURPLE)make uninstall-full$(FONT_RESET)"
+	@echo ""
+	@read -p "Proceed with uninstall? [y/N] " yn; \
+	case $$yn in \
+		[Yy]*) \
+			echo ""; \
+			$(MAKE) --no-print-directory _do-uninstall; \
+			;; \
+		*) \
+			echo -e "$(FONT_YELLOW)$(INFO) Uninstall cancelled$(FONT_RESET)"; \
+			;; \
+	esac
+
+uninstall-full: ## 🗑️ Full uninstall including all data (DESTRUCTIVE)
+	@echo ""
+	@echo -e "$(FONT_RED)╔══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_RED)║$(FONT_RESET)        $(FONT_RED)⚠️  FULL UNINSTALL - DATA WILL BE DELETED$(FONT_RESET)           $(FONT_RED)║$(FONT_RESET)"
+	@echo -e "$(FONT_RED)╚══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_RED)This will PERMANENTLY DELETE:$(FONT_RESET)"
+	@echo ""
+	@echo -e "  $(FONT_RED)💀 ALL DATA (UNRECOVERABLE):$(FONT_RESET)"
+	@[ -f ".env" ] && echo -e "     • Configuration file (.env)" || true
+	@[ -d "$$HOME/automagik-omni" ] && echo -e "     • Omni data directory ($$HOME/automagik-omni/)" || true
+	@[ -f "omni.db" ] && echo -e "     • SQLite database (omni.db)" || true
+	@[ -d "logs" ] && echo -e "     • All log files (logs/)" || true
+	@echo ""
+	@echo -e "  $(FONT_YELLOW)📦 Plus everything from regular uninstall$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_RED)⚠️  This action cannot be undone!$(FONT_RESET)"
+	@echo ""
+	@read -p "Type 'DELETE' to confirm full uninstall: " confirm; \
+	if [ "$$confirm" = "DELETE" ]; then \
+		echo ""; \
+		$(MAKE) --no-print-directory _do-uninstall; \
+		$(MAKE) --no-print-directory _do-wipe-data; \
+	else \
+		echo -e "$(FONT_YELLOW)$(INFO) Uninstall cancelled (confirmation not matched)$(FONT_RESET)"; \
+	fi
+
+# Internal targets (not shown in help)
+.PHONY: _do-uninstall _do-wipe-data
+
+_do-uninstall:
+	@echo -e "$(FONT_PURPLE)$(HUB) Starting uninstall...$(FONT_RESET)"
+	@echo ""
+	@# Stop PM2 services (only Omni-related)
+	@if command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Stopping Omni PM2 services...$(FONT_RESET)"; \
+		pm2 stop "*automagik-omni*" 2>/dev/null || true; \
+		pm2 delete "*automagik-omni*" 2>/dev/null || true; \
+		pm2 save --force 2>/dev/null || true; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Omni PM2 services stopped$(FONT_RESET)"; \
+	fi
+	@# Remove Python venv
+	@if [ -d ".venv" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing Python virtual environment...$(FONT_RESET)"; \
+		rm -rf .venv; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Virtual environment removed$(FONT_RESET)"; \
+	fi
+	@# Remove node_modules
+	@for dir in gateway resources/ui resources/evolution-api; do \
+		if [ -d "$$dir/node_modules" ]; then \
+			echo -e "$(FONT_CYAN)$(INFO) Removing $$dir/node_modules...$(FONT_RESET)"; \
+			rm -rf "$$dir/node_modules"; \
+		fi; \
+	done
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Node modules removed$(FONT_RESET)"
+	@# Remove build artifacts
+	@echo -e "$(FONT_CYAN)$(INFO) Removing build artifacts...$(FONT_RESET)"
+	@rm -rf gateway/dist resources/ui/dist dist build *.egg-info
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Build artifacts removed$(FONT_RESET)"
+	@# Remove cache
+	@echo -e "$(FONT_CYAN)$(INFO) Removing cache files...$(FONT_RESET)"
+	@rm -rf .pytest_cache .ruff_cache .coverage htmlcov .mypy_cache
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Cache files removed$(FONT_RESET)"
+	@# Remove logs
+	@if [ -d "logs" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing log files...$(FONT_RESET)"; \
+		rm -rf logs; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Logs removed$(FONT_RESET)"; \
+	fi
+	@# Remove lock files (optional, regenerated on install)
+	@rm -f uv.lock pnpm-lock.yaml 2>/dev/null || true
+	@echo ""
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Uninstall complete!$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)To reinstall, run: $(FONT_PURPLE)make install$(FONT_RESET)"
+	@echo ""
+
+_do-wipe-data:
+	@echo -e "$(FONT_RED)$(WARNING) Wiping all data...$(FONT_RESET)"
+	@# Remove .env
+	@if [ -f ".env" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing .env...$(FONT_RESET)"; \
+		rm -f .env; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) .env removed$(FONT_RESET)"; \
+	fi
+	@# Remove Omni data directory
+	@if [ -d "$$HOME/automagik-omni" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing $$HOME/automagik-omni/...$(FONT_RESET)"; \
+		rm -rf "$$HOME/automagik-omni"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Omni data directory removed$(FONT_RESET)"; \
+	fi
+	@# Remove local SQLite database
+	@if [ -f "omni.db" ]; then \
+		echo -e "$(FONT_CYAN)$(INFO) Removing SQLite database...$(FONT_RESET)"; \
+		rm -f omni.db; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database removed$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Data wipe complete!$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)Omni Hub has been fully removed from this system.$(FONT_RESET)"
+	@echo ""
 
 # ===========================================
 # 🚀 Quick Commands
@@ -712,3 +1304,323 @@ finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$FINAL_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
+
+# ===========================================
+# 🎨 Frontend / UI Targets
+# ===========================================
+
+UI_DIR := resources/ui
+UI_PORT ?= 9882
+UI_HOST ?= 0.0.0.0
+
+.PHONY: ui-install ui-dev ui-build ui-preview frontend ui-clean
+
+ui-install: ## Install UI dependencies
+	$(call print_status,Installing UI dependencies...)
+	@cd $(UI_DIR) && pnpm install
+	$(call print_success,UI dependencies installed)
+
+ui-dev: ## Run UI development server (standalone)
+	$(call print_status,Starting UI dev server...)
+	@cd $(UI_DIR) && UI_HOST=$(UI_HOST) UI_PORT=$(UI_PORT) VITE_API_URL=http://$(AUTOMAGIK_OMNI_API_HOST):$(AUTOMAGIK_OMNI_API_PORT) pnpm run dev
+
+ui-build: ## Build UI for production
+	$(call print_status,Building UI for production...)
+	@cd $(UI_DIR) && pnpm run build
+	$(call print_success,UI built successfully → $(UI_DIR)/dist/)
+
+ui-preview: ui-build ## Preview production build
+	$(call print_status,Starting UI preview server...)
+	@cd $(UI_DIR) && pnpm run preview
+
+ui-clean: ## Clean UI build artifacts
+	$(call print_status,Cleaning UI build artifacts...)
+	@rm -rf $(UI_DIR)/dist $(UI_DIR)/node_modules
+	$(call print_success,UI artifacts cleaned)
+
+frontend: ui-dev ## Alias for ui-dev (run frontend standalone)
+
+frontend-build: ui-build ## Build frontend for production
+
+frontend-prod: ui-preview ## Run frontend production preview server
+
+# ===========================================
+# 🚀 Integrated Setup (API + UI)
+# ===========================================
+
+.PHONY: install-all dev-pm2
+
+install-all: install ui-install ## Install both API and UI dependencies
+	$(call print_success_with_logo,All dependencies installed (API + UI))
+
+dev-pm2: ## Start both API and UI in PM2
+	$(call print_status,Starting Omni API + UI services via PM2...)
+	@pm2 start ecosystem.config.js
+	@pm2 save
+	$(call print_success,Services started!)
+	$(call print_info,API: http://$(AUTOMAGIK_OMNI_API_HOST):$(AUTOMAGIK_OMNI_API_PORT))
+	$(call print_info,UI:  http://$(UI_HOST):$(UI_PORT))
+	$(call print_info,Monitor: pm2 monit)
+
+# ===========================================
+# 🏭 Production Deployment (PM2 Gateway Mode)
+# ===========================================
+# Only the Gateway port is user-configurable
+# Internal service ports (Python, Evolution, Vite) are auto-managed
+OMNI_PORT ?= 8882
+
+.PHONY: prod prod-setup prod-start prod-stop prod-restart prod-status prod-logs prod-build
+
+prod: ## 🏭 Full production setup and start (recommended for fresh deployment)
+	@echo ""
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)╔═══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)║  $(ROCKET) Automagik Omni - Production Deployment               ║$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)$(FONT_BOLD)╚═══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_CYAN)This will set up Omni Hub for production with:$(FONT_RESET)"
+	@echo -e "  • Gateway on port $(OMNI_PORT) (single entry point)"
+	@echo -e "  • Python API (auto-managed port, internal)"
+	@echo -e "  • Evolution API (auto-managed port, internal)"
+	@echo -e "  • Built UI served by Gateway"
+	@echo ""
+	@read -r -p "Continue with production setup? [Y/n] " choice; \
+	if [ "$$choice" = "n" ] || [ "$$choice" = "N" ]; then \
+		echo "$(FONT_YELLOW)Setup cancelled$(FONT_RESET)"; \
+		exit 0; \
+	fi
+	@$(MAKE) prod-setup
+	@$(MAKE) prod-start
+	@echo ""
+	@echo -e "$(FONT_GREEN)$(FONT_BOLD)╔═══════════════════════════════════════════════════════════════╗$(FONT_RESET)"
+	@echo -e "$(FONT_GREEN)$(FONT_BOLD)║  $(CHECKMARK) Production Deployment Complete!                       ║$(FONT_RESET)"
+	@echo -e "$(FONT_GREEN)$(FONT_BOLD)╚═══════════════════════════════════════════════════════════════╝$(FONT_RESET)"
+	@echo ""
+	@echo -e "$(FONT_BOLD)Services:$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)•$(FONT_RESET) Gateway:     http://0.0.0.0:$(OMNI_PORT)"
+	@echo -e "  $(FONT_GREEN)•$(FONT_RESET) Dashboard:   http://0.0.0.0:$(OMNI_PORT)/dashboard"
+	@echo -e "  $(FONT_GREEN)•$(FONT_RESET) API Health:  http://0.0.0.0:$(OMNI_PORT)/health"
+	@echo ""
+	@echo -e "$(FONT_BOLD)PM2 Commands:$(FONT_RESET)"
+	@echo -e "  $(FONT_CYAN)make prod-status$(FONT_RESET)   - Check service status"
+	@echo -e "  $(FONT_CYAN)make prod-logs$(FONT_RESET)     - View logs"
+	@echo -e "  $(FONT_CYAN)make prod-restart$(FONT_RESET)  - Restart services"
+	@echo -e "  $(FONT_CYAN)make prod-stop$(FONT_RESET)     - Stop services"
+	@echo ""
+
+prod-setup: ## 🔧 Setup production environment (install deps, build, configure)
+	$(call print_status,Phase 1: Checking prerequisites)
+	$(call check_prerequisites)
+	@if ! command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_RED)$(ERROR) PM2 not installed$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Install with: npm install -g pm2$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo -e "$(FONT_RED)$(ERROR) Node.js not installed$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	$(call print_success,Prerequisites verified)
+	@echo ""
+	$(call print_status,Phase 2: Creating environment file)
+	@if [ ! -f ".env" ]; then \
+		if [ -f ".env.example" ]; then \
+			cp .env.example .env; \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Created .env from .env.example$(FONT_RESET)"; \
+		else \
+			echo "OMNI_PORT=$(OMNI_PORT)" > .env; \
+			echo "ENVIRONMENT=production" >> .env; \
+			echo "LOG_LEVEL=INFO" >> .env; \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Created minimal .env file$(FONT_RESET)"; \
+		fi; \
+		echo -e "$(FONT_YELLOW)$(WARNING) Please review and configure .env before starting$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) .env file exists$(FONT_RESET)"; \
+	fi
+	@echo ""
+	$(call print_status,Phase 3: Installing Python dependencies)
+	@$(MAKE) install-omni
+	@echo ""
+	$(call print_status,Phase 4: Running database migrations)
+	@$(UV) run alembic upgrade head
+	$(call print_success,Database migrations completed)
+	@echo ""
+	$(call print_status,Phase 5: Installing Evolution API)
+	@$(MAKE) install-evolution
+	@echo ""
+	$(call print_status,Phase 6: Installing Gateway dependencies)
+	@cd gateway && pnpm install
+	$(call print_success,Gateway dependencies installed)
+	@echo ""
+	$(call print_status,Phase 7: Building Gateway)
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway built)
+	@echo ""
+	$(call print_status,Phase 8: Installing UI dependencies)
+	@cd resources/ui && pnpm install
+	$(call print_success,UI dependencies installed)
+	@echo ""
+	$(call print_status,Phase 9: Building UI for production)
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI built for production)
+	@echo ""
+	$(call print_status,Phase 10: Setting up PM2 startup)
+	@pm2 startup 2>/dev/null || echo -e "$(FONT_YELLOW)$(WARNING) Run 'pm2 startup' manually if you want auto-restart on boot$(FONT_RESET)"
+	$(call print_success,Production setup completed!)
+
+prod-start: ## ▶️  Start production services with PM2
+	$(call print_status,Starting production services...)
+	@# Stop any existing processes first
+	@pm2 delete "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || true
+	@pm2 delete "Omni-Evolution-API" 2>/dev/null || true
+	@# Start Evolution API (port auto-managed internally)
+	$(call print_info,Starting Evolution API...)
+	@cd resources/evolution-api && pm2 start npm --name "Omni-Evolution-API" \
+		--cwd "$(PROJECT_ROOT)/resources/evolution-api" \
+		--time \
+		--log-date-format "YYYY-MM-DD HH:mm:ss" \
+		-- run start
+	@sleep 3
+	@# Start Gateway (manages Python API and proxies to Evolution)
+	$(call print_info,Starting Gateway on port $(OMNI_PORT)...)
+	@pm2 start gateway/dist/index.js --name "$(OMNI_PORT): Omni-Gateway" \
+		--cwd "$(PROJECT_ROOT)" \
+		--time \
+		--log-date-format "YYYY-MM-DD HH:mm:ss" \
+		--node-args="--max-old-space-size=512" \
+		--env production
+	@sleep 3
+	@# Save PM2 configuration
+	@pm2 save
+	$(call print_success,Production services started!)
+	@pm2 list
+
+prod-stop: ## ⏹️  Stop production services
+	$(call print_status,Stopping production services...)
+	@pm2 stop "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || true
+	@pm2 stop "Omni-Evolution-API" 2>/dev/null || true
+	@pm2 save
+	$(call print_success,Production services stopped)
+
+prod-restart: ## 🔄 Restart production services
+	$(call print_status,Restarting production services...)
+	@pm2 restart "Omni-Evolution-API" 2>/dev/null || $(MAKE) prod-start
+	@pm2 restart "$(OMNI_PORT): Omni-Gateway" 2>/dev/null || $(MAKE) prod-start
+	@pm2 save
+	$(call print_success,Production services restarted)
+	@pm2 list
+
+prod-status: ## 📊 Show production service status
+	$(call print_status,Production service status)
+	@pm2 list
+	@echo ""
+	@echo -e "$(FONT_CYAN)Health Check:$(FONT_RESET)"
+	@curl -s http://localhost:$(OMNI_PORT)/health 2>/dev/null | python3 -c "import sys,json; h=json.load(sys.stdin); print(f'  Gateway: {h[\"services\"][\"gateway\"][\"status\"]}'); print(f'  Python:  {h[\"services\"][\"python\"][\"status\"]}'); print(f'  Evolution: {h[\"services\"][\"evolution\"][\"status\"]}')" 2>/dev/null || echo "  $(FONT_YELLOW)Gateway not responding$(FONT_RESET)"
+
+prod-logs: ## 📜 Show production logs
+	$(call print_status,Production logs - Press Ctrl+C to exit)
+	@pm2 logs --lines 50
+
+prod-build: ## 🔨 Rebuild Gateway and UI (for updates)
+	$(call print_status,Rebuilding Gateway...)
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway rebuilt)
+	$(call print_status,Rebuilding UI...)
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI rebuilt)
+	$(call print_info,Run 'make prod-restart' to apply changes)
+
+# ===========================================
+# 🏥 Health Checks
+# ===========================================
+.PHONY: health
+health: ## 🏥 Health check for all services
+	@echo ""
+	$(call print_status,Running health checks...)
+	@echo ""
+	@echo "🌐 Gateway Health:"
+	@if curl -s http://localhost:8882/health >/dev/null 2>&1; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Gateway healthy (http://localhost:8882)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_RED)$(ERROR) Gateway unhealthy or not running$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@echo "🐍 Python API Health:"
+	@if curl -s http://localhost:8000/health >/dev/null 2>&1; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Python API healthy (http://localhost:8000)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) Python API health check failed (may use different port or endpoint)$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@if command -v pm2 >/dev/null 2>&1; then \
+		echo -e "$(FONT_PURPLE)$(HUB) PM2 Status:$(FONT_RESET)"; \
+		pm2 status 2>/dev/null || echo -e "$(FONT_YELLOW)$(WARNING) PM2 not running$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) PM2 not installed$(FONT_RESET)"; \
+	fi
+	@echo ""
+
+# ===========================================
+# 🚀 Installation & Updates
+# ===========================================
+.PHONY: update
+update: ## 🔄 Update installation (git pull + deps + rebuild + restart + health check)
+	$(call print_status,Updating automagik-omni...)
+	@echo ""
+
+	@# Step 1: Git pull
+	$(call print_status,Pulling latest changes from git...)
+	@git pull || { \
+		$(call print_error,Git pull failed); \
+		exit 1; \
+	}
+	$(call print_success,Latest changes pulled!)
+	@echo ""
+
+	@# Step 2: Update dependencies and rebuild
+	$(call print_status,Updating dependencies and rebuilding...)
+	@echo ""
+	$(call print_status,Installing Python dependencies...)
+	@$(UV) sync
+	$(call print_success,Python dependencies updated!)
+	@echo ""
+	$(call print_status,Rebuilding Gateway...)
+	@cd gateway && pnpm install
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway rebuilt!)
+	@echo ""
+	$(call print_status,Rebuilding UI...)
+	@cd resources/ui && pnpm install
+	@cd resources/ui && pnpm run build
+	$(call print_success,UI rebuilt!)
+	@echo ""
+
+	@# Step 3: Restart services
+	$(call print_status,Restarting services...)
+	@# Restart PM2 gateway
+	@if command -v pm2 >/dev/null 2>&1 && pm2 show "$(OMNI_PORT)-automagik-omni" >/dev/null 2>&1; then \
+		pm2 restart "$(OMNI_PORT)-automagik-omni"; \
+		$(call print_success,PM2 gateway restarted); \
+	fi
+	@# Restart Python API (systemd)
+	@if command -v systemctl >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Attempting to restart Python API (requires sudo)...$(FONT_RESET)"; \
+		sudo systemctl restart omni-python 2>/dev/null && $(call print_success,Python API restarted) || \
+		$(call print_warning,Could not restart Python API via systemd (may not be installed as service)); \
+	fi
+	@echo ""
+
+	@# Step 4: Health check
+	$(call print_status,Running health checks...)
+	@sleep 2
+	@$(MAKE) health || { \
+		$(call print_warning,Health check failed - service may need more time to start); \
+	}
+
+	@# Success summary
+	@echo ""
+	@$(call print_success_with_logo,Update completed successfully!)
+	@echo -e "$(FONT_CYAN)💡 Useful commands:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)make health$(FONT_RESET)        # Run health check again"
+	@echo -e "  $(FONT_PURPLE)make prod-status$(FONT_RESET)   # Check PM2 status"
+	@echo -e "  $(FONT_PURPLE)make prod-logs$(FONT_RESET)     # View recent logs"
+	@echo ""
