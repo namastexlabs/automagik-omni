@@ -116,7 +116,59 @@ export interface RestartResult {
 }
 
 // Database Configuration Types
+
+/** @deprecated Use DatabaseConfigurationState instead */
 export interface DatabaseConfigResponse {
+  db_type: string;
+  use_postgres: boolean;
+  postgres_url_configured: boolean;
+  table_prefix: string;
+  pool_size: number;
+  pool_max_overflow: number;
+}
+
+// New models for runtime vs saved state separation
+
+/** Runtime configuration from frozen config object (set at startup from env vars) */
+export interface RuntimeDatabaseConfig {
+  db_type: string;
+  use_postgres: boolean;
+  postgres_url_masked: string | null;
+  sqlite_path: string;
+  table_prefix: string;
+  pool_size: number;
+  pool_max_overflow: number;
+}
+
+/** Saved configuration from omni_global_settings table */
+export interface SavedDatabaseConfig {
+  db_type: string | null;
+  postgres_url_masked: string | null;
+  postgres_host: string | null;
+  postgres_port: string | null;
+  postgres_database: string | null;
+  redis_enabled: boolean | null;
+  redis_url_masked: string | null;
+  redis_prefix_key: string | null;
+  redis_ttl: number | null;
+  redis_save_instances: boolean | null;
+  last_updated_at: string | null;
+}
+
+/**
+ * Complete database configuration state showing both runtime and saved config.
+ * Allows UI to show what's running vs what's saved, and display restart warnings.
+ */
+export interface DatabaseConfigurationState {
+  // New structured response
+  runtime: RuntimeDatabaseConfig;
+  saved: SavedDatabaseConfig | null;
+  requires_restart: boolean;
+  restart_required_reason: string | null;
+  is_configured: boolean;
+  is_locked: boolean;
+
+  // Backward compatibility fields (deprecated - use runtime.* instead)
   db_type: string;
   use_postgres: boolean;
   postgres_url_configured: boolean;
@@ -752,7 +804,7 @@ export const api = {
 
   // Database Configuration API
   database: {
-    async getConfig(): Promise<DatabaseConfigResponse> {
+    async getConfig(): Promise<DatabaseConfigurationState> {
       return apiRequest('/database/config');
     },
 

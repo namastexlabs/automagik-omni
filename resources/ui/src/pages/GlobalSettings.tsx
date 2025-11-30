@@ -9,8 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { api, GlobalSetting, formatDateTime } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
-import { DatabaseSetupWizard } from '@/components/DatabaseSetupWizard';
-import { Settings as SettingsIcon, Save, Eye, EyeOff, History, RefreshCw, Database } from 'lucide-react';
+import { DatabaseConfigSection } from '@/components/database';
+import { Settings as SettingsIcon, Save, Eye, EyeOff, History, RefreshCw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -179,8 +179,8 @@ export default function GlobalSettings() {
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-background">
           <div className="p-8 space-y-6 animate-fade-in max-w-6xl">
-            {/* Database Configuration Wizard */}
-            <DatabaseSetupWizard />
+            {/* Database Configuration Section */}
+            <DatabaseConfigSection />
 
             {isLoading ? (
               <div className="flex items-center justify-center p-12">
