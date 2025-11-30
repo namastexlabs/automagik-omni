@@ -13,6 +13,10 @@ from src.db.database import get_db
 from src.db.models import InstanceConfig
 from src.config import config
 
+# Cache for valid API keys from DB to avoid repeated queries
+_cached_db_api_key: str | None = None
+_cache_initialized: bool = False
+
 # Security scheme for API key authentication
 api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
 
@@ -58,10 +62,54 @@ def get_instance_by_name(instance_name: str, db: Session = Depends(get_database)
     return instance
 
 
+def _get_valid_api_keys() -> list[str]:
+    """
+    Get all valid API keys from env var and database.
+
+    Returns list of valid API keys, checking:
+    1. AUTOMAGIK_OMNI_API_KEY env var (if not placeholder)
+    2. omni_api_key from database settings
+
+    Results are cached after first DB query.
+    """
+    global _cached_db_api_key, _cache_initialized
+
+    keys = []
+    placeholder_values = ["", "your-secret-api-key-here", "changeme"]
+
+    # Check env var (skip if placeholder)
+    env_key = config.api.api_key
+    if env_key and env_key not in placeholder_values:
+        keys.append(env_key)
+
+    # Check DB for generated key (with caching)
+    if not _cache_initialized:
+        try:
+            from src.services.settings_service import settings_service
+            db_gen = get_db()
+            db = next(db_gen)
+            setting = settings_service.get_setting("omni_api_key", db)
+            if setting and setting.value:
+                _cached_db_api_key = setting.value
+            db.close()
+        except Exception as e:
+            logger.debug(f"Could not fetch API key from DB: {e}")
+        _cache_initialized = True
+
+    if _cached_db_api_key:
+        keys.append(_cached_db_api_key)
+
+    return keys
+
+
 def _create_verify_api_key():
     def _verify(api_key: Optional[str] = Depends(api_key_header)):
         """
         Verify API key authentication from x-api-key header.
+
+        Checks API key against:
+        1. AUTOMAGIK_OMNI_API_KEY env var (if not placeholder)
+        2. omni_api_key from database settings (auto-generated during setup)
 
         Args:
             api_key: API key from x-api-key header via APIKeyHeader security scheme
@@ -84,8 +132,11 @@ def _create_verify_api_key():
             logger.debug("Test environment detected; skipping API key verification")
             return "test-environment"
 
-        if not config.api.api_key:
-            # If no API key is configured, allow access (development mode)
+        # Get all valid API keys (env var + DB)
+        valid_keys = _get_valid_api_keys()
+
+        if not valid_keys:
+            # No valid keys configured - allow access (development mode)
             logger.info("No API key configured, allowing access (development mode)")
             return "development"
 
@@ -104,11 +155,10 @@ def _create_verify_api_key():
                 return "*" * len(key)
             return f"{key[:4]}{'*' * (len(key) - 8)}{key[-4:]}"
 
-        logger.debug(f"Expected API key: [{mask_key(config.api.api_key)}]")
         logger.debug(f"Received API key: [{mask_key(api_key)}]")
 
-        if api_key != config.api.api_key:
-            logger.warning(f"API key mismatch. Expected: [{mask_key(config.api.api_key)}], Got: [{mask_key(api_key)}]")
+        if api_key not in valid_keys:
+            logger.warning(f"API key mismatch. Got: [{mask_key(api_key)}]")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid API key",

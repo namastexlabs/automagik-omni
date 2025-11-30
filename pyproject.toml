@@ -19,6 +19,7 @@ dependencies = [
     # Database
     "sqlalchemy>=2.0.38",
     "psycopg2-binary>=2.9.10",
+    "redis>=5.0.0",
     "alembic>=1.16.2",
     # API framework
     "fastapi>=0.104.0",
