@@ -76,8 +76,65 @@ class DatabaseTestResponse(BaseModel):
 
 
 class DatabaseConfigResponse(BaseModel):
-    """Schema for current database configuration."""
+    """Schema for current database configuration (legacy, kept for backward compat)."""
 
+    db_type: str
+    use_postgres: bool
+    postgres_url_configured: bool
+    table_prefix: str
+    pool_size: int
+    pool_max_overflow: int
+
+
+# New models for runtime vs saved state separation
+
+class RuntimeDatabaseConfig(BaseModel):
+    """Runtime configuration from frozen config object (set at startup from env vars)."""
+
+    db_type: str
+    use_postgres: bool
+    postgres_url_masked: Optional[str] = None
+    sqlite_path: str
+    table_prefix: str
+    pool_size: int
+    pool_max_overflow: int
+
+
+class SavedDatabaseConfig(BaseModel):
+    """Saved configuration from omni_global_settings table."""
+
+    db_type: Optional[str] = None
+    postgres_url_masked: Optional[str] = None
+    postgres_host: Optional[str] = None
+    postgres_port: Optional[str] = None
+    postgres_database: Optional[str] = None
+    redis_enabled: Optional[bool] = None
+    redis_url_masked: Optional[str] = None
+    redis_prefix_key: Optional[str] = None
+    redis_ttl: Optional[int] = None
+    redis_save_instances: Optional[bool] = None
+    last_updated_at: Optional[str] = None
+
+
+class DatabaseConfigurationState(BaseModel):
+    """Complete database configuration state showing both runtime and saved config.
+
+    This response allows the UI to:
+    - Show what's currently running (runtime)
+    - Show what's saved in settings (saved)
+    - Display restart-required warnings when they differ
+    - Show locked indicator when instances exist
+    """
+
+    # New structured response
+    runtime: RuntimeDatabaseConfig
+    saved: Optional[SavedDatabaseConfig] = None
+    requires_restart: bool
+    restart_required_reason: Optional[str] = None
+    is_configured: bool  # True if setup wizard completed
+    is_locked: bool  # True if instances exist (cannot change db_type)
+
+    # Backward compatibility fields (deprecated - use runtime.* instead)
     db_type: str
     use_postgres: bool
     postgres_url_configured: bool
@@ -346,22 +403,69 @@ def _test_redis_write_read(url: str) -> TestResult:
 
 @router.get(
     "/config",
-    response_model=DatabaseConfigResponse,
-    summary="Get Database Configuration",
-    description="Get current database configuration status",
+    response_model=DatabaseConfigurationState,
+    summary="Get Database Configuration State",
+    description="Get both runtime and saved database configuration with restart detection",
 )
 async def get_database_config(
     api_key: str = Depends(verify_api_key),
 ):
-    """Get current database configuration."""
-    return DatabaseConfigResponse(
-        db_type=config.database.db_type,
-        use_postgres=config.database.use_postgres,
-        postgres_url_configured=bool(config.database.postgres_url),
-        table_prefix=config.database.table_prefix,
-        pool_size=config.database.pool_size,
-        pool_max_overflow=config.database.pool_max_overflow,
-    )
+    """
+    Get complete database configuration state.
+
+    Returns:
+        - runtime: Current frozen configuration from environment (set at startup)
+        - saved: User-configured settings from database (set via wizard)
+        - requires_restart: True if saved differs from runtime
+        - is_locked: True if instances exist (cannot change db_type)
+    """
+    from src.db.database import get_db
+    from src.services.database_state_service import database_state_service
+
+    # Get a database session
+    db_gen = get_db()
+    db = next(db_gen)
+
+    try:
+        # Get both configurations
+        runtime = database_state_service.get_runtime_config()
+        saved = database_state_service.get_saved_config(db)
+
+        # Check if restart is required
+        requires_restart, reason = database_state_service.check_requires_restart(
+            runtime, saved
+        )
+
+        # Check configuration status
+        is_configured = database_state_service.is_setup_completed(db)
+        is_locked = database_state_service.is_db_locked(db)
+
+        return DatabaseConfigurationState(
+            # New structured response
+            runtime=RuntimeDatabaseConfig(
+                db_type=runtime["db_type"],
+                use_postgres=runtime["use_postgres"],
+                postgres_url_masked=runtime["postgres_url_masked"],
+                sqlite_path=runtime["sqlite_path"],
+                table_prefix=runtime["table_prefix"],
+                pool_size=runtime["pool_size"],
+                pool_max_overflow=runtime["pool_max_overflow"],
+            ),
+            saved=SavedDatabaseConfig(**saved) if saved else None,
+            requires_restart=requires_restart,
+            restart_required_reason=reason,
+            is_configured=is_configured,
+            is_locked=is_locked,
+            # Backward compatibility (deprecated)
+            db_type=runtime["db_type"],
+            use_postgres=runtime["use_postgres"],
+            postgres_url_configured=runtime["postgres_url_masked"] is not None,
+            table_prefix=runtime["table_prefix"],
+            pool_size=runtime["pool_size"],
+            pool_max_overflow=runtime["pool_max_overflow"],
+        )
+    finally:
+        db.close()
 
 
 @router.post(
