@@ -564,8 +564,8 @@ export const api = {
     },
   },
 
-  // Evolution API (direct access via gateway)
-  evolution: {
+  // WhatsApp Web API (direct access via gateway, uses Evolution protocol)
+  whatsappWeb: {
     // Settings
     async getSettings(instanceName: string): Promise<any> {
       return evolutionRequest(`/settings/find/${instanceName}`);
@@ -882,9 +882,26 @@ export const api = {
       return response.json();
     },
   },
+
+  // Recovery API (localhost-only, no auth required)
+  recovery: {
+    async getApiKey(): Promise<{ api_key: string; message: string }> {
+      const response = await fetch(`${API_BASE_URL}/recovery/api-key`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to recover API key' }));
+        throw new Error(error.detail || 'Failed to recover API key');
+      }
+      return response.json();
+    },
+  },
+
+  // Backward compatibility alias - use api.whatsappWeb for new code
+  get evolution() {
+    return this.whatsappWeb;
+  },
 };
 
-// Evolution API helper (direct to Evolution via gateway)
+// WhatsApp Web API helper (uses Evolution protocol under the hood)
 const EVOLUTION_BASE_URL = '/evolution';
 
 // DEPRECATED: Instance keys are no longer used (Option A: Bootstrap Key Only)

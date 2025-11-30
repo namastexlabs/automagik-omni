@@ -2,7 +2,12 @@
 Bootstrap global settings with defaults and migrate from .env.
 
 This module initializes global settings on application startup, including
-auto-generation of the Evolution API key if not present.
+auto-generation of the WhatsApp Web API key if not present.
+
+Note: Evolution API is the underlying protocol for WhatsApp Web connectivity.
+Settings use both naming conventions for backward compatibility:
+- evolution_api_key / whatsapp_web_api_key (alias)
+- evolution_api_url / whatsapp_web_api_url (alias)
 """
 
 import logging
@@ -31,13 +36,15 @@ def bootstrap_global_settings(db: Session) -> None:
     logger.info("Bootstrapping global settings...")
 
     # Define default settings
+    # Note: evolution_* keys are kept for backward compatibility
+    # New code should use whatsapp_web_* keys (see aliases below)
     default_settings = [
         {
             "key": "evolution_api_key",
             "value": None,  # Will be set below
             "value_type": SettingValueType.SECRET,
             "category": "integration",
-            "description": "Global Evolution API authentication key (auto-generated or migrated from .env)",
+            "description": "WhatsApp Web API authentication key (alias: whatsapp_web_api_key)",
             "is_secret": True,
             "is_required": True,
             "default_value": "",
@@ -47,7 +54,7 @@ def bootstrap_global_settings(db: Session) -> None:
             "value": config.get_env("EVOLUTION_URL", "http://localhost:18082"),
             "value_type": SettingValueType.STRING,
             "category": "integration",
-            "description": "Default Evolution API base URL",
+            "description": "Default WhatsApp Web API base URL (alias: whatsapp_web_api_url)",
             "is_secret": False,
             "is_required": False,
             "default_value": "http://localhost:18082",
@@ -128,7 +135,10 @@ def bootstrap_global_settings(db: Session) -> None:
 
 def _bootstrap_evolution_key(db: Session) -> None:
     """
-    Bootstrap Evolution API key with auto-generation or .env migration.
+    Bootstrap WhatsApp Web API key with auto-generation or .env migration.
+
+    Note: Uses 'evolution_api_key' as the database key for backward compatibility.
+    New code should access via settings_service.get_whatsapp_web_api_key_global().
 
     This handles three scenarios:
     1. Fresh install (no .env, no database) → Auto-generate secure key
@@ -142,21 +152,23 @@ def _bootstrap_evolution_key(db: Session) -> None:
     existing = settings_service.get_setting("evolution_api_key", db)
 
     if existing:
-        logger.info(f"Evolution API key already exists in database (key: {existing.key})")
+        logger.info(f"WhatsApp Web API key already exists in database (key: {existing.key})")
         return
 
     # Try to read from .env first (migration path for existing installations)
     env_key = config.get_env("EVOLUTION_API_KEY", "")
 
-    if env_key:
+    # Check if env key is a placeholder value
+    placeholder_values = ["", "your-evolution-api-key-here", "changeme"]
+    if env_key and env_key not in placeholder_values:
         # Migrate from .env to database
-        logger.info("Migrating Evolution API key from .env to database")
+        logger.info("Migrating WhatsApp Web API key from .env to database")
         key_value = env_key
         migration_source = "migrated from .env"
     else:
         # Auto-generate secure key for fresh install
         key_value = secrets.token_hex(16)  # 32-character hexadecimal string
-        logger.info(f"Auto-generated Evolution API key: {key_value[:8]}***{key_value[-4:]}")
+        logger.info(f"Auto-generated WhatsApp Web API key: {key_value[:8]}***{key_value[-4:]}")
         migration_source = "auto-generated on first startup"
 
     # Create setting in database
@@ -166,14 +178,14 @@ def _bootstrap_evolution_key(db: Session) -> None:
             value=key_value,
             value_type=SettingValueType.SECRET,
             category="integration",
-            description=f"Global Evolution API authentication key ({migration_source})",
+            description=f"WhatsApp Web API authentication key ({migration_source})",
             is_secret=True,
             is_required=True,
             default_value="",
             created_by="system_bootstrap",
             db=db
         )
-        logger.info(f"Evolution API key stored in database ({migration_source})")
+        logger.info(f"WhatsApp Web API key stored in database ({migration_source})")
     except Exception as e:
         logger.error(f"Failed to create evolution_api_key setting: {e}")
         raise
