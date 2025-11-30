@@ -88,6 +88,9 @@ def bootstrap_global_settings(db: Session) -> None:
     # Handle Evolution API key separately (auto-generation or migration)
     _bootstrap_evolution_key(db)
 
+    # Handle Omni API key separately (auto-generation or migration)
+    _bootstrap_omni_api_key(db)
+
     # Handle setup_completed flag with auto-detection
     _bootstrap_setup_completed(db)
 
@@ -173,6 +176,61 @@ def _bootstrap_evolution_key(db: Session) -> None:
         logger.info(f"Evolution API key stored in database ({migration_source})")
     except Exception as e:
         logger.error(f"Failed to create evolution_api_key setting: {e}")
+        raise
+
+
+def _bootstrap_omni_api_key(db: Session) -> None:
+    """
+    Bootstrap Omni API key with auto-generation or .env migration.
+
+    This handles three scenarios:
+    1. Fresh install (no .env, no database) → Auto-generate secure key
+    2. Existing .env, no database → Migrate from .env to database
+    3. Database exists → Keep existing value
+
+    Args:
+        db: Database session
+    """
+    # Check if omni_api_key already exists in database
+    existing = settings_service.get_setting("omni_api_key", db)
+
+    if existing:
+        logger.info(f"Omni API key already exists in database (key: {existing.key})")
+        return
+
+    # Try to read from .env first (migration path for existing installations)
+    env_key = config.get_env("AUTOMAGIK_OMNI_API_KEY", "")
+
+    # Check if env key is a placeholder value
+    placeholder_values = ["", "your-secret-api-key-here", "changeme"]
+    if env_key and env_key not in placeholder_values:
+        # Migrate from .env to database
+        logger.info("Migrating Omni API key from .env to database")
+        key_value = env_key
+        migration_source = "migrated from .env"
+    else:
+        # Auto-generate secure key for fresh install
+        key_value = f"sk-omni-{secrets.token_urlsafe(32)}"
+        logger.info(f"Auto-generated Omni API key: {key_value[:12]}***{key_value[-4:]}")
+        migration_source = "auto-generated on first startup"
+
+    # Create setting in database
+    try:
+        settings_service.create_setting(
+            key="omni_api_key",
+            value=key_value,
+            value_type=SettingValueType.SECRET,
+            category="security",
+            description=f"Omni API authentication key ({migration_source})",
+            is_secret=True,
+            is_required=True,
+            default_value="",
+            created_by="system_bootstrap",
+            db=db
+        )
+        logger.info(f"Omni API key stored in database ({migration_source})")
+    except Exception as e:
+        logger.error(f"Failed to create omni_api_key setting: {e}")
         raise
 
 

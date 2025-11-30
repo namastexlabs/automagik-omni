@@ -872,6 +872,15 @@ export const api = {
       }
       return response.json();
     },
+
+    async getApiKey(): Promise<{ api_key: string; message: string }> {
+      const response = await fetch(`${API_BASE_URL}/setup/api-key`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to get API key' }));
+        throw new Error(error.detail || 'Failed to get API key');
+      }
+      return response.json();
+    },
   },
 };
 

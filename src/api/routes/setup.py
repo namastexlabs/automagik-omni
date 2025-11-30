@@ -11,6 +11,7 @@ before authentication is configured.
 """
 
 import logging
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -55,6 +56,13 @@ class SetupCompleteResponse(BaseModel):
 
     success: bool
     message: str
+
+
+class GenerateApiKeyResponse(BaseModel):
+    """Response schema for API key generation."""
+
+    api_key: str = Field(..., description="Generated API key")
+    message: str = Field(default="API key generated successfully")
 
 
 # Endpoints
@@ -303,4 +311,64 @@ async def complete_setup(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to complete setup: {str(e)}"
+        )
+
+
+@router.get("/api-key", response_model=GenerateApiKeyResponse)
+async def get_api_key(db: Session = Depends(get_db)):
+    """
+    Get the auto-generated API key during onboarding.
+
+    This endpoint is unauthenticated and only works during first-run setup
+    (before setup_completed is true). The API key is auto-generated during
+    application startup and stored in the database.
+
+    Returns:
+        GenerateApiKeyResponse: The API key for authentication
+    """
+    try:
+        # Check if setup is already complete - if so, don't expose the key
+        setup_setting = settings_service.get_setting("setup_completed", db)
+        if setup_setting and setup_setting.value.lower() in ("true", "1", "yes"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Setup already completed. API key cannot be retrieved after setup."
+            )
+
+        # Get the auto-generated API key from database
+        api_key_setting = settings_service.get_setting("omni_api_key", db)
+
+        if not api_key_setting:
+            # This shouldn't happen as bootstrap creates it, but handle gracefully
+            # Generate one now
+            key_value = f"sk-omni-{secrets.token_urlsafe(32)}"
+            settings_service.create_setting(
+                key="omni_api_key",
+                value=key_value,
+                value_type=SettingValueType.SECRET,
+                category="security",
+                description="Omni API authentication key (generated during setup)",
+                is_secret=True,
+                is_required=True,
+                db=db,
+                created_by="setup_wizard"
+            )
+            logger.info(f"Generated new Omni API key during setup: {key_value[:12]}***")
+            return GenerateApiKeyResponse(
+                api_key=key_value,
+                message="API key generated successfully. Save this key securely!"
+            )
+
+        return GenerateApiKeyResponse(
+            api_key=api_key_setting.value,
+            message="Your API key is ready. Save this key securely!"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get API key: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve API key: {str(e)}"
         )
