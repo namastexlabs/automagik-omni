@@ -105,7 +105,7 @@ function InstanceDetailCard({
 
         {version && (
           <div className="text-xs text-muted-foreground">
-            Evolution v{version}
+            WhatsApp Web v{version}
           </div>
         )}
       </CardContent>

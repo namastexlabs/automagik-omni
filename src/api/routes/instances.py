@@ -633,7 +633,7 @@ async def get_instance(
                     )
                 else:
                     instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(
-                        error="Instance not found in Evolution API", last_updated=datetime.now()
+                        error="Instance not found in WhatsApp Web API", last_updated=datetime.now()
                     )
 
         except Exception as e:

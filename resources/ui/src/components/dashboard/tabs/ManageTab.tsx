@@ -473,7 +473,7 @@ export function ManageTab() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Smartphone className="h-5 w-5" />
-                Evolution WhatsApp Management
+                WhatsApp Web Management
               </CardTitle>
               <CardDescription>
                 Manage your WhatsApp instances, view settings, and monitor connections
@@ -483,7 +483,7 @@ export function ManageTab() {
               {evolutionDetails && (
                 <div className="flex items-center gap-4 text-sm">
                   <div className="text-right">
-                    <div className="text-muted-foreground">Evolution API</div>
+                    <div className="text-muted-foreground">WhatsApp Web API</div>
                     <div className="font-medium">v{evolutionDetails.version || 'Unknown'}</div>
                   </div>
                   <Separator orientation="vertical" className="h-8" />
@@ -506,7 +506,7 @@ export function ManageTab() {
                   ) : (
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
-                  Resync with Evolution
+                  Resync Instances
                 </Button>
               )}
             </div>
@@ -561,9 +561,9 @@ export function ManageTab() {
         <Card>
           <CardContent className="py-12 text-center">
             <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-medium mb-2">No Evolution Instances</h3>
+            <h3 className="text-lg font-medium mb-2">No WhatsApp Instances</h3>
             <p className="text-muted-foreground">
-              No WhatsApp instances found. Make sure the Evolution API is running and configured.
+              No WhatsApp instances found. Make sure the WhatsApp Web API is running and configured.
             </p>
           </CardContent>
         </Card>

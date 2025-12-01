@@ -186,7 +186,7 @@ export function OverviewTab() {
 
       {/* Instance Cards */}
       <div>
-        <h3 className="text-lg font-medium mb-4">Evolution Instances</h3>
+        <h3 className="text-lg font-medium mb-4">WhatsApp Instances</h3>
         {healthLoading ? (
           <Skeleton className="h-20 w-full" />
         ) : evolutionDetails?.totals ? (

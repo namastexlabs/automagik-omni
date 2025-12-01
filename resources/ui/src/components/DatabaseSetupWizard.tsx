@@ -339,7 +339,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                   <span className="font-semibold">PostgreSQL (Shared)</span>
                 </div>
                 <p className="text-sm text-muted-foreground pl-6">
-                  Share database with Evolution API. Uses <code>omni_</code> table prefix for isolation.
+                  Share database with WhatsApp Web API. Uses <code>omni_</code> table prefix for isolation.
                 </p>
               </Label>
             </RadioGroup>
@@ -379,11 +379,11 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                       ) : (
                         <Zap className="h-4 w-4 mr-1" />
                       )}
-                      Detect Evolution
+                      Detect WhatsApp Web
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Enter the same PostgreSQL connection details used by Evolution API to share the database.
+                    Enter the same PostgreSQL connection details used by WhatsApp Web API to share the database.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -523,7 +523,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                       <AlertTriangle className="h-4 w-4" />
                     )}
                     <AlertTitle>
-                      {detectMutation.data.found ? 'Evolution Configuration Detected' : 'Not Detected'}
+                      {detectMutation.data.found ? 'WhatsApp Web Configuration Detected' : 'Not Detected'}
                     </AlertTitle>
                     <AlertDescription>
                       {detectMutation.data.message}

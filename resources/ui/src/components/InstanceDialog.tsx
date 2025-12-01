@@ -446,7 +446,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 </div>
                 <Alert>
                   <AlertDescription className="text-xs">
-                    ℹ️ Evolution API configuration is handled automatically by the backend
+                    ℹ️ WhatsApp Web API configuration is handled automatically by the backend
                   </AlertDescription>
                 </Alert>
               </>

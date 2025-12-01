@@ -76,7 +76,7 @@ async def get_evolution_key(
 
     return EvolutionKeyResponse(
         key=setting.value,
-        message="Use this key as AUTHENTICATION_API_KEY for Evolution server."
+        message="Use this key as AUTHENTICATION_API_KEY for the WhatsApp Web server."
     )
 
 

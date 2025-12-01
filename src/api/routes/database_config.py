@@ -777,8 +777,8 @@ async def apply_database_config(
 @router.get(
     "/detect-evolution",
     response_model=EvolutionDetectResponse,
-    summary="Detect Evolution API Database",
-    description="Attempt to detect Evolution API's database configuration with parsed field objects. Public endpoint for onboarding.",
+    summary="Detect WhatsApp Web API Database",
+    description="Attempt to detect WhatsApp Web API's database configuration with parsed field objects. Public endpoint for onboarding.",
 )
 async def detect_evolution_database():
     """
@@ -855,7 +855,7 @@ async def detect_evolution_database():
         return EvolutionDetectResponse(
             found=True,
             source=source_var,
-            message=f"Detected Evolution API configuration: {', '.join(parts)}",
+            message=f"Detected WhatsApp Web API configuration: {', '.join(parts)}",
             postgresql=postgres_fields,
             redis=redis_fields,
         )
@@ -863,7 +863,7 @@ async def detect_evolution_database():
         return EvolutionDetectResponse(
             found=False,
             source=None,
-            message="No Evolution API database configuration detected",
+            message="No WhatsApp Web API database configuration detected",
             postgresql=None,
             redis=None,
         )
