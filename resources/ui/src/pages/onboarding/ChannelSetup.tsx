@@ -53,8 +53,6 @@ export default function ChannelSetup() {
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [whatsappExpanded, setWhatsappExpanded] = useState(false);
   const [whatsappInstanceName, setWhatsappInstanceName] = useState('genie');
-  const [whatsappAgentUrl, setWhatsappAgentUrl] = useState('');
-  const [whatsappAgentKey, setWhatsappAgentKey] = useState('');
 
   // QR Code modal state
   const [showQrModal, setShowQrModal] = useState(false);
@@ -132,26 +130,14 @@ export default function ChannelSetup() {
         if (!whatsappInstanceName.trim()) {
           throw new Error('Please enter a WhatsApp instance name');
         }
-        if (!whatsappAgentUrl.trim()) {
-          throw new Error('Please enter your Agent API URL');
-        }
-        if (!whatsappAgentKey.trim()) {
-          throw new Error('Please enter your Agent API Key');
-        }
       }
 
       // Configure channels
       const result = await api.setup.configureChannels({
         whatsapp_enabled: whatsappEnabled,
         discord_enabled: discordEnabled,
-        // WhatsApp instance params (only if expanded)
+        // WhatsApp instance name (only if expanded)
         whatsapp_instance_name: whatsappExpanded ? whatsappInstanceName : undefined,
-        whatsapp_agent_api_url: whatsappExpanded ? whatsappAgentUrl : undefined,
-        whatsapp_agent_api_key: whatsappExpanded ? whatsappAgentKey : undefined,
-        // Discord params (simplified - just enable flag)
-        discord_instance_name: undefined,
-        discord_bot_token: undefined,
-        discord_client_id: undefined,
       });
 
       // If we got a QR code, show the modal
@@ -318,11 +304,10 @@ export default function ChannelSetup() {
                 {/* Instructions */}
                 <div className="mt-4 p-3 bg-green-100 rounded-lg">
                   <p className="text-sm text-green-800 mb-2 font-medium">
-                    Create a WhatsApp instance now:
+                    Create a WhatsApp instance:
                   </p>
                   <ol className="text-sm text-green-700 space-y-1 list-decimal list-inside">
                     <li>Choose a name for your instance</li>
-                    <li>Enter your AI agent's API URL and key</li>
                     <li>Scan the QR code with your phone to connect</li>
                   </ol>
                 </div>
@@ -338,46 +323,9 @@ export default function ChannelSetup() {
                     value={whatsappInstanceName}
                     onChange={(e) => setWhatsappInstanceName(e.target.value)}
                     placeholder="genie"
-                    className="bg-white"
                   />
                   <p className="text-xs text-gray-500">
                     A unique name for this WhatsApp instance
-                  </p>
-                </div>
-
-                {/* Agent API URL */}
-                <div className="space-y-2">
-                  <Label htmlFor="whatsappAgentUrl" className="text-gray-700">
-                    Agent API URL
-                  </Label>
-                  <Input
-                    id="whatsappAgentUrl"
-                    type="text"
-                    value={whatsappAgentUrl}
-                    onChange={(e) => setWhatsappAgentUrl(e.target.value)}
-                    placeholder="http://localhost:8000"
-                    className="bg-white"
-                  />
-                  <p className="text-xs text-gray-500">
-                    URL of your AI agent API (e.g., Automagik, OpenAI)
-                  </p>
-                </div>
-
-                {/* Agent API Key */}
-                <div className="space-y-2">
-                  <Label htmlFor="whatsappAgentKey" className="text-gray-700">
-                    Agent API Key
-                  </Label>
-                  <Input
-                    id="whatsappAgentKey"
-                    type="password"
-                    value={whatsappAgentKey}
-                    onChange={(e) => setWhatsappAgentKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="bg-white font-mono"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Your agent API key (keep this private!)
                   </p>
                 </div>
               </div>

@@ -231,6 +231,9 @@ export interface RedisConfig {
   saveInstances?: boolean;
 }
 
+// Global flag to prevent multiple 401 redirects from parallel requests
+let isRedirectingToLogin = false;
+
 // API Key management
 export function getApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
@@ -238,6 +241,8 @@ export function getApiKey(): string | null {
 
 export function setApiKey(key: string): void {
   localStorage.setItem(API_KEY_STORAGE_KEY, key);
+  // Reset redirect flag so future 401s can trigger redirects
+  isRedirectingToLogin = false;
 }
 
 export function removeApiKey(): void {
@@ -272,8 +277,13 @@ async function apiRequest<T>(
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      removeApiKey();
-      window.location.href = '/login';
+      // Prevent multiple redirects from parallel requests (race condition fix)
+      if (!isRedirectingToLogin) {
+        isRedirectingToLogin = true;
+        removeApiKey();
+        // Use replace to prevent back button returning to broken state
+        window.location.replace('/login');
+      }
       throw new Error('Authentication failed');
     }
 
@@ -950,14 +960,8 @@ export const api = {
     async configureChannels(config: {
       whatsapp_enabled: boolean;
       discord_enabled: boolean;
-      // WhatsApp instance creation params
+      // WhatsApp instance name only - everything else is automatic
       whatsapp_instance_name?: string;
-      whatsapp_agent_api_url?: string;
-      whatsapp_agent_api_key?: string;
-      // Discord params (legacy - just for backward compatibility)
-      discord_instance_name?: string;
-      discord_bot_token?: string;
-      discord_client_id?: string;
     }): Promise<{
       success: boolean;
       message: string;

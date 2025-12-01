@@ -400,16 +400,8 @@ class ChannelConfigRequest(BaseModel):
     """Request schema for channel configuration during setup."""
     whatsapp_enabled: bool = Field(default=True, description="Enable WhatsApp channel")
     discord_enabled: bool = Field(default=False, description="Enable Discord channel")
-
-    # WhatsApp instance creation params
+    # WhatsApp instance name only - everything else is automatic
     whatsapp_instance_name: Optional[str] = Field(None, description="WhatsApp instance name")
-    whatsapp_agent_api_url: Optional[str] = Field(None, description="Agent API URL for WhatsApp instance")
-    whatsapp_agent_api_key: Optional[str] = Field(None, description="Agent API key for WhatsApp instance")
-
-    # Discord configuration
-    discord_instance_name: Optional[str] = Field(None, description="Discord instance name")
-    discord_bot_token: Optional[str] = Field(None, description="Discord bot token")
-    discord_client_id: Optional[str] = Field(None, description="Discord application client ID")
 
 
 class ChannelConfigResponse(BaseModel):
@@ -630,8 +622,8 @@ async def configure_channels(
             whatsapp_status = "enabled"
             logger.info("WhatsApp channel enabled")
 
-            # Create WhatsApp instance if params provided
-            if config.whatsapp_instance_name and config.whatsapp_agent_api_url and config.whatsapp_agent_api_key:
+            # Create WhatsApp instance if name provided
+            if config.whatsapp_instance_name:
                 instance_name = normalize_instance_name(config.whatsapp_instance_name)
 
                 # Check if instance already exists
@@ -640,14 +632,10 @@ async def configure_channels(
                 ).first()
 
                 if existing_instance:
-                    # Update existing instance
-                    existing_instance.agent_api_url = config.whatsapp_agent_api_url
-                    existing_instance.agent_api_key = config.whatsapp_agent_api_key
-                    db.commit()
-                    db.refresh(existing_instance)
-                    whatsapp_status = f"updated:{instance_name}"
+                    # Instance already exists - just use it
+                    whatsapp_status = f"exists:{instance_name}"
                     whatsapp_instance_created = instance_name
-                    logger.info(f"Updated WhatsApp instance: {instance_name}")
+                    logger.info(f"WhatsApp instance already exists: {instance_name}")
                 else:
                     # Get Evolution API URL and unified key
                     evolution_url = settings_service.get_setting_value(
@@ -655,7 +643,7 @@ async def configure_channels(
                     )
                     api_key = settings_service.get_setting_value("omni_api_key", db, default=None)
 
-                    # Create new WhatsApp instance
+                    # Create new WhatsApp instance with defaults (agent config set later)
                     new_instance = InstanceConfig(
                         name=instance_name,
                         channel_type="whatsapp",
@@ -663,8 +651,8 @@ async def configure_channels(
                         evolution_key=api_key,
                         whatsapp_instance=instance_name,
                         session_id_prefix=f"{instance_name}-",
-                        agent_api_url=config.whatsapp_agent_api_url,
-                        agent_api_key=config.whatsapp_agent_api_key,
+                        agent_api_url="http://localhost:8000",  # Default, configure in dashboard
+                        agent_api_key="default-key",  # Default, configure in dashboard
                         default_agent="default-agent",
                         is_active=False,  # Will be activated after QR scan
                         is_default=True,  # First instance is default
