@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
 import OnboardingLayout from '@/components/OnboardingLayout';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { api } from '@/lib/api';
+import { useLogStream } from '@/hooks/useLogStream';
 import {
   Loader2,
   MessageCircle,
@@ -77,6 +78,20 @@ export default function ChannelSetup() {
 
   const [error, setError] = useState<string | null>(null);
 
+  // Log streaming for Evolution startup
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    logs: evolutionLogs,
+    isConnected: logsConnected,
+    connect: connectLogs,
+    disconnect: disconnectLogs,
+    clearLogs,
+  } = useLogStream({
+    services: ['evolution'],
+    maxLogs: 50,
+    autoConnect: false, // Manual control during startup
+  });
+
   // Fetch channel status on mount
   useEffect(() => {
     const fetchStatus = async () => {
@@ -108,6 +123,13 @@ export default function ChannelSetup() {
 
     fetchStatus();
   }, []);
+
+  // Auto-scroll log viewer during startup
+  useEffect(() => {
+    if (logContainerRef.current && evolutionStarting) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [evolutionLogs, evolutionStarting]);
 
   // Validate Discord token
   const handleValidateDiscord = async () => {
@@ -147,6 +169,9 @@ export default function ChannelSetup() {
       // If Evolution is not ready, start it
       if (!evolutionReady) {
         setEvolutionStarting(true);
+        clearLogs(); // Clear previous logs
+        connectLogs(); // Start streaming logs
+
         try {
           // Start Evolution via gateway
           await api.gateway.startChannel('evolution');
@@ -163,6 +188,7 @@ export default function ChannelSetup() {
           setEvolutionError(err instanceof Error ? err.message : 'Failed to start WhatsApp service');
         } finally {
           setEvolutionStarting(false);
+          disconnectLogs(); // Stop streaming when done
         }
       }
     }
@@ -379,6 +405,31 @@ export default function ChannelSetup() {
                       <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
                       <p className="text-xs text-green-700 mt-1">This may take up to a minute</p>
                     </div>
+                  </div>
+                )}
+
+                {/* Live log stream during startup */}
+                {evolutionStarting && evolutionLogs.length > 0 && (
+                  <div
+                    ref={logContainerRef}
+                    className="mt-3 bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-xs"
+                  >
+                    {evolutionLogs.map((log, i) => (
+                      <div
+                        key={i}
+                        className={`py-0.5 ${
+                          log.level === 'error' ? 'text-red-400' :
+                          log.level === 'warn' ? 'text-yellow-400' :
+                          'text-green-400'
+                        }`}
+                      >
+                        <span className="text-gray-500">
+                          {log.timestamp.split('T')[1]?.slice(0, 8)}
+                        </span>
+                        {' '}
+                        <span>{log.message}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
 
