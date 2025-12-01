@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DatabaseSetupWizard } from '@/components/DatabaseSetupWizard';
 import OnboardingLayout from '@/components/OnboardingLayout';
-import { api } from '@/lib/api';
+import { api, removeApiKey } from '@/lib/api';
 import { DatabaseConfig } from '@/types/onboarding';
 import { Loader2 } from 'lucide-react';
 
@@ -12,6 +12,13 @@ export default function DatabaseSetup() {
   const navigate = useNavigate();
   const [isSkipping, setIsSkipping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear any stale API key and setup state from previous installations
+  // This ensures fresh installs don't retain old localStorage data
+  useEffect(() => {
+    removeApiKey();
+    localStorage.removeItem('omni_setup_complete');
+  }, []);
 
   const handleWizardComplete = async (wizardConfig: DatabaseConfig) => {
     try {

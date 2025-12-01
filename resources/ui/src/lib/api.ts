@@ -1014,6 +1014,78 @@ export const api = {
     },
   },
 
+  // Gateway Channel Management API (no auth required for channel control)
+  gateway: {
+    async getChannels(): Promise<{
+      lazyMode: boolean;
+      channels: Array<{
+        name: string;
+        enabled: boolean;
+        running: boolean;
+      }>;
+    }> {
+      const response = await fetch('/gateway/channels');
+      if (!response.ok) {
+        throw new Error('Failed to get gateway channels');
+      }
+      return response.json();
+    },
+
+    async startChannel(channel: string): Promise<{
+      status: 'started' | 'already_running';
+      channel: string;
+    }> {
+      const response = await fetch(`/gateway/channels/${channel}/start`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to start channel' }));
+        throw new Error(error.error || 'Failed to start channel');
+      }
+      return response.json();
+    },
+
+    async getStatus(): Promise<{
+      gateway: {
+        port: number;
+        mode: string;
+        proxyOnly: boolean;
+        lazyChannels: boolean;
+        uptime: number;
+      };
+      ports: Record<string, number>;
+      processes: Record<string, {
+        port: number;
+        healthy: boolean;
+        pid?: number;
+      }>;
+    }> {
+      const response = await fetch('/gateway/status');
+      if (!response.ok) {
+        throw new Error('Failed to get gateway status');
+      }
+      return response.json();
+    },
+
+    // Poll until a channel is running and healthy
+    async waitForChannel(channel: string, timeoutMs: number = 60000): Promise<boolean> {
+      const startTime = Date.now();
+      while (Date.now() - startTime < timeoutMs) {
+        try {
+          const status = await this.getStatus();
+          const proc = status.processes[channel];
+          if (proc && proc.healthy) {
+            return true;
+          }
+        } catch (e) {
+          // Keep polling
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      return false;
+    },
+  },
+
   // Backward compatibility alias - use api.whatsappWeb for new code
   get evolution() {
     return this.whatsappWeb;

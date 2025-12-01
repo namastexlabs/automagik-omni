@@ -45,6 +45,11 @@ export default function ChannelSetup() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidatingDiscord, setIsValidatingDiscord] = useState(false);
 
+  // Evolution startup states
+  const [evolutionStarting, setEvolutionStarting] = useState(false);
+  const [evolutionReady, setEvolutionReady] = useState(false);
+  const [evolutionError, setEvolutionError] = useState<string | null>(null);
+
   // Channel status from backend
   const [whatsappStatus, setWhatsappStatus] = useState<ChannelStatus | null>(null);
   const [discordStatus, setDiscordStatus] = useState<ChannelStatus | null>(null);
@@ -76,11 +81,23 @@ export default function ChannelSetup() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
+        // Fetch setup channel status
         const status = await api.setup.getChannelsStatus();
         setWhatsappStatus(status.whatsapp);
         setDiscordStatus(status.discord);
         setWhatsappEnabled(status.whatsapp.enabled);
         setDiscordEnabled(status.discord.enabled && status.discord.configured);
+
+        // Also check if Evolution is already running via gateway
+        try {
+          const gatewayStatus = await api.gateway.getStatus();
+          const evolutionProc = gatewayStatus.processes?.evolution;
+          if (evolutionProc?.healthy) {
+            setEvolutionReady(true);
+          }
+        } catch (e) {
+          // Gateway status check is optional
+        }
       } catch (err) {
         console.error('Failed to fetch channel status:', err);
         // Don't block setup on status fetch failure
@@ -115,6 +132,39 @@ export default function ChannelSetup() {
       });
     } finally {
       setIsValidatingDiscord(false);
+    }
+  };
+
+  // Handle WhatsApp toggle - starts Evolution when enabled
+  const handleWhatsAppToggle = async (enabled: boolean) => {
+    setWhatsappEnabled(enabled);
+    setEvolutionError(null);
+
+    if (enabled) {
+      // Auto-expand to show instance config
+      setWhatsappExpanded(true);
+
+      // If Evolution is not ready, start it
+      if (!evolutionReady) {
+        setEvolutionStarting(true);
+        try {
+          // Start Evolution via gateway
+          await api.gateway.startChannel('evolution');
+
+          // Poll until Evolution is healthy (max 60 seconds)
+          const ready = await api.gateway.waitForChannel('evolution', 60000);
+          if (ready) {
+            setEvolutionReady(true);
+          } else {
+            setEvolutionError('Evolution started but is not responding. Please try again.');
+          }
+        } catch (err) {
+          console.error('Failed to start Evolution:', err);
+          setEvolutionError(err instanceof Error ? err.message : 'Failed to start WhatsApp service');
+        } finally {
+          setEvolutionStarting(false);
+        }
+      }
     }
   };
 
@@ -250,7 +300,18 @@ export default function ChannelSetup() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {whatsappStatus && (
+                  {/* Evolution starting indicator */}
+                  {evolutionStarting ? (
+                    <div className="flex items-center gap-1 text-sm">
+                      <Loader2 className="h-4 w-4 text-green-500 animate-spin" />
+                      <span className="text-green-600">Starting service...</span>
+                    </div>
+                  ) : evolutionReady ? (
+                    <div className="flex items-center gap-1 text-sm">
+                      <Wifi className="h-4 w-4 text-green-500" />
+                      <span className="text-green-600">Service ready</span>
+                    </div>
+                  ) : whatsappStatus && (
                     <div className="flex items-center gap-1 text-sm">
                       {whatsappStatus.status === 'ready' ? (
                         <>
@@ -272,10 +333,8 @@ export default function ChannelSetup() {
                   )}
                   <Switch
                     checked={whatsappEnabled}
-                    onCheckedChange={(checked) => {
-                      setWhatsappEnabled(checked);
-                      if (checked) setWhatsappExpanded(true);
-                    }}
+                    onCheckedChange={handleWhatsAppToggle}
+                    disabled={evolutionStarting}
                   />
                 </div>
               </div>
@@ -301,33 +360,59 @@ export default function ChannelSetup() {
             {/* WhatsApp Instance Configuration Form */}
             {whatsappEnabled && whatsappExpanded && (
               <div className="px-4 pb-4 space-y-4 border-t border-green-200">
-                {/* Instructions */}
-                <div className="mt-4 p-3 bg-green-100 rounded-lg">
-                  <p className="text-sm text-green-800 mb-2 font-medium">
-                    Create a WhatsApp instance:
-                  </p>
-                  <ol className="text-sm text-green-700 space-y-1 list-decimal list-inside">
-                    <li>Choose a name for your instance</li>
-                    <li>Scan the QR code with your phone to connect</li>
-                  </ol>
-                </div>
+                {/* Evolution error display */}
+                {evolutionError && (
+                  <div className="mt-4 p-3 bg-red-100 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-red-800 font-medium">Failed to start WhatsApp service</p>
+                      <p className="text-sm text-red-700">{evolutionError}</p>
+                    </div>
+                  </div>
+                )}
 
-                {/* Instance Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="whatsappInstanceName" className="text-gray-700">
-                    Instance Name
-                  </Label>
-                  <Input
-                    id="whatsappInstanceName"
-                    type="text"
-                    value={whatsappInstanceName}
-                    onChange={(e) => setWhatsappInstanceName(e.target.value)}
-                    placeholder="genie"
-                  />
-                  <p className="text-xs text-gray-500">
-                    A unique name for this WhatsApp instance
-                  </p>
-                </div>
+                {/* Starting indicator */}
+                {evolutionStarting && (
+                  <div className="mt-4 p-4 bg-green-100 rounded-lg flex flex-col items-center gap-3">
+                    <Loader2 className="h-8 w-8 text-green-600 animate-spin" />
+                    <div className="text-center">
+                      <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
+                      <p className="text-xs text-green-700 mt-1">This may take up to a minute</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Instructions - only show when Evolution is ready */}
+                {evolutionReady && !evolutionError && (
+                  <div className="mt-4 p-3 bg-green-100 rounded-lg">
+                    <p className="text-sm text-green-800 mb-2 font-medium">
+                      Create a WhatsApp instance:
+                    </p>
+                    <ol className="text-sm text-green-700 space-y-1 list-decimal list-inside">
+                      <li>Choose a name for your instance</li>
+                      <li>Scan the QR code with your phone to connect</li>
+                    </ol>
+                  </div>
+                )}
+
+                {/* Instance Name - only show when Evolution is ready */}
+                {evolutionReady && !evolutionStarting && (
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsappInstanceName" className="text-gray-700">
+                      Instance Name
+                    </Label>
+                    <Input
+                      id="whatsappInstanceName"
+                      type="text"
+                      value={whatsappInstanceName}
+                      onChange={(e) => setWhatsappInstanceName(e.target.value)}
+                      placeholder="genie"
+                    />
+                    <p className="text-xs text-gray-500">
+                      A unique name for this WhatsApp instance
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -383,7 +468,7 @@ export default function ChannelSetup() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || evolutionStarting || (whatsappEnabled && whatsappExpanded && !evolutionReady)}
             className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
           >
             {isSubmitting ? (

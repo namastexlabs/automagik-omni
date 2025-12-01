@@ -332,7 +332,7 @@ export class ProcessManager {
       throw new Error('Evolution port not allocated in registry');
     }
 
-    const evolutionDir = join(ROOT_DIR, 'resources', 'evolution-api');
+    const evolutionDir = join(ROOT_DIR, 'resources', 'omni-whatsapp-core');
 
     if (!existsSync(evolutionDir)) {
       console.warn('[ProcessManager] Evolution API directory not found, skipping...');
