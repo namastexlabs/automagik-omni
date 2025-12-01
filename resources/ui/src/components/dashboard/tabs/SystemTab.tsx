@@ -406,9 +406,9 @@ export function SystemTab() {
           )}
         </ServiceCard>
 
-        {/* Evolution API */}
+        {/* WhatsApp Web API */}
         <ServiceCard
-          title="Evolution API"
+          title="WhatsApp Web API"
           icon={<Smartphone className="h-4 w-4" />}
           status={health?.services?.evolution?.status}
           latency={health?.services?.evolution?.latency}

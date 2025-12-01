@@ -214,7 +214,7 @@ export default function ChannelSetup() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">WhatsApp Web</h3>
-                  <p className="text-sm text-gray-600">via Evolution API</p>
+                  <p className="text-sm text-gray-600">via WhatsApp Web API</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">

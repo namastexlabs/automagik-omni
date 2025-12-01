@@ -1033,18 +1033,12 @@ async function evolutionRequest<T>(
 
   const url = `${EVOLUTION_BASE_URL}${endpoint}`;
 
-  // Always use bootstrap key (global authentication)
-  const evolutionApiKey = import.meta.env.VITE_EVOLUTION_API_KEY || '';
-
-  if (!evolutionApiKey) {
-    throw new Error('VITE_EVOLUTION_API_KEY not configured');
-  }
-
+  // Use unified API key (same key for Omni and Evolution)
   const response = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'apikey': evolutionApiKey,
+      'apikey': apiKey,
       ...options.headers,
     },
   });

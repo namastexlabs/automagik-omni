@@ -281,16 +281,16 @@ export function StatusFooter() {
             }
           />
 
-          {/* Evolution */}
+          {/* WhatsApp Web */}
           <StatusIndicator
             status={services?.evolution?.status}
-            label="Evolution"
+            label="WhatsApp Web"
             latency={services?.evolution?.latency}
             isLoading={isLoading}
             icon={MessageSquare}
             tooltipContent={
               <div className="space-y-1.5 text-xs">
-                <p className="font-semibold text-sm">Evolution API</p>
+                <p className="font-semibold text-sm">WhatsApp Web API</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                   <span className="text-muted-foreground">Status:</span>
                   <span className={services?.evolution?.status === 'up' ? 'text-success' : 'text-destructive'}>

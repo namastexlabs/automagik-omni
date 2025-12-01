@@ -84,11 +84,11 @@ export default function Settings() {
                   </div>
                   <ArrowRight className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <CardDescription>Manage system-wide configuration and Evolution API settings</CardDescription>
+                <CardDescription>Manage system-wide configuration and WhatsApp Web settings</CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Configure Evolution API credentials, system limits, and other global settings that apply across all instances.
+                  Configure WhatsApp Web credentials, system limits, and other global settings that apply across all instances.
                 </p>
                 <Button className="mt-4" onClick={(e) => { e.stopPropagation(); navigate('/global-settings'); }}>
                   Open Global Settings

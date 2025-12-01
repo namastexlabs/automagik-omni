@@ -493,28 +493,28 @@ async def _check_whatsapp_status(db: Session) -> ChannelStatus:
                         enabled=True,
                         configured=True,
                         status="ready",
-                        message="Evolution API connected"
+                        message="WhatsApp Web API connected"
                     )
                 elif response.status_code == 401:
                     return ChannelStatus(
                         enabled=True,
                         configured=False,
                         status="needs_config",
-                        message="API key mismatch - configure Evolution with unified key"
+                        message="API key mismatch - configure WhatsApp Web with unified key"
                     )
                 else:
                     return ChannelStatus(
                         enabled=True,
                         configured=False,
                         status="error",
-                        message=f"Evolution API returned {response.status_code}"
+                        message=f"WhatsApp Web API returned {response.status_code}"
                     )
             except httpx.ConnectError:
                 return ChannelStatus(
                     enabled=True,
                     configured=False,
                     status="unavailable",
-                    message="Evolution API not reachable - is it running?"
+                    message="WhatsApp Web API not reachable - is it running?"
                 )
 
     except Exception as e:
