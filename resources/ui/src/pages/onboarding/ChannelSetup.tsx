@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import OnboardingLayout from '@/components/OnboardingLayout';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { api } from '@/lib/api';
@@ -18,6 +25,8 @@ import {
   WifiOff,
   ChevronDown,
   ChevronUp,
+  QrCode,
+  Smartphone,
 } from 'lucide-react';
 
 interface ChannelStatus {
@@ -42,6 +51,16 @@ export default function ChannelSetup() {
 
   // Form state
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+  const [whatsappExpanded, setWhatsappExpanded] = useState(false);
+  const [whatsappInstanceName, setWhatsappInstanceName] = useState('genie');
+  const [whatsappAgentUrl, setWhatsappAgentUrl] = useState('');
+  const [whatsappAgentKey, setWhatsappAgentKey] = useState('');
+
+  // QR Code modal state
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [qrInstanceName, setQrInstanceName] = useState<string | null>(null);
+
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [discordExpanded, setDiscordExpanded] = useState(false);
   const [discordInstanceName, setDiscordInstanceName] = useState('');
@@ -108,39 +127,65 @@ export default function ChannelSetup() {
     setError(null);
 
     try {
-      // Validate Discord config if enabled
-      if (discordEnabled) {
-        if (!discordInstanceName.trim()) {
-          throw new Error('Please enter a Discord instance name');
+      // Validate WhatsApp config if enabled and expanded (wants to create instance)
+      if (whatsappEnabled && whatsappExpanded) {
+        if (!whatsappInstanceName.trim()) {
+          throw new Error('Please enter a WhatsApp instance name');
         }
-        if (!discordBotToken.trim()) {
-          throw new Error('Please enter your Discord bot token');
+        if (!whatsappAgentUrl.trim()) {
+          throw new Error('Please enter your Agent API URL');
         }
-        if (!discordClientId.trim()) {
-          throw new Error('Please enter your Discord client ID');
+        if (!whatsappAgentKey.trim()) {
+          throw new Error('Please enter your Agent API Key');
         }
       }
 
       // Configure channels
-      await api.setup.configureChannels({
+      const result = await api.setup.configureChannels({
         whatsapp_enabled: whatsappEnabled,
         discord_enabled: discordEnabled,
-        discord_instance_name: discordEnabled ? discordInstanceName : undefined,
-        discord_bot_token: discordEnabled ? discordBotToken : undefined,
-        discord_client_id: discordEnabled ? discordClientId : undefined,
+        // WhatsApp instance params (only if expanded)
+        whatsapp_instance_name: whatsappExpanded ? whatsappInstanceName : undefined,
+        whatsapp_agent_api_url: whatsappExpanded ? whatsappAgentUrl : undefined,
+        whatsapp_agent_api_key: whatsappExpanded ? whatsappAgentKey : undefined,
+        // Discord params (simplified - just enable flag)
+        discord_instance_name: undefined,
+        discord_bot_token: undefined,
+        discord_client_id: undefined,
       });
 
-      // Mark setup complete
+      // If we got a QR code, show the modal
+      if (result.whatsapp_qr_code) {
+        setQrCodeData(result.whatsapp_qr_code);
+        setQrInstanceName(result.whatsapp_instance_name || whatsappInstanceName);
+        setShowQrModal(true);
+        // Don't navigate yet - wait for modal close
+        return;
+      }
+
+      // Mark setup complete and navigate
       await api.setup.complete();
       await completeSetup();
-
-      // Navigate to dashboard
       navigate('/dashboard');
     } catch (err) {
       console.error('Channel configuration failed:', err);
       setError(err instanceof Error ? err.message : 'Configuration failed');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle QR modal close - complete setup and navigate
+  const handleQrModalClose = async () => {
+    setShowQrModal(false);
+    try {
+      await api.setup.complete();
+      await completeSetup();
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Failed to complete setup:', err);
+      // Navigate anyway - the important part (instance creation) is done
+      navigate('/dashboard');
     }
   };
 
@@ -202,52 +247,146 @@ export default function ChannelSetup() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* WhatsApp Channel */}
-          <div className={`p-4 rounded-lg border-2 transition-colors ${
+          <div className={`rounded-lg border-2 transition-colors ${
             whatsappEnabled ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'
           }`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                  whatsappEnabled ? 'bg-green-500' : 'bg-gray-400'
-                }`}>
-                  <MessageCircle className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">WhatsApp Web</h3>
-                  <p className="text-sm text-gray-600">via WhatsApp Web API</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {whatsappStatus && (
-                  <div className="flex items-center gap-1 text-sm">
-                    {whatsappStatus.status === 'ready' ? (
-                      <>
-                        <Wifi className="h-4 w-4 text-green-500" />
-                        <span className="text-green-600">Connected</span>
-                      </>
-                    ) : whatsappStatus.status === 'unavailable' ? (
-                      <>
-                        <WifiOff className="h-4 w-4 text-amber-500" />
-                        <span className="text-amber-600">Not running</span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-500">{whatsappStatus.message}</span>
-                      </>
-                    )}
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                    whatsappEnabled ? 'bg-green-500' : 'bg-gray-400'
+                  }`}>
+                    <MessageCircle className="h-5 w-5 text-white" />
                   </div>
-                )}
-                <Switch
-                  checked={whatsappEnabled}
-                  onCheckedChange={setWhatsappEnabled}
-                />
+                  <div>
+                    <h3 className="font-semibold text-gray-900">WhatsApp Web</h3>
+                    <p className="text-sm text-gray-600">via WhatsApp Web API</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {whatsappStatus && (
+                    <div className="flex items-center gap-1 text-sm">
+                      {whatsappStatus.status === 'ready' ? (
+                        <>
+                          <Wifi className="h-4 w-4 text-green-500" />
+                          <span className="text-green-600">Connected</span>
+                        </>
+                      ) : whatsappStatus.status === 'unavailable' ? (
+                        <>
+                          <WifiOff className="h-4 w-4 text-amber-500" />
+                          <span className="text-amber-600">Not running</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-4 w-4 text-gray-400" />
+                          <span className="text-gray-500">{whatsappStatus.message}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <Switch
+                    checked={whatsappEnabled}
+                    onCheckedChange={(checked) => {
+                      setWhatsappEnabled(checked);
+                      if (checked) setWhatsappExpanded(true);
+                    }}
+                  />
+                </div>
               </div>
+
+              {whatsappEnabled && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 w-full justify-between text-gray-600"
+                  onClick={() => setWhatsappExpanded(!whatsappExpanded)}
+                >
+                  <span>{whatsappExpanded ? 'Hide' : 'Configure'} instance now</span>
+                  {whatsappExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
             </div>
-            {whatsappEnabled && (
-              <div className="mt-3 pt-3 border-t border-green-200">
+
+            {/* WhatsApp Instance Configuration Form */}
+            {whatsappEnabled && whatsappExpanded && (
+              <div className="px-4 pb-4 space-y-4 border-t border-green-200">
+                {/* Instructions */}
+                <div className="mt-4 p-3 bg-green-100 rounded-lg">
+                  <p className="text-sm text-green-800 mb-2 font-medium">
+                    Create a WhatsApp instance now:
+                  </p>
+                  <ol className="text-sm text-green-700 space-y-1 list-decimal list-inside">
+                    <li>Choose a name for your instance</li>
+                    <li>Enter your AI agent's API URL and key</li>
+                    <li>Scan the QR code with your phone to connect</li>
+                  </ol>
+                </div>
+
+                {/* Instance Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="whatsappInstanceName" className="text-gray-700">
+                    Instance Name
+                  </Label>
+                  <Input
+                    id="whatsappInstanceName"
+                    type="text"
+                    value={whatsappInstanceName}
+                    onChange={(e) => setWhatsappInstanceName(e.target.value)}
+                    placeholder="genie"
+                    className="bg-white"
+                  />
+                  <p className="text-xs text-gray-500">
+                    A unique name for this WhatsApp instance
+                  </p>
+                </div>
+
+                {/* Agent API URL */}
+                <div className="space-y-2">
+                  <Label htmlFor="whatsappAgentUrl" className="text-gray-700">
+                    Agent API URL
+                  </Label>
+                  <Input
+                    id="whatsappAgentUrl"
+                    type="text"
+                    value={whatsappAgentUrl}
+                    onChange={(e) => setWhatsappAgentUrl(e.target.value)}
+                    placeholder="http://localhost:8000"
+                    className="bg-white"
+                  />
+                  <p className="text-xs text-gray-500">
+                    URL of your AI agent API (e.g., Automagik, OpenAI)
+                  </p>
+                </div>
+
+                {/* Agent API Key */}
+                <div className="space-y-2">
+                  <Label htmlFor="whatsappAgentKey" className="text-gray-700">
+                    Agent API Key
+                  </Label>
+                  <Input
+                    id="whatsappAgentKey"
+                    type="password"
+                    value={whatsappAgentKey}
+                    onChange={(e) => setWhatsappAgentKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="bg-white font-mono"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Your agent API key (keep this private!)
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {whatsappEnabled && !whatsappExpanded && (
+              <div className="px-4 pb-4 pt-2 border-t border-green-200">
                 <p className="text-sm text-green-700">
-                  WhatsApp uses your unified API key for authentication. Connect your phone in the Instances section after setup.
+                  You can create instances later in the dashboard.
                 </p>
               </div>
             )}
@@ -279,150 +418,18 @@ export default function ChannelSetup() {
                   )}
                   <Switch
                     checked={discordEnabled}
-                    onCheckedChange={(checked) => {
-                      setDiscordEnabled(checked);
-                      if (checked) setDiscordExpanded(true);
-                    }}
+                    onCheckedChange={setDiscordEnabled}
                   />
                 </div>
               </div>
-
               {discordEnabled && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 w-full justify-between text-gray-600"
-                  onClick={() => setDiscordExpanded(!discordExpanded)}
-                >
-                  <span>{discordExpanded ? 'Hide' : 'Show'} configuration</span>
-                  {discordExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
+                <div className="mt-3 pt-3 border-t border-indigo-200">
+                  <p className="text-sm text-indigo-700">
+                    Discord bot configuration will be available in the Instances section after setup.
+                  </p>
+                </div>
               )}
             </div>
-
-            {/* Discord Configuration Form */}
-            {discordEnabled && discordExpanded && (
-              <div className="px-4 pb-4 space-y-4 border-t border-indigo-200">
-                {/* Instructions */}
-                <div className="mt-4 p-3 bg-indigo-100 rounded-lg">
-                  <p className="text-sm text-indigo-800 mb-2 font-medium">
-                    To set up a Discord bot:
-                  </p>
-                  <ol className="text-sm text-indigo-700 space-y-1 list-decimal list-inside">
-                    <li>Go to Discord Developer Portal</li>
-                    <li>Create a New Application</li>
-                    <li>Go to "Bot" section and create a bot</li>
-                    <li>Copy the bot token</li>
-                    <li>Enable required intents (Message Content, etc.)</li>
-                  </ol>
-                  <a
-                    href="https://discord.com/developers/applications"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-600 hover:text-indigo-800"
-                  >
-                    Open Discord Developer Portal
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-
-                {/* Instance Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="discordInstanceName" className="text-gray-700">
-                    Instance Name
-                  </Label>
-                  <Input
-                    id="discordInstanceName"
-                    type="text"
-                    value={discordInstanceName}
-                    onChange={(e) => setDiscordInstanceName(e.target.value)}
-                    placeholder="my-discord-bot"
-                    className="bg-white"
-                  />
-                  <p className="text-xs text-gray-500">
-                    A unique name for this Discord instance
-                  </p>
-                </div>
-
-                {/* Client ID */}
-                <div className="space-y-2">
-                  <Label htmlFor="discordClientId" className="text-gray-700">
-                    Application Client ID
-                  </Label>
-                  <Input
-                    id="discordClientId"
-                    type="text"
-                    value={discordClientId}
-                    onChange={(e) => setDiscordClientId(e.target.value)}
-                    placeholder="123456789012345678"
-                    className="bg-white"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Found in your application's "General Information"
-                  </p>
-                </div>
-
-                {/* Bot Token */}
-                <div className="space-y-2">
-                  <Label htmlFor="discordBotToken" className="text-gray-700">
-                    Bot Token
-                  </Label>
-                  <Input
-                    id="discordBotToken"
-                    type="password"
-                    value={discordBotToken}
-                    onChange={(e) => setDiscordBotToken(e.target.value)}
-                    placeholder="MTIzNDU2Nzg5MDEy..."
-                    className="bg-white font-mono"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Your bot's secret token (keep this private!)
-                  </p>
-                </div>
-
-                {/* Validate Button */}
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleValidateDiscord}
-                    disabled={isValidatingDiscord || !discordBotToken || !discordClientId}
-                  >
-                    {isValidatingDiscord ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Validating...
-                      </>
-                    ) : (
-                      'Test Connection'
-                    )}
-                  </Button>
-
-                  {discordValidation && (
-                    <div className={`flex items-center gap-2 text-sm ${
-                      discordValidation.valid ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {discordValidation.valid ? (
-                        <>
-                          <CheckCircle2 className="h-4 w-4" />
-                          <span>Bot: {discordValidation.bot_name}</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="h-4 w-4" />
-                          <span>{discordValidation.message}</span>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Submit Button */}
@@ -460,6 +467,48 @@ export default function ChannelSetup() {
           </p>
         </div>
       </div>
+
+      {/* QR Code Modal */}
+      <Dialog open={showQrModal} onOpenChange={(open) => !open && handleQrModalClose()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5 text-green-600" />
+              Connect WhatsApp
+            </DialogTitle>
+            <DialogDescription>
+              Scan this QR code with your phone to connect {qrInstanceName || 'your instance'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center py-6">
+            {qrCodeData ? (
+              <>
+                <div className="bg-white p-4 rounded-lg shadow-inner border">
+                  <img
+                    src={qrCodeData.startsWith('data:') ? qrCodeData : `data:image/png;base64,${qrCodeData}`}
+                    alt="WhatsApp QR Code"
+                    className="w-64 h-64"
+                  />
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
+                  <Smartphone className="h-4 w-4" />
+                  <span>Open WhatsApp on your phone and scan the code</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+                <p className="text-gray-600">Loading QR code...</p>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-center">
+            <Button onClick={handleQrModalClose} className="w-full">
+              Continue to Dashboard
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </OnboardingLayout>
   );
 }

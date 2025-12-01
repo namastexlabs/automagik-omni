@@ -950,6 +950,11 @@ export const api = {
     async configureChannels(config: {
       whatsapp_enabled: boolean;
       discord_enabled: boolean;
+      // WhatsApp instance creation params
+      whatsapp_instance_name?: string;
+      whatsapp_agent_api_url?: string;
+      whatsapp_agent_api_key?: string;
+      // Discord params (legacy - just for backward compatibility)
       discord_instance_name?: string;
       discord_bot_token?: string;
       discord_client_id?: string;
@@ -958,6 +963,9 @@ export const api = {
       message: string;
       whatsapp_status: string;
       discord_status: string;
+      // WhatsApp instance creation results
+      whatsapp_qr_code?: string;
+      whatsapp_instance_name?: string;
     }> {
       const response = await fetch(`${API_BASE_URL}/setup/channels/configure`, {
         method: 'POST',

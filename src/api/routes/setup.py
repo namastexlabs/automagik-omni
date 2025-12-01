@@ -400,6 +400,13 @@ class ChannelConfigRequest(BaseModel):
     """Request schema for channel configuration during setup."""
     whatsapp_enabled: bool = Field(default=True, description="Enable WhatsApp channel")
     discord_enabled: bool = Field(default=False, description="Enable Discord channel")
+
+    # WhatsApp instance creation params
+    whatsapp_instance_name: Optional[str] = Field(None, description="WhatsApp instance name")
+    whatsapp_agent_api_url: Optional[str] = Field(None, description="Agent API URL for WhatsApp instance")
+    whatsapp_agent_api_key: Optional[str] = Field(None, description="Agent API key for WhatsApp instance")
+
+    # Discord configuration
     discord_instance_name: Optional[str] = Field(None, description="Discord instance name")
     discord_bot_token: Optional[str] = Field(None, description="Discord bot token")
     discord_client_id: Optional[str] = Field(None, description="Discord application client ID")
@@ -411,6 +418,9 @@ class ChannelConfigResponse(BaseModel):
     message: str
     whatsapp_status: str
     discord_status: str
+    # WhatsApp instance creation results
+    whatsapp_qr_code: Optional[str] = Field(None, description="Base64 QR code if WhatsApp instance was created")
+    whatsapp_instance_name: Optional[str] = Field(None, description="Name of created WhatsApp instance")
 
 
 class DiscordValidationRequest(BaseModel):
@@ -604,6 +614,10 @@ async def configure_channels(
                     created_by="setup_wizard"
                 )
 
+        # Response fields for WhatsApp instance
+        whatsapp_qr_code = None
+        whatsapp_instance_created = None
+
         # Configure WhatsApp
         if config.whatsapp_enabled:
             _set_or_update(
@@ -615,6 +629,81 @@ async def configure_channels(
             )
             whatsapp_status = "enabled"
             logger.info("WhatsApp channel enabled")
+
+            # Create WhatsApp instance if params provided
+            if config.whatsapp_instance_name and config.whatsapp_agent_api_url and config.whatsapp_agent_api_key:
+                instance_name = normalize_instance_name(config.whatsapp_instance_name)
+
+                # Check if instance already exists
+                existing_instance = db.query(InstanceConfig).filter(
+                    InstanceConfig.name == instance_name
+                ).first()
+
+                if existing_instance:
+                    # Update existing instance
+                    existing_instance.agent_api_url = config.whatsapp_agent_api_url
+                    existing_instance.agent_api_key = config.whatsapp_agent_api_key
+                    db.commit()
+                    db.refresh(existing_instance)
+                    whatsapp_status = f"updated:{instance_name}"
+                    whatsapp_instance_created = instance_name
+                    logger.info(f"Updated WhatsApp instance: {instance_name}")
+                else:
+                    # Get Evolution API URL and unified key
+                    evolution_url = settings_service.get_setting_value(
+                        "evolution_api_url", db, default="http://localhost:18082"
+                    )
+                    api_key = settings_service.get_setting_value("omni_api_key", db, default=None)
+
+                    # Create new WhatsApp instance
+                    new_instance = InstanceConfig(
+                        name=instance_name,
+                        channel_type="whatsapp",
+                        evolution_url=evolution_url,
+                        evolution_key=api_key,
+                        whatsapp_instance=instance_name,
+                        session_id_prefix=f"{instance_name}-",
+                        agent_api_url=config.whatsapp_agent_api_url,
+                        agent_api_key=config.whatsapp_agent_api_key,
+                        default_agent="default-agent",
+                        is_active=False,  # Will be activated after QR scan
+                        is_default=True,  # First instance is default
+                    )
+                    db.add(new_instance)
+                    db.commit()
+                    db.refresh(new_instance)
+
+                    # Create instance in Evolution API and get QR code
+                    try:
+                        from src.channels.base import ChannelHandlerFactory
+
+                        handler = ChannelHandlerFactory.get_handler("whatsapp")
+
+                        # Create instance in Evolution API
+                        await handler.create_instance(
+                            new_instance,
+                            phone_number=None,
+                            auto_qr=True,
+                            integration="WHATSAPP-BAILEYS",
+                        )
+
+                        # Get QR code
+                        qr_response = await handler.get_qr_code(new_instance)
+                        if qr_response and qr_response.base64:
+                            whatsapp_qr_code = qr_response.base64
+                            logger.info(f"Got QR code for instance: {instance_name}")
+
+                        whatsapp_status = f"created:{instance_name}"
+                        whatsapp_instance_created = instance_name
+                        logger.info(f"Created WhatsApp instance: {instance_name}")
+
+                    except Exception as e:
+                        # Instance created in DB but Evolution API failed
+                        # Keep instance for retry later
+                        logger.warning(f"Failed to create Evolution instance: {e}")
+                        whatsapp_status = f"created:{instance_name}:pending_connection"
+                        whatsapp_instance_created = instance_name
+
         else:
             _set_or_update(
                 key="channel_whatsapp_enabled",
@@ -627,31 +716,8 @@ async def configure_channels(
 
         # Configure Discord
         if config.discord_enabled:
-            # Validate Discord credentials
-            if not config.discord_bot_token:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="discord_bot_token is required when discord_enabled is true"
-                )
-            if not config.discord_client_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="discord_client_id is required when discord_enabled is true"
-                )
-            if not config.discord_instance_name:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="discord_instance_name is required when discord_enabled is true"
-                )
-
-            # Normalize instance name
-            instance_name = normalize_instance_name(config.discord_instance_name)
-
-            # Validate Discord token format (basic check)
-            if not config.discord_bot_token.startswith(("MT", "Nj", "OD", "Mz", "NT", "OT")):
-                logger.warning("Discord bot token doesn't match expected format, but proceeding")
-
-            # Enable Discord channel
+            # Just enable the channel flag - instance creation happens in Instances section
+            # This avoids creating instances with fake/default credentials
             _set_or_update(
                 key="channel_discord_enabled",
                 value="true",
@@ -659,36 +725,8 @@ async def configure_channels(
                 category="channels",
                 description="Discord channel enabled"
             )
-
-            # Check if instance already exists
-            existing_instance = db.query(InstanceConfig).filter(
-                InstanceConfig.name == instance_name
-            ).first()
-
-            if existing_instance:
-                # Update existing instance
-                existing_instance.discord_bot_token = config.discord_bot_token
-                existing_instance.discord_client_id = config.discord_client_id
-                db.commit()
-                discord_status = f"updated:{instance_name}"
-                logger.info(f"Updated Discord instance: {instance_name}")
-            else:
-                # Create new Discord instance
-                new_instance = InstanceConfig(
-                    name=instance_name,
-                    channel_type="discord",
-                    discord_bot_token=config.discord_bot_token,
-                    discord_client_id=config.discord_client_id,
-                    default_agent="default-agent",
-                    agent_api_url="http://localhost:8000",
-                    agent_api_key="default-key",
-                    is_active=False,  # Will be activated when bot connects
-                    is_default=False,
-                )
-                db.add(new_instance)
-                db.commit()
-                discord_status = f"created:{instance_name}"
-                logger.info(f"Created Discord instance: {instance_name}")
+            discord_status = "enabled"
+            logger.info("Discord channel enabled (instance creation available in Instances section)")
 
         else:
             _set_or_update(
@@ -704,7 +742,9 @@ async def configure_channels(
             success=True,
             message="Channel configuration saved",
             whatsapp_status=whatsapp_status,
-            discord_status=discord_status
+            discord_status=discord_status,
+            whatsapp_qr_code=whatsapp_qr_code,
+            whatsapp_instance_name=whatsapp_instance_created
         )
 
     except HTTPException:
