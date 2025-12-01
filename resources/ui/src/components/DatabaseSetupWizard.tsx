@@ -32,7 +32,6 @@ import {
   ArrowRight,
   ArrowLeft,
   RefreshCw,
-  Zap,
   HardDrive,
   ChevronDown,
   ChevronRight,
@@ -52,18 +51,18 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   const [step, setStep] = useState<WizardStep>('select');
   const [dbType, setDbType] = useState<'sqlite' | 'postgresql'>('sqlite');
 
-  // PostgreSQL connection fields (individual)
-  const [pgHost, setPgHost] = useState('localhost');
-  const [pgPort, setPgPort] = useState('5432');
-  const [pgUsername, setPgUsername] = useState('postgres');
+  // PostgreSQL connection fields (individual) - empty by default, placeholders guide user
+  const [pgHost, setPgHost] = useState('');
+  const [pgPort, setPgPort] = useState('');
+  const [pgUsername, setPgUsername] = useState('');
   const [pgPassword, setPgPassword] = useState('');
-  const [pgDatabase, setPgDatabase] = useState('evolution');
+  const [pgDatabase, setPgDatabase] = useState('');
   const [testResult, setTestResult] = useState<DatabaseTestResponse | null>(null);
 
-  // Redis connection fields (individual)
+  // Redis connection fields (individual) - empty by default, placeholders guide user
   const [redisEnabled, setRedisEnabled] = useState(false);
-  const [redisHost, setRedisHost] = useState('localhost');
-  const [redisPort, setRedisPort] = useState('6379');
+  const [redisHost, setRedisHost] = useState('');
+  const [redisPort, setRedisPort] = useState('');
   const [redisPassword, setRedisPassword] = useState('');
   const [redisDbNumber, setRedisDbNumber] = useState('0');
   const [redisTls, setRedisTls] = useState(false);
@@ -72,9 +71,6 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   const [redisSaveInstances, setRedisSaveInstances] = useState(true);
   const [redisTestResult, setRedisTestResult] = useState<RedisTestResponse | null>(null);
   const [showAdvancedRedis, setShowAdvancedRedis] = useState(false);
-
-  // Track auto-detection status
-  const [autoDetected, setAutoDetected] = useState(false);
 
   // Password visibility toggles
   const [showPgPassword, setShowPgPassword] = useState(false);
@@ -97,35 +93,6 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   const { data: currentConfig, isLoading: configLoading } = useQuery({
     queryKey: ['database-config'],
     queryFn: () => api.database.getConfig(),
-  });
-
-  // Detect Evolution database
-  const detectMutation = useMutation({
-    mutationFn: () => isFirstRun ? api.setup.detectEvolution() : api.database.detectEvolution(),
-    onSuccess: (data) => {
-      if (data.found) {
-        // Auto-populate PostgreSQL fields (password excluded for security)
-        if (data.postgresql) {
-          setPgHost(data.postgresql.host);
-          setPgPort(data.postgresql.port);
-          setPgUsername(data.postgresql.username);
-          setPgDatabase(data.postgresql.database);
-          // Password must be entered manually for security
-        }
-
-        // Auto-populate Redis fields (password excluded for security)
-        if (data.redis) {
-          setRedisEnabled(true);
-          setRedisHost(data.redis.host);
-          setRedisPort(data.redis.port);
-          setRedisDbNumber(data.redis.dbNumber);
-          setRedisTls(data.redis.tls);
-          // Password must be entered manually for security
-        }
-
-        setAutoDetected(true);
-      }
-    },
   });
 
   // Test connection
@@ -247,10 +214,6 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
     }
   };
 
-  const handleDetectEvolution = () => {
-    detectMutation.mutate();
-  };
-
   const canProceedToConfigure = dbType === 'sqlite' || (dbType === 'postgresql');
   const canProceedToConfirm =
     (dbType === 'sqlite' || testResult?.success === true) &&
@@ -366,25 +329,12 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
             ) : (
               <>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div>
                     <Label className="text-base font-semibold">PostgreSQL Connection</Label>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleDetectEvolution}
-                      disabled={detectMutation.isPending}
-                    >
-                      {detectMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      ) : (
-                        <Zap className="h-4 w-4 mr-1" />
-                      )}
-                      Detect WhatsApp Web
-                    </Button>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Enter your PostgreSQL connection details. The database will be created if it doesn't exist.
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Enter the same PostgreSQL connection details used by WhatsApp Web API to share the database.
-                  </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -514,44 +464,6 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                     )}
                   </div>
                 </div>
-
-                {detectMutation.data && (
-                  <Alert variant={detectMutation.data.found ? 'default' : 'destructive'}>
-                    {detectMutation.data.found ? (
-                      <CheckCircle2 className="h-4 w-4" />
-                    ) : (
-                      <AlertTriangle className="h-4 w-4" />
-                    )}
-                    <AlertTitle>
-                      {detectMutation.data.found ? 'WhatsApp Web Configuration Detected' : 'Not Detected'}
-                    </AlertTitle>
-                    <AlertDescription>
-                      {detectMutation.data.message}
-                      {detectMutation.data.found && detectMutation.data.postgresql && (
-                        <div className="mt-2 space-y-1">
-                          <p className="text-sm font-medium">✓ Fields auto-populated (enter password to complete):</p>
-                          <ul className="list-disc list-inside text-xs font-mono ml-2">
-                            <li>Host: {detectMutation.data.postgresql.host}</li>
-                            <li>Port: {detectMutation.data.postgresql.port}</li>
-                            <li>Username: {detectMutation.data.postgresql.username}</li>
-                            <li>Database: {detectMutation.data.postgresql.database}</li>
-                          </ul>
-                        </div>
-                      )}
-                      {detectMutation.data.found && detectMutation.data.redis && (
-                        <div className="mt-2 space-y-1">
-                          <p className="text-sm font-medium">✓ Redis auto-populated:</p>
-                          <ul className="list-disc list-inside text-xs font-mono ml-2">
-                            <li>Host: {detectMutation.data.redis.host}</li>
-                            <li>Port: {detectMutation.data.redis.port}</li>
-                            <li>Database: {detectMutation.data.redis.dbNumber}</li>
-                            <li>TLS: {detectMutation.data.redis.tls ? 'Enabled' : 'Disabled'}</li>
-                          </ul>
-                        </div>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
 
                 <div className="space-y-2">
                   <Button

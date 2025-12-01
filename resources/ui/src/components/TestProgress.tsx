@@ -29,6 +29,7 @@ interface TestProgressProps {
 const TEST_STEPS = {
   postgresql: [
     { key: 'tcp', label: 'TCP Connection', description: 'Checking network connectivity' },
+    { key: 'database', label: 'Database', description: 'Creating database if needed' },
     { key: 'auth', label: 'Authentication', description: 'Verifying credentials' },
     { key: 'permissions', label: 'Permissions', description: 'Testing CREATE TABLE permission' },
     { key: 'write_read', label: 'Read/Write', description: 'Testing data operations' },
@@ -73,9 +74,19 @@ const TROUBLESHOOTING: Record<string, string[]> = {
 
   // Database errors
   'does not exist': [
-    'Create the database first or use an existing one',
+    'The wizard will try to create the database automatically',
     'Verify the database name is spelled correctly',
     'Check that you have access to the database',
+  ],
+  'cannot create database': [
+    'Verify the user has CREATEDB permission',
+    'Ask your database administrator to create the database',
+    'Or grant CREATEDB permission: ALTER USER username CREATEDB;',
+  ],
+  'permission denied': [
+    'The user does not have permission to create databases',
+    'Ask your database administrator to create the database',
+    'Or grant appropriate permissions to the user',
   ],
 
   // Permission errors

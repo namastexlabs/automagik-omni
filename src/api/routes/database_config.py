@@ -312,6 +312,65 @@ def _test_write_read(url: str) -> TestResult:
         return TestResult(ok=False, message=f"Read/write test error: {str(e)[:100]}")
 
 
+def _ensure_database_exists(url: str) -> TestResult:
+    """Create the database if it doesn't exist.
+
+    Connects to the 'postgres' admin database to check/create the target database.
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    start = time.time()
+    try:
+        parsed = urlparse(url)
+        db_name = parsed.path.lstrip("/")
+
+        if not db_name:
+            return TestResult(ok=False, message="No database name specified in URL")
+
+        # Build admin URL pointing to 'postgres' database
+        admin_parsed = parsed._replace(path="/postgres")
+        admin_url = urlunparse(admin_parsed)
+
+        # Connect to postgres admin database
+        engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+
+        with engine.connect() as conn:
+            # Check if database exists
+            result = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :db_name"),
+                {"db_name": db_name}
+            )
+            exists = result.fetchone() is not None
+
+            if not exists:
+                # Create the database
+                # Use raw SQL since we need AUTOCOMMIT for CREATE DATABASE
+                conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+                latency = (time.time() - start) * 1000
+                logger.info(f"Created database '{db_name}'")
+                return TestResult(ok=True, message=f"Created database '{db_name}'", latency_ms=latency)
+            else:
+                latency = (time.time() - start) * 1000
+                return TestResult(ok=True, message=f"Database '{db_name}' exists", latency_ms=latency)
+
+        engine.dispose()
+
+    except OperationalError as e:
+        error_str = str(e)
+        if "authentication failed" in error_str.lower() or "password" in error_str.lower():
+            return TestResult(ok=False, message="Authentication failed - cannot create database")
+        elif "permission denied" in error_str.lower():
+            return TestResult(ok=False, message="Permission denied - user cannot create databases")
+        else:
+            return TestResult(ok=False, message=f"Database creation error: {error_str[:100]}")
+    except ProgrammingError as e:
+        if "permission denied" in str(e).lower():
+            return TestResult(ok=False, message="Permission denied - user cannot create databases")
+        return TestResult(ok=False, message=f"Database creation error: {str(e)[:100]}")
+    except Exception as e:
+        return TestResult(ok=False, message=f"Database creation error: {str(e)[:100]}")
+
+
 # Redis Helper Functions
 
 
@@ -482,9 +541,10 @@ async def test_database_connection(
 
     Tests performed in order:
     1. TCP connectivity check
-    2. Authentication test
-    3. Permission test (CREATE TABLE)
-    4. Write/read test
+    2. Database creation (if doesn't exist)
+    3. Authentication test
+    4. Permission test (CREATE TABLE)
+    5. Write/read test
 
     If any test fails, subsequent tests are skipped.
     """
@@ -509,7 +569,18 @@ async def test_database_connection(
             total_latency_ms=(time.time() - start_time) * 1000,
         )
 
-    # Test 2: Authentication
+    # Step 2: Ensure database exists (create if needed)
+    db_create_result = _ensure_database_exists(request.url)
+    tests["database"] = db_create_result
+
+    if not db_create_result.ok:
+        return DatabaseTestResponse(
+            success=False,
+            tests=tests,
+            total_latency_ms=(time.time() - start_time) * 1000,
+        )
+
+    # Test 3: Authentication
     auth_result = _test_auth(request.url)
     tests["auth"] = auth_result
 
@@ -520,7 +591,7 @@ async def test_database_connection(
             total_latency_ms=(time.time() - start_time) * 1000,
         )
 
-    # Test 3: Permissions
+    # Test 4: Permissions
     perm_result = _test_permissions(request.url)
     tests["permissions"] = perm_result
 
@@ -531,7 +602,7 @@ async def test_database_connection(
             total_latency_ms=(time.time() - start_time) * 1000,
         )
 
-    # Test 4: Write/Read
+    # Test 5: Write/Read
     rw_result = _test_write_read(request.url)
     tests["write_read"] = rw_result
 
