@@ -154,7 +154,17 @@ export default function ChannelSetup() {
         return;
       }
 
-      // Mark setup complete and navigate
+      // If WhatsApp was enabled but no QR code returned, that's an error
+      // The instance was created but Evolution failed to generate QR
+      if (whatsappEnabled && result.whatsapp_instance_name && !result.whatsapp_qr_code) {
+        // Check if status indicates pending connection (Evolution not ready)
+        if (result.whatsapp_status?.includes('pending_connection')) {
+          throw new Error('WhatsApp service is not ready. Please wait a moment and try again.');
+        }
+        throw new Error('Failed to get QR code. WhatsApp service may not be running.');
+      }
+
+      // Mark setup complete and navigate (only if WhatsApp was disabled or skipped)
       await api.setup.complete();
       await completeSetup();
       navigate('/dashboard');
