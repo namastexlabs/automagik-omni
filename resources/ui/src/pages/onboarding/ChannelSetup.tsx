@@ -99,33 +99,13 @@ export default function ChannelSetup() {
     }
   }, [evolutionLogs, evolutionStarting]);
 
-  // Handle WhatsApp toggle - starts Evolution when enabled
-  const handleWhatsAppToggle = async (enabled: boolean) => {
+  // Handle WhatsApp toggle - just track state, don't start Evolution yet
+  // Evolution will start on "Complete Setup" AFTER database config is saved
+  const handleWhatsAppToggle = (enabled: boolean) => {
     setWhatsappEnabled(enabled);
     setEvolutionError(null);
-
-    // If enabling and Evolution is not ready, start it
-    if (enabled && !evolutionReady) {
-      setEvolutionStarting(true);
-      clearLogs();
-      connectLogs();
-
-      try {
-        await api.gateway.startChannel('evolution');
-        const ready = await api.gateway.waitForChannel('evolution', 60000);
-        if (ready) {
-          setEvolutionReady(true);
-        } else {
-          setEvolutionError('WhatsApp service started but is not responding. Please try again.');
-        }
-      } catch (err) {
-        console.error('Failed to start Evolution:', err);
-        setEvolutionError(err instanceof Error ? err.message : 'Failed to start WhatsApp service');
-      } finally {
-        setEvolutionStarting(false);
-        disconnectLogs();
-      }
-    }
+    // Don't start Evolution here - DB config may not exist yet
+    // Evolution will be started in handleSubmit when user clicks "Complete Setup"
   };
 
   // Handle form submission

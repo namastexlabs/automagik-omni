@@ -43,15 +43,23 @@ function parseArgs() {
 
 const cliArgs = parseArgs();
 
+// Helper to parse port from env (strips quotes if present)
+const parsePort = (value: string | undefined, defaultValue: string): number => {
+  const raw = value ?? defaultValue;
+  // Strip surrounding quotes if present (common .env parsing issue)
+  const cleaned = raw.replace(/^["']|["']$/g, '');
+  return parseInt(cleaned, 10);
+};
+
 // Configuration
-const GATEWAY_PORT = parseInt(cliArgs.port as string ?? process.env.OMNI_PORT ?? process.env.AUTOMAGIK_OMNI_API_PORT ?? '8882', 10);
+const GATEWAY_PORT = parsePort(cliArgs.port as string ?? process.env.OMNI_PORT ?? process.env.AUTOMAGIK_OMNI_API_PORT, '8882');
 const DEV_MODE = process.env.NODE_ENV === 'development' || cliArgs.dev === true;
 const PROXY_ONLY = process.env.PROXY_ONLY === 'true' || cliArgs.proxyOnly === true;
 
 // Legacy env var support for PROXY_ONLY mode (connecting to external services)
-const PROXY_PYTHON_PORT = parseInt(process.env.PYTHON_API_PORT ?? '18881', 10);
-const PROXY_EVOLUTION_PORT = parseInt(process.env.EVOLUTION_PORT ?? '18082', 10);
-const PROXY_VITE_PORT = parseInt(process.env.VITE_PORT ?? '19882', 10);
+const PROXY_PYTHON_PORT = parsePort(process.env.PYTHON_API_PORT, '18881');
+const PROXY_EVOLUTION_PORT = parsePort(process.env.EVOLUTION_PORT, '18082');
+const PROXY_VITE_PORT = parsePort(process.env.VITE_PORT, '19882');
 
 export async function main() {
   // Initialize port registry for dynamic port allocation

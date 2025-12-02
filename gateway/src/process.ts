@@ -346,32 +346,44 @@ export class ProcessManager {
     console.log(`[ProcessManager] Starting Evolution API on port ${port}...`);
 
     // Fetch database config from Python API before spawning
+    // This is REQUIRED for Evolution to work - fail hard if not available
     const pythonPort = this.portRegistry.getPort('python');
     let subprocessEnv: Record<string, string> = {};
 
-    if (pythonPort) {
-      try {
-        const configUrl = `http://127.0.0.1:${pythonPort}/api/v1/_internal/subprocess-config`;
-        const response = await fetch(configUrl, { signal: AbortSignal.timeout(5000) });
+    if (!pythonPort) {
+      throw new Error('Python API not running. Cannot start Evolution without database config.');
+    }
 
-        if (response.ok) {
-          const config = await response.json();
-          console.log('[ProcessManager] Loaded subprocess config from Python API');
+    try {
+      const configUrl = `http://127.0.0.1:${pythonPort}/api/v1/_internal/subprocess-config`;
+      const response = await fetch(configUrl, { signal: AbortSignal.timeout(10000) }); // 10s timeout
 
-          if (config.database_connection_uri) {
-            subprocessEnv.DATABASE_CONNECTION_URI = config.database_connection_uri;
-            subprocessEnv.DATABASE_PROVIDER = config.database_provider || 'postgresql';
-            console.log(`[ProcessManager] Evolution will use ${config.database_provider} database`);
-          }
-          if (config.authentication_api_key) {
-            subprocessEnv.AUTHENTICATION_API_KEY = config.authentication_api_key;
-          }
-        } else {
-          console.warn(`[ProcessManager] Failed to fetch subprocess config: ${response.status}`);
-        }
-      } catch (err) {
-        console.warn('[ProcessManager] Could not fetch subprocess config, Evolution may fail:', err);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch subprocess config: HTTP ${response.status}`);
       }
+
+      const config = await response.json();
+      console.log('[ProcessManager] Loaded subprocess config from Python API');
+
+      // Validate required fields - Evolution CANNOT work without database config
+      if (!config.database_connection_uri) {
+        throw new Error(
+          'Database not configured. Please complete the setup wizard first. ' +
+          'Evolution requires a PostgreSQL database to store WhatsApp sessions.'
+        );
+      }
+
+      subprocessEnv.DATABASE_CONNECTION_URI = config.database_connection_uri;
+      subprocessEnv.DATABASE_PROVIDER = config.database_provider || 'postgresql';
+      console.log(`[ProcessManager] Evolution will use ${config.database_provider} database`);
+
+      if (config.authentication_api_key) {
+        subprocessEnv.AUTHENTICATION_API_KEY = config.authentication_api_key;
+      }
+    } catch (err) {
+      // Re-throw with context - don't silently continue
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Cannot start Evolution: ${message}`);
     }
 
     // Detect package manager (prefer pnpm over npm)
