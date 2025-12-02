@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,7 @@ import {
 import OnboardingLayout from '@/components/OnboardingLayout';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { api } from '@/lib/api';
-import { useLogStream } from '@/hooks/useLogStream';
+import { EvolutionStartupModal } from '@/components/EvolutionStartupModal';
 import {
   Loader2,
   MessageCircle,
@@ -25,6 +26,7 @@ import {
   WifiOff,
   QrCode,
   Smartphone,
+  Terminal,
 } from 'lucide-react';
 
 interface ChannelStatus {
@@ -59,19 +61,8 @@ export default function ChannelSetup() {
 
   const [error, setError] = useState<string | null>(null);
 
-  // Log streaming for Evolution startup
-  const logContainerRef = useRef<HTMLDivElement>(null);
-  const {
-    logs: evolutionLogs,
-    isConnected: logsConnected,
-    connect: connectLogs,
-    disconnect: disconnectLogs,
-    clearLogs,
-  } = useLogStream({
-    services: ['evolution'],
-    maxLogs: 50,
-    autoConnect: false, // Manual control during startup
-  });
+  // Evolution startup modal state
+  const [showStartupModal, setShowStartupModal] = useState(false);
 
   // Check if Evolution is already running on mount
   useEffect(() => {
@@ -92,12 +83,10 @@ export default function ChannelSetup() {
     checkEvolution();
   }, []);
 
-  // Auto-scroll log viewer during startup
+  // Auto-open startup modal on error
   useEffect(() => {
-    if (logContainerRef.current && evolutionStarting) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-    }
-  }, [evolutionLogs, evolutionStarting]);
+    if (evolutionError) setShowStartupModal(true);
+  }, [evolutionError]);
 
   // Handle WhatsApp toggle - just track state, don't start Evolution yet
   // Evolution will start on "Complete Setup" AFTER database config is saved
@@ -122,20 +111,70 @@ export default function ChannelSetup() {
 
       // Start Evolution if WhatsApp enabled and not running
       if (whatsappEnabled && !evolutionReady) {
-        setEvolutionStarting(true);
-        clearLogs();
-        connectLogs();
+        // Force synchronous render so modal is visible BEFORE any API errors
+        flushSync(() => {
+          setEvolutionStarting(true);
+          setShowStartupModal(true);
+        });
+
+        // Additional delay for SSE connection to establish
+        await new Promise(r => setTimeout(r, 150));
 
         try {
           await api.gateway.startChannel('evolution');
           const ready = await api.gateway.waitForChannel('evolution', 120000);
           if (!ready) {
-            throw new Error('WhatsApp service failed to start. Please try again.');
+            // Don't throw - route to modal error state so user sees logs
+            setEvolutionError('WhatsApp service failed to start. Check logs above.');
+            setIsSubmitting(false);
+            return; // Modal stays open with logs visible
           }
+
+          // Wait for API to be actually responsive (process running != API ready)
+          let apiReady = false;
+          try {
+            // Get API key for the probe request
+            const { api_key } = await api.setup.getApiKey();
+            
+            // Probe the API for up to 30 seconds
+            for (let i = 0; i < 30; i++) {
+              try {
+                // Use fetch directly to avoid the api wrapper's error handling
+                const res = await fetch('/evolution/instance/fetchInstances', {
+                  headers: { apikey: api_key }
+                });
+                
+                // If we get a valid response (even 404/400), the API is up
+                // 502/503/504 means the proxy target is not reachable yet
+                if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
+                  apiReady = true;
+                  break;
+                }
+              } catch (e) {
+                // ignore connection errors
+              }
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          } catch (e) {
+            console.warn('Failed to check API readiness:', e);
+            // Continue anyway, maybe it will work
+            apiReady = true; 
+          }
+
+          if (!apiReady) {
+             setEvolutionError('WhatsApp service started but API is not responding. Please check logs.');
+             setIsSubmitting(false);
+             return;
+          }
+
           setEvolutionReady(true);
+        } catch (err) {
+          // Route to modal error state, don't throw to main catch
+          setEvolutionError(err instanceof Error ? err.message : 'Failed to start service');
+          setIsSubmitting(false);
+          return; // Modal stays open with logs visible
         } finally {
           setEvolutionStarting(false);
-          disconnectLogs();
         }
       }
 
@@ -159,9 +198,16 @@ export default function ChannelSetup() {
       if (whatsappEnabled && result.whatsapp_instance_name && !result.whatsapp_qr_code) {
         // Check if status indicates pending connection (Evolution not ready)
         if (result.whatsapp_status?.includes('pending_connection')) {
-          throw new Error('WhatsApp service is not ready. Please wait a moment and try again.');
+          setEvolutionError('WhatsApp service is not ready. Please wait a moment and try again.');
+          setShowStartupModal(true);
+          setIsSubmitting(false);
+          return;
         }
-        throw new Error('Failed to get QR code. WhatsApp service may not be running.');
+        
+        setEvolutionError('Failed to get QR code. WhatsApp service may not be running.');
+        setShowStartupModal(true);
+        setIsSubmitting(false);
+        return;
       }
 
       // Mark setup complete and navigate (only if WhatsApp was disabled or skipped)
@@ -239,7 +285,8 @@ export default function ChannelSetup() {
           </p>
         </div>
 
-        {error && (
+        {/* Only show error when modal is NOT open - modal is primary feedback */}
+        {error && !showStartupModal && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
             <p className="text-red-800 text-sm">{error}</p>
@@ -304,39 +351,27 @@ export default function ChannelSetup() {
                   </div>
                 )}
 
-                {/* Starting indicator with logs */}
+                {/* Starting indicator with View Logs button */}
                 {evolutionStarting && (
                   <div className="mt-4 p-4 bg-green-100 rounded-lg">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Loader2 className="h-6 w-6 text-green-600 animate-spin" />
-                      <div>
-                        <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
-                        <p className="text-xs text-green-700">This may take up to a minute</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-6 w-6 text-green-600 animate-spin" />
+                        <div>
+                          <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
+                          <p className="text-xs text-green-700">This may take up to a minute</p>
+                        </div>
                       </div>
-                    </div>
-                    {evolutionLogs.length > 0 && (
-                      <div
-                        ref={logContainerRef}
-                        className="bg-gray-900 rounded-lg p-3 max-h-32 overflow-y-auto font-mono text-xs"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowStartupModal(true)}
+                        className="border-green-600 text-green-700 hover:bg-green-50"
                       >
-                        {evolutionLogs.map((log, i) => (
-                          <div
-                            key={i}
-                            className={`py-0.5 ${
-                              log.level === 'error' ? 'text-red-400' :
-                              log.level === 'warn' ? 'text-yellow-400' :
-                              'text-green-400'
-                            }`}
-                          >
-                            <span className="text-gray-500">
-                              {log.timestamp.split('T')[1]?.slice(0, 8)}
-                            </span>
-                            {' '}
-                            <span>{log.message}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                        <Terminal className="h-4 w-4 mr-1" />
+                        View Logs
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -475,6 +510,34 @@ export default function ChannelSetup() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Evolution Startup Modal */}
+      <EvolutionStartupModal
+        open={showStartupModal}
+        onOpenChange={setShowStartupModal}
+        externalError={evolutionError}
+        onSuccess={() => {
+          setEvolutionReady(true);
+          setShowStartupModal(false);
+        }}
+        onRetry={() => {
+          setEvolutionError(null);
+          setEvolutionStarting(true);
+          api.gateway.startChannel('evolution').then(() => {
+            return api.gateway.waitForChannel('evolution', 120000);
+          }).then((ready) => {
+            if (ready) {
+              setEvolutionReady(true);
+            } else {
+              setEvolutionError('WhatsApp service failed to start');
+            }
+          }).catch((err) => {
+            setEvolutionError(err.message || 'Failed to start service');
+          }).finally(() => {
+            setEvolutionStarting(false);
+          });
+        }}
+      />
     </OnboardingLayout>
   );
 }

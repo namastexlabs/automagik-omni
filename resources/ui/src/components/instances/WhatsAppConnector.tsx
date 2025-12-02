@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EvolutionStartupModal } from '@/components/EvolutionStartupModal';
 import { api } from '@/lib';
 import {
   AlertCircle,
@@ -13,6 +14,7 @@ import {
   Loader2,
   MessageCircle,
   RefreshCw,
+  Terminal,
 } from 'lucide-react';
 
 interface WhatsAppConnectorProps {
@@ -35,6 +37,7 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
   const [instanceCreated, setInstanceCreated] = useState(false);
   const [qrRetryCount, setQrRetryCount] = useState(0);
   const [startingTime, setStartingTime] = useState<number | null>(null);
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   // Create instance mutation
   const createMutation = useMutation({
@@ -175,6 +178,17 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
               This may take a few seconds
             </p>
           </div>
+          {phase === 'starting' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLogsModal(true)}
+              className="mt-2"
+            >
+              <Terminal className="h-4 w-4 mr-1" />
+              View Logs
+            </Button>
+          )}
         </div>
       )}
 
@@ -282,6 +296,21 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
           </Button>
         </div>
       )}
+
+      {/* Evolution Logs Modal */}
+      <EvolutionStartupModal
+        open={showLogsModal}
+        onOpenChange={setShowLogsModal}
+        onSuccess={() => {
+          // Don't auto-close - let the QR flow handle it
+          setShowLogsModal(false);
+        }}
+        onRetry={() => {
+          setError(null);
+          setQrRetryCount(0);
+          setStartingTime(Date.now());
+        }}
+      />
     </div>
   );
 }

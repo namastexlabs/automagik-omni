@@ -419,6 +419,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     fastify.setNotFoundHandler(async (request, reply) => {
       // Don't serve index.html for API routes
       if (request.url.startsWith('/api/v1') ||
+          request.url.startsWith('/api/gateway') ||
+          request.url.startsWith('/api/logs') ||
+          request.url.startsWith('/api/setup') ||
           request.url.startsWith('/webhook') ||
           request.url.startsWith('/evolution') ||
           request.url.startsWith('/health') ||
