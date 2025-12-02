@@ -198,6 +198,20 @@ export default function ChannelSetup() {
       if (whatsappEnabled && result.whatsapp_instance_name && !result.whatsapp_qr_code) {
         // Check if status indicates pending connection (Evolution not ready)
         if (result.whatsapp_status?.includes('pending_connection')) {
+          // It might be that the instance is created but QR generation was slow
+          // Try to fetch QR one more time before erroring
+          try {
+            const qrResult = await api.instances.getQR(result.whatsapp_instance_name);
+            if (qrResult.qr_code) {
+               setQrCodeData(qrResult.qr_code);
+               setQrInstanceName(result.whatsapp_instance_name);
+               setShowQrModal(true);
+               return;
+            }
+          } catch (e) {
+            // ignore and show original error
+          }
+
           setEvolutionError('WhatsApp service is not ready. Please wait a moment and try again.');
           setShowStartupModal(true);
           setIsSubmitting(false);
@@ -523,19 +537,51 @@ export default function ChannelSetup() {
         onRetry={() => {
           setEvolutionError(null);
           setEvolutionStarting(true);
-          api.gateway.startChannel('evolution').then(() => {
-            return api.gateway.waitForChannel('evolution', 120000);
-          }).then((ready) => {
-            if (ready) {
+          
+          // Full retry sequence: Start -> Wait Process -> Wait API
+          const retrySequence = async () => {
+            try {
+              await api.gateway.startChannel('evolution');
+              const ready = await api.gateway.waitForChannel('evolution', 120000);
+              
+              if (!ready) {
+                throw new Error('WhatsApp service failed to start');
+              }
+
+              // Wait for API to be actually responsive
+              let apiReady = false;
+              try {
+                const { api_key } = await api.setup.getApiKey();
+                for (let i = 0; i < 30; i++) {
+                  try {
+                    const res = await fetch('/evolution/instance/fetchInstances', {
+                      headers: { apikey: api_key }
+                    });
+                    if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
+                      apiReady = true;
+                      break;
+                    }
+                  } catch (e) { /* ignore */ }
+                  await new Promise(r => setTimeout(r, 1000));
+                }
+              } catch (e) {
+                apiReady = true; // optimistic fallthrough
+              }
+
+              if (!apiReady) {
+                 throw new Error('WhatsApp service started but API is not responding');
+              }
+
               setEvolutionReady(true);
-            } else {
-              setEvolutionError('WhatsApp service failed to start');
+              setShowStartupModal(false); // Close modal so user can click "Complete Setup"
+            } catch (err) {
+              setEvolutionError(err instanceof Error ? err.message : 'Failed to start service');
+            } finally {
+              setEvolutionStarting(false);
             }
-          }).catch((err) => {
-            setEvolutionError(err.message || 'Failed to start service');
-          }).finally(() => {
-            setEvolutionStarting(false);
-          });
+          };
+
+          retrySequence();
         }}
       />
     </OnboardingLayout>
