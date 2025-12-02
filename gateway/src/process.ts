@@ -4,7 +4,7 @@
  */
 
 import { execa, type ExecaChildProcess, type Options } from 'execa';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, createWriteStream } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -73,6 +73,48 @@ export class ProcessManager {
 
     // Note: Signal handlers are registered in index.ts to avoid duplicates
     // The main() function will call processManager.shutdown() on SIGTERM/SIGINT
+  }
+
+  /**
+   * Setup logging for a process (file + console)
+   */
+  private setupLogging(logName: string, proc: ExecaChildProcess, consolePrefix: string) {
+    try {
+      // Ensure logs directory exists
+      const logsDir = join(ROOT_DIR, 'logs');
+      if (!existsSync(logsDir)) {
+        const fs = require('fs');
+        fs.mkdirSync(logsDir, { recursive: true });
+      }
+
+      const logFile = join(logsDir, `${logName}-combined.log`);
+      const stream = createWriteStream(logFile, { flags: 'a' });
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        stream.write(data); // Write raw to file
+        const line = data.toString().trim();
+        if (line) console.log(`[${consolePrefix}] ${line}`);
+      });
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        stream.write(data);
+        const line = data.toString().trim();
+        if (line) console.error(`[${consolePrefix}] ${line}`);
+      });
+      
+      proc.on('exit', () => {
+        stream.end();
+      });
+    } catch (error) {
+      console.warn(`[ProcessManager] Failed to setup file logging for ${logName}:`, error);
+      // Fallback to console only
+      proc.stdout?.on('data', (data: Buffer) => {
+        console.log(`[${consolePrefix}] ${data.toString().trim()}`);
+      });
+      proc.stderr?.on('data', (data: Buffer) => {
+        console.error(`[${consolePrefix}] ${data.toString().trim()}`);
+      });
+    }
   }
 
   /**
@@ -204,13 +246,8 @@ export class ProcessManager {
       healthy: false,
     });
 
-    // Log output
-    proc.stdout?.on('data', (data: Buffer) => {
-      console.log(`[Python] ${data.toString().trim()}`);
-    });
-    proc.stderr?.on('data', (data: Buffer) => {
-      console.error(`[Python] ${data.toString().trim()}`);
-    });
+    // Setup logging (file: api-combined.log, console: [Python])
+    this.setupLogging('api', proc, 'Python');
 
     proc.on('exit', (code) => {
       if (!this.shuttingDown) {
@@ -412,12 +449,8 @@ export class ProcessManager {
       healthy: false,
     });
 
-    proc.stdout?.on('data', (data: Buffer) => {
-      console.log(`[Evolution] ${data.toString().trim()}`);
-    });
-    proc.stderr?.on('data', (data: Buffer) => {
-      console.error(`[Evolution] ${data.toString().trim()}`);
-    });
+    // Setup logging (file: evolution-combined.log, console: [Evolution])
+    this.setupLogging('evolution', proc, 'Evolution');
 
     proc.on('exit', (code) => {
       if (!this.shuttingDown) {
@@ -490,12 +523,8 @@ export class ProcessManager {
       healthy: false,
     });
 
-    proc.stdout?.on('data', (data: Buffer) => {
-      console.log(`[Discord] ${data.toString().trim()}`);
-    });
-    proc.stderr?.on('data', (data: Buffer) => {
-      console.error(`[Discord] ${data.toString().trim()}`);
-    });
+    // Setup logging (file: discord-combined.log, console: [Discord])
+    this.setupLogging('discord', proc, 'Discord');
 
     proc.on('exit', (code) => {
       if (!this.shuttingDown) {
