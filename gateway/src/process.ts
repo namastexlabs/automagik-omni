@@ -4,7 +4,7 @@
  */
 
 import { execa, type ExecaChildProcess, type Options } from 'execa';
-import { existsSync, readdirSync, createWriteStream } from 'node:fs';
+import { existsSync, readdirSync, createWriteStream, mkdirSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -83,16 +83,14 @@ export class ProcessManager {
       // Ensure logs directory exists
       const logsDir = join(ROOT_DIR, 'logs');
       if (!existsSync(logsDir)) {
-        const fs = require('fs');
-        fs.mkdirSync(logsDir, { recursive: true });
+        mkdirSync(logsDir, { recursive: true });
       }
 
       const logFile = join(logsDir, `${logName}-combined.log`);
-      const fs = require('fs');
 
       const writeLog = (data: Buffer) => {
         try {
-          fs.appendFileSync(logFile, data);
+          appendFileSync(logFile, data);
         } catch (e) {
           // Ignore write errors to avoid crashing process
         }
