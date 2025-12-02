@@ -36,6 +36,7 @@ interface DiscordConnectorProps {
 export function DiscordConnector({ instanceName, onBack, onSuccess }: DiscordConnectorProps) {
   const queryClient = useQueryClient();
   const [token, setToken] = useState('');
+  const [clientId, setClientId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -45,6 +46,7 @@ export function DiscordConnector({ instanceName, onBack, onSuccess }: DiscordCon
       name: instanceName,
       channel_type: 'discord',
       discord_bot_token: token,
+      discord_client_id: clientId,
     }),
     onSuccess: () => {
       setIsConnected(true);
@@ -63,6 +65,17 @@ export function DiscordConnector({ instanceName, onBack, onSuccess }: DiscordCon
 
   const handleConnect = () => {
     setError(null);
+
+    if (!clientId.trim()) {
+      setError('Please enter your Application Client ID');
+      return;
+    }
+
+    // Client ID validation (Discord client IDs are 18-19 digit numbers)
+    if (!/^\d{17,20}$/.test(clientId.trim())) {
+      setError('Client ID should be a 17-20 digit number');
+      return;
+    }
 
     if (!token.trim()) {
       setError('Please enter your bot token');
@@ -123,6 +136,27 @@ export function DiscordConnector({ instanceName, onBack, onSuccess }: DiscordCon
           )}
 
           <div className="space-y-2">
+            <Label htmlFor="client-id" className="text-sm font-medium">
+              Application Client ID
+            </Label>
+            <Input
+              id="client-id"
+              type="text"
+              value={clientId}
+              onChange={(e) => {
+                setClientId(e.target.value);
+                setError(null);
+              }}
+              placeholder="e.g. 123456789012345678"
+              className="font-mono text-sm"
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              Found in Discord Developer Portal → Your Application → General Information
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="bot-token" className="text-sm font-medium">
               Bot Token
             </Label>
@@ -136,7 +170,6 @@ export function DiscordConnector({ instanceName, onBack, onSuccess }: DiscordCon
               }}
               placeholder="Enter your Discord bot token"
               className="font-mono text-sm"
-              autoFocus
               onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
             />
           </div>
@@ -187,7 +220,7 @@ export function DiscordConnector({ instanceName, onBack, onSuccess }: DiscordCon
             <Button
               onClick={handleConnect}
               className="flex-1 bg-[#5865F2] hover:bg-[#4752C4]"
-              disabled={createMutation.isPending || !token.trim()}
+              disabled={createMutation.isPending || !token.trim() || !clientId.trim()}
             >
               {createMutation.isPending ? (
                 <>

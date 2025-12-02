@@ -23,12 +23,18 @@ interface WhatsAppConnectorProps {
 
 type ConnectionPhase = 'creating' | 'starting' | 'qr' | 'connected' | 'error';
 
+// Max time to wait for QR code before showing error (30 seconds)
+const QR_TIMEOUT_MS = 30000;
+const QR_MAX_RETRIES = 6;
+
 export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppConnectorProps) {
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<ConnectionPhase>('creating');
   const [error, setError] = useState<string | null>(null);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [instanceCreated, setInstanceCreated] = useState(false);
+  const [qrRetryCount, setQrRetryCount] = useState(0);
+  const [startingTime, setStartingTime] = useState<number | null>(null);
 
   // Create instance mutation
   const createMutation = useMutation({
@@ -39,6 +45,7 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
     onSuccess: () => {
       setInstanceCreated(true);
       setPhase('starting');
+      setStartingTime(Date.now());
       toast.success(`Connection "${instanceName}" created`);
     },
     onError: (err: Error) => {
@@ -99,12 +106,37 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
     }
   }, [isConnected, phase, queryClient, onSuccess]);
 
-  // Handle QR error after retries
+  // Handle QR timeout and errors
+  useEffect(() => {
+    if (phase !== 'starting' || !startingTime) return;
+
+    // Check for timeout
+    const checkTimeout = () => {
+      const elapsed = Date.now() - startingTime;
+      if (elapsed > QR_TIMEOUT_MS && phase === 'starting') {
+        setError('WhatsApp service is not responding. The service may not be running.');
+        setPhase('error');
+      }
+    };
+
+    const timeoutId = setTimeout(checkTimeout, QR_TIMEOUT_MS);
+    return () => clearTimeout(timeoutId);
+  }, [phase, startingTime]);
+
+  // Handle QR fetch errors with retry limit
   useEffect(() => {
     if (qrError && phase === 'starting') {
-      // Keep trying, QR might not be ready yet
+      setQrRetryCount(prev => prev + 1);
+
+      if (qrRetryCount >= QR_MAX_RETRIES) {
+        const errorMessage = qrError instanceof Error
+          ? qrError.message
+          : 'Failed to load QR code. WhatsApp service may not be running.';
+        setError(errorMessage);
+        setPhase('error');
+      }
     }
-  }, [qrError, phase]);
+  }, [qrError, phase, qrRetryCount]);
 
   const handleRefreshQR = () => {
     refetchQR();
@@ -178,6 +210,9 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
               onClick={() => {
                 setPhase('creating');
                 setError(null);
+                setQrRetryCount(0);
+                setStartingTime(null);
+                setInstanceCreated(false);
                 createMutation.mutate();
               }}
               className="flex-1"

@@ -98,8 +98,8 @@ export default function Instances() {
               </div>
             )}
 
-            {/* Empty State */}
-            {instances && instances.length === 0 && (
+            {/* Empty State - Show when not loading AND (no instances OR empty array) */}
+            {!isLoading && (!instances || instances.length === 0) && (
               <Card className="border-border elevation-md bg-gradient-to-br from-primary/5 to-primary/10">
                 <CardContent className="pt-12 pb-12 text-center">
                   <div className="flex flex-col items-center space-y-4">

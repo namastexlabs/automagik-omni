@@ -1,5 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { api } from '@/lib';
+import { MessageCircle, Lock } from 'lucide-react';
 
 // Discord icon as SVG (lucide doesn't have Discord)
 const DiscordIcon = ({ className }: { className?: string }) => (
@@ -15,6 +18,15 @@ interface PlatformSelectorProps {
 }
 
 export function PlatformSelector({ onSelect }: PlatformSelectorProps) {
+  // Check if Discord is enabled in settings
+  const { data: discordSetting } = useQuery({
+    queryKey: ['settings', 'channel_discord_enabled'],
+    queryFn: () => api.settings.get('channel_discord_enabled').catch(() => null),
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  const isDiscordEnabled = discordSetting?.value === true || discordSetting?.value === 'true';
+
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
@@ -46,18 +58,34 @@ export function PlatformSelector({ onSelect }: PlatformSelectorProps) {
 
         {/* Discord Card */}
         <Card
-          className="cursor-pointer border-2 border-border hover:border-[#5865F2] hover:bg-[#5865F2]/5 transition-all duration-200 group"
-          onClick={() => onSelect('discord')}
+          className={`border-2 border-border transition-all duration-200 ${
+            isDiscordEnabled
+              ? 'cursor-pointer hover:border-[#5865F2] hover:bg-[#5865F2]/5 group'
+              : 'opacity-60 cursor-not-allowed'
+          }`}
+          onClick={() => isDiscordEnabled && onSelect('discord')}
           data-testid="platform-discord"
         >
-          <CardContent className="pt-6 pb-6 flex flex-col items-center text-center space-y-4">
-            <div className="h-16 w-16 rounded-2xl bg-[#5865F2] flex items-center justify-center group-hover:scale-110 transition-transform">
+          <CardContent className="pt-6 pb-6 flex flex-col items-center text-center space-y-4 relative">
+            {!isDiscordEnabled && (
+              <Badge variant="secondary" className="absolute top-2 right-2 text-xs">
+                <Lock className="h-3 w-3 mr-1" />
+                Disabled
+              </Badge>
+            )}
+            <div className={`h-16 w-16 rounded-2xl flex items-center justify-center transition-transform ${
+              isDiscordEnabled ? 'bg-[#5865F2] group-hover:scale-110' : 'bg-[#5865F2]/50'
+            }`}>
               <DiscordIcon className="h-8 w-8 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">Discord</h3>
+              <h3 className={`font-semibold ${isDiscordEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>
+                Discord
+              </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                Connect with bot token
+                {isDiscordEnabled
+                  ? 'Connect with bot token'
+                  : 'Enable in Settings → Channels'}
               </p>
             </div>
           </CardContent>
