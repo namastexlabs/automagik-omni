@@ -375,6 +375,7 @@ export class ProcessManager {
 
       subprocessEnv.DATABASE_CONNECTION_URI = config.database_connection_uri;
       subprocessEnv.DATABASE_PROVIDER = config.database_provider || 'postgresql';
+      subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true';  // Enable Prisma auth state storage
       console.log(`[ProcessManager] Evolution will use ${config.database_provider} database`);
 
       if (config.authentication_api_key) {

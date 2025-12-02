@@ -57,13 +57,14 @@ def bootstrap_global_settings(db: Session) -> None:
         },
         {
             "key": "evolution_api_url",
-            "value": config.get_env("EVOLUTION_URL", "http://localhost:18082"),
+            # Use gateway proxy URL - Evolution runs on dynamic ports managed by gateway
+            "value": config.get_env("EVOLUTION_URL", f"http://localhost:{config.get_env('OMNI_PORT', '8882')}/evolution"),
             "value_type": SettingValueType.STRING,
             "category": "integration",
             "description": "Default WhatsApp Web API base URL (alias: whatsapp_web_api_url)",
             "is_secret": False,
             "is_required": False,
-            "default_value": "http://localhost:18082",
+            "default_value": f"http://localhost:{config.get_env('OMNI_PORT', '8882')}/evolution",
         },
         {
             "key": "max_instances_per_user",

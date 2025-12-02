@@ -7,7 +7,7 @@ import { api } from '@/lib';
 import type { InstanceConfig } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
-import { InstanceDialog } from '@/components/InstanceDialog';
+import { ConnectionWizard, InstanceSettings } from '@/components/instances';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { InstanceCard } from '@/components/InstanceCard';
 import { Plus, AlertCircle } from 'lucide-react';
@@ -16,8 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Instances() {
   const queryClient = useQueryClient();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editingInstance, setEditingInstance] = useState<InstanceConfig | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [settingsInstance, setSettingsInstance] = useState<InstanceConfig | null>(null);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
 
   const { data: instances, isLoading, error } = useQuery({
@@ -42,8 +42,8 @@ export default function Instances() {
     deleteMutation.mutate(name);
   };
 
-  const handleEdit = (instance: InstanceConfig) => {
-    setEditingInstance(instance);
+  const handleSettings = (instance: InstanceConfig) => {
+    setSettingsInstance(instance);
   };
 
   const handleShowQR = (instanceName: string) => {
@@ -54,15 +54,16 @@ export default function Instances() {
     <DashboardLayout>
       <div className="flex flex-col h-full">
         <PageHeader
-          title="Instances"
-          subtitle="Manage your messaging channel instances"
+          title="Connections"
+          subtitle="Manage your messaging channel connections"
           actions={
             <Button
               className="gradient-primary elevation-md hover:elevation-lg transition-all hover-lift"
-              onClick={() => setCreateDialogOpen(true)}
+              onClick={() => setWizardOpen(true)}
+              data-testid="add-connection"
             >
               <Plus className="h-4 w-4 mr-2" />
-              New Instance
+              Add Connection
             </Button>
           }
         />
@@ -106,17 +107,17 @@ export default function Instances() {
                       <Plus className="h-10 w-10 text-primary-foreground" />
                     </div>
                     <div>
-                      <p className="text-lg font-semibold text-foreground mb-2">No instances yet</p>
+                      <p className="text-lg font-semibold text-foreground mb-2">No connections yet</p>
                       <p className="text-sm text-muted-foreground mb-6">
-                        Get started by creating your first messaging instance
+                        Connect your first WhatsApp or Discord account
                       </p>
                     </div>
                     <Button
                       className="gradient-primary elevation-md hover:elevation-lg hover-lift"
-                      onClick={() => setCreateDialogOpen(true)}
+                      onClick={() => setWizardOpen(true)}
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Create First Instance
+                      Add Connection
                     </Button>
                   </div>
                 </CardContent>
@@ -131,7 +132,7 @@ export default function Instances() {
                     key={instance.id}
                     instance={instance}
                     onShowQR={handleShowQR}
-                    onEdit={handleEdit}
+                    onSettings={handleSettings}
                     onDelete={handleDelete}
                     isDeleting={deleteMutation.isPending}
                   />
@@ -142,25 +143,26 @@ export default function Instances() {
         </div>
       </div>
 
-      {/* Create/Edit Dialog */}
-      <InstanceDialog
-        open={createDialogOpen || editingInstance !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCreateDialogOpen(false);
-            setEditingInstance(null);
-          }
-        }}
-        instance={editingInstance}
-        onInstanceCreated={(instanceName, channelType) => {
-          // Auto-show QR code for WhatsApp instances
-          if (channelType === 'whatsapp') {
-            setQrInstance(instanceName);
-          }
+      {/* Connection Wizard */}
+      <ConnectionWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onSuccess={(instanceName, channelType) => {
+          // Refresh instances list
+          queryClient.invalidateQueries({ queryKey: ['instances'] });
         }}
       />
 
-      {/* QR Code Dialog */}
+      {/* Instance Settings Dialog */}
+      {settingsInstance && (
+        <InstanceSettings
+          open={settingsInstance !== null}
+          onOpenChange={(open) => !open && setSettingsInstance(null)}
+          instance={settingsInstance}
+        />
+      )}
+
+      {/* QR Code Dialog (for reconnecting) */}
       {qrInstance && (
         <QRCodeDialog
           open={qrInstance !== null}

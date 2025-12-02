@@ -19,7 +19,7 @@ import type { InstanceConfig } from '@/lib';
 interface InstanceCardProps {
   instance: InstanceConfig;
   onShowQR?: (instanceName: string) => void;
-  onEdit?: (instance: InstanceConfig) => void;
+  onSettings?: (instance: InstanceConfig) => void;
   onDelete?: (instanceName: string) => void;
   isDeleting?: boolean;
 }
@@ -27,7 +27,7 @@ interface InstanceCardProps {
 export function InstanceCard({
   instance,
   onShowQR,
-  onEdit,
+  onSettings,
   onDelete,
   isDeleting
 }: InstanceCardProps) {
@@ -166,16 +166,16 @@ export function InstanceCard({
             </>
           )}
 
-          {/* Manage button */}
-          {onEdit && (
+          {/* Settings button */}
+          {onSettings && (
             <Button
               variant="outline"
               size="sm"
               className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary transition-colors"
-              onClick={() => onEdit(instance)}
+              onClick={() => onSettings(instance)}
             >
               <SettingsIcon className="h-4 w-4 mr-1" />
-              Manage
+              Settings
             </Button>
           )}
 

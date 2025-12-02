@@ -12,6 +12,7 @@ before authentication is configured.
 """
 
 import logging
+import os
 import secrets
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -466,9 +467,10 @@ async def get_channels_status(db: Session = Depends(get_db)):
 async def _check_whatsapp_status(db: Session) -> ChannelStatus:
     """Check WhatsApp (Evolution API) availability."""
     try:
-        # Get Evolution API URL
+        # Get Evolution API URL (use gateway proxy - Evolution runs on dynamic ports)
+        gateway_port = os.getenv("OMNI_PORT", "8882")
         evolution_url = settings_service.get_setting_value(
-            "evolution_api_url", db, default="http://localhost:18082"
+            "evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution"
         )
 
         # Get unified API key
@@ -637,9 +639,10 @@ async def configure_channels(
                     whatsapp_instance_created = instance_name
                     logger.info(f"WhatsApp instance already exists: {instance_name}")
                 else:
-                    # Get Evolution API URL and unified key
+                    # Get Evolution API URL and unified key (use gateway proxy)
+                    gateway_port = os.getenv("OMNI_PORT", "8882")
                     evolution_url = settings_service.get_setting_value(
-                        "evolution_api_url", db, default="http://localhost:18082"
+                        "evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution"
                     )
                     api_key = settings_service.get_setting_value("omni_api_key", db, default=None)
 

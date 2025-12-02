@@ -5,6 +5,7 @@ Note: Uses Evolution API as the underlying protocol for WhatsApp Web connectivit
 """
 
 import logging
+import os
 import secrets
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -54,7 +55,9 @@ class DiscoveryService:
         from src.config import config
         from src.services.settings_service import settings_service
 
-        global_url = settings_service.get_setting_value("evolution_api_url", db, default="http://localhost:18082")
+        # Use gateway proxy URL - Evolution runs on dynamic ports managed by gateway
+        gateway_port = os.getenv("OMNI_PORT", "8882")
+        global_url = settings_service.get_setting_value("evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution")
         bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
 
         # Fallback to .env for backward compatibility during transition

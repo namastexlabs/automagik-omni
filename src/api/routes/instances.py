@@ -86,9 +86,9 @@ class InstanceConfigCreate(BaseModel):
     auto_qr: Optional[bool] = Field(True, description="Auto-generate QR code (WhatsApp)")
     integration: Optional[str] = Field("WHATSAPP-BAILEYS", description="WhatsApp integration type")
 
-    # Common agent configuration
-    agent_api_url: str
-    agent_api_key: str
+    # Common agent configuration (optional for wizard flow - can be set later)
+    agent_api_url: Optional[str] = None
+    agent_api_key: Optional[str] = None
     default_agent: Optional[str] = None
     agent_timeout: int = 60
     is_default: bool = False
@@ -198,12 +198,12 @@ class InstanceConfigResponse(BaseModel):
     discord_voice_enabled: Optional[bool] = None
     discord_slash_commands_enabled: Optional[bool] = None
 
-    agent_api_url: str
-    agent_api_key: str
-    default_agent: Optional[str]
-    agent_timeout: int
-    is_default: bool
-    is_active: bool
+    agent_api_url: Optional[str] = None
+    agent_api_key: Optional[str] = None
+    default_agent: Optional[str] = None
+    agent_timeout: int = 60
+    is_default: bool = False
+    is_active: bool = False
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
 
@@ -486,7 +486,9 @@ async def list_instances(
                 from src.services.settings_service import settings_service
 
                 # Get bootstrap key from database (with .env fallback)
-                evolution_url = instance.evolution_url or settings_service.get_setting_value("evolution_api_url", db, default="http://localhost:8080")
+                # Use gateway proxy URL - Evolution runs on dynamic ports managed by gateway
+                gateway_port = os.getenv("OMNI_PORT", "8882")
+                evolution_url = instance.evolution_url or settings_service.get_setting_value("evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution")
                 bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
                 if not bootstrap_key:
                     bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
