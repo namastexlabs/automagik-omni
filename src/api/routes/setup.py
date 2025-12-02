@@ -634,10 +634,31 @@ async def configure_channels(
                 ).first()
 
                 if existing_instance:
-                    # Instance already exists - just use it
-                    whatsapp_status = f"exists:{instance_name}"
+                    # Instance exists in DB - check if it needs QR code
                     whatsapp_instance_created = instance_name
                     logger.info(f"WhatsApp instance already exists: {instance_name}")
+
+                    # Try to get QR code if instance isn't connected
+                    try:
+                        from src.channels.base import ChannelHandlerFactory
+
+                        handler = ChannelHandlerFactory.get_handler("whatsapp")
+
+                        # Check connection status and get QR if needed
+                        qr_response = await handler.get_qr_code(existing_instance)
+                        if qr_response and qr_response.qr_code:
+                            whatsapp_qr_code = qr_response.qr_code
+                            whatsapp_status = f"exists:{instance_name}:needs_scan"
+                            logger.info(f"Got QR code for existing instance: {instance_name}")
+                        else:
+                            # Instance might already be connected
+                            whatsapp_status = f"exists:{instance_name}"
+                            logger.info(f"Instance {instance_name} may already be connected")
+
+                    except Exception as e:
+                        # Couldn't get QR - instance might be connected or Evolution not ready
+                        whatsapp_status = f"exists:{instance_name}"
+                        logger.warning(f"Couldn't get QR for existing instance {instance_name}: {e}")
                 else:
                     # Get Evolution API URL and unified key (use gateway proxy)
                     gateway_port = os.getenv("OMNI_PORT", "8882")
