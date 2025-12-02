@@ -496,6 +496,68 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     }
   });
 
+  // Stop a channel
+  fastify.post<{ Params: { channel: string } }>('/gateway/channels/:channel/stop', async (request, reply) => {
+    const { channel } = request.params;
+    const validChannels = ['evolution', 'discord'];
+
+    if (!validChannels.includes(channel.toLowerCase())) {
+      reply.status(400);
+      return { error: `Invalid channel: ${channel}. Valid channels: ${validChannels.join(', ')}` };
+    }
+
+    try {
+      const stopped = await processManager.stopChannel(channel);
+      return { status: stopped ? 'stopped' : 'not_running', channel };
+    } catch (error) {
+      reply.status(500);
+      return { error: `Failed to stop ${channel}: ${error instanceof Error ? error.message : error}` };
+    }
+  });
+
+  // Restart a channel
+  fastify.post<{ Params: { channel: string } }>('/gateway/channels/:channel/restart', async (request, reply) => {
+    const { channel } = request.params;
+    const validChannels = ['evolution', 'discord'];
+
+    if (!validChannels.includes(channel.toLowerCase())) {
+      reply.status(400);
+      return { error: `Invalid channel: ${channel}. Valid channels: ${validChannels.join(', ')}` };
+    }
+
+    try {
+      await processManager.stopChannel(channel);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Cleanup delay
+      await processManager.ensureChannelRunning(channel);
+      return { status: 'restarted', channel };
+    } catch (error) {
+      reply.status(500);
+      return { error: `Failed to restart ${channel}: ${error instanceof Error ? error.message : error}` };
+    }
+  });
+
+  // Get detailed status for a channel
+  fastify.get<{ Params: { channel: string } }>('/gateway/channels/:channel/status', async (request, reply) => {
+    const { channel } = request.params;
+    const validChannels = ['evolution', 'discord'];
+
+    if (!validChannels.includes(channel.toLowerCase())) {
+      reply.status(400);
+      return { error: `Invalid channel: ${channel}` };
+    }
+
+    const managed = processManager.getProcessInfo(channel);
+
+    return {
+      channel,
+      running: processManager.isChannelRunning(channel),
+      enabled: processManager.isChannelEnabled(channel),
+      healthy: managed?.healthy ?? false,
+      pid: managed?.process?.pid,
+      port: managed?.port,
+    };
+  });
+
   // Cleanup on shutdown (idempotent - safe to call multiple times)
   let cleanupInProgress = false;
   const cleanup = async () => {

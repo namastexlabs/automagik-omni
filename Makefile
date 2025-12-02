@@ -645,6 +645,34 @@ dev-all: ## Start both Omni and Evolution API in development mode (parallel)
 		$(UV) run automagik-omni start --host $(AUTOMAGIK_OMNI_API_HOST) --port $(AUTOMAGIK_OMNI_API_PORT) --reload; \
 	fi
 
+.PHONY: dev-watch build-gateway
+dev-watch: ## Start development with PM2 watch mode (hot reload on gateway changes)
+	$(call print_status,Starting hot reload development mode)
+	@$(call check_pm2)
+	@mkdir -p logs
+	@pm2 delete "$(OMNI_PORT)-automagik-omni-dev" 2>/dev/null || true
+	@echo -e "$(FONT_CYAN)$(INFO) Building gateway first...$(FONT_RESET)"
+	@cd gateway && pnpm run build
+	@echo -e "$(FONT_CYAN)$(INFO) Starting Gateway with PM2 watch...$(FONT_RESET)"
+	@pm2 start gateway/dist/index.js --name "$(OMNI_PORT)-automagik-omni-dev" \
+		--watch gateway/dist \
+		--ignore-watch "node_modules logs *.log" \
+		-e logs/gateway-err.log \
+		-o logs/gateway-out.log
+	@echo -e "$(FONT_CYAN)$(INFO) Starting UI dev server...$(FONT_RESET)"
+	@lsof -ti:$(UI_PORT) | xargs kill -9 2>/dev/null || true
+	@cd resources/ui && pnpm run dev &
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Hot reload enabled!$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)$(INFO) Gateway watches: gateway/dist/ - run 'make build-gateway' to trigger reload$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)$(INFO) UI auto-reloads via Vite HMR$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)$(INFO) View logs: pm2 logs $(OMNI_PORT)-automagik-omni-dev$(FONT_RESET)"
+	$(call print_success,Dev mode with hot reload started)
+
+build-gateway: ## Build gateway TypeScript (triggers PM2 hot reload if dev-watch is running)
+	$(call print_status,Building gateway...)
+	@cd gateway && pnpm run build
+	$(call print_success,Gateway built - PM2 will auto-restart if watching)
+
 .PHONY: test
 test: ## Run the test suite (auto-detects database)
 	$(call check_prerequisites)
@@ -720,7 +748,53 @@ test-ui: ## Run UI tests in headless mode (for CI)
 test-ui-quick: ## Run quick UI tests in headless mode
 	$(call print_status,Running quick UI tests (headless))
 	@cd resources/ui && pnpm run test:quick
-	$(call print_success,Quick UI tests completed)
+
+# ===========================================
+# E2E Tests (Local and Deployed)
+# ===========================================
+.PHONY: e2e e2e-local e2e-deployed e2e-ui e2e-onboarding e2e-onboarding-local e2e-report e2e-reset-db
+
+e2e: e2e-local ## Default: test against local dev server (fast iteration)
+
+e2e-local: ## Run E2E tests against LOCAL dev server (http://localhost:9882)
+	$(call print_status,Running E2E tests against local dev server)
+	@mkdir -p resources/ui/test-results
+	@cd resources/ui && E2E_BASE_URL=http://localhost:9882 pnpm exec playwright test
+	$(call print_success,E2E tests completed)
+
+e2e-onboarding-local: ## Run onboarding E2E test against LOCAL (headed, for dev iteration)
+	$(call print_status,Running onboarding E2E test against local)
+	@mkdir -p resources/ui/test-results
+	@cd resources/ui && E2E_BASE_URL=http://localhost:9882 pnpm exec playwright test e2e/full/onboarding.spec.ts --headed
+	$(call print_success,Onboarding E2E test completed)
+
+e2e-deployed: ## Run E2E tests against deployed instance (https://omni.genieos.namastex.io)
+	$(call print_status,Running E2E tests against deployed instance)
+	@mkdir -p resources/ui/test-results
+	@cd resources/ui && E2E_BASE_URL=https://omni.genieos.namastex.io pnpm exec playwright test
+	$(call print_success,E2E tests completed)
+
+e2e-ui: ## Run E2E tests with headed browser (visual debugging)
+	$(call print_status,Running E2E tests with visible browser)
+	@mkdir -p resources/ui/test-results
+	@cd resources/ui && E2E_BASE_URL=https://omni.genieos.namastex.io pnpm exec playwright test --headed
+	$(call print_success,E2E tests completed)
+
+e2e-onboarding: ## Run only the onboarding E2E test (headed)
+	$(call print_status,Running onboarding E2E test)
+	@mkdir -p resources/ui/test-results
+	@cd resources/ui && E2E_BASE_URL=https://omni.genieos.namastex.io pnpm exec playwright test e2e/full/onboarding.spec.ts --headed
+	$(call print_success,Onboarding E2E test completed)
+
+e2e-report: ## Show E2E test report
+	$(call print_status,Opening Playwright test report)
+	@cd resources/ui && pnpm exec playwright show-report
+
+e2e-reset-db: ## Wipe E2E database for fresh test run
+	$(call print_status,Wiping E2E database...)
+	@PGPASSWORD='REDACTED' psql -h 10.114.1.135 -U automagik -c "DROP DATABASE IF EXISTS automagik_omni; CREATE DATABASE automagik_omni;" 2>/dev/null || \
+		echo -e "$(FONT_YELLOW)$(WARNING) Could not connect to PostgreSQL. Ensure psql is installed and network is reachable.$(FONT_RESET)"
+	$(call print_success,Database wiped - ready for fresh E2E run)
 
 wait-for-services: ## Wait for services to be healthy
 	$(call print_status,Checking service health...)

@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright configuration for Automagik Omni UI E2E tests
+ * Playwright configuration for Automagik Omni E2E tests
+ *
+ * E2E tests run against DEPLOYED instance (not local code):
+ * - Default: https://omni.genieos.namastex.io
+ * - Override: E2E_BASE_URL environment variable
  *
  * See https://playwright.dev/docs/test-configuration
  */
@@ -11,7 +15,7 @@ export default defineConfig({
   /* Run tests in files in parallel */
   fullyParallel: true,
 
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
+  /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: !!process.env.CI,
 
   /* Retry on CI only */
@@ -20,15 +24,18 @@ export default defineConfig({
   /* Opt out of parallel tests on CI for stability */
   workers: process.env.CI ? 1 : undefined,
 
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  /* Reporter - verbose for debugging */
+  reporter: [
+    ['html'],
+    ['list'], // Shows test progress in terminal
+  ],
 
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  /* Shared settings for all projects */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:9882',
+    /* Base URL - defaults to deployed instance */
+    baseURL: process.env.E2E_BASE_URL || 'https://omni.genieos.namastex.io',
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+    /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',
 
     /* Capture screenshot only on failure */
@@ -36,7 +43,14 @@ export default defineConfig({
 
     /* Capture video only on failure */
     video: 'retain-on-failure',
+
+    /* Longer timeout for deployed instance (network latency) */
+    actionTimeout: 30000,
+    navigationTimeout: 60000,
   },
+
+  /* Global test timeout */
+  timeout: 120000,
 
   /* Configure projects for major browsers */
   projects: [
@@ -44,24 +58,7 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-
-    /* Uncomment to test in additional browsers
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-    */
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:9882',
-    reuseExistingServer: !process.env.CI,
-  },
+  /* NO webServer - we test deployed instance, not local code */
 });

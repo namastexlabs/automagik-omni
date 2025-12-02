@@ -14,63 +14,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib';
 import type { InstanceConfig, InstanceCreateRequest, InstanceUpdateRequest } from '@/lib';
-import { AlertCircle, Loader2, MessageSquare, Mail, Calendar, Briefcase, Video, Globe } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
-// Channel catalog - matches backend CHANNEL_CATALOG
-const CHANNEL_CATALOG = {
-  // Implemented
-  whatsapp: { name: 'WhatsApp', category: 'messaging', status: 'implemented' },
-  discord: { name: 'Discord', category: 'messaging', status: 'implemented' },
-  // Messaging - Coming Soon
-  telegram: { name: 'Telegram', category: 'messaging', status: 'coming_soon' },
-  slack: { name: 'Slack', category: 'messaging', status: 'coming_soon' },
-  signal: { name: 'Signal', category: 'messaging', status: 'coming_soon' },
-  teams: { name: 'Microsoft Teams', category: 'messaging', status: 'coming_soon' },
-  // Social
-  instagram: { name: 'Instagram', category: 'social', status: 'coming_soon' },
-  linkedin: { name: 'LinkedIn', category: 'social', status: 'coming_soon' },
-  twitter: { name: 'Twitter / X', category: 'social', status: 'coming_soon' },
-  facebook: { name: 'Facebook Messenger', category: 'social', status: 'coming_soon' },
-  tiktok: { name: 'TikTok', category: 'social', status: 'coming_soon' },
-  // Email
-  gmail: { name: 'Gmail', category: 'email', status: 'coming_soon' },
-  outlook: { name: 'Outlook', category: 'email', status: 'coming_soon' },
-  // Calendar
-  google_calendar: { name: 'Google Calendar', category: 'calendar', status: 'coming_soon' },
-  icloud_calendar: { name: 'iCloud Calendar', category: 'calendar', status: 'coming_soon' },
-  // Productivity
-  notion: { name: 'Notion', category: 'productivity', status: 'coming_soon' },
-  trello: { name: 'Trello', category: 'productivity', status: 'coming_soon' },
-  asana: { name: 'Asana', category: 'productivity', status: 'coming_soon' },
-  jira: { name: 'Jira', category: 'productivity', status: 'coming_soon' },
-  github: { name: 'GitHub', category: 'productivity', status: 'coming_soon' },
-  // Voice/Video
-  zoom: { name: 'Zoom', category: 'voice', status: 'coming_soon' },
-  google_meet: { name: 'Google Meet', category: 'voice', status: 'coming_soon' },
+// Available channels (only implemented ones)
+const CHANNELS = {
+  whatsapp: 'WhatsApp Web',
+  discord: 'Discord',
 } as const;
 
-type ChannelKey = keyof typeof CHANNEL_CATALOG;
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  messaging: <MessageSquare className="h-4 w-4" />,
-  social: <Globe className="h-4 w-4" />,
-  email: <Mail className="h-4 w-4" />,
-  calendar: <Calendar className="h-4 w-4" />,
-  productivity: <Briefcase className="h-4 w-4" />,
-  voice: <Video className="h-4 w-4" />,
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  messaging: 'Messaging & Chat',
-  social: 'Social Media',
-  email: 'Email',
-  calendar: 'Calendar',
-  productivity: 'Productivity',
-  voice: 'Voice & Video',
-};
+type ChannelKey = keyof typeof CHANNELS;
 
 interface InstanceDialogProps {
   open: boolean;
@@ -267,19 +221,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            {/* Omnichannel intro for new instances */}
-            {!isEditing && (
-              <Alert className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-                <Globe className="h-4 w-4" />
-                <AlertDescription className="text-sm">
-                  <span className="font-medium">One personal assistant with access to everything:</span>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Messaging (WhatsApp, Discord, Telegram) &bull; Social (Instagram, LinkedIn) &bull;
-                    Email & Calendar (Gmail, Google Calendar) &bull; Productivity (Notion, GitHub)
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -311,62 +252,27 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
               </p>
             </div>
 
-            {/* Channel Type with all integrations */}
+            {/* Channel Type */}
             <div className="grid gap-2">
               <Label htmlFor="channel_type">Channel Type *</Label>
               <Select
                 value={formData.channel_type}
-                onValueChange={(value) => {
-                  const channel = CHANNEL_CATALOG[value as ChannelKey];
-                  if (channel?.status === 'coming_soon') {
-                    toast.info(`${channel.name} is coming soon!`);
-                    return;
-                  }
-                  setFormData({ ...formData, channel_type: value });
-                }}
+                onValueChange={(value) => setFormData({ ...formData, channel_type: value })}
                 disabled={isEditing || isPending}
               >
                 <SelectTrigger id="channel_type">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="max-h-[400px]">
-                  {/* Group channels by category */}
-                  {Object.entries(CATEGORY_LABELS).map(([category, label]) => {
-                    const channels = Object.entries(CHANNEL_CATALOG).filter(
-                      ([, ch]) => ch.category === category
-                    );
-                    if (channels.length === 0) return null;
-
-                    return (
-                      <div key={category}>
-                        <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                          {CATEGORY_ICONS[category]}
-                          {label}
-                        </div>
-                        {channels.map(([key, channel]) => (
-                          <SelectItem
-                            key={key}
-                            value={key}
-                            disabled={channel.status === 'coming_soon'}
-                            className="flex items-center justify-between"
-                          >
-                            <span className="flex items-center gap-2">
-                              {channel.name}
-                              {channel.status === 'coming_soon' && (
-                                <Badge variant="outline" className="text-[10px] py-0 px-1">
-                                  Coming Soon
-                                </Badge>
-                              )}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </div>
-                    );
-                  })}
+                <SelectContent>
+                  {Object.entries(CHANNELS).map(([key, name]) => (
+                    <SelectItem key={key} value={key}>
+                      {name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Select the messaging channel for this integration
+                Select the messaging channel for this instance
               </p>
             </div>
 

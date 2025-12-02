@@ -119,8 +119,12 @@ export class ProcessManager {
    * @returns true if the channel process is running
    */
   isChannelRunning(channel: string): boolean {
-    const proc = this.processes.get(channel);
-    return proc !== undefined && proc.exitCode === null;
+    const managed = this.processes.get(channel);
+    if (!managed || !managed.process) {
+      return false;
+    }
+    // ExecaChildProcess.exitCode is null while running, number after exit
+    return managed.process.exitCode === null;
   }
 
   /**
@@ -341,6 +345,35 @@ export class ProcessManager {
 
     console.log(`[ProcessManager] Starting Evolution API on port ${port}...`);
 
+    // Fetch database config from Python API before spawning
+    const pythonPort = this.portRegistry.getPort('python');
+    let subprocessEnv: Record<string, string> = {};
+
+    if (pythonPort) {
+      try {
+        const configUrl = `http://127.0.0.1:${pythonPort}/api/v1/_internal/subprocess-config`;
+        const response = await fetch(configUrl, { signal: AbortSignal.timeout(5000) });
+
+        if (response.ok) {
+          const config = await response.json();
+          console.log('[ProcessManager] Loaded subprocess config from Python API');
+
+          if (config.database_connection_uri) {
+            subprocessEnv.DATABASE_CONNECTION_URI = config.database_connection_uri;
+            subprocessEnv.DATABASE_PROVIDER = config.database_provider || 'postgresql';
+            console.log(`[ProcessManager] Evolution will use ${config.database_provider} database`);
+          }
+          if (config.authentication_api_key) {
+            subprocessEnv.AUTHENTICATION_API_KEY = config.authentication_api_key;
+          }
+        } else {
+          console.warn(`[ProcessManager] Failed to fetch subprocess config: ${response.status}`);
+        }
+      } catch (err) {
+        console.warn('[ProcessManager] Could not fetch subprocess config, Evolution may fail:', err);
+      }
+    }
+
     // Detect package manager (prefer pnpm over npm)
     const usesPnpm = existsSync(join(evolutionDir, 'pnpm-lock.yaml'));
     const packageManager = usesPnpm ? 'pnpm' : 'npm';
@@ -351,6 +384,7 @@ export class ProcessManager {
       cwd: evolutionDir,
       env: {
         ...process.env,
+        ...subprocessEnv,
         SERVER_PORT: String(port),
         SERVER_URL: `http://localhost:${port}`,
         NODE_ENV: 'production',
@@ -402,8 +436,8 @@ export class ProcessManager {
       }
     }, 30000);
 
-    // Wait for Evolution to be ready
-    await this.waitForHealth(`http://127.0.0.1:${port}/`, name, 60000);
+    // Wait for Evolution to be ready (120s for first-run: Prisma generation, etc.)
+    await this.waitForHealth(`http://127.0.0.1:${port}/`, name, 120000);
   }
 
   /**
@@ -778,6 +812,66 @@ export class ProcessManager {
       };
     }
     return status;
+  }
+
+  /**
+   * Stop a specific channel process gracefully.
+   *
+   * @param channel - Channel name (e.g., 'evolution', 'discord')
+   * @returns true if stopped, false if not running
+   */
+  async stopChannel(channel: string): Promise<boolean> {
+    const managed = this.processes.get(channel);
+    if (!managed?.process || managed.process.exitCode !== null) {
+      console.log(`[ProcessManager] ${channel} not running, nothing to stop`);
+      return false;
+    }
+
+    console.log(`[ProcessManager] Stopping ${channel}...`);
+
+    // Clear health monitoring for this channel
+    const interval = this.healthCheckIntervals.get(channel);
+    if (interval) {
+      clearInterval(interval);
+      this.healthCheckIntervals.delete(channel);
+    }
+
+    // Send SIGTERM for graceful shutdown
+    managed.process.kill('SIGTERM');
+
+    // Wait for exit with 5s timeout
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        if (managed.process && managed.process.exitCode === null) {
+          console.log(`[ProcessManager] Force killing ${channel}...`);
+          managed.process.kill('SIGKILL');
+        }
+        resolve();
+      }, 5000);
+
+      managed.process?.on('exit', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+
+    // Clean up state
+    this.processes.delete(channel);
+    this.restartCount.delete(channel);
+    this.lastRestartTime.delete(channel);
+
+    console.log(`[ProcessManager] ${channel} stopped`);
+    return true;
+  }
+
+  /**
+   * Get process info for a channel.
+   *
+   * @param channel - Channel name
+   * @returns ManagedProcess or undefined if not found
+   */
+  getProcessInfo(channel: string): ManagedProcess | undefined {
+    return this.processes.get(channel);
   }
 
   /**

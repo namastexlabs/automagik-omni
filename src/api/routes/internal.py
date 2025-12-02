@@ -80,6 +80,49 @@ async def get_evolution_key(
     )
 
 
+class SubprocessConfigResponse(BaseModel):
+    """Configuration for subprocess startup (Evolution, etc.)."""
+    database_connection_uri: str | None = None
+    database_provider: str = "postgresql"
+    authentication_api_key: str | None = None
+
+
+@router.get("/subprocess-config", response_model=SubprocessConfigResponse)
+async def get_subprocess_config(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Get configuration for subprocess startup (Evolution, Discord, etc.).
+
+    Returns environment variables needed by subprocesses:
+    - DATABASE_CONNECTION_URI: PostgreSQL connection string
+    - DATABASE_PROVIDER: "postgresql" or "sqlite"
+    - AUTHENTICATION_API_KEY: Unified API key
+
+    **Localhost only** - No authentication required.
+
+    Called by gateway/process.ts before spawning Evolution.
+    """
+    _verify_localhost(request)
+
+    # Get database config
+    db_type = settings_service.get_setting_value("database_type", db) or "sqlite"
+    postgres_url = settings_service.get_setting_value("postgres_url", db)
+
+    # Get API key
+    api_key = settings_service.get_setting_value("omni_api_key", db)
+
+    # For Evolution, we need PostgreSQL - it doesn't support SQLite
+    database_uri = postgres_url if db_type == "postgresql" else None
+
+    return SubprocessConfigResponse(
+        database_connection_uri=database_uri,
+        database_provider=db_type,
+        authentication_api_key=api_key,
+    )
+
+
 @router.get("/health")
 async def internal_health(request: Request):
     """

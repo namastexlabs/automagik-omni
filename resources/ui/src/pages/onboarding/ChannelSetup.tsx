@@ -21,11 +21,8 @@ import {
   Bot,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   Wifi,
   WifiOff,
-  ChevronDown,
-  ChevronUp,
   QrCode,
   Smartphone,
 } from 'lucide-react';
@@ -44,37 +41,21 @@ export default function ChannelSetup() {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isValidatingDiscord, setIsValidatingDiscord] = useState(false);
 
   // Evolution startup states
   const [evolutionStarting, setEvolutionStarting] = useState(false);
   const [evolutionReady, setEvolutionReady] = useState(false);
   const [evolutionError, setEvolutionError] = useState<string | null>(null);
 
-  // Channel status from backend
-  const [whatsappStatus, setWhatsappStatus] = useState<ChannelStatus | null>(null);
-  const [discordStatus, setDiscordStatus] = useState<ChannelStatus | null>(null);
-
   // Form state
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
-  const [whatsappExpanded, setWhatsappExpanded] = useState(false);
   const [whatsappInstanceName, setWhatsappInstanceName] = useState('genie');
+  const [discordEnabled, setDiscordEnabled] = useState(false);
 
   // QR Code modal state
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [qrInstanceName, setQrInstanceName] = useState<string | null>(null);
-
-  const [discordEnabled, setDiscordEnabled] = useState(false);
-  const [discordExpanded, setDiscordExpanded] = useState(false);
-  const [discordInstanceName, setDiscordInstanceName] = useState('');
-  const [discordBotToken, setDiscordBotToken] = useState('');
-  const [discordClientId, setDiscordClientId] = useState('');
-  const [discordValidation, setDiscordValidation] = useState<{
-    valid: boolean;
-    bot_name?: string;
-    message: string;
-  } | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -92,36 +73,23 @@ export default function ChannelSetup() {
     autoConnect: false, // Manual control during startup
   });
 
-  // Fetch channel status on mount
+  // Check if Evolution is already running on mount
   useEffect(() => {
-    const fetchStatus = async () => {
+    const checkEvolution = async () => {
       try {
-        // Fetch setup channel status
-        const status = await api.setup.getChannelsStatus();
-        setWhatsappStatus(status.whatsapp);
-        setDiscordStatus(status.discord);
-        setWhatsappEnabled(status.whatsapp.enabled);
-        setDiscordEnabled(status.discord.enabled && status.discord.configured);
-
-        // Also check if Evolution is already running via gateway
-        try {
-          const gatewayStatus = await api.gateway.getStatus();
-          const evolutionProc = gatewayStatus.processes?.evolution;
-          if (evolutionProc?.healthy) {
-            setEvolutionReady(true);
-          }
-        } catch (e) {
-          // Gateway status check is optional
+        const gatewayStatus = await api.gateway.getStatus();
+        const evolutionProc = gatewayStatus.processes?.evolution;
+        if (evolutionProc?.healthy) {
+          setEvolutionReady(true);
         }
-      } catch (err) {
-        console.error('Failed to fetch channel status:', err);
-        // Don't block setup on status fetch failure
+      } catch (e) {
+        // Gateway not available yet - that's OK
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchStatus();
+    checkEvolution();
   }, []);
 
   // Auto-scroll log viewer during startup
@@ -131,65 +99,31 @@ export default function ChannelSetup() {
     }
   }, [evolutionLogs, evolutionStarting]);
 
-  // Validate Discord token
-  const handleValidateDiscord = async () => {
-    if (!discordBotToken || !discordClientId) {
-      setDiscordValidation({
-        valid: false,
-        message: 'Please enter both bot token and client ID',
-      });
-      return;
-    }
-
-    setIsValidatingDiscord(true);
-    setDiscordValidation(null);
-
-    try {
-      const result = await api.setup.validateDiscordToken(discordBotToken, discordClientId);
-      setDiscordValidation(result);
-    } catch (err) {
-      setDiscordValidation({
-        valid: false,
-        message: err instanceof Error ? err.message : 'Validation failed',
-      });
-    } finally {
-      setIsValidatingDiscord(false);
-    }
-  };
-
   // Handle WhatsApp toggle - starts Evolution when enabled
   const handleWhatsAppToggle = async (enabled: boolean) => {
     setWhatsappEnabled(enabled);
     setEvolutionError(null);
 
-    if (enabled) {
-      // Auto-expand to show instance config
-      setWhatsappExpanded(true);
+    // If enabling and Evolution is not ready, start it
+    if (enabled && !evolutionReady) {
+      setEvolutionStarting(true);
+      clearLogs();
+      connectLogs();
 
-      // If Evolution is not ready, start it
-      if (!evolutionReady) {
-        setEvolutionStarting(true);
-        clearLogs(); // Clear previous logs
-        connectLogs(); // Start streaming logs
-
-        try {
-          // Start Evolution via gateway
-          await api.gateway.startChannel('evolution');
-
-          // Poll until Evolution is healthy (max 60 seconds)
-          const ready = await api.gateway.waitForChannel('evolution', 60000);
-          if (ready) {
-            setEvolutionReady(true);
-          } else {
-            setEvolutionError('Evolution started but is not responding. Please try again.');
-          }
-        } catch (err) {
-          console.error('Failed to start Evolution:', err);
-          setEvolutionError(err instanceof Error ? err.message : 'Failed to start WhatsApp service');
-        } finally {
-          setEvolutionStarting(false);
-          disconnectLogs(); // Stop streaming when done
+      try {
+        await api.gateway.startChannel('evolution');
+        const ready = await api.gateway.waitForChannel('evolution', 60000);
+        if (ready) {
+          setEvolutionReady(true);
+        } else {
+          setEvolutionError('WhatsApp service started but is not responding. Please try again.');
         }
+      } catch (err) {
+        console.error('Failed to start Evolution:', err);
+        setEvolutionError(err instanceof Error ? err.message : 'Failed to start WhatsApp service');
+      } finally {
+        setEvolutionStarting(false);
+        disconnectLogs();
       }
     }
   };
@@ -201,10 +135,27 @@ export default function ChannelSetup() {
     setError(null);
 
     try {
-      // Validate WhatsApp config if enabled and expanded (wants to create instance)
-      if (whatsappEnabled && whatsappExpanded) {
-        if (!whatsappInstanceName.trim()) {
-          throw new Error('Please enter a WhatsApp instance name');
+      // Validate WhatsApp instance name if enabled
+      if (whatsappEnabled && !whatsappInstanceName.trim()) {
+        throw new Error('Please enter a WhatsApp instance name');
+      }
+
+      // Start Evolution if WhatsApp enabled and not running
+      if (whatsappEnabled && !evolutionReady) {
+        setEvolutionStarting(true);
+        clearLogs();
+        connectLogs();
+
+        try {
+          await api.gateway.startChannel('evolution');
+          const ready = await api.gateway.waitForChannel('evolution', 120000);
+          if (!ready) {
+            throw new Error('WhatsApp service failed to start. Please try again.');
+          }
+          setEvolutionReady(true);
+        } finally {
+          setEvolutionStarting(false);
+          disconnectLogs();
         }
       }
 
@@ -212,8 +163,7 @@ export default function ChannelSetup() {
       const result = await api.setup.configureChannels({
         whatsapp_enabled: whatsappEnabled,
         discord_enabled: discordEnabled,
-        // WhatsApp instance name (only if expanded)
-        whatsapp_instance_name: whatsappExpanded ? whatsappInstanceName : undefined,
+        whatsapp_instance_name: whatsappEnabled ? whatsappInstanceName : undefined,
       });
 
       // If we got a QR code, show the modal
@@ -221,7 +171,6 @@ export default function ChannelSetup() {
         setQrCodeData(result.whatsapp_qr_code);
         setQrInstanceName(result.whatsapp_instance_name || whatsappInstanceName);
         setShowQrModal(true);
-        // Don't navigate yet - wait for modal close
         return;
       }
 
@@ -322,41 +271,26 @@ export default function ChannelSetup() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">WhatsApp Web</h3>
-                    <p className="text-sm text-gray-600">via WhatsApp Web API</p>
+                    <p className="text-sm text-gray-600">Connect via QR code</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {/* Evolution starting indicator */}
                   {evolutionStarting ? (
                     <div className="flex items-center gap-1 text-sm">
                       <Loader2 className="h-4 w-4 text-green-500 animate-spin" />
-                      <span className="text-green-600">Starting service...</span>
+                      <span className="text-green-600">Starting...</span>
                     </div>
                   ) : evolutionReady ? (
                     <div className="flex items-center gap-1 text-sm">
                       <Wifi className="h-4 w-4 text-green-500" />
-                      <span className="text-green-600">Service ready</span>
+                      <span className="text-green-600">Ready</span>
                     </div>
-                  ) : whatsappStatus && (
+                  ) : whatsappEnabled ? (
                     <div className="flex items-center gap-1 text-sm">
-                      {whatsappStatus.status === 'ready' ? (
-                        <>
-                          <Wifi className="h-4 w-4 text-green-500" />
-                          <span className="text-green-600">Connected</span>
-                        </>
-                      ) : whatsappStatus.status === 'unavailable' ? (
-                        <>
-                          <WifiOff className="h-4 w-4 text-amber-500" />
-                          <span className="text-amber-600">Not running</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-500">{whatsappStatus.message}</span>
-                        </>
-                      )}
+                      <WifiOff className="h-4 w-4 text-amber-500" />
+                      <span className="text-amber-600">Will start</span>
                     </div>
-                  )}
+                  ) : null}
                   <Switch
                     checked={whatsappEnabled}
                     onCheckedChange={handleWhatsAppToggle}
@@ -364,29 +298,12 @@ export default function ChannelSetup() {
                   />
                 </div>
               </div>
-
-              {whatsappEnabled && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 w-full justify-between text-gray-600"
-                  onClick={() => setWhatsappExpanded(!whatsappExpanded)}
-                >
-                  <span>{whatsappExpanded ? 'Hide' : 'Configure'} instance now</span>
-                  {whatsappExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-              )}
             </div>
 
-            {/* WhatsApp Instance Configuration Form */}
-            {whatsappEnabled && whatsappExpanded && (
+            {/* WhatsApp Instance Configuration - always visible when enabled */}
+            {whatsappEnabled && (
               <div className="px-4 pb-4 space-y-4 border-t border-green-200">
-                {/* Evolution error display */}
+                {/* Error display */}
                 {evolutionError && (
                   <div className="mt-4 p-3 bg-red-100 rounded-lg flex items-start gap-2">
                     <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
@@ -397,58 +314,45 @@ export default function ChannelSetup() {
                   </div>
                 )}
 
-                {/* Starting indicator */}
+                {/* Starting indicator with logs */}
                 {evolutionStarting && (
-                  <div className="mt-4 p-4 bg-green-100 rounded-lg flex flex-col items-center gap-3">
-                    <Loader2 className="h-8 w-8 text-green-600 animate-spin" />
-                    <div className="text-center">
-                      <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
-                      <p className="text-xs text-green-700 mt-1">This may take up to a minute</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Live log stream during startup */}
-                {evolutionStarting && evolutionLogs.length > 0 && (
-                  <div
-                    ref={logContainerRef}
-                    className="mt-3 bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-xs"
-                  >
-                    {evolutionLogs.map((log, i) => (
-                      <div
-                        key={i}
-                        className={`py-0.5 ${
-                          log.level === 'error' ? 'text-red-400' :
-                          log.level === 'warn' ? 'text-yellow-400' :
-                          'text-green-400'
-                        }`}
-                      >
-                        <span className="text-gray-500">
-                          {log.timestamp.split('T')[1]?.slice(0, 8)}
-                        </span>
-                        {' '}
-                        <span>{log.message}</span>
+                  <div className="mt-4 p-4 bg-green-100 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Loader2 className="h-6 w-6 text-green-600 animate-spin" />
+                      <div>
+                        <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
+                        <p className="text-xs text-green-700">This may take up to a minute</p>
                       </div>
-                    ))}
+                    </div>
+                    {evolutionLogs.length > 0 && (
+                      <div
+                        ref={logContainerRef}
+                        className="bg-gray-900 rounded-lg p-3 max-h-32 overflow-y-auto font-mono text-xs"
+                      >
+                        {evolutionLogs.map((log, i) => (
+                          <div
+                            key={i}
+                            className={`py-0.5 ${
+                              log.level === 'error' ? 'text-red-400' :
+                              log.level === 'warn' ? 'text-yellow-400' :
+                              'text-green-400'
+                            }`}
+                          >
+                            <span className="text-gray-500">
+                              {log.timestamp.split('T')[1]?.slice(0, 8)}
+                            </span>
+                            {' '}
+                            <span>{log.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Instructions - only show when Evolution is ready */}
-                {evolutionReady && !evolutionError && (
-                  <div className="mt-4 p-3 bg-green-100 rounded-lg">
-                    <p className="text-sm text-green-800 mb-2 font-medium">
-                      Create a WhatsApp instance:
-                    </p>
-                    <ol className="text-sm text-green-700 space-y-1 list-decimal list-inside">
-                      <li>Choose a name for your instance</li>
-                      <li>Scan the QR code with your phone to connect</li>
-                    </ol>
-                  </div>
-                )}
-
-                {/* Instance Name - only show when Evolution is ready */}
-                {evolutionReady && !evolutionStarting && (
-                  <div className="space-y-2">
+                {/* Instance Name - always visible when enabled, not starting */}
+                {!evolutionStarting && (
+                  <div className="mt-4 space-y-2">
                     <Label htmlFor="whatsappInstanceName" className="text-gray-700">
                       Instance Name
                     </Label>
@@ -460,18 +364,12 @@ export default function ChannelSetup() {
                       placeholder="genie"
                     />
                     <p className="text-xs text-gray-500">
-                      A unique name for this WhatsApp instance
+                      {evolutionReady
+                        ? "Click 'Complete Setup' to create this instance and scan QR code"
+                        : "Service will start automatically when you click 'Complete Setup'"}
                     </p>
                   </div>
                 )}
-              </div>
-            )}
-
-            {whatsappEnabled && !whatsappExpanded && (
-              <div className="px-4 pb-4 pt-2 border-t border-green-200">
-                <p className="text-sm text-green-700">
-                  You can create instances later in the dashboard.
-                </p>
               </div>
             )}
           </div>
@@ -494,12 +392,6 @@ export default function ChannelSetup() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {discordStatus?.configured && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      <span className="text-green-600">Configured</span>
-                    </div>
-                  )}
                   <Switch
                     checked={discordEnabled}
                     onCheckedChange={setDiscordEnabled}
@@ -519,7 +411,7 @@ export default function ChannelSetup() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isSubmitting || evolutionStarting || (whatsappEnabled && whatsappExpanded && !evolutionReady)}
+            disabled={isSubmitting || evolutionStarting}
             className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
           >
             {isSubmitting ? (
