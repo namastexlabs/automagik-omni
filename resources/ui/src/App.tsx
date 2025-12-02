@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
@@ -6,7 +7,7 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { OnboardingProvider, useOnboarding } from './contexts/OnboardingContext';
 import { SetupGuard } from './components/SetupGuard';
 import LoadingScreen from './components/LoadingScreen';
-import { isAuthenticated, getApiKey } from './lib/api';
+import { isAuthenticated, getApiKey, api } from './lib/api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Instances from './pages/Instances';
@@ -58,6 +59,26 @@ function RootRedirect() {
 }
 
 function App() {
+  // Configure global auth error handler
+  useEffect(() => {
+    let isRedirecting = false;
+
+    api.setAuthErrorHandler(() => {
+      // Don't redirect if we are in the onboarding flow
+      // This prevents stray 401s (e.g. from background polling) from resetting the wizard
+      if (window.location.pathname.startsWith('/onboarding')) {
+        console.warn('[App] Suppressed auth redirect during onboarding');
+        return;
+      }
+
+      if (!isRedirecting) {
+        isRedirecting = true;
+        // Use replace to prevent back button returning to broken state
+        window.location.replace('/login');
+      }
+    });
+  }, []);
+
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>

@@ -231,8 +231,8 @@ export interface RedisConfig {
   saveInstances?: boolean;
 }
 
-// Global flag to prevent multiple 401 redirects from parallel requests
-let isRedirectingToLogin = false;
+// Global auth error handler
+let authErrorHandler: (() => void) | null = null;
 
 // API Key management
 export function getApiKey(): string | null {
@@ -241,8 +241,6 @@ export function getApiKey(): string | null {
 
 export function setApiKey(key: string): void {
   localStorage.setItem(API_KEY_STORAGE_KEY, key);
-  // Reset redirect flag so future 401s can trigger redirects
-  isRedirectingToLogin = false;
 }
 
 export function removeApiKey(): void {
@@ -277,13 +275,15 @@ async function apiRequest<T>(
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      // Prevent multiple redirects from parallel requests (race condition fix)
-      if (!isRedirectingToLogin) {
-        isRedirectingToLogin = true;
-        removeApiKey();
-        // Use replace to prevent back button returning to broken state
+      removeApiKey();
+      
+      if (authErrorHandler) {
+        authErrorHandler();
+      } else {
+        // Default behavior: redirect to login
         window.location.replace('/login');
       }
+      
       throw new Error('Authentication failed');
     }
 
@@ -296,6 +296,11 @@ async function apiRequest<T>(
 
 // API methods
 export const api = {
+  // Configuration
+  setAuthErrorHandler(handler: () => void) {
+    authErrorHandler = handler;
+  },
+
   // Test authentication
   async testAuth(): Promise<boolean> {
     try {
