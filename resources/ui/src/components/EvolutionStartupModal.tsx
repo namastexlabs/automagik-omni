@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState, useCallback, memo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -129,6 +129,22 @@ function getLogColor(level: LogEntry['level']): string {
   }
 }
 
+// Memoized log list component to prevent re-renders of all items
+const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
+  <>
+    {logs.map((log, i) => (
+      <div key={`${log.timestamp}-${i}`} className="flex gap-2">
+        <span className="text-muted-foreground/60 flex-shrink-0">
+          [{new Date(log.timestamp).toLocaleTimeString()}]
+        </span>
+        <span className={cn('break-all', getLogColor(log.level))}>
+          {log.message}
+        </span>
+      </div>
+    ))}
+  </>
+));
+
 export function EvolutionStartupModal({
   open,
   onOpenChange,
@@ -139,6 +155,9 @@ export function EvolutionStartupModal({
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [copiedLogs, setCopiedLogs] = useState(false);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Sticky phase state
+  const [stickyPhase, setStickyPhase] = useState<Phase>('init');
 
   const {
     logs,
@@ -159,8 +178,37 @@ export function EvolutionStartupModal({
     [logs]
   );
 
-  // Detect current phase
-  const currentPhase = useMemo(() => detectPhase(evolutionLogs), [evolutionLogs]);
+  // Calculate current phase based on logs
+  const detectedPhase = useMemo(() => detectPhase(evolutionLogs), [evolutionLogs]);
+
+  // Update sticky phase - only move forward or to error
+  useEffect(() => {
+    // If currently error, stay error until retry (which resets state)
+    if (stickyPhase === 'error') return;
+
+    // If detected 'error', switch to error
+    if (detectedPhase === 'error') {
+      setStickyPhase('error');
+      return;
+    }
+
+    // If detected 'ready', switch to ready
+    if (detectedPhase === 'ready') {
+      setStickyPhase('ready');
+      return;
+    }
+
+    // For other phases, only advance forward
+    const currentIndex = PHASE_ORDER.indexOf(stickyPhase);
+    const newIndex = PHASE_ORDER.indexOf(detectedPhase);
+
+    if (newIndex > currentIndex) {
+      setStickyPhase(detectedPhase);
+    }
+  }, [detectedPhase, stickyPhase]);
+
+  const currentPhase = stickyPhase;
+
   const errorMessage = useMemo(
     () => (currentPhase === 'error' ? getErrorMessage(evolutionLogs) : null),
     [currentPhase, evolutionLogs]
@@ -193,10 +241,11 @@ export function EvolutionStartupModal({
     };
   }, [currentPhase, onSuccess]);
 
-  // Reconnect when modal opens
+  // Reconnect and reset when modal opens
   useEffect(() => {
     if (open) {
       clearLogs();
+      setStickyPhase('init'); // Reset phase on new open
       connect();
     }
   }, [open, connect, clearLogs]);
@@ -219,6 +268,7 @@ export function EvolutionStartupModal({
   // Handle retry
   const handleRetry = () => {
     clearLogs();
+    setStickyPhase('init'); // Reset phase on retry
     onRetry?.();
   };
 
@@ -353,16 +403,7 @@ export function EvolutionStartupModal({
               Waiting for logs...
             </div>
           ) : (
-            evolutionLogs.map((log, i) => (
-              <div key={`${log.timestamp}-${i}`} className="flex gap-2">
-                <span className="text-muted-foreground/60 flex-shrink-0">
-                  [{new Date(log.timestamp).toLocaleTimeString()}]
-                </span>
-                <span className={cn('break-all', getLogColor(log.level))}>
-                  {log.message}
-                </span>
-              </div>
-            ))
+            <LogList logs={evolutionLogs} />
           )}
         </div>
 

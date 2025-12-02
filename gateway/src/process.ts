@@ -88,22 +88,26 @@ export class ProcessManager {
       }
 
       const logFile = join(logsDir, `${logName}-combined.log`);
-      const stream = createWriteStream(logFile, { flags: 'a' });
+      const fs = require('fs');
+
+      const writeLog = (data: Buffer) => {
+        try {
+          fs.appendFileSync(logFile, data);
+        } catch (e) {
+          // Ignore write errors to avoid crashing process
+        }
+      };
 
       proc.stdout?.on('data', (data: Buffer) => {
-        stream.write(data); // Write raw to file
+        writeLog(data); // Write raw to file immediately
         const line = data.toString().trim();
         if (line) console.log(`[${consolePrefix}] ${line}`);
       });
 
       proc.stderr?.on('data', (data: Buffer) => {
-        stream.write(data);
+        writeLog(data);
         const line = data.toString().trim();
         if (line) console.error(`[${consolePrefix}] ${line}`);
-      });
-      
-      proc.on('exit', () => {
-        stream.end();
       });
     } catch (error) {
       console.warn(`[ProcessManager] Failed to setup file logging for ${logName}:`, error);
