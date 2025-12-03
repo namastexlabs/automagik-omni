@@ -193,6 +193,16 @@ export default function ChannelSetup() {
         return;
       }
 
+      // Check if WhatsApp is already connected (instance exists in Evolution from before wipe)
+      if (result.whatsapp_status?.startsWith('connected:')) {
+        // Already connected! Skip QR code and proceed to completion
+        console.log('WhatsApp already connected, skipping QR code step');
+        await api.setup.complete();
+        await completeSetup();
+        navigate('/dashboard');
+        return;
+      }
+
       // If WhatsApp was enabled but no QR code returned, that's an error
       // The instance was created but Evolution failed to generate QR
       if (whatsappEnabled && result.whatsapp_instance_name && !result.whatsapp_qr_code) {
@@ -217,7 +227,7 @@ export default function ChannelSetup() {
           setIsSubmitting(false);
           return;
         }
-        
+
         setEvolutionError('Failed to get QR code. WhatsApp service may not be running.');
         setShowStartupModal(true);
         setIsSubmitting(false);

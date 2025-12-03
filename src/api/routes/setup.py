@@ -685,36 +685,78 @@ async def configure_channels(
                     db.commit()
                     db.refresh(new_instance)
 
-                    # Create instance in Evolution API and get QR code
+                    # Check if Evolution already has this instance (might exist from before wipe)
+                    # This handles the case where SQLite was wiped but Evolution PostgreSQL wasn't
                     try:
-                        from src.channels.base import ChannelHandlerFactory
+                        from src.channels.whatsapp.evolution_client import EvolutionClient
+                        from src.services.settings_service import get_omni_api_key_global
 
-                        handler = ChannelHandlerFactory.get_handler("whatsapp")
+                        evo_key = get_omni_api_key_global()
+                        if evo_key:
+                            evo_client = EvolutionClient(evolution_url, evo_key)
+                            evo_instances = await evo_client.fetch_instances(instance_name)
 
-                        # Create instance in Evolution API
-                        await handler.create_instance(
-                            new_instance,
-                            phone_number=None,
-                            auto_qr=True,
-                            integration="WHATSAPP-BAILEYS",
-                        )
+                            if evo_instances:
+                                evo_instance = evo_instances[0]
+                                logger.info(f"Found existing Evolution instance: {instance_name} (status: {evo_instance.status})")
 
-                        # Get QR code
-                        qr_response = await handler.get_qr_code(new_instance)
-                        if qr_response and qr_response.base64:
-                            whatsapp_qr_code = qr_response.base64
-                            logger.info(f"Got QR code for instance: {instance_name}")
+                                # Instance exists in Evolution - check if already connected
+                                if evo_instance.status == "open":
+                                    # Already connected! Skip QR code entirely
+                                    new_instance.is_active = True  # Mark as active since it's connected
+                                    db.commit()
+                                    db.refresh(new_instance)
 
-                        whatsapp_status = f"created:{instance_name}"
-                        whatsapp_instance_created = instance_name
-                        logger.info(f"Created WhatsApp instance: {instance_name}")
+                                    whatsapp_status = f"connected:{instance_name}"
+                                    whatsapp_instance_created = instance_name
+                                    logger.info(f"WhatsApp instance {instance_name} already connected in Evolution - skipping QR")
 
+                                    # Skip the QR code logic entirely by returning early
+                                    # We still need to configure Discord if enabled, so we can't return here
+                                    # Instead, set a flag to skip the Evolution creation block
+                                    skip_evolution_create = True
+                                else:
+                                    # Instance exists but not connected - try to get QR
+                                    skip_evolution_create = False
+                            else:
+                                skip_evolution_create = False
+                        else:
+                            skip_evolution_create = False
                     except Exception as e:
-                        # Instance created in DB but Evolution API failed
-                        # Keep instance for retry later
-                        logger.warning(f"Failed to create Evolution instance: {e}")
-                        whatsapp_status = f"created:{instance_name}:pending_connection"
-                        whatsapp_instance_created = instance_name
+                        logger.debug(f"Couldn't check Evolution for existing instance: {e}")
+                        skip_evolution_create = False
+
+                    # Create instance in Evolution API and get QR code (only if not already connected)
+                    if not skip_evolution_create:
+                        try:
+                            from src.channels.base import ChannelHandlerFactory
+
+                            handler = ChannelHandlerFactory.get_handler("whatsapp")
+
+                            # Create instance in Evolution API
+                            await handler.create_instance(
+                                new_instance,
+                                phone_number=None,
+                                auto_qr=True,
+                                integration="WHATSAPP-BAILEYS",
+                            )
+
+                            # Get QR code
+                            qr_response = await handler.get_qr_code(new_instance)
+                            if qr_response and qr_response.qr_code:
+                                whatsapp_qr_code = qr_response.qr_code
+                                logger.info(f"Got QR code for instance: {instance_name}")
+
+                            whatsapp_status = f"created:{instance_name}"
+                            whatsapp_instance_created = instance_name
+                            logger.info(f"Created WhatsApp instance: {instance_name}")
+
+                        except Exception as e:
+                            # Instance created in DB but Evolution API failed
+                            # Keep instance for retry later
+                            logger.warning(f"Failed to create Evolution instance: {e}")
+                            whatsapp_status = f"created:{instance_name}:pending_connection"
+                            whatsapp_instance_created = instance_name
 
         else:
             _set_or_update(

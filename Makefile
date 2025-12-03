@@ -941,24 +941,32 @@ db-init: ## Initialize database with default instance
 .PHONY: wipe
 wipe: ## Wipe all data and restart for fresh onboarding (with confirmation)
 	@echo -e "$(FONT_RED)$(WARNING) WARNING: This will DELETE ALL DATA and restart services!$(FONT_RESET)"
-	@echo -e "$(FONT_YELLOW)Tables to be wiped:$(FONT_RESET)"
-	@echo "  - omni_global_settings"
-	@echo "  - omni_instance_configs"
-	@echo "  - omni_entities"
-	@echo "  - omni_users"
-	@echo "  - omni_user_external_ids"
-	@echo "  - omni_message_traces"
-	@echo "  - omni_trace_payloads"
-	@echo "  - omni_setting_change_history"
-	@echo "  - omni_access_rules"
+	@echo -e "$(FONT_YELLOW)Data to be wiped:$(FONT_RESET)"
+	@echo "  PostgreSQL tables:"
+	@echo "    - omni_global_settings"
+	@echo "    - omni_instance_configs"
+	@echo "    - omni_users"
+	@echo "    - omni_user_external_ids"
+	@echo "    - omni_message_traces"
+	@echo "    - omni_trace_payloads"
+	@echo "    - omni_setting_change_history"
+	@echo "    - omni_access_rules"
+	@echo "  SQLite database:"
+	@echo "    - data/automagik-omni.db"
 	@echo ""
 	@read -p "Type 'WIPE' to confirm: " confirm && [ "$$confirm" = "WIPE" ] || { echo "$(FONT_GREEN)$(CHECKMARK) Aborted$(FONT_RESET)"; exit 1; }
-	$(call print_status,Wiping database...)
+	$(call print_status,Wiping PostgreSQL database...)
 	@PGPASSWORD=omni_secure_2024 psql -h 10.114.1.135 -U omni -d automagik_omni -c \
-		"TRUNCATE omni_global_settings, omni_instance_configs, omni_entities, omni_users, omni_user_external_ids, omni_message_traces, omni_trace_payloads, omni_setting_change_history, omni_access_rules CASCADE;"
-	$(call print_success,Database wiped!)
+		"TRUNCATE omni_global_settings, omni_instance_configs, omni_users, omni_user_external_ids, omni_message_traces, omni_trace_payloads, omni_setting_change_history, omni_access_rules CASCADE;"
+	$(call print_success,PostgreSQL wiped!)
+	$(call print_status,Wiping SQLite database...)
+	@rm -f data/automagik-omni.db
+	$(call print_success,SQLite wiped!)
+	$(call print_status,Regenerating Prisma client...)
+	@cd resources/omni-whatsapp-core && npx prisma generate 2>/dev/null || true
+	$(call print_success,Prisma client regenerated!)
 	$(call print_status,Restarting services...)
-	@pm2 restart 8882-automagik-omni-dev 2>/dev/null || true
+	@pm2 restart 8882-automagik-omni 2>/dev/null || true
 	$(call print_success,Services restarted!)
 	@echo ""
 	@echo -e "$(FONT_GREEN)$(SPARKLES) Ready for fresh onboarding at http://localhost:8882$(FONT_RESET)"

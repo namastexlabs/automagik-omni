@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from src.channels.whatsapp.evolution_client import EvolutionInstance
 from src.db.models import InstanceConfig
 from src.utils.instance_utils import normalize_instance_name
+from src.ip_utils import replace_localhost_with_ipv4
 
 logger = logging.getLogger(__name__)
 
@@ -53,20 +54,18 @@ class DiscoveryService:
 
         # Get bootstrap credentials from database (with .env fallback)
         from src.config import config
-        from src.services.settings_service import settings_service
+        from src.services.settings_service import settings_service, get_omni_api_key_global
 
         # Use gateway proxy URL - Evolution runs on dynamic ports managed by gateway
         gateway_port = os.getenv("OMNI_PORT", "8882")
         global_url = settings_service.get_setting_value("evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution")
-        bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
 
-        # Fallback to .env for backward compatibility during transition
-        if not bootstrap_key:
-            bootstrap_key = config.get_env("EVOLUTION_API_KEY")
+        # Use unified omni_api_key (same key for Omni API and Evolution API)
+        bootstrap_key = get_omni_api_key_global()
 
         if not bootstrap_key:
             logger.warning(
-                "No WhatsApp Web API key found in database or environment. "
+                "No API key found in database or environment. "
                 "The key should be auto-generated on first startup."
             )
             return []
@@ -137,7 +136,60 @@ class DiscoveryService:
             logger.error(f"Error committing discovery changes: {e}")
             db.rollback()
 
+        # Sync webhook URLs for all discovered instances to ensure they point to current API port
+        if synced_instances:
+            await self._sync_webhook_urls(synced_instances, evolution_client, config)
+
         return synced_instances
+
+    async def _sync_webhook_urls(self, instances: List[InstanceConfig], evolution_client, config) -> None:
+        """
+        Sync webhook URLs for all instances to point to the current Python API port.
+
+        This ensures that after a restart (when ports may change dynamically),
+        Evolution webhooks are automatically updated to reach the Python API.
+
+        Args:
+            instances: List of instances to sync
+            evolution_client: EvolutionClient instance
+            config: Config module with api.host and api.port
+        """
+        if not hasattr(config, 'api') or not config.api.port:
+            logger.warning("Cannot sync webhook URLs: config.api.port not available")
+            return
+
+        current_host = config.api.host or "127.0.0.1"
+        current_port = config.api.port
+
+        logger.info(f"Syncing webhook URLs to http://{current_host}:{current_port}/webhook/evolution/...")
+
+        for instance in instances:
+            instance_name = instance.whatsapp_instance or instance.name
+            expected_webhook_url = replace_localhost_with_ipv4(
+                f"http://{current_host}:{current_port}/webhook/evolution/{instance_name}"
+            )
+
+            try:
+                # Check current webhook URL
+                current_webhook = await evolution_client.get_webhook(instance_name)
+                current_url = current_webhook.get("url", "") if current_webhook else ""
+
+                # Only update if URL is different (wrong port or host)
+                if current_url != expected_webhook_url:
+                    logger.info(f"Updating webhook for {instance_name}: {current_url} -> {expected_webhook_url}")
+                    await evolution_client.set_webhook(
+                        instance_name,
+                        expected_webhook_url,
+                        events=["MESSAGES_UPSERT"],
+                        webhook_base64=True
+                    )
+                    logger.info(f"✓ Webhook synced for {instance_name}")
+                else:
+                    logger.debug(f"Webhook already correct for {instance_name}")
+
+            except Exception as e:
+                logger.warning(f"Failed to sync webhook for {instance_name}: {e}")
+                # Continue with other instances even if one fails
 
     def _update_existing_instance(self, db_instance: InstanceConfig, evo_instance: EvolutionInstance) -> bool:
         """
@@ -287,16 +339,13 @@ class DiscoveryService:
         try:
             # Create Evolution client with bootstrap key from database
             from src.channels.whatsapp.evolution_client import EvolutionClient
-            from src.config import config
-            from src.services.settings_service import settings_service
+            from src.services.settings_service import get_omni_api_key_global
 
-            # Get bootstrap key from database (with .env fallback)
-            bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
-            if not bootstrap_key:
-                bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
+            # Use unified omni_api_key (same key for Omni API and Evolution API)
+            bootstrap_key = get_omni_api_key_global()
 
             if not bootstrap_key:
-                logger.warning("No WhatsApp Web API key found in database or environment, cannot sync instance status")
+                logger.warning("No API key found in database or environment, cannot sync instance status")
                 return None
 
             # Pass instance name for logging/debugging only (auth uses bootstrap key)

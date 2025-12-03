@@ -245,15 +245,17 @@ async def lifespan(app: FastAPI):
     # Auto-discover existing Evolution instances (non-intrusive)
     # Skip auto-discovery in test environment to prevent database conflicts
     if environment != "test":
+        # Initial discovery attempt (may fail if Evolution not ready yet)
+        initial_discovered = []
         try:
             logger.info("Starting Evolution instance auto-discovery...")
             from src.services.discovery_service import discovery_service
 
             with SessionLocal() as db:
-                discovered_instances = await discovery_service.discover_evolution_instances(db)
-                if discovered_instances:
-                    logger.info(f"Auto-discovered {len(discovered_instances)} Evolution instances:")
-                    for instance in discovered_instances:
+                initial_discovered = await discovery_service.discover_evolution_instances(db)
+                if initial_discovered:
+                    logger.info(f"Auto-discovered {len(initial_discovered)} Evolution instances:")
+                    for instance in initial_discovered:
                         logger.info(f"  - {instance.name} (active: {instance.is_active})")
                 else:
                     logger.info("No new Evolution instances discovered")
@@ -261,6 +263,30 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Evolution instance auto-discovery failed: {e}")
             logger.debug(f"Auto-discovery error details: {str(e)}")
             logger.info("Continuing without auto-discovery - instances can be created manually")
+
+        # Schedule delayed re-discovery to catch Evolution after it starts
+        # This ensures webhook URLs are synced even if initial discovery failed
+        async def delayed_discovery_and_webhook_sync():
+            """Re-run discovery after Evolution has had time to start."""
+            import asyncio
+            await asyncio.sleep(30)  # Wait for Evolution to start (it needs subprocess-config first)
+
+            try:
+                logger.info("Running delayed discovery and webhook sync...")
+                from src.services.discovery_service import discovery_service
+
+                with SessionLocal() as db:
+                    discovered = await discovery_service.discover_evolution_instances(db)
+                    if discovered:
+                        logger.info(f"Delayed discovery found {len(discovered)} instances - webhooks synced")
+                    else:
+                        logger.debug("Delayed discovery found no instances")
+            except Exception as e:
+                logger.warning(f"Delayed discovery failed: {e}")
+
+        # Start delayed discovery task (non-blocking)
+        import asyncio
+        asyncio.create_task(delayed_discovery_and_webhook_sync())
     else:
         logger.info("Skipping Evolution instance auto-discovery in test environment")
 

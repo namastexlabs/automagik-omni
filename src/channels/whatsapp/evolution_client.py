@@ -311,6 +311,21 @@ class EvolutionClient:
         """Delete a WhatsApp instance."""
         return await self._request("DELETE", f"/instance/delete/{quote(instance_name, safe='')}")
 
+    async def get_webhook(self, instance_name: str) -> Optional[Dict[str, Any]]:
+        """Get current webhook configuration for an instance.
+
+        Args:
+            instance_name: Name of the Evolution instance
+
+        Returns:
+            Webhook configuration dict with 'url', 'events', etc. or None if not found
+        """
+        try:
+            return await self._request("GET", f"/webhook/find/{quote(instance_name, safe='')}")
+        except Exception as e:
+            logger.debug(f"Could not get webhook for {instance_name}: {e}")
+            return None
+
     async def set_webhook(
         self,
         instance_name: str,
