@@ -314,10 +314,11 @@ export const api = {
 
   // Instances API
   instances: {
-    async list(params?: { limit?: number; include_status?: boolean }): Promise<any[]> {
+    async list(params?: { limit?: number; include_status?: boolean; include_live_status?: boolean }): Promise<any[]> {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.append('limit', params.limit.toString());
       if (params?.include_status) queryParams.append('include_status', params.include_status.toString());
+      if (params?.include_live_status) queryParams.append('include_live_status', 'true');
 
       const query = queryParams.toString();
       return apiRequest(`/instances${query ? `?${query}` : ''}`);

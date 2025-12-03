@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Activity, Wifi, Settings, Webhook, Radio, Server, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Activity, Wifi, Settings, Webhook, Radio, Server, Loader2, Bot, type LucideIcon } from 'lucide-react';
 import { cn, api } from '@/lib';
 import { ConnectionSheet } from '@/components/sheets/ConnectionSheet';
 import { SettingsSheet } from '@/components/sheets/SettingsSheet';
 import { WebhookSheet } from '@/components/sheets/WebhookSheet';
 import { WebSocketSheet } from '@/components/sheets/WebSocketSheet';
 import { RabbitMQSheet } from '@/components/sheets/RabbitMQSheet';
+import { DiscordBotSettingsSheet } from '@/components/sheets/DiscordBotSettingsSheet';
+import { DiscordIcon, WhatsAppIcon, SlackIcon } from '@/components/icons/BrandIcons';
 
 interface InstanceNavProps {
   isExpanded: boolean;
@@ -14,7 +16,38 @@ interface InstanceNavProps {
   onNavigate?: () => void;
 }
 
-type SheetType = 'connection' | 'settings' | 'webhook' | 'websocket' | 'rabbitmq' | null;
+type SheetType = 'connection' | 'settings' | 'webhook' | 'websocket' | 'rabbitmq' | 'bot-settings' | null;
+
+// Channel-specific sub-items configuration
+interface SubItemConfig {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+const CHANNEL_SUB_ITEMS: Record<'whatsapp' | 'discord' | 'slack', SubItemConfig[]> = {
+  whatsapp: [
+    { id: 'connection', label: 'Connection', icon: Wifi },
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'webhook', label: 'Webhook', icon: Webhook },
+    { id: 'websocket', label: 'WebSocket', icon: Radio },
+    { id: 'rabbitmq', label: 'RabbitMQ', icon: Server },
+  ],
+  discord: [
+    { id: 'connection', label: 'Connection', icon: Wifi },
+    { id: 'bot-settings', label: 'Bot Settings', icon: Bot },
+  ],
+  slack: [
+    { id: 'connection', label: 'Connection', icon: Wifi },
+  ],
+};
+
+// Channel type icons and colors (using brand SVG icons)
+const CHANNEL_ICON_CONFIG: Record<string, { color: string }> = {
+  whatsapp: { color: 'text-[#25D366]' },
+  discord: { color: 'text-[#5865F2]' },
+  slack: { color: 'text-[#E01E5A]' },
+};
 
 export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavProps) {
   const [expandedInstances, setExpandedInstances] = useState<Record<string, boolean>>({});
@@ -26,7 +59,8 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
 
   const { data: instances, isLoading } = useQuery({
     queryKey: ['instances'],
-    queryFn: () => api.instances.list({ limit: 100 }),
+    queryFn: () => api.instances.list({ limit: 100, include_live_status: true }),
+    refetchInterval: 30000, // Refresh every 30 seconds to keep status current
   });
 
   const toggleInstance = (instanceName: string) => {
@@ -44,13 +78,27 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
     setActiveSheet(null);
   };
 
-  const subItems = [
-    { id: 'connection', label: 'Connection', icon: Wifi },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'webhook', label: 'Webhook', icon: Webhook },
-    { id: 'websocket', label: 'WebSocket', icon: Radio },
-    { id: 'rabbitmq', label: 'RabbitMQ', icon: Server },
-  ] as const;
+  // Get sub-items for a specific channel type
+  const getSubItems = (channelType: string): SubItemConfig[] => {
+    const type = channelType as keyof typeof CHANNEL_SUB_ITEMS;
+    return CHANNEL_SUB_ITEMS[type] || CHANNEL_SUB_ITEMS.whatsapp;
+  };
+
+  // Get channel icon component (brand SVG icons)
+  const getChannelIcon = (channelType: string) => {
+    const config = CHANNEL_ICON_CONFIG[channelType] || CHANNEL_ICON_CONFIG.whatsapp;
+    const iconClass = cn('h-3.5 w-3.5', config.color);
+
+    switch (channelType) {
+      case 'discord':
+        return <DiscordIcon className={iconClass} />;
+      case 'slack':
+        return <SlackIcon className={iconClass} />;
+      case 'whatsapp':
+      default:
+        return <WhatsAppIcon className={iconClass} />;
+    }
+  };
 
   return (
     <>
@@ -94,20 +142,24 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
                   ) : (
                     <ChevronRight className="h-3 w-3 text-muted-foreground" />
                   )}
+                  {getChannelIcon(instance.channel_type || 'whatsapp')}
                   <span className="flex-1 text-left truncate">{instance.name}</span>
                   <span className={cn(
                     'h-2 w-2 rounded-full',
-                    instance.is_active ? 'bg-green-500' : 'bg-gray-400'
+                    instance.connection_status === 'connected' ? 'bg-green-500' :
+                    instance.connection_status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                    instance.connection_status === 'disconnected' || instance.connection_status === 'error' ? 'bg-red-500' :
+                    'bg-gray-400'
                   )} />
                 </button>
 
-                {/* Sub-items */}
+                {/* Sub-items - channel-aware */}
                 {expandedInstances[instance.name] && (
                   <div className="ml-5 space-y-0.5">
-                    {subItems.map((item) => (
+                    {getSubItems(instance.channel_type || 'whatsapp').map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => openSheet(item.id, instance.name, instance.channel_type || 'whatsapp')}
+                        onClick={() => openSheet(item.id as SheetType, instance.name, instance.channel_type || 'whatsapp')}
                         className={cn(
                           'flex w-full items-center space-x-2 rounded-lg px-3 py-1.5 text-xs transition-all duration-200',
                           'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -159,6 +211,13 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
       )}
       {activeSheet?.type === 'rabbitmq' && (
         <RabbitMQSheet
+          instanceName={activeSheet.instanceName}
+          open={true}
+          onOpenChange={(open) => !open && closeSheet()}
+        />
+      )}
+      {activeSheet?.type === 'bot-settings' && (
+        <DiscordBotSettingsSheet
           instanceName={activeSheet.instanceName}
           open={true}
           onOpenChange={(open) => !open && closeSheet()}

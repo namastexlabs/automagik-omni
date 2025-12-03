@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,8 +10,8 @@ import { api, formatRelativeTime } from '@/lib';
 import type { OmniContact, OmniContactStatus } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
-import { AlertCircle, Search, Users as UsersIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, Search, Users as UsersIcon, ChevronLeft, ChevronRight, Play, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Contacts() {
@@ -20,6 +20,18 @@ export default function Contacts() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const pageSize = 50;
+  const queryClient = useQueryClient();
+
+  // Mutation to start Evolution service
+  const startEvolutionMutation = useMutation({
+    mutationFn: () => api.gateway.startChannel('evolution'),
+    onSuccess: () => {
+      // Wait a moment for Evolution to fully start, then refetch
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['contacts', selectedInstance] });
+      }, 2000);
+    },
+  });
 
   // Fetch available instances
   const { data: instances } = useQuery({
@@ -47,7 +59,14 @@ export default function Contacts() {
         status_filter: statusFilter !== 'all' ? statusFilter : undefined,
       }),
     enabled: !!selectedInstance,
+    retry: false, // Don't retry on Evolution errors
   });
+
+  // Check if error is likely Evolution-related (500/503)
+  const isEvolutionError = error && (
+    (error instanceof Error && (error.message.includes('500') || error.message.includes('503') || error.message.includes('Evolution'))) ||
+    String(error).includes('500') || String(error).includes('503')
+  );
 
   const getStatusColor = (status: OmniContactStatus): string => {
     switch (status) {
@@ -152,8 +171,51 @@ export default function Contacts() {
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-background">
           <div className="p-8 space-y-6 animate-fade-in">
-            {/* Error Alert */}
-            {error && (
+            {/* Evolution Service Error - Show Start Button */}
+            {isEvolutionError && (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Alert variant={startEvolutionMutation.isSuccess ? "default" : "destructive"} className="max-w-md">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>
+                    {startEvolutionMutation.isSuccess ? "Starting WhatsApp Service..." : "WhatsApp Service Not Running"}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {startEvolutionMutation.isSuccess
+                      ? "Please wait while the service starts. This may take a few seconds."
+                      : "The WhatsApp service needs to be started to load contacts."
+                    }
+                  </AlertDescription>
+                </Alert>
+
+                {startEvolutionMutation.isSuccess ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Connecting...</span>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => startEvolutionMutation.mutate()}
+                    disabled={startEvolutionMutation.isPending}
+                    className="gap-2"
+                  >
+                    {startEvolutionMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4" />
+                        Start WhatsApp Service
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Generic Error Alert (non-Evolution errors) */}
+            {error && !isEvolutionError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>

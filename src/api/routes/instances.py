@@ -204,6 +204,7 @@ class InstanceConfigResponse(BaseModel):
     agent_timeout: int = 60
     is_default: bool = False
     is_active: bool = False
+    connection_status: Optional[str] = None  # Live status: "connected"|"disconnected"|"connecting"|"error"|"unknown"
     automagik_instance_id: Optional[str] = None
     automagik_instance_name: Optional[str] = None
 
@@ -413,11 +414,26 @@ async def list_instances(
     skip: int = 0,
     limit: int = 100,
     include_status: bool = True,
+    include_live_status: bool = False,
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """List all instance configurations with optional Evolution API status."""
+    """List all instance configurations with optional Evolution API status.
+
+    Args:
+        include_live_status: If True, fetch live connection status for each instance
+                            via channel handlers (with caching and timeout).
+    """
     instances = db.query(InstanceConfig).offset(skip).limit(limit).all()
+
+    # Fetch live statuses if requested
+    live_statuses = {}
+    if include_live_status:
+        try:
+            from src.services.instance_status_service import get_live_statuses
+            live_statuses = await get_live_statuses(instances)
+        except Exception as e:
+            logger.warning(f"Failed to fetch live statuses: {e}")
 
     environment = os.getenv("ENVIRONMENT", "").lower()
     skip_status_checks = environment == "test" or os.getenv("SKIP_EVOLUTION_STATUS", "").lower() in {"true", "1", "yes"}
@@ -450,6 +466,7 @@ async def list_instances(
             "agent_timeout": instance.agent_timeout,
             "is_default": instance.is_default,
             "is_active": instance.is_active,
+            "connection_status": live_statuses.get(instance.name),
             "automagik_instance_id": instance.automagik_instance_id,
             "automagik_instance_name": instance.automagik_instance_name,
             "profile_name": getattr(instance, "profile_name", None),
