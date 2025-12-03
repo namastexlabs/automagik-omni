@@ -1089,6 +1089,22 @@ export const api = {
       }
       return false;
     },
+
+    // Check if Discord dependencies are installed
+    async checkDiscordInstalled(): Promise<{ installed: boolean; version: string | null }> {
+      const response = await fetch('/api/gateway/discord-status');
+      if (!response.ok) {
+        return { installed: false, version: null };
+      }
+      return response.json();
+    },
+
+    // Install Discord dependencies - returns the SSE endpoint URL
+    // Note: The actual installation streams via SSE at /api/gateway/install-discord (GET)
+    // Use EventSource to connect to this endpoint for live logs
+    getInstallDiscordUrl(): string {
+      return '/api/gateway/install-discord';
+    },
   },
 
   // Backward compatibility alias - use api.whatsappWeb for new code

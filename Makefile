@@ -953,15 +953,34 @@ wipe: ## Wipe all data and restart for fresh onboarding (with confirmation)
 	@echo "    - omni_access_rules"
 	@echo "  SQLite database:"
 	@echo "    - data/automagik-omni.db"
+	@echo "  Evolution API:"
+	@echo "    - resources/omni-whatsapp-core/prisma/evolution.db"
+	@echo "    - resources/omni-whatsapp-core/instances/* (WhatsApp sessions)"
 	@echo ""
 	@read -p "Type 'WIPE' to confirm: " confirm && [ "$$confirm" = "WIPE" ] || { echo "$(FONT_GREEN)$(CHECKMARK) Aborted$(FONT_RESET)"; exit 1; }
 	$(call print_status,Wiping PostgreSQL database...)
-	@PGPASSWORD=omni_secure_2024 psql -h 10.114.1.135 -U omni -d automagik_omni -c \
-		"TRUNCATE omni_global_settings, omni_instance_configs, omni_users, omni_user_external_ids, omni_message_traces, omni_trace_payloads, omni_setting_change_history, omni_access_rules CASCADE;"
+	@PGPASSWORD=omni_secure_2024 psql -h 10.114.1.135 -U omni -d automagik_omni -c "\
+		DO \$$\$$ \
+		DECLARE \
+			tables TEXT[] := ARRAY['omni_global_settings', 'omni_instance_configs', 'omni_users', 'omni_user_external_ids', 'omni_message_traces', 'omni_trace_payloads', 'omni_setting_change_history', 'omni_access_rules']; \
+			t TEXT; \
+		BEGIN \
+			FOREACH t IN ARRAY tables LOOP \
+				IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = t) THEN \
+					EXECUTE format('TRUNCATE %I CASCADE', t); \
+				END IF; \
+			END LOOP; \
+		END \$$\$$;"
 	$(call print_success,PostgreSQL wiped!)
 	$(call print_status,Wiping SQLite database...)
 	@rm -f data/automagik-omni.db
 	$(call print_success,SQLite wiped!)
+	$(call print_status,Wiping Evolution API database...)
+	@rm -f resources/omni-whatsapp-core/prisma/evolution.db
+	$(call print_success,Evolution database wiped!)
+	$(call print_status,Wiping WhatsApp sessions...)
+	@rm -rf resources/omni-whatsapp-core/instances/*
+	$(call print_success,WhatsApp sessions wiped!)
 	$(call print_status,Regenerating Prisma client...)
 	@cd resources/omni-whatsapp-core && npx prisma generate 2>/dev/null || true
 	$(call print_success,Prisma client regenerated!)

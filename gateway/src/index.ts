@@ -10,6 +10,7 @@ import cors from '@fastify/cors';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import { execa } from 'execa';
 import { config } from 'dotenv';
 
 import { ProcessManager } from './process.js';
@@ -316,6 +317,92 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     );
 
     return statuses;
+  });
+
+  // ============================================================
+  // Route: /api/gateway/discord-* - Discord setup endpoints
+  // ============================================================
+
+  // GET /api/gateway/discord-status - Check if Discord dependencies are installed
+  fastify.get('/api/gateway/discord-status', async () => {
+    try {
+      // Check if discord.py is importable
+      const result = await execa('uv', ['run', 'python', '-c', 'import discord; print(discord.__version__)'], {
+        cwd: ROOT_DIR,
+        timeout: 10000,
+      });
+      return {
+        installed: true,
+        version: result.stdout.trim(),
+      };
+    } catch {
+      return {
+        installed: false,
+        version: null,
+      };
+    }
+  });
+
+  // GET /api/gateway/install-discord - Install Discord dependencies with SSE streaming
+  // Note: Using GET because EventSource API only supports GET requests
+  fastify.get('/api/gateway/install-discord', async (request, reply) => {
+    // Only allow from localhost
+    const clientIp = request.ip;
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+      return reply.status(403).send({
+        success: false,
+        message: 'Install endpoint only accessible from localhost',
+      });
+    }
+
+    // Set SSE headers
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'X-Accel-Buffering': 'no',
+    });
+
+    // Send initial message
+    reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'starting', message: 'Installing Discord dependencies...' })}\n\n`);
+
+    try {
+      const proc = execa('uv', ['sync', '--extra', 'discord'], {
+        cwd: ROOT_DIR,
+        all: true, // Combine stdout and stderr
+      });
+
+      // Stream output
+      proc.all?.on('data', (chunk: Buffer) => {
+        const lines = chunk.toString().split('\n').filter(Boolean);
+        for (const line of lines) {
+          reply.raw.write(`event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`);
+        }
+      });
+
+      await proc;
+
+      // Verify installation
+      try {
+        const verify = await execa('uv', ['run', 'python', '-c', 'import discord; print(discord.__version__)'], {
+          cwd: ROOT_DIR,
+          timeout: 10000,
+        });
+        reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Discord installed successfully', version: verify.stdout.trim() })}\n\n`);
+      } catch {
+        reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`);
+      }
+
+      reply.raw.write(`event: done\ndata: ${JSON.stringify({ success: true })}\n\n`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Installation failed';
+      reply.raw.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
+      reply.raw.write(`event: done\ndata: ${JSON.stringify({ success: false })}\n\n`);
+    }
+
+    reply.raw.end();
+    return reply;
   });
 
   // ============================================================

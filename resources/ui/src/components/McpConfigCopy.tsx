@@ -21,7 +21,7 @@ export function McpConfigCopy() {
           args: ['--from', 'automagik-omni', 'mcp-server-omni'],
           env: {
             OMNI_URL: apiUrl,
-            OMNI_API_KEY: apiKey || 'your-api-key-here',
+            OMNI_API_KEY: apiKey || '', // Empty string handled by validation in handleCopy
           },
         },
       },
@@ -30,6 +30,16 @@ export function McpConfigCopy() {
 
   const handleCopy = async () => {
     try {
+      const apiKey = getApiKey();
+
+      // Don't copy placeholder - require actual API key
+      if (!apiKey) {
+        toast.error('API key not available', {
+          description: 'Please complete setup or check your authentication',
+        });
+        return;
+      }
+
       const config = getMcpConfig();
       const configJson = JSON.stringify(config, null, 2);
 

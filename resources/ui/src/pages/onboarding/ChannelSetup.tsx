@@ -5,17 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
 import OnboardingLayout from '@/components/OnboardingLayout';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { api } from '@/lib/api';
 import { EvolutionStartupModal } from '@/components/EvolutionStartupModal';
+import { QRCodeDialog } from '@/components/QRCodeDialog';
+import { DiscordInstallModal } from '@/components/DiscordInstallModal';
 import {
   Loader2,
   MessageCircle,
@@ -24,8 +19,6 @@ import {
   AlertCircle,
   Wifi,
   WifiOff,
-  QrCode,
-  Smartphone,
   Terminal,
 } from 'lucide-react';
 
@@ -53,10 +46,17 @@ export default function ChannelSetup() {
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [whatsappInstanceName, setWhatsappInstanceName] = useState('genie');
   const [discordEnabled, setDiscordEnabled] = useState(false);
+  const [discordInstanceName, setDiscordInstanceName] = useState('discord-bot');
+  const [discordClientId, setDiscordClientId] = useState('');
+  const [discordBotToken, setDiscordBotToken] = useState('');
+
+  // Discord installation states
+  const [discordInstalled, setDiscordInstalled] = useState<boolean | null>(null);
+  const [showDiscordInstallModal, setShowDiscordInstallModal] = useState(false);
+  const [discordCheckingInstall, setDiscordCheckingInstall] = useState(false);
 
   // QR Code modal state
   const [showQrModal, setShowQrModal] = useState(false);
-  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [qrInstanceName, setQrInstanceName] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +97,32 @@ export default function ChannelSetup() {
     // Evolution will be started in handleSubmit when user clicks "Complete Setup"
   };
 
+  // Handle Discord toggle - check if discord.py is installed
+  const handleDiscordToggle = async (enabled: boolean) => {
+    setDiscordEnabled(enabled);
+
+    if (enabled) {
+      // Check if Discord is installed
+      setDiscordCheckingInstall(true);
+      try {
+        const status = await api.gateway.checkDiscordInstalled();
+        setDiscordInstalled(status.installed);
+
+        if (!status.installed) {
+          // Show installation modal
+          setShowDiscordInstallModal(true);
+        }
+      } catch (err) {
+        console.error('Failed to check Discord installation:', err);
+        // Assume not installed if check fails
+        setDiscordInstalled(false);
+        setShowDiscordInstallModal(true);
+      } finally {
+        setDiscordCheckingInstall(false);
+      }
+    }
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +133,30 @@ export default function ChannelSetup() {
       // Validate WhatsApp instance name if enabled
       if (whatsappEnabled && !whatsappInstanceName.trim()) {
         throw new Error('Please enter a WhatsApp instance name');
+      }
+
+      // Validate Discord inputs if enabled
+      if (discordEnabled) {
+        // Check if Discord is installed first
+        if (!discordInstalled) {
+          setShowDiscordInstallModal(true);
+          throw new Error('Discord support needs to be installed first');
+        }
+        if (!discordInstanceName.trim()) {
+          throw new Error('Please enter a Discord instance name');
+        }
+        if (!discordClientId.trim()) {
+          throw new Error('Please enter your Discord Application Client ID');
+        }
+        if (!/^\d{17,20}$/.test(discordClientId.trim())) {
+          throw new Error('Discord Client ID should be a 17-20 digit number');
+        }
+        if (!discordBotToken.trim()) {
+          throw new Error('Please enter your Discord bot token');
+        }
+        if (discordBotToken.length < 50) {
+          throw new Error('This doesn\'t look like a valid Discord bot token');
+        }
       }
 
       // Start Evolution if WhatsApp enabled and not running
@@ -185,56 +235,47 @@ export default function ChannelSetup() {
         whatsapp_instance_name: whatsappEnabled ? whatsappInstanceName : undefined,
       });
 
-      // If we got a QR code, show the modal
-      if (result.whatsapp_qr_code) {
-        setQrCodeData(result.whatsapp_qr_code);
+      // If instance was created OR already exists (connected), show the QR modal
+      // QRCodeDialog handles both states: shows QR if disconnected, shows "Connected!" if connected
+      // This ensures Discord setup always happens via handleQrModalClose
+      if (result.whatsapp_instance_name || result.whatsapp_status?.startsWith('connected:')) {
         setQrInstanceName(result.whatsapp_instance_name || whatsappInstanceName);
         setShowQrModal(true);
         return;
       }
 
-      // Check if WhatsApp is already connected (instance exists in Evolution from before wipe)
-      if (result.whatsapp_status?.startsWith('connected:')) {
-        // Already connected! Skip QR code and proceed to completion
-        console.log('WhatsApp already connected, skipping QR code step');
-        await api.setup.complete();
-        await completeSetup();
-        navigate('/dashboard');
-        return;
-      }
-
-      // If WhatsApp was enabled but no QR code returned, that's an error
-      // The instance was created but Evolution failed to generate QR
-      if (whatsappEnabled && result.whatsapp_instance_name && !result.whatsapp_qr_code) {
+      // If WhatsApp was enabled but instance not created, that's an error
+      if (whatsappEnabled && !result.whatsapp_instance_name) {
         // Check if status indicates pending connection (Evolution not ready)
         if (result.whatsapp_status?.includes('pending_connection')) {
-          // It might be that the instance is created but QR generation was slow
-          // Try to fetch QR one more time before erroring
-          try {
-            const qrResult = await api.instances.getQR(result.whatsapp_instance_name);
-            if (qrResult.qr_code) {
-               setQrCodeData(qrResult.qr_code);
-               setQrInstanceName(result.whatsapp_instance_name);
-               setShowQrModal(true);
-               return;
-            }
-          } catch (e) {
-            // ignore and show original error
-          }
-
           setEvolutionError('WhatsApp service is not ready. Please wait a moment and try again.');
           setShowStartupModal(true);
           setIsSubmitting(false);
           return;
         }
 
-        setEvolutionError('Failed to get QR code. WhatsApp service may not be running.');
+        setEvolutionError('Failed to create WhatsApp instance. Service may not be running.');
         setShowStartupModal(true);
         setIsSubmitting(false);
         return;
       }
 
-      // Mark setup complete and navigate (only if WhatsApp was disabled or skipped)
+      // Create Discord instance if enabled (WhatsApp was disabled, so no QR modal flow)
+      if (discordEnabled && discordClientId && discordBotToken) {
+        try {
+          await api.instances.create({
+            name: discordInstanceName,
+            channel_type: 'discord',
+            discord_bot_token: discordBotToken,
+            discord_client_id: discordClientId,
+          });
+        } catch (err) {
+          console.error('Failed to create Discord instance:', err);
+          // Continue anyway
+        }
+      }
+
+      // Mark setup complete and navigate
       await api.setup.complete();
       await completeSetup();
       navigate('/dashboard');
@@ -246,10 +287,25 @@ export default function ChannelSetup() {
     }
   };
 
-  // Handle QR modal close - complete setup and navigate
+  // Handle QR modal close - create Discord instance if needed, complete setup and navigate
   const handleQrModalClose = async () => {
     setShowQrModal(false);
     try {
+      // Create Discord instance if enabled
+      if (discordEnabled && discordClientId && discordBotToken) {
+        try {
+          await api.instances.create({
+            name: discordInstanceName,
+            channel_type: 'discord',
+            discord_bot_token: discordBotToken,
+            discord_client_id: discordClientId,
+          });
+        } catch (err) {
+          console.error('Failed to create Discord instance:', err);
+          // Continue anyway - WhatsApp is already set up
+        }
+      }
+
       await api.setup.complete();
       await completeSetup();
       navigate('/dashboard');
@@ -441,17 +497,100 @@ export default function ChannelSetup() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {discordCheckingInstall ? (
+                    <div className="flex items-center gap-1 text-sm">
+                      <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
+                      <span className="text-indigo-600">Checking...</span>
+                    </div>
+                  ) : discordEnabled && discordInstalled ? (
+                    <div className="flex items-center gap-1 text-sm">
+                      <Wifi className="h-4 w-4 text-green-500" />
+                      <span className="text-green-600">Ready</span>
+                    </div>
+                  ) : discordEnabled && discordInstalled === false ? (
+                    <div className="flex items-center gap-1 text-sm">
+                      <WifiOff className="h-4 w-4 text-amber-500" />
+                      <span className="text-amber-600">Not installed</span>
+                    </div>
+                  ) : null}
                   <Switch
                     checked={discordEnabled}
-                    onCheckedChange={setDiscordEnabled}
+                    onCheckedChange={handleDiscordToggle}
+                    disabled={discordCheckingInstall}
                   />
                 </div>
               </div>
               {discordEnabled && (
-                <div className="mt-3 pt-3 border-t border-indigo-200">
-                  <p className="text-sm text-indigo-700">
-                    Discord bot configuration will be available in the Instances section after setup.
-                  </p>
+                <div className="px-4 pb-4 space-y-4 border-t border-indigo-200">
+                  {/* Show install prompt if not installed */}
+                  {discordInstalled === false && (
+                    <div className="mt-4 p-3 bg-amber-100 rounded-lg flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-amber-800 font-medium">Discord support not installed</p>
+                        <p className="text-sm text-amber-700">Click below to install the required dependencies.</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowDiscordInstallModal(true)}
+                          className="mt-2 border-amber-600 text-amber-700 hover:bg-amber-50"
+                        >
+                          <Terminal className="h-4 w-4 mr-1" />
+                          Install Discord Support
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Only show form fields if installed */}
+                  {discordInstalled && (
+                    <>
+                      <div className="mt-4 space-y-2">
+                        <Label htmlFor="discordInstanceName" className="text-gray-700">
+                          Instance Name
+                        </Label>
+                        <Input
+                          id="discordInstanceName"
+                          type="text"
+                          value={discordInstanceName}
+                          onChange={(e) => setDiscordInstanceName(e.target.value)}
+                          placeholder="discord-bot"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="discordClientId" className="text-gray-700">
+                          Application Client ID
+                        </Label>
+                        <Input
+                          id="discordClientId"
+                          type="text"
+                          value={discordClientId}
+                          onChange={(e) => setDiscordClientId(e.target.value)}
+                          placeholder="e.g. 123456789012345678"
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Found in Discord Developer Portal → Your Application → General Information
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="discordBotToken" className="text-gray-700">
+                          Bot Token
+                        </Label>
+                        <Input
+                          id="discordBotToken"
+                          type="password"
+                          value={discordBotToken}
+                          onChange={(e) => setDiscordBotToken(e.target.value)}
+                          placeholder="Enter your Discord bot token"
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Found in Discord Developer Portal → Bot → Reset Token
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -493,47 +632,18 @@ export default function ChannelSetup() {
         </div>
       </div>
 
-      {/* QR Code Modal */}
-      <Dialog open={showQrModal} onOpenChange={(open) => !open && handleQrModalClose()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5 text-green-600" />
-              Connect WhatsApp
-            </DialogTitle>
-            <DialogDescription>
-              Scan this QR code with your phone to connect {qrInstanceName || 'your instance'}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center py-6">
-            {qrCodeData ? (
-              <>
-                <div className="bg-white p-4 rounded-lg shadow-inner border">
-                  <img
-                    src={qrCodeData.startsWith('data:') ? qrCodeData : `data:image/png;base64,${qrCodeData}`}
-                    alt="WhatsApp QR Code"
-                    className="w-64 h-64"
-                  />
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
-                  <Smartphone className="h-4 w-4" />
-                  <span>Open WhatsApp on your phone and scan the code</span>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-                <p className="text-gray-600">Loading QR code...</p>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-center">
-            <Button onClick={handleQrModalClose} className="w-full">
-              Continue to Dashboard
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* QR Code Modal - uses QRCodeDialog which has status polling and auto-close on connection */}
+      {qrInstanceName && (
+        <QRCodeDialog
+          open={showQrModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleQrModalClose();
+            }
+          }}
+          instanceName={qrInstanceName}
+        />
+      )}
 
       {/* Evolution Startup Modal */}
       <EvolutionStartupModal
@@ -547,13 +657,13 @@ export default function ChannelSetup() {
         onRetry={() => {
           setEvolutionError(null);
           setEvolutionStarting(true);
-          
+
           // Full retry sequence: Start -> Wait Process -> Wait API
           const retrySequence = async () => {
             try {
               await api.gateway.startChannel('evolution');
               const ready = await api.gateway.waitForChannel('evolution', 120000);
-              
+
               if (!ready) {
                 throw new Error('WhatsApp service failed to start');
               }
@@ -592,6 +702,25 @@ export default function ChannelSetup() {
           };
 
           retrySequence();
+        }}
+      />
+
+      {/* Discord Install Modal */}
+      <DiscordInstallModal
+        open={showDiscordInstallModal}
+        onOpenChange={(open) => {
+          setShowDiscordInstallModal(open);
+          // If user closes without success, disable Discord
+          if (!open && !discordInstalled) {
+            setDiscordEnabled(false);
+          }
+        }}
+        onSuccess={() => {
+          setDiscordInstalled(true);
+          setShowDiscordInstallModal(false);
+        }}
+        onRetry={() => {
+          // Modal handles retry internally
         }}
       />
     </OnboardingLayout>
