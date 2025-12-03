@@ -11,6 +11,7 @@ import {
   Bot,
   ExternalLink,
   Server,
+  Play,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -81,6 +82,21 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
     },
     onError: (error: Error) => {
       toast.error(`Failed to logout: ${error.message}`);
+    },
+  });
+
+  // Start Evolution mutation (WhatsApp only)
+  const startEvolutionMutation = useMutation({
+    mutationFn: () => api.gateway.startChannel('evolution'),
+    onSuccess: () => {
+      toast.success('Starting WhatsApp service...');
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['connection-state', instanceName] });
+        queryClient.invalidateQueries({ queryKey: ['qr-code', instanceName] });
+      }, 2000);
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to start WhatsApp service: ${error.message}`);
     },
   });
 
@@ -220,12 +236,33 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
                         <p className="font-medium">Connected!</p>
                       </div>
                     ) : (
-                      <div className="text-center py-4">
-                        <p className="text-muted-foreground mb-2">No QR code available</p>
-                        <Button variant="outline" size="sm" onClick={() => refetchQR()}>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Retry
-                        </Button>
+                      <div className="text-center py-4 space-y-3">
+                        <p className="text-muted-foreground">No QR code available</p>
+                        <p className="text-sm text-muted-foreground">
+                          The WhatsApp service may not be running.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            onClick={() => startEvolutionMutation.mutate()}
+                            disabled={startEvolutionMutation.isPending}
+                          >
+                            {startEvolutionMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Starting...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-4 w-4 mr-2" />
+                                Start WhatsApp Service
+                              </>
+                            )}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => refetchQR()}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Retry QR Code
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
