@@ -75,11 +75,10 @@ def _get_valid_api_keys() -> list[str]:
     global _cached_db_api_key, _cache_initialized
 
     keys = []
-    placeholder_values = ["", "your-secret-api-key-here", "changeme"]
-
-    # Check env var (skip if placeholder)
+    
+    # Check env var
     env_key = config.api.api_key
-    if env_key and env_key not in placeholder_values:
+    if env_key:
         keys.append(env_key)
 
     # Check DB for generated key (with caching)

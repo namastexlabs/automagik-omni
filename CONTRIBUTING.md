@@ -80,14 +80,10 @@ Ready to code? Awesome! Here's how to get started.
 git clone https://github.com/YOUR_USERNAME/automagik-omni.git
 cd automagik-omni
 
-# 2. Install dependencies
+# Install dependencies with UV (recommended)
 make install
 
-# 3. Set up environment
-cp .env.example .env
-# Edit .env with your configuration
-
-# 4. Run database migrations
+# Run migrations
 make migrate
 
 # 5. Run tests to verify setup

@@ -4,6 +4,8 @@
  */
 
 import { PortRegistry } from './port-registry.js';
+import { execa } from 'execa';
+import { join } from 'path';
 
 export interface ProcessStats {
   memory: {
@@ -118,17 +120,40 @@ export interface HealthConfig {
 export class HealthChecker {
   private portRegistry: PortRegistry;
   private timeout: number;
+  private rootDir: string;
   private evolutionApiKey: string;
-  private omniApiKey: string;
+  private omniApiKey: string = '';
   private lastCpuUsage: { user: number; system: number; time: number } | null = null;
 
-  constructor(portRegistry: PortRegistry, timeout = 5000) {
+  constructor(portRegistry: PortRegistry, rootDir: string, timeout = 5000) {
     this.portRegistry = portRegistry;
+    this.rootDir = rootDir;
     this.timeout = timeout;
     this.evolutionApiKey = process.env.EVOLUTION_API_KEY ?? '';
-    // Strip surrounding quotes if present (handles both "value" and value)
-    const rawOmniKey = process.env.AUTOMAGIK_OMNI_API_KEY ?? '';
-    this.omniApiKey = rawOmniKey.replace(/^["']|["']$/g, '');
+  }
+
+  /**
+   * Fetch API key from SQLite database (Zero Config support)
+   */
+  private async getApiKey(): Promise<string> {
+    if (this.omniApiKey) return this.omniApiKey;
+
+    try {
+      const dbPath = join(this.rootDir, 'data', 'automagik-omni.db');
+      const { stdout } = await execa('sqlite3', [
+        dbPath,
+        "SELECT value FROM omni_global_settings WHERE key='omni_api_key';"
+      ]);
+      
+      const key = stdout.trim();
+      if (key) {
+        this.omniApiKey = key;
+      }
+    } catch (err) {
+      // Silent failure - will retry next time or fail auth
+    }
+    
+    return this.omniApiKey;
   }
 
   /**
@@ -489,6 +514,9 @@ export class HealthChecker {
     const pythonPort = this.portRegistry.getPort('python');
     if (!pythonPort) return new Map();
 
+    const apiKey = await this.getApiKey();
+    if (!apiKey) return new Map();
+
     const url = `http://127.0.0.1:${pythonPort}/api/v1/instances`;
 
     try {
@@ -498,7 +526,7 @@ export class HealthChecker {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'x-api-key': this.omniApiKey,
+          'x-api-key': apiKey,
           'Content-Type': 'application/json',
         },
         signal: controller.signal,

@@ -20,7 +20,7 @@ cp .env.example .env
 
 # Update .env with your API key (must match AUTOMAGIK_OMNI_API_KEY in the API)
 # VITE_API_URL=http://localhost:8882
-# VITE_API_KEY=your-secret-api-key-here
+# VITE_API_KEY=sk-omni-abc123xyz...
 ```
 
 ### Development

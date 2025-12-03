@@ -148,11 +148,7 @@ cd automagik-omni
 make install
 # Installs: Python deps (uv), Evolution API (pnpm/npm), optional Discord
 
-# 3. Configure your API keys
-cp .env.example .env
-nano .env  # Set EVOLUTION_API_KEY and AUTOMAGIK_OMNI_API_KEY
-
-# 4. Start development servers
+# 3. Start development servers
 make dev-all    # Starts Omni + Evolution API together
 # Or separately:
 make dev        # Omni API only
@@ -161,6 +157,8 @@ make evo        # Evolution API only
 # ✅ Done! Services running:
 # - Omni API: http://localhost:8882
 # - Evolution API (WhatsApp): http://localhost:18082
+
+# Note: Configuration is managed via the database. The API key will be auto-generated on first run.
 ```
 
 #### Option 2: PM2 Production Setup
@@ -207,8 +205,8 @@ curl -X POST http://localhost:8882/api/v1/instances \
 ```
 
 **Replace the placeholders:**
-- `YOUR_OMNI_API_KEY_HERE` → Value from `AUTOMAGIK_OMNI_API_KEY` in your `.env`
-- `YOUR_EVOLUTION_API_KEY_HERE` → Value from `EVOLUTION_API_KEY` in your `.env`
+- `YOUR_OMNI_API_KEY_HERE` → Your auto-generated API key (check DB or logs)
+- `YOUR_EVOLUTION_API_KEY_HERE` → Same as above (unified key)
 - `YOUR_AGENT_API_KEY_HERE` → Your AI agent's API key (e.g., Automagik Hive)
 
 **Default ports:**
@@ -543,11 +541,6 @@ curl -H "x-api-key: your-secret-key" \
   http://localhost:8000/api/v1/instances
 ```
 
-Set your API key in `.env`:
-```env
-OMNI_API_KEY=your-super-secret-key-here
-```
-
 ---
 
 ## 🎯 Agent Integration
@@ -757,36 +750,7 @@ pm2 restart all
 pm2 stop all
 ```
 
-### Environment Variables
-
-Key configuration options (see `.env.example` for complete list):
-
-```env
-# Omni API Configuration
-AUTOMAGIK_OMNI_API_HOST=0.0.0.0
-AUTOMAGIK_OMNI_API_PORT=8882
-AUTOMAGIK_OMNI_API_KEY=CHANGE-THIS-TO-SECURE-KEY
-
-# Database (SQLite for development)
-AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH=./data/automagik-omni.db
-# Or PostgreSQL for production:
-# AUTOMAGIK_OMNI_DATABASE_URL=postgresql://user:pass@localhost:5432/automagik_omni
-
-# Evolution API (WhatsApp - runs locally via PM2)
-EVOLUTION_API_PATH=resources/evolution-api
-EVOLUTION_API_URL=http://localhost:18082
-EVOLUTION_API_PORT=18082
-EVOLUTION_API_KEY=CHANGE-THIS-TO-SECURE-KEY
-EVOLUTION_LOG_LEVEL=ERROR,WARN
-
-# Discord (optional)
-DISCORD_TOKEN=YOUR-DISCORD-BOT-TOKEN-HERE
-
-# Logging
-LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-```
-
-> **Important**: Generate strong, unique API keys for production. Never use default values!
+> **Important**: The system auto-generates strong API keys on first startup. Check the database or logs to retrieve them.
 
 ---
 
@@ -814,9 +778,6 @@ cd automagik-omni
 
 # Install dependencies with UV (recommended)
 make install
-
-# Create .env file
-cp .env.example .env
 
 # Run migrations
 make migrate

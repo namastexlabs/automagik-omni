@@ -36,11 +36,7 @@ PYTHON := python3
 UV := uv
 SERVICE_NAME := automagik-omni
 
-# Load environment variables from .env file if it exists
--include .env
-export
-
-# Default values (will be overridden by .env if present)
+# Default values
 AUTOMAGIK_OMNI_API_HOST ?= 0.0.0.0
 AUTOMAGIK_OMNI_API_PORT ?= 8882
 LOG_LEVEL ?= INFO
@@ -105,13 +101,6 @@ define check_pm2
 	@if ! command -v pm2 >/dev/null 2>&1; then \
 		echo -e "$(FONT_RED)$(ERROR) PM2 not found. Install with: npm install -g pm2$(FONT_RESET)"; \
 		exit 1; \
-	fi
-endef
-
-define ensure_env_file
-	@if [ ! -f ".env" ]; then \
-		cp .env.example .env 2>/dev/null || touch .env; \
-		echo -e "$(FONT_CYAN)$(INFO) .env file created$(FONT_RESET)"; \
 	fi
 endef
 

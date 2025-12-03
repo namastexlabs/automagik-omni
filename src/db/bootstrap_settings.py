@@ -260,25 +260,26 @@ def _bootstrap_omni_api_key(db: Session) -> None:
     # Check if omni_api_key already exists in database
     existing = settings_service.get_setting("omni_api_key", db)
 
+    # Strict validation: Keys must follow the standard format (sk-omni-...)
+    # This automatically filters out insecure defaults/placeholders from previous installs
     if existing:
-        logger.info(f"Omni API key already exists in database (key: {existing.key})")
-        return
+        if existing.value and existing.value.startswith("sk-omni-"):
+            logger.info(f"Omni API key already exists in database (key: {existing.key})")
+            return
+        else:
+            logger.warning("Existing Omni API key does not match security format (sk-omni-...). Regenerating.")
+            # Delete the invalid setting so we can recreate it below
+            db.delete(existing)
+            db.commit()
 
     # Try to read from .env first (migration path for existing installations)
-    env_key = config.get_env("AUTOMAGIK_OMNI_API_KEY", "")
+    # DEPRECATED: .env support removed. Only DB or auto-gen.
+    env_key = None 
 
-    # Check if env key is a placeholder value
-    placeholder_values = ["", "your-secret-api-key-here", "changeme"]
-    if env_key and env_key not in placeholder_values:
-        # Migrate from .env to database
-        logger.info("Migrating Omni API key from .env to database")
-        key_value = env_key
-        migration_source = "migrated from .env"
-    else:
-        # Auto-generate secure key for fresh install
-        key_value = f"sk-omni-{secrets.token_urlsafe(32)}"
-        logger.info(f"Auto-generated Omni API key: {key_value[:12]}***{key_value[-4:]}")
-        migration_source = "auto-generated on first startup"
+    # Auto-generate secure key for fresh install
+    key_value = f"sk-omni-{secrets.token_urlsafe(32)}"
+    logger.info(f"Auto-generated Omni API key: {key_value[:12]}***{key_value[-4:]}")
+    migration_source = "auto-generated on first startup"
 
     # Create setting in database
     try:

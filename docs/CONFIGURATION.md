@@ -24,7 +24,7 @@ cp .env.example .env
 - **Type:** String
 - **Default:** None (must be set)
 - **Description:** API authentication key for securing endpoints
-- **Example:** `"your-secret-api-key-here"`
+- **Example:** `"sk-omni-abc123xyz..."`
 
 ### `AUTOMAGIK_OMNI_API_HOST`
 - **Type:** String

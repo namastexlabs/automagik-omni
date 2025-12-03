@@ -16,7 +16,6 @@
     "@fastify/http-proxy": "^9.5.0",
     "@fastify/static": "^7.0.4",
     "@fastify/websocket": "^10.0.1",
-    "dotenv": "^16.4.5",
     "execa": "^9.5.2",
     "fastify": "^4.28.0"
   },
