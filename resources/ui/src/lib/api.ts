@@ -365,6 +365,12 @@ export const api = {
       return apiRequest(`/instances/${name}/status`);
     },
 
+    async logout(name: string): Promise<any> {
+      return apiRequest(`/instances/${name}/logout`, {
+        method: 'POST',
+      });
+    },
+
     async discover(): Promise<{
       message: string;
       instances: Array<{

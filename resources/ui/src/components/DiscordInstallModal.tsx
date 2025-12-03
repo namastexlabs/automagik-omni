@@ -77,15 +77,20 @@ export function DiscordInstallModal({
   const [phase, setPhase] = useState<Phase>('init');
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [installationStarted, setInstallationStarted] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
 
   // Start installation
   const startInstallation = useCallback(() => {
+    setInstallationStarted(true);
     setLogs([]);
     setPhase('init');
     setError(null);
     setIsConnected(false);
+    retryCountRef.current = 0;
 
     // Close existing connection
     if (eventSourceRef.current) {
@@ -147,26 +152,49 @@ export function DiscordInstallModal({
       }
     });
 
-    eventSource.onerror = () => {
-      // Only set error if we haven't received a done event
-      if (phase !== 'ready' && phase !== 'error') {
-        setError('Connection to installation service failed');
-        setPhase('error');
+    eventSource.onerror = (e) => {
+      // Increment retry count
+      retryCountRef.current += 1;
+
+      // EventSource auto-retries on error, but we need to stop it on 4xx errors
+      // and prevent infinite retry loops
+      if (retryCountRef.current >= maxRetries) {
+        eventSource.close();
+        setIsConnected(false);
+        // Only set error if we haven't received a done event
+        if (phase !== 'ready' && phase !== 'error') {
+          setError('Connection to installation service failed after multiple attempts. Please check if the gateway is running.');
+          setPhase('error');
+        }
+        return;
       }
-      eventSource.close();
-      setIsConnected(false);
+
+      // For connection errors, close immediately to prevent spam
+      // The 'readyState' check helps determine if it's a connection error vs server error
+      if (eventSource.readyState === EventSource.CLOSED) {
+        setIsConnected(false);
+        if (phase !== 'ready' && phase !== 'error') {
+          setError('Connection to installation service failed');
+          setPhase('error');
+        }
+      }
     };
   }, [phase, error]);
 
-  // Start installation when modal opens
+  // Cleanup on modal close - DO NOT auto-start installation
+  // User must explicitly click "Install" button to start
   useEffect(() => {
-    if (open) {
-      startInstallation();
-    } else {
-      // Cleanup on close
+    if (!open) {
+      // Reset state when modal closes
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
+      setInstallationStarted(false);
+      setLogs([]);
+      setPhase('init');
+      setError(null);
+      setIsConnected(false);
+      retryCountRef.current = 0;
     }
 
     return () => {
@@ -174,7 +202,7 @@ export function DiscordInstallModal({
         eventSourceRef.current.close();
       }
     };
-  }, [open, startInstallation]);
+  }, [open]);
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
@@ -230,22 +258,27 @@ export function DiscordInstallModal({
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {phase === 'ready' ? (
+            {!installationStarted ? (
+              <Bot className="h-5 w-5 text-[#5865F2]" />
+            ) : phase === 'ready' ? (
               <CheckCircle2 className="h-5 w-5 text-green-500" />
             ) : phase === 'error' ? (
               <XCircle className="h-5 w-5 text-red-500" />
             ) : (
               <Loader2 className="h-5 w-5 animate-spin text-[#5865F2]" />
             )}
-            {phase === 'ready'
-              ? 'Discord Ready!'
-              : phase === 'error'
-                ? 'Installation Failed'
-                : 'Installing Discord Support...'}
+            {!installationStarted
+              ? 'Discord Setup'
+              : phase === 'ready'
+                ? 'Discord Ready!'
+                : phase === 'error'
+                  ? 'Installation Failed'
+                  : 'Installing Discord Support...'}
           </DialogTitle>
         </DialogHeader>
 
-        {/* Phase Progress */}
+        {/* Phase Progress - only show after installation started */}
+        {installationStarted && (
         <div className="flex items-center justify-between px-2 py-3">
           {PHASE_ORDER.map((p, index) => {
             const isComplete = currentPhaseIndex > index;
@@ -292,6 +325,7 @@ export function DiscordInstallModal({
             );
           })}
         </div>
+        )}
 
         {/* Error message */}
         {error && (
@@ -317,41 +351,66 @@ export function DiscordInstallModal({
           </div>
         )}
 
-        {/* Connection status */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Terminal className="h-3 w-3" />
-          <span>Installation Log</span>
-          <Badge variant={isConnected ? 'default' : 'secondary'} className="text-xs h-5">
-            {isConnected ? 'Installing...' : phase === 'ready' ? 'Complete' : 'Waiting'}
-          </Badge>
-        </div>
+        {/* Connection status - only show after installation started */}
+        {installationStarted && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Terminal className="h-3 w-3" />
+            <span>Installation Log</span>
+            <Badge variant={isConnected ? 'default' : 'secondary'} className="text-xs h-5">
+              {isConnected ? 'Installing...' : phase === 'ready' ? 'Complete' : 'Waiting'}
+            </Badge>
+          </div>
+        )}
 
-        {/* Log viewer */}
-        <div
-          ref={logContainerRef}
-          className="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto bg-muted/50 rounded-lg p-3 font-mono text-xs space-y-0.5"
-        >
-          {logs.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Preparing installation...
+        {/* Log viewer or Install prompt */}
+        {!installationStarted ? (
+          <div className="flex-1 min-h-[200px] max-h-[300px] flex flex-col items-center justify-center bg-muted/50 rounded-lg p-6 space-y-4">
+            <Bot className="h-12 w-12 text-[#5865F2]" />
+            <div className="text-center space-y-2">
+              <h3 className="font-medium">Install Discord Dependencies</h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Discord support requires additional Python dependencies. Click the button below to install them.
+              </p>
             </div>
-          ) : (
-            <LogList logs={logs} />
-          )}
-        </div>
+            <Button
+              onClick={startInstallation}
+              className="bg-[#5865F2] hover:bg-[#4752C4]"
+            >
+              <Terminal className="h-4 w-4 mr-2" />
+              Install Discord Dependencies
+            </Button>
+          </div>
+        ) : (
+          <div
+            ref={logContainerRef}
+            className="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto bg-muted/50 rounded-lg p-3 font-mono text-xs space-y-0.5"
+          >
+            {logs.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Preparing installation...
+              </div>
+            ) : (
+              <LogList logs={logs} />
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopyLogs}
-            disabled={logs.length === 0}
-          >
-            <Copy className="h-4 w-4 mr-1" />
-            {copiedLogs ? 'Copied!' : 'Copy Logs'}
-          </Button>
+          {installationStarted ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyLogs}
+              disabled={logs.length === 0}
+            >
+              <Copy className="h-4 w-4 mr-1" />
+              {copiedLogs ? 'Copied!' : 'Copy Logs'}
+            </Button>
+          ) : (
+            <div /> // Empty spacer
+          )}
 
           <div className="flex gap-2">
             {phase === 'error' && (

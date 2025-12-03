@@ -11,15 +11,11 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { execa } from 'execa';
-import { config } from 'dotenv';
 
 import { ProcessManager } from './process.js';
 import { HealthChecker } from './health.js';
 import { PortRegistry } from './port-registry.js';
 import { getLogTailer, getAvailableServices, LOG_SERVICES, restartPm2Service, getPm2Status, type ServiceName, type LogEntry } from './logs.js';
-
-// Load environment variables
-config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -115,7 +111,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   });
 
   // Initialize health checker with port registry
-  const healthChecker = new HealthChecker(portRegistry);
+  const healthChecker = new HealthChecker(portRegistry, ROOT_DIR);
 
   // Start backend services (unless proxy-only mode)
   if (!PROXY_ONLY) {
@@ -127,11 +123,12 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     // Start standalone MCP server (eliminates double proxy layer)
     await processManager.startMCP();
 
-    // Channel startup behavior depends on LAZY_CHANNELS environment variable
+    // Channel startup behavior: on-demand by default, eager if EAGER_CHANNELS=true
     if (processManager.isLazyModeEnabled()) {
-      console.log('[Gateway] Lazy channel mode enabled - channels will start on-demand');
-      console.log('[Gateway] Set LAZY_CHANNELS=false to auto-start channels at boot');
+      console.log('[Gateway] On-demand mode (default) - channels start when user enables them');
+      console.log('[Gateway] Set EAGER_CHANNELS=true to auto-start channels at boot');
     } else {
+      console.log('[Gateway] Eager mode enabled - auto-starting all channels...');
       // Start Evolution API (WhatsApp channel - optional, soft-fail like Discord)
       try {
         await processManager.startEvolution();
@@ -345,16 +342,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
   // GET /api/gateway/install-discord - Install Discord dependencies with SSE streaming
   // Note: Using GET because EventSource API only supports GET requests
+  // Public endpoint (no auth) - used during onboarding before authentication is configured
+  // Matches WhatsApp setup endpoints pattern in /setup/channels/*
   fastify.get('/api/gateway/install-discord', async (request, reply) => {
-    // Only allow from localhost
-    const clientIp = request.ip;
-    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
-      return reply.status(403).send({
-        success: false,
-        message: 'Install endpoint only accessible from localhost',
-      });
-    }
-
     // Set SSE headers
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',

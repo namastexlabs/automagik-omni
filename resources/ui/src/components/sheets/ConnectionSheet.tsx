@@ -8,6 +8,9 @@ import {
   QrCode,
   Loader2,
   User,
+  Bot,
+  ExternalLink,
+  Server,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -25,11 +28,12 @@ import { api } from '@/lib';
 
 interface ConnectionSheetProps {
   instanceName: string;
+  channelType: 'whatsapp' | 'discord' | 'slack';
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function ConnectionSheet({ instanceName, open, onOpenChange }: ConnectionSheetProps) {
+export function ConnectionSheet({ instanceName, channelType, open, onOpenChange }: ConnectionSheetProps) {
   const [showQR, setShowQR] = useState(false);
   const queryClient = useQueryClient();
 
@@ -40,25 +44,25 @@ export function ConnectionSheet({ instanceName, open, onOpenChange }: Connection
     enabled: open,
   });
 
-  // Connection state query
+  // Connection state query - use channel-aware API
   const { data: connectionState, isLoading: isLoadingState } = useQuery({
     queryKey: ['connection-state', instanceName],
-    queryFn: () => api.evolution.getConnectionState(instanceName),
+    queryFn: () => api.instances.getStatus(instanceName),
     refetchInterval: open ? 5000 : false,
     enabled: open,
   });
 
-  // QR code query
+  // QR code query (WhatsApp only)
   const { data: qrData, isLoading: isLoadingQR, refetch: refetchQR } = useQuery({
     queryKey: ['qr-code', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
-    enabled: open && showQR && connectionState?.state !== 'open',
-    refetchInterval: showQR && connectionState?.state !== 'open' ? 5000 : false,
+    enabled: open && showQR && channelType === 'whatsapp' && connectionState?.state !== 'open',
+    refetchInterval: showQR && channelType === 'whatsapp' && connectionState?.state !== 'open' ? 5000 : false,
   });
 
-  // Restart mutation
+  // Restart mutation - use channel-aware API
   const restartMutation = useMutation({
-    mutationFn: () => api.evolution.restart(instanceName),
+    mutationFn: () => api.instances.restart(instanceName),
     onSuccess: () => {
       toast.success('Instance restarted');
       queryClient.invalidateQueries({ queryKey: ['connection-state', instanceName] });
@@ -68,9 +72,9 @@ export function ConnectionSheet({ instanceName, open, onOpenChange }: Connection
     },
   });
 
-  // Logout mutation
+  // Logout mutation - use channel-aware API
   const logoutMutation = useMutation({
-    mutationFn: () => api.evolution.logout(instanceName),
+    mutationFn: () => api.instances.logout(instanceName),
     onSuccess: () => {
       toast.success('Logged out');
       queryClient.invalidateQueries({ queryKey: ['connection-state', instanceName] });
@@ -80,22 +84,45 @@ export function ConnectionSheet({ instanceName, open, onOpenChange }: Connection
     },
   });
 
-  const state = connectionState?.state || instance?.evolution_status?.state || 'unknown';
+  // Determine connection state based on channel type
+  const getConnectionState = () => {
+    if (channelType === 'discord') {
+      // Discord uses different status field
+      const discordStatus = connectionState?.channel_data?.status || connectionState?.status;
+      return discordStatus === 'connected' || discordStatus === 'ready' ? 'open' : 'disconnected';
+    }
+    // WhatsApp uses evolution status
+    return connectionState?.state || instance?.evolution_status?.state || 'unknown';
+  };
+
+  const state = getConnectionState();
   const isConnected = state === 'open';
   const isConnecting = state === 'connecting';
 
-  const profile = instance?.evolution_status || {};
+  // Profile data varies by channel type
+  const profile = channelType === 'discord'
+    ? connectionState?.channel_data || {}
+    : instance?.evolution_status || {};
+
+  // Discord-specific data
+  const discordData = channelType === 'discord' ? connectionState?.channel_data : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[400px] sm:w-[540px]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Wifi className="h-5 w-5" />
+            {channelType === 'discord' ? (
+              <Bot className="h-5 w-5" />
+            ) : (
+              <Wifi className="h-5 w-5" />
+            )}
             Connection - {instanceName}
           </SheetTitle>
           <SheetDescription>
-            Manage connection status and authentication
+            {channelType === 'discord'
+              ? 'Manage Discord bot connection and status'
+              : 'Manage WhatsApp connection and authentication'}
           </SheetDescription>
         </SheetHeader>
 
@@ -120,26 +147,41 @@ export function ConnectionSheet({ instanceName, open, onOpenChange }: Connection
               </Badge>
             </div>
 
-            {/* Profile */}
+            {/* Profile - Channel-aware */}
             <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={profile.profile_picture_url || instance?.profile_pic_url || undefined} />
-                <AvatarFallback>
-                  <User className="h-8 w-8" />
-                </AvatarFallback>
+                {channelType === 'discord' ? (
+                  <>
+                    <AvatarImage src={discordData?.avatar_url || undefined} />
+                    <AvatarFallback>
+                      <Bot className="h-8 w-8" />
+                    </AvatarFallback>
+                  </>
+                ) : (
+                  <>
+                    <AvatarImage src={profile.profile_picture_url || instance?.profile_pic_url || undefined} />
+                    <AvatarFallback>
+                      <User className="h-8 w-8" />
+                    </AvatarFallback>
+                  </>
+                )}
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate text-lg">
-                  {profile.profile_name || instance?.profile_name || instanceName}
+                  {channelType === 'discord'
+                    ? discordData?.bot_name || instanceName
+                    : profile.profile_name || instance?.profile_name || instanceName}
                 </p>
                 <p className="text-sm text-muted-foreground truncate">
-                  {profile.owner_jid || instance?.owner_jid || 'No number connected'}
+                  {channelType === 'discord'
+                    ? discordData?.bot_id || 'Bot not connected'
+                    : profile.owner_jid || instance?.owner_jid || 'No number connected'}
                 </p>
               </div>
             </div>
 
-            {/* QR Code Section */}
-            {!isConnected && (
+            {/* WhatsApp QR Code Section */}
+            {channelType === 'whatsapp' && !isConnected && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Authentication</span>
@@ -188,6 +230,53 @@ export function ConnectionSheet({ instanceName, open, onOpenChange }: Connection
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Discord Bot Info Section */}
+            {channelType === 'discord' && (
+              <div className="space-y-4">
+                <span className="text-sm font-medium">Bot Information</span>
+                <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                  {isConnected ? (
+                    <>
+                      {/* Connected Guilds */}
+                      {discordData?.guilds && discordData.guilds.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Connected Servers</p>
+                          <div className="space-y-1">
+                            {discordData.guilds.slice(0, 5).map((guild: any) => (
+                              <div key={guild.id} className="flex items-center gap-2 text-sm">
+                                <Server className="h-3 w-3 text-muted-foreground" />
+                                <span className="truncate">{guild.name}</span>
+                              </div>
+                            ))}
+                            {discordData.guilds.length > 5 && (
+                              <p className="text-xs text-muted-foreground">
+                                +{discordData.guilds.length - 5} more servers
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <Bot className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mb-3">Bot is not connected</p>
+                      {discordData?.invite_url && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(discordData.invite_url, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Add Bot to Server
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

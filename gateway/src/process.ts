@@ -123,13 +123,18 @@ export class ProcessManager {
    * Check if lazy channel loading is enabled.
    * When enabled, channels start on-demand (first instance creation) rather than at gateway startup.
    *
-   * Environment variable: LAZY_CHANNELS=true
+   * On-demand mode is now DEFAULT - channels start when user enables them.
+   * Set EAGER_CHANNELS=true to auto-start all channels at gateway boot.
    *
-   * @returns true if lazy loading is enabled
+   * Environment variable: EAGER_CHANNELS=true (to disable lazy/on-demand mode)
+   *
+   * @returns true if on-demand/lazy loading is enabled (default: true)
    */
   isLazyModeEnabled(): boolean {
-    const value = process.env.LAZY_CHANNELS;
-    return value === 'true' || value === '1';
+    // On-demand mode is DEFAULT - channels start when user explicitly enables them
+    // Set EAGER_CHANNELS=true to restore old auto-start behavior
+    const eager = process.env.EAGER_CHANNELS;
+    return eager !== 'true' && eager !== '1';
   }
 
   /**

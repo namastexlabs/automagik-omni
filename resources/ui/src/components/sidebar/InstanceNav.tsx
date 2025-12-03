@@ -18,7 +18,11 @@ type SheetType = 'connection' | 'settings' | 'webhook' | 'websocket' | 'rabbitmq
 
 export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavProps) {
   const [expandedInstances, setExpandedInstances] = useState<Record<string, boolean>>({});
-  const [activeSheet, setActiveSheet] = useState<{ type: SheetType; instanceName: string } | null>(null);
+  const [activeSheet, setActiveSheet] = useState<{
+    type: SheetType;
+    instanceName: string;
+    channelType: 'whatsapp' | 'discord' | 'slack';
+  } | null>(null);
 
   const { data: instances, isLoading } = useQuery({
     queryKey: ['instances'],
@@ -32,8 +36,8 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
     }));
   };
 
-  const openSheet = (type: SheetType, instanceName: string) => {
-    setActiveSheet({ type, instanceName });
+  const openSheet = (type: SheetType, instanceName: string, channelType: 'whatsapp' | 'discord' | 'slack') => {
+    setActiveSheet({ type, instanceName, channelType });
   };
 
   const closeSheet = () => {
@@ -103,7 +107,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
                     {subItems.map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => openSheet(item.id, instance.name)}
+                        onClick={() => openSheet(item.id, instance.name, instance.channel_type || 'whatsapp')}
                         className={cn(
                           'flex w-full items-center space-x-2 rounded-lg px-3 py-1.5 text-xs transition-all duration-200',
                           'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -127,6 +131,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
       {activeSheet?.type === 'connection' && (
         <ConnectionSheet
           instanceName={activeSheet.instanceName}
+          channelType={activeSheet.channelType}
           open={true}
           onOpenChange={(open) => !open && closeSheet()}
         />

@@ -9,7 +9,10 @@ import {
   Loader2,
   User,
   MessageSquare,
-  Users
+  Users,
+  Bot,
+  ExternalLink,
+  Server,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,24 +32,26 @@ export function ConnectionSection({ instanceName, instance }: ConnectionSectionP
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Connection state query
+  const channelType = instance.channel_type || 'whatsapp';
+
+  // Connection state query - use channel-aware API
   const { data: connectionState, isLoading: isLoadingState } = useQuery({
     queryKey: ['connection-state', instanceName],
-    queryFn: () => api.evolution.getConnectionState(instanceName),
+    queryFn: () => api.instances.getStatus(instanceName),
     refetchInterval: 5000,
   });
 
-  // QR code query (only when dialog is open and not connected)
+  // QR code query (WhatsApp only, when dialog is open and not connected)
   const { data: qrData, isLoading: isLoadingQR, refetch: refetchQR } = useQuery({
     queryKey: ['qr-code', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
-    enabled: qrDialogOpen && connectionState?.state !== 'open',
-    refetchInterval: qrDialogOpen && connectionState?.state !== 'open' ? 5000 : false,
+    enabled: qrDialogOpen && channelType === 'whatsapp' && connectionState?.state !== 'open',
+    refetchInterval: qrDialogOpen && channelType === 'whatsapp' && connectionState?.state !== 'open' ? 5000 : false,
   });
 
-  // Restart mutation
+  // Restart mutation - use channel-aware API
   const restartMutation = useMutation({
-    mutationFn: () => api.evolution.restart(instanceName),
+    mutationFn: () => api.instances.restart(instanceName),
     onSuccess: () => {
       toast.success('Instance restarted');
       queryClient.invalidateQueries({ queryKey: ['connection-state', instanceName] });
@@ -56,9 +61,9 @@ export function ConnectionSection({ instanceName, instance }: ConnectionSectionP
     },
   });
 
-  // Logout mutation
+  // Logout mutation - use channel-aware API
   const logoutMutation = useMutation({
-    mutationFn: () => api.evolution.logout(instanceName),
+    mutationFn: () => api.instances.logout(instanceName),
     onSuccess: () => {
       toast.success('Logged out');
       queryClient.invalidateQueries({ queryKey: ['connection-state', instanceName] });
@@ -68,11 +73,26 @@ export function ConnectionSection({ instanceName, instance }: ConnectionSectionP
     },
   });
 
-  const state = connectionState?.state || instance.evolution_status?.state || 'unknown';
+  // Determine connection state based on channel type
+  const getConnectionState = () => {
+    if (channelType === 'discord') {
+      const discordStatus = connectionState?.channel_data?.status || connectionState?.status;
+      return discordStatus === 'connected' || discordStatus === 'ready' ? 'open' : 'disconnected';
+    }
+    return connectionState?.state || instance.evolution_status?.state || 'unknown';
+  };
+
+  const state = getConnectionState();
   const isConnected = state === 'open';
   const isConnecting = state === 'connecting';
 
-  const profile = instance.evolution_status || {};
+  // Profile data varies by channel type
+  const profile = channelType === 'discord'
+    ? connectionState?.channel_data || {}
+    : instance.evolution_status || {};
+
+  // Discord-specific data
+  const discordData = channelType === 'discord' ? connectionState?.channel_data : null;
 
   return (
     <Card>
@@ -94,26 +114,41 @@ export function ConnectionSection({ instanceName, instance }: ConnectionSectionP
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Profile */}
+        {/* Profile - Channel-aware */}
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12">
-            <AvatarImage src={profile.profile_picture_url || instance.profile_pic_url || undefined} />
-            <AvatarFallback>
-              <User className="h-6 w-6" />
-            </AvatarFallback>
+            {channelType === 'discord' ? (
+              <>
+                <AvatarImage src={discordData?.avatar_url || undefined} />
+                <AvatarFallback>
+                  <Bot className="h-6 w-6" />
+                </AvatarFallback>
+              </>
+            ) : (
+              <>
+                <AvatarImage src={profile.profile_picture_url || instance.profile_pic_url || undefined} />
+                <AvatarFallback>
+                  <User className="h-6 w-6" />
+                </AvatarFallback>
+              </>
+            )}
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate">
-              {profile.profile_name || instance.profile_name || instanceName}
+              {channelType === 'discord'
+                ? discordData?.bot_name || instanceName
+                : profile.profile_name || instance.profile_name || instanceName}
             </p>
             <p className="text-sm text-muted-foreground truncate">
-              {profile.owner_jid || instance.owner_jid || 'No number connected'}
+              {channelType === 'discord'
+                ? discordData?.bot_id || 'Bot not connected'
+                : profile.owner_jid || instance.owner_jid || 'No number connected'}
             </p>
           </div>
         </div>
 
-        {/* Stats */}
-        {isConnected && (
+        {/* WhatsApp Stats */}
+        {channelType === 'whatsapp' && isConnected && (
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="p-2 rounded-md bg-muted/50">
               <Users className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
@@ -133,9 +168,21 @@ export function ConnectionSection({ instanceName, instance }: ConnectionSectionP
           </div>
         )}
 
+        {/* Discord Stats */}
+        {channelType === 'discord' && isConnected && discordData?.guilds && (
+          <div className="p-2 rounded-md bg-muted/50">
+            <div className="flex items-center gap-2 text-sm">
+              <Server className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Servers:</span>
+              <span className="font-medium">{discordData.guilds.length}</span>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
-          {!isConnected && (
+          {/* WhatsApp QR Code Button */}
+          {channelType === 'whatsapp' && !isConnected && (
             <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="flex-1">
@@ -182,6 +229,19 @@ export function ConnectionSection({ instanceName, instance }: ConnectionSectionP
                 </div>
               </DialogContent>
             </Dialog>
+          )}
+
+          {/* Discord Add to Server Button */}
+          {channelType === 'discord' && !isConnected && discordData?.invite_url && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => window.open(discordData.invite_url, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Add to Server
+            </Button>
           )}
 
           <Button

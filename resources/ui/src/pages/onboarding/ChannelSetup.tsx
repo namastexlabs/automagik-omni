@@ -42,8 +42,8 @@ export default function ChannelSetup() {
   const [evolutionReady, setEvolutionReady] = useState(false);
   const [evolutionError, setEvolutionError] = useState<string | null>(null);
 
-  // Form state
-  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+  // Form state - channels default to OFF, user must explicitly enable them
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappInstanceName, setWhatsappInstanceName] = useState('genie');
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [discordInstanceName, setDiscordInstanceName] = useState('discord-bot');
