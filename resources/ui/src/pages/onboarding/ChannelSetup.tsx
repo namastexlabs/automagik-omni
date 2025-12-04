@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { EvolutionStartupModal } from '@/components/EvolutionStartupModal';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { DiscordInstallModal } from '@/components/DiscordInstallModal';
+import { WhatsAppConfigModal } from '@/components/WhatsAppConfigModal';
 import {
   Loader2,
   MessageCircle,
@@ -64,6 +65,9 @@ export default function ChannelSetup() {
   // Evolution startup modal state
   const [showStartupModal, setShowStartupModal] = useState(false);
 
+  // WhatsApp config modal state (opens on switch toggle)
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+
   // Check if Evolution is already running on mount
   useEffect(() => {
     const checkEvolution = async () => {
@@ -88,13 +92,15 @@ export default function ChannelSetup() {
     if (evolutionError) setShowStartupModal(true);
   }, [evolutionError]);
 
-  // Handle WhatsApp toggle - just track state, don't start Evolution yet
-  // Evolution will start on "Complete Setup" AFTER database config is saved
+  // Handle WhatsApp toggle - open configuration modal (like Discord does)
   const handleWhatsAppToggle = (enabled: boolean) => {
     setWhatsappEnabled(enabled);
     setEvolutionError(null);
-    // Don't start Evolution here - DB config may not exist yet
-    // Evolution will be started in handleSubmit when user clicks "Complete Setup"
+
+    if (enabled) {
+      // Open configuration modal (same pattern as Discord)
+      setShowWhatsAppModal(true);
+    }
   };
 
   // Handle Discord toggle - check if discord.py is installed
@@ -721,6 +727,23 @@ export default function ChannelSetup() {
         }}
         onRetry={() => {
           // Modal handles retry internally
+        }}
+      />
+
+      {/* WhatsApp Config Modal - opens on switch toggle */}
+      <WhatsAppConfigModal
+        open={showWhatsAppModal}
+        onOpenChange={(open) => {
+          setShowWhatsAppModal(open);
+          // If user closes without connecting, disable WhatsApp
+          if (!open && !evolutionReady) {
+            setWhatsappEnabled(false);
+          }
+        }}
+        instanceName={whatsappInstanceName}
+        onSuccess={() => {
+          setEvolutionReady(true);
+          setShowWhatsAppModal(false);
         }}
       />
     </OnboardingLayout>
