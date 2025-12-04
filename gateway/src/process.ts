@@ -447,6 +447,14 @@ export class ProcessManager {
           stdio: 'inherit',
         });
         console.log('[ProcessManager] Evolution dependencies installed successfully');
+
+        // Generate Prisma client after fresh install
+        console.log('[ProcessManager] Generating Prisma client...');
+        await execa('npx', ['prisma', 'generate'], {
+          cwd: evolutionDir,
+          stdio: 'inherit',
+        });
+        console.log('[ProcessManager] Prisma client generated successfully');
       } catch (installErr) {
         throw new Error(`Failed to install Evolution dependencies: ${installErr instanceof Error ? installErr.message : installErr}`);
       }
