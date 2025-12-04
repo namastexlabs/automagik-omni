@@ -437,6 +437,21 @@ export class ProcessManager {
 
     console.log(`[ProcessManager] Using ${packageManager} for Evolution API`);
 
+    // Ensure dependencies are installed (submodule's node_modules may not exist)
+    const nodeModulesPath = join(evolutionDir, 'node_modules');
+    if (!existsSync(nodeModulesPath)) {
+      console.log(`[ProcessManager] Evolution dependencies not installed, running ${packageManager} install...`);
+      try {
+        await execa(packageManager, ['install'], {
+          cwd: evolutionDir,
+          stdio: 'inherit',
+        });
+        console.log('[ProcessManager] Evolution dependencies installed successfully');
+      } catch (installErr) {
+        throw new Error(`Failed to install Evolution dependencies: ${installErr instanceof Error ? installErr.message : installErr}`);
+      }
+    }
+
     const proc = execa(packageManager, ['run', 'start'], {
       cwd: evolutionDir,
       env: {
