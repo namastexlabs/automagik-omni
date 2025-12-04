@@ -51,6 +51,7 @@ interface WhatsAppConfigModalProps {
   onOpenChange: (open: boolean) => void;
   instanceName: string;
   onSuccess?: () => void;
+  onInstanceCreated?: (instanceName: string) => void;
 }
 
 // Detect current phase from log messages
@@ -112,12 +113,16 @@ export function WhatsAppConfigModal({
   onOpenChange,
   instanceName,
   onSuccess,
+  onInstanceCreated,
 }: WhatsAppConfigModalProps) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [copiedLogs, setCopiedLogs] = useState(false);
   const [phase, setPhase] = useState<Phase>('checking');
   const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
+  const [isCreatingInstance, setIsCreatingInstance] = useState(false);
+  const [instanceCreated, setInstanceCreated] = useState(false);
+  const [qrCodeFromConfig, setQrCodeFromConfig] = useState<string | null>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
@@ -144,21 +149,54 @@ export function WhatsAppConfigModal({
     refetchInterval: phase === 'starting' ? 2000 : false,
   });
 
-  // Check QR code when service is ready
+  // Check QR code when instance exists (only after instance is created)
   const { data: qrData, refetch: refetchQR } = useQuery({
     queryKey: ['qr-code-modal', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
-    enabled: open && (phase === 'ready' || phase === 'qr'),
+    enabled: open && instanceCreated && phase === 'qr',
     refetchInterval: phase === 'qr' ? 5000 : false,
   });
 
-  // Check connection status
+  // Check connection status (only after instance is created)
   const { data: connectionState } = useQuery({
     queryKey: ['connection-state-modal', instanceName],
     queryFn: () => api.instances.getStatus(instanceName),
-    enabled: open && (phase === 'qr' || phase === 'ready'),
+    enabled: open && instanceCreated && phase === 'qr',
     refetchInterval: phase === 'qr' ? 3000 : false,
   });
+
+  // Create instance after service is ready
+  const createInstance = useCallback(async () => {
+    if (instanceCreated || isCreatingInstance) return;
+
+    setIsCreatingInstance(true);
+    try {
+      const result = await api.setup.configureChannels({
+        whatsapp_enabled: true,
+        discord_enabled: false,
+        whatsapp_instance_name: instanceName,
+      });
+
+      if (result.whatsapp_qr_code) {
+        setQrCodeFromConfig(result.whatsapp_qr_code);
+        setInstanceCreated(true);
+        setPhase('qr');
+        onInstanceCreated?.(instanceName);
+      } else if (result.whatsapp_instance_name) {
+        // Instance created but no QR (maybe already connected)
+        setInstanceCreated(true);
+        setPhase('qr');
+        onInstanceCreated?.(instanceName);
+      } else {
+        throw new Error('Failed to create WhatsApp instance');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create instance');
+      setPhase('error');
+    } finally {
+      setIsCreatingInstance(false);
+    }
+  }, [instanceCreated, isCreatingInstance, instanceName, onInstanceCreated]);
 
   // Update phase based on service status
   useEffect(() => {
@@ -168,21 +206,23 @@ export function WhatsAppConfigModal({
 
     if (phase === 'checking') {
       if (evolutionProc?.healthy) {
+        // Service is ready, create instance
         setPhase('ready');
       } else {
         setPhase('stopped');
       }
     } else if (phase === 'starting' && evolutionProc?.healthy) {
+      // Service started, create instance
       setPhase('ready');
     }
   }, [gatewayStatus, phase, open]);
 
-  // Transition from ready to qr when we can get QR code
+  // When phase becomes 'ready', create instance automatically
   useEffect(() => {
-    if (phase === 'ready' && qrData?.qr_code) {
-      setPhase('qr');
+    if (phase === 'ready' && !instanceCreated && !isCreatingInstance) {
+      createInstance();
     }
-  }, [phase, qrData]);
+  }, [phase, instanceCreated, isCreatingInstance, createInstance]);
 
   // Check for connection success
   useEffect(() => {
@@ -233,6 +273,9 @@ export function WhatsAppConfigModal({
       setPhase('checking');
       setError(null);
       setIsStarting(false);
+      setIsCreatingInstance(false);
+      setInstanceCreated(false);
+      setQrCodeFromConfig(null);
       clearLogs();
       refetchStatus();
     }
@@ -326,7 +369,10 @@ export function WhatsAppConfigModal({
 
   // Determine what content to show
   const showLogs = phase === 'starting' || phase === 'error';
-  const showQR = phase === 'qr' && qrData?.qr_code;
+  const showCreatingInstance = phase === 'ready' && isCreatingInstance;
+  // Use QR from configureChannels first, then fall back to query result
+  const currentQrCode = qrCodeFromConfig || qrData?.qr_code;
+  const showQR = phase === 'qr' && currentQrCode;
   const showStartPrompt = phase === 'stopped';
   const showChecking = phase === 'checking';
   const showConnected = phase === 'connected';
@@ -478,11 +524,24 @@ export function WhatsAppConfigModal({
           </div>
         )}
 
+        {/* Creating instance state */}
+        {showCreatingInstance && (
+          <div className="flex-1 min-h-[200px] flex flex-col items-center justify-center bg-muted/50 rounded-lg p-6 space-y-4">
+            <Loader2 className="h-12 w-12 text-[#25D366] animate-spin" />
+            <div className="text-center space-y-2">
+              <h3 className="font-medium">Creating WhatsApp Instance</h3>
+              <p className="text-sm text-muted-foreground">
+                Setting up your WhatsApp connection...
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* QR Code display */}
         {showQR && (
           <div className="flex flex-col items-center gap-4 p-4 bg-muted/50 rounded-lg">
             <img
-              src={qrData.qr_code}
+              src={currentQrCode}
               alt="QR Code"
               className="w-48 h-48 rounded-lg border bg-white"
             />

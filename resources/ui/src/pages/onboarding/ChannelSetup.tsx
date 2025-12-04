@@ -68,6 +68,9 @@ export default function ChannelSetup() {
   // WhatsApp config modal state (opens on switch toggle)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
+  // Track if instance was created in modal (to skip duplicate creation in form submit)
+  const [instanceCreatedInModal, setInstanceCreatedInModal] = useState(false);
+
   // Check if Evolution is already running on mount
   useEffect(() => {
     const checkEvolution = async () => {
@@ -234,7 +237,32 @@ export default function ChannelSetup() {
         }
       }
 
-      // Configure channels
+      // If WhatsApp instance was already created in the modal, skip configureChannels for WhatsApp
+      // Just configure Discord if needed
+      if (instanceCreatedInModal && whatsappEnabled) {
+        // WhatsApp already configured in modal - just handle Discord if enabled
+        if (discordEnabled && discordClientId && discordBotToken) {
+          try {
+            await api.instances.create({
+              name: discordInstanceName,
+              channel_type: 'discord',
+              discord_bot_token: discordBotToken,
+              discord_client_id: discordClientId,
+            });
+          } catch (err) {
+            console.error('Failed to create Discord instance:', err);
+            // Continue anyway - WhatsApp is already set up
+          }
+        }
+
+        // Mark setup complete and navigate
+        await api.setup.complete();
+        await completeSetup();
+        navigate('/dashboard');
+        return;
+      }
+
+      // Configure channels (WhatsApp instance not created in modal)
       const result = await api.setup.configureChannels({
         whatsapp_enabled: whatsappEnabled,
         discord_enabled: discordEnabled,
@@ -744,6 +772,10 @@ export default function ChannelSetup() {
         onSuccess={() => {
           setEvolutionReady(true);
           setShowWhatsAppModal(false);
+        }}
+        onInstanceCreated={(name) => {
+          setInstanceCreatedInModal(true);
+          setWhatsappInstanceName(name);
         }}
       />
     </OnboardingLayout>
