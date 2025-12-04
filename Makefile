@@ -862,13 +862,15 @@ restart-local: ## Restart local PM2 service
 	@pm2 restart automagik-omni 2>/dev/null || pm2 start ecosystem.config.js
 	@$(call print_success,Local PM2 service restarted)
 
-reload: ## 🔄 Full reload (stop, clean caches, rebuild UI, restart)
+reload: ## 🔄 Full reload (stop, clean caches, rebuild gateway + UI, restart)
 	$(call print_status,Stopping service...)
 	@pm2 stop "$(OMNI_PORT)-automagik-omni" 2>/dev/null || true
 	$(call print_status,Clearing caches...)
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@rm -rf resources/ui/dist 2>/dev/null || true
 	@rm -rf resources/ui/node_modules/.vite 2>/dev/null || true
+	$(call print_status,Rebuilding gateway...)
+	@cd gateway && pnpm run build
 	$(call print_status,Rebuilding UI...)
 	@cd resources/ui && pnpm install --silent
 	@cd resources/ui && pnpm run build
@@ -973,6 +975,8 @@ wipe: ## Wipe all data and restart for fresh onboarding (with confirmation)
 	$(call print_status,Regenerating Prisma client...)
 	@cd resources/omni-whatsapp-core && npx prisma generate 2>/dev/null || true
 	$(call print_success,Prisma client regenerated!)
+	$(call print_status,Rebuilding gateway...)
+	@cd gateway && pnpm run build
 	$(call print_status,Restarting services...)
 	@pm2 restart 8882-automagik-omni 2>/dev/null || true
 	$(call print_success,Services restarted!)
