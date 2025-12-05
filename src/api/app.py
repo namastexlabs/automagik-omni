@@ -690,9 +690,11 @@ async def _handle_evolution_webhook(instance_config, request: Request, db: Sessi
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
 
-            # Override instance name with the correct one from our database config
-            # to prevent URL conversion issues like "FlashinhoProTestonho" -> "flashinho-pro-testonho"
+            # Override instance configuration from our database config
+            # This ensures we use the correct Evolution API credentials for this instance
             evolution_api_sender.instance_name = instance_config.whatsapp_instance
+            evolution_api_sender.server_url = instance_config.whatsapp_web_url
+            evolution_api_sender.api_key = instance_config.whatsapp_web_key
 
             # Capture real media messages for testing purposes
             try:

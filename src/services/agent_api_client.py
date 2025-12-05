@@ -126,105 +126,62 @@ class AgentApiClient:
         Returns:
             The agent's response as a dictionary
         """
-        endpoint = f"{self.api_url}/api/v1/agent/{agent_name}/run"
+        endpoint = f"{self.api_url}/agents/{agent_name}/runs"
 
         # Prepare headers
         headers = self._make_headers()
 
-        # Prepare payload
-        payload = {"message_content": message_content, "message_limit": message_limit}
+        # Prepare payload for Hive API
+        # Hive API accepts only: message (required), stream, session_id, user_id, files
+        # It uses multipart/form-data, so we can only send simple string fields
+        payload = {"message": message_content}
 
-        # Handle user identification - prefer user dict over user_id
+        # Handle user identification - generate a deterministic user_id
+        resolved_user_id = None
         if user:
-            # Use the user dict for automatic user creation
-            payload["user"] = user
-            logger.info(f"Using user dict for automatic user creation: {user.get('phone_number', 'N/A')}")
+            # Extract phone number from user dict to generate deterministic UUID
+            phone = user.get("phone_number", "")
+            if phone:
+                resolved_user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, phone))
+                logger.info(f"Generated UUID from phone number in user dict: {resolved_user_id}")
         elif user_id is not None:
-            # Fallback to existing user_id logic
             if isinstance(user_id, str):
-                # First, check if it's a valid UUID string
                 try:
                     uuid.UUID(user_id)
-                    # If it's a valid UUID string, keep it as is
-                    logger.debug(f"Using UUID string for user_id: {user_id}")
+                    resolved_user_id = user_id
                 except ValueError:
-                    # If not a UUID, generate a deterministic UUID from the identifier
-                    if user_id.isdigit():
-                        # Generate UUID from phone number for consistent user identification
-                        user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, user_id))
-                        logger.info(f"Generated UUID from phone number: {user_id}")
-                    elif user_id.lower() == "anonymous":
-                        # Generate UUID for anonymous user
-                        user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, "anonymous"))
-                        logger.info(f"Generated UUID for anonymous user: {user_id}")
-                    else:
-                        # Generate UUID from any string identifier
-                        user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, user_id))
-                        logger.info(f"Generated UUID from identifier '{user_id}': {user_id}")
-            elif isinstance(user_id, int):
-                # Convert integer user_id to UUID for compatibility with agent API
-                user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, str(user_id)))
-                logger.info(f"Generated UUID from integer user_id: {user_id}")
+                    resolved_user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, user_id))
+                    logger.info(f"Generated UUID from identifier: {resolved_user_id}")
             else:
-                # If it's not a string or int, generate UUID from string representation
-                user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, str(user_id)))
-                logger.warning(f"Unexpected user_id type: {type(user_id)}, generated UUID: {user_id}")
+                resolved_user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, str(user_id)))
+                logger.info(f"Generated UUID from value: {resolved_user_id}")
 
-            payload["user_id"] = user_id
-        else:
-            # Handle case where both user and user_id are None
-            default_user_id = str(uuid.uuid5(uuid.NAMESPACE_OID, "default"))
-            logger.warning(f"Neither user dict nor user_id provided, using default UUID: {default_user_id}")
-            payload["user_id"] = default_user_id  # Assign a default UUID if None is not allowed by API
+        if resolved_user_id:
+            payload["user_id"] = resolved_user_id
 
-        # Add optional parameters if provided
-        if message_type:
-            payload["message_type"] = message_type
-
-        if media_url:
-            payload["mediaUrl"] = media_url
-
-        if mime_type:
-            payload["mime_type"] = mime_type
-
-        if media_contents:
-            payload["media_contents"] = media_contents
-
-        if channel_payload:
-            payload["channel_payload"] = channel_payload
-
-        # Prefer session_name over session_id if both are provided
+        # Add session_id if provided (prefer session_name over session_id)
         if session_name:
-            payload["session_name"] = session_name
+            payload["session_id"] = session_name
         elif session_id:
             payload["session_id"] = session_id
-
-        if context:
-            payload["context"] = context
-
-        if session_origin:
-            payload["session_origin"] = session_origin
-
-        # Add preserve_system_prompt flag
-        payload["preserve_system_prompt"] = preserve_system_prompt
 
         # Log the request (without sensitive information)
         logger.info(f"Making API request to {endpoint}")
         # Log payload summary without full content to avoid log clutter
         payload_summary = {
-            "message_length": len(payload.get("message_content", "")),
+            "message_length": len(payload.get("message", "")),
             "user_id": payload.get("user_id"),
-            "session_name": payload.get("session_name"),
-            "message_type": payload.get("message_type"),
-            "media_contents_count": len(payload.get("media_contents", [])),
-            "has_context": bool(payload.get("context")),
+            "session_id": payload.get("session_id"),
         }
         logger.debug(f"Request payload summary: {json.dumps(payload_summary)}")
 
         try:
             # Send request to the agent API
+            # Note: Hive API expects multipart/form-data, not JSON
+            # Remove Content-Type header - requests will set it automatically for form-data
+            form_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
             logger.info(f"Sending request to agent API with timeout: {self.timeout}s")
-            response = requests.post(endpoint, headers=headers, json=payload, timeout=self.timeout)
+            response = requests.post(endpoint, headers=form_headers, data=payload, timeout=self.timeout)
 
             # Log the response status
             logger.info(f"API response status: {response.status_code}")
@@ -237,14 +194,22 @@ class AgentApiClient:
                     # Return the full response structure to preserve all fields
                     if isinstance(response_data, dict):
                         # Log success with message info if available
-                        message_text = response_data.get("message", "")
+                        # Note: Hive API returns "content" field, not "message"
+                        message_text = response_data.get("content", response_data.get("message", ""))
                         session_id = response_data.get("session_id", "unknown")
-                        success = response_data.get("success", True)
+                        status = response_data.get("status", "unknown")
 
                         message_length = len(message_text) if isinstance(message_text, str) else "non-string message"
                         logger.info(
-                            f"Received response from agent ({message_length} chars), session: {session_id}, success: {success}"
+                            f"Received response from agent ({message_length} chars), session: {session_id}, status: {status}"
                         )
+
+                        # Normalize response: ensure "message" field exists for downstream compatibility
+                        if "content" in response_data and "message" not in response_data:
+                            response_data["message"] = response_data["content"]
+
+                        # Map Hive status to success boolean
+                        response_data["success"] = status == "COMPLETED"
 
                         # Return the complete response structure
                         return response_data
