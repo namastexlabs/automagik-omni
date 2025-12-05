@@ -779,9 +779,14 @@ e2e-report: ## Show E2E test report
 	$(call print_status,Opening Playwright test report)
 	@cd resources/ui && pnpm exec playwright show-report
 
-e2e-reset-db: ## Wipe E2E database for fresh test run
+e2e-reset-db: ## Wipe E2E database for fresh test run (requires E2E_DB_PASSWORD env var)
 	$(call print_status,Wiping E2E database...)
-	@PGPASSWORD='REDACTED' psql -h 10.114.1.135 -U automagik -c "DROP DATABASE IF EXISTS automagik_omni; CREATE DATABASE automagik_omni;" 2>/dev/null || \
+	@if [ -z "$$E2E_DB_PASSWORD" ]; then \
+		echo -e "$(FONT_RED)$(CROSSMARK) E2E_DB_PASSWORD environment variable not set$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)$(INFO) Set it with: export E2E_DB_PASSWORD='your-password'$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@PGPASSWORD="$$E2E_DB_PASSWORD" psql -h $${E2E_DB_HOST:-10.114.1.135} -U $${E2E_DB_USER:-postgres} -c "DROP DATABASE IF EXISTS automagik_omni; CREATE DATABASE automagik_omni;" 2>/dev/null || \
 		echo -e "$(FONT_YELLOW)$(WARNING) Could not connect to PostgreSQL. Ensure psql is installed and network is reachable.$(FONT_RESET)"
 	$(call print_success,Database wiped - ready for fresh E2E run)
 

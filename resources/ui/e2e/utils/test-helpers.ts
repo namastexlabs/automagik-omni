@@ -9,20 +9,25 @@ import { Page, expect } from '@playwright/test';
 // ============================================================================
 
 /**
- * Test credentials for internal infrastructure
+ * Test configuration for internal infrastructure
  * These are used for E2E tests against deployed instances
+ *
+ * SECURITY: Credentials must be provided via environment variables:
+ * - E2E_DB_PASSWORD: PostgreSQL password
+ * - E2E_DB_HOST: PostgreSQL host (default: 10.114.1.135)
+ * - E2E_DB_USER: PostgreSQL user (default: postgres)
  */
 export const TEST_CONFIG = {
   postgres: {
-    host: '10.114.1.135',
-    password: 'REDACTED',
-    port: 5432,
-    database: 'automagik_omni',
-    user: 'automagik',
+    host: process.env.E2E_DB_HOST || '10.114.1.135',
+    password: process.env.E2E_DB_PASSWORD || '',
+    port: parseInt(process.env.E2E_DB_PORT || '5432', 10),
+    database: process.env.E2E_DB_NAME || 'automagik_omni',
+    user: process.env.E2E_DB_USER || 'postgres',
   },
   redis: {
-    host: '10.114.1.114',
-    port: 6379,
+    host: process.env.E2E_REDIS_HOST || '10.114.1.114',
+    port: parseInt(process.env.E2E_REDIS_PORT || '6379', 10),
   },
 };
 
