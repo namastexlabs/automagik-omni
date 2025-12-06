@@ -1,3 +1,8 @@
+"""Alembic environment configuration - PostgreSQL only.
+
+This configuration is for PostgreSQL-only operation with embedded pgserve.
+SQLite support has been removed as of the ground zero migration.
+"""
 import sys
 import os
 from logging.config import fileConfig
@@ -8,7 +13,7 @@ from alembic import context
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # Import our database configuration and models
-from src.db.database import get_database_url, ensure_sqlite_directory
+from src.db.database import get_database_url
 from src.db.models import Base
 
 # this is the Alembic Config object, which provides
@@ -21,8 +26,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Set the database URL dynamically from our configuration
+# PostgreSQL only - embedded via pgserve
 database_url = get_database_url()
-ensure_sqlite_directory(database_url)
 config.set_main_option("sqlalchemy.url", database_url)
 
 # add your model's MetaData object here
@@ -67,15 +72,12 @@ def run_migrations_online() -> None:
     In this scenario we need to create an Engine
     and associate a connection with the context.
 
+    PostgreSQL only - embedded via pgserve.
     """
     # Create engine configuration
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = database_url
-    
-    # Handle SQLite specific configuration
-    if database_url.startswith("sqlite"):
-        configuration["sqlalchemy.connect_args"] = {"check_same_thread": False}
-    
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -84,7 +86,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, 
+            connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,

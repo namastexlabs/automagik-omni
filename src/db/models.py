@@ -384,3 +384,34 @@ class SettingChangeHistory(Base):
 
     def __repr__(self):
         return f"<SettingChangeHistory(setting_id={self.setting_id}, changed_at='{self.changed_at}', changed_by='{self.changed_by}')>"
+
+
+class UserPreference(Base):
+    """User preferences synced to PostgreSQL (localStorage + sync pattern).
+
+    This table provides persistent backup for localStorage preferences (API key, theme).
+    Frontend uses localStorage for fast reads (0ms latency), syncs to PostgreSQL
+    for persistence (survives browser cache clear).
+
+    Replaces:
+    - omni_api_key (localStorage) -> key='omni_api_key', value='sk-...'
+    - omni_theme (localStorage) -> key='omni_theme', value='light'|'dark'|'system'
+    """
+
+    __tablename__ = "omni_user_preferences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), nullable=False, index=True)  # User identifier from API key
+    key = Column(String(100), nullable=False, index=True)  # Preference key (e.g., 'omni_theme')
+    value = Column(String, nullable=True)  # Preference value
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "key", name="uq_user_preferences_user_key"),
+    )
+
+    def __repr__(self):
+        return f"<UserPreference(user='{self.user_id[:8]}...', key='{self.key}', value='{self.value}')>"

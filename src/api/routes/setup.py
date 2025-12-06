@@ -38,16 +38,22 @@ class SetupStatusResponse(BaseModel):
     requires_setup: bool = Field(
         ..., description="Whether the application requires initial setup"
     )
-    db_type: str | None = Field(
-        None, description="Current database type if configured (sqlite/postgresql)"
-    )
+    # PostgreSQL-only: db_type field removed (always postgresql via embedded pgserve)
 
 
 class DatabaseConfigRequest(BaseModel):
-    """Request schema for database configuration during setup."""
+    """Request schema for database configuration during setup (PostgreSQL-only via pgserve)."""
 
-    db_type: str = Field(..., description="Database type: sqlite or postgresql")
-    postgres_url: str | None = Field(None, description="PostgreSQL connection URL if db_type=postgresql")
+    # PostgreSQL storage configuration
+    data_dir: str = Field(default="./data/postgres", description="PostgreSQL data directory path")
+    memory_mode: bool = Field(default=False, description="Use in-memory storage (ephemeral, no persistence)")
+
+    # Replication configuration (optional, advanced)
+    replication_enabled: bool = Field(default=False, description="Enable PostgreSQL replication to external database")
+    replication_url: str | None = Field(None, description="Target PostgreSQL URL for replication")
+    replication_databases: str | None = Field(None, description="Comma-separated database patterns to replicate (empty = all)")
+
+    # Redis configuration (optional)
     redis_enabled: bool = Field(default=False, description="Enable Redis caching")
     redis_url: str | None = Field(None, description="Redis connection URL")
     redis_prefix_key: str | None = Field(None, description="Redis key prefix")
@@ -90,26 +96,21 @@ async def get_setup_status(db: Session = Depends(get_db)):
         if not setup_setting:
             # Flag doesn't exist - assume fresh install requires setup
             logger.info("setup_completed flag not found, assuming fresh install")
-            return SetupStatusResponse(requires_setup=True, db_type=None)
+            return SetupStatusResponse(requires_setup=True)
 
         # Parse boolean value (stored as string "true"/"false")
         setup_complete = setup_setting.value.lower() in ("true", "1", "yes")
 
-        # Get current database type
-        db_type_setting = settings_service.get_setting("database_type", db)
-        db_type = db_type_setting.value if db_type_setting else None
-
-        logger.info(f"Setup status check: setup_complete={setup_complete}, db_type={db_type}")
+        logger.info(f"Setup status check: setup_complete={setup_complete}")
 
         return SetupStatusResponse(
-            requires_setup=not setup_complete,
-            db_type=db_type
+            requires_setup=not setup_complete
         )
 
     except Exception as e:
         logger.error(f"Failed to check setup status: {e}")
         # On error, assume setup is required to be safe
-        return SetupStatusResponse(requires_setup=True, db_type=None)
+        return SetupStatusResponse(requires_setup=True)
 
 
 @router.post("/initialize")
@@ -130,21 +131,7 @@ async def initialize_setup(
         Success confirmation
     """
     try:
-        logger.info(f"Initializing setup with db_type={config.db_type}")
-
-        # Validate db_type
-        if config.db_type not in ("sqlite", "postgresql"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid db_type: {config.db_type}. Must be 'sqlite' or 'postgresql'"
-            )
-
-        # Validate PostgreSQL URL if db_type is postgresql
-        if config.db_type == "postgresql" and not config.postgres_url:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="postgres_url is required when db_type is 'postgresql'"
-            )
+        logger.info("Initializing setup with PostgreSQL (embedded pgserve)")
 
         # Helper function to create or update settings
         def _set_or_update(key: str, value: str, value_type: SettingValueType, category: str, description: str, is_secret: bool = False):
@@ -165,24 +152,57 @@ async def initialize_setup(
                 )
                 logger.info(f"Created setting: {key}")
 
-        # Save database configuration
+        # Save PostgreSQL storage configuration
         _set_or_update(
-            key="database_type",
-            value=config.db_type,
+            key="pgserve_data_dir",
+            value=config.data_dir,
             value_type=SettingValueType.STRING,
             category="database",
-            description="Database type (sqlite or postgresql)"
+            description="PostgreSQL data directory path"
         )
 
-        # Save PostgreSQL URL if provided
-        if config.db_type == "postgresql" and config.postgres_url:
+        _set_or_update(
+            key="pgserve_memory_mode",
+            value="true" if config.memory_mode else "false",
+            value_type=SettingValueType.BOOLEAN,
+            category="database",
+            description="Use in-memory storage (ephemeral)"
+        )
+
+        # Save replication configuration if enabled
+        if config.replication_enabled and config.replication_url:
             _set_or_update(
-                key="postgres_url",
-                value=config.postgres_url,
+                key="pgserve_replication_enabled",
+                value="true",
+                value_type=SettingValueType.BOOLEAN,
+                category="database",
+                description="Enable PostgreSQL replication"
+            )
+
+            _set_or_update(
+                key="pgserve_replication_url",
+                value=config.replication_url,
                 value_type=SettingValueType.SECRET,
                 category="database",
-                description="PostgreSQL connection URL",
+                description="PostgreSQL replication target URL",
                 is_secret=True
+            )
+
+            if config.replication_databases:
+                _set_or_update(
+                    key="pgserve_replication_databases",
+                    value=config.replication_databases,
+                    value_type=SettingValueType.STRING,
+                    category="database",
+                    description="Database patterns to replicate"
+                )
+        else:
+            _set_or_update(
+                key="pgserve_replication_enabled",
+                value="false",
+                value_type=SettingValueType.BOOLEAN,
+                category="database",
+                description="Enable PostgreSQL replication"
             )
 
         # Save Redis configuration if enabled
@@ -245,7 +265,7 @@ async def initialize_setup(
 
         return {
             "success": True,
-            "message": f"Database configuration saved: {config.db_type}"
+            "message": "PostgreSQL configuration saved (embedded pgserve)"
         }
 
     except HTTPException:

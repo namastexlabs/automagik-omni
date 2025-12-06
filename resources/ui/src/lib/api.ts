@@ -1,6 +1,9 @@
 const API_KEY_STORAGE_KEY = 'omni_api_key';
 const API_BASE_URL = '/api/v1';
 
+// localStorage + PostgreSQL sync pattern for preferences
+// Fast reads from localStorage (0ms), persistent writes to PostgreSQL (survives cache clear)
+
 // Trace Analytics Types
 export interface TraceAnalytics {
   total_messages: number;
@@ -234,21 +237,79 @@ export interface RedisConfig {
 // Global auth error handler
 let authErrorHandler: (() => void) | null = null;
 
-// API Key management
-export function getApiKey(): string | null {
+// localStorage + PostgreSQL sync helpers
+async function syncToPostgreSQL(preferences: Record<string, string>): Promise<void> {
+  // Get API key from localStorage (needed for auth)
+  const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+  if (!apiKey) {
+    return; // Can't sync without API key
+  }
+
+  try {
+    await fetch(`${API_BASE_URL}/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({ preferences }),
+    });
+  } catch (error) {
+    console.error('[API] Failed to sync preferences to PostgreSQL:', error);
+    // Non-fatal: localStorage write succeeded, sync can retry later
+  }
+}
+
+async function restoreFromPostgreSQL(): Promise<void> {
+  // Get API key from localStorage (needed for auth)
+  const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+  if (!apiKey) {
+    return; // Can't restore without API key
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/sync`, {
+      headers: { 'x-api-key': apiKey },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      for (const [key, value] of Object.entries<string>(data.preferences)) {
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, value);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[API] Failed to restore preferences from PostgreSQL:', error);
+  }
+}
+
+// API Key management (localStorage + PostgreSQL sync pattern)
+export async function getApiKey(): Promise<string | null> {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
 }
 
-export function setApiKey(key: string): void {
+export async function setApiKey(key: string): Promise<void> {
+  // Fast write to localStorage
   localStorage.setItem(API_KEY_STORAGE_KEY, key);
+
+  // Async sync to PostgreSQL (non-blocking)
+  syncToPostgreSQL({ [API_KEY_STORAGE_KEY]: key });
 }
 
-export function removeApiKey(): void {
+export async function removeApiKey(): Promise<void> {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-export function isAuthenticated(): boolean {
-  return !!getApiKey();
+export async function isAuthenticated(): Promise<boolean> {
+  const key = await getApiKey();
+  return !!key;
+}
+
+// Restore preferences from PostgreSQL on app startup (call once)
+export async function restorePreferences(): Promise<void> {
+  return restoreFromPostgreSQL();
 }
 
 // API client helper
@@ -256,7 +317,7 @@ async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
 
   if (!apiKey) {
     throw new Error('No API key found. Please login.');
@@ -275,15 +336,15 @@ async function apiRequest<T>(
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      removeApiKey();
-      
+      await removeApiKey();
+
       if (authErrorHandler) {
         authErrorHandler();
       } else {
         // Default behavior: redirect to login
         window.location.replace('/login');
       }
-      
+
       throw new Error('Authentication failed');
     }
 
@@ -1137,7 +1198,7 @@ async function evolutionRequest<T>(
   options: RequestInit = {},
   instanceName?: string
 ): Promise<T> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
 
   if (!apiKey) {
     throw new Error('No API key found. Please login.');

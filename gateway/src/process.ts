@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { createConnection } from 'node:net';
 import { PortRegistry } from './port-registry.js';
+import { PgserveManager, type PgserveHealth } from './pgserve.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -64,6 +65,8 @@ export class ProcessManager {
   private lastRestartTime: Map<string, number> = new Map();
   // Active health monitoring
   private healthCheckIntervals: Map<string, NodeJS.Timeout> = new Map();
+  // Embedded PostgreSQL manager
+  private pgserveManager: PgserveManager | null = null;
 
   constructor(portRegistry: PortRegistry, config: Partial<ProcessConfig> = {}) {
     this.portRegistry = portRegistry;
@@ -206,6 +209,91 @@ export class ProcessManager {
       default:
         console.warn(`[ProcessManager] Unknown channel: ${channel}`);
     }
+  }
+
+  /**
+   * Start the embedded PostgreSQL server (pgserve)
+   * This MUST be called before startPython() - database must be ready first
+   */
+  async startPgserve(): Promise<void> {
+    console.log('[ProcessManager] Starting embedded PostgreSQL via pgserve...');
+
+    // Create the pgserve manager
+    this.pgserveManager = new PgserveManager({
+      // Use default data directory (./data/postgres) unless env overrides
+      dataDir: process.env.PGSERVE_DATA_DIR || undefined,
+      port: parseInt(process.env.PGSERVE_PORT ?? '5432', 10),
+      memoryMode: process.env.PGSERVE_MEMORY_MODE === 'true',
+      logLevel: this.config.devMode ? 'debug' : 'info',
+      replicationUrl: process.env.PGSERVE_REPLICATION_URL,
+      replicationDatabases: process.env.PGSERVE_REPLICATION_DATABASES,
+    });
+
+    try {
+      await this.pgserveManager.start();
+
+      // Wait for PostgreSQL to be fully ready
+      await this.waitForPgserveHealth();
+
+      console.log(`[ProcessManager] PostgreSQL ready at postgresql://127.0.0.1:${this.pgserveManager.getPort()}/omni`);
+    } catch (error) {
+      console.error('[ProcessManager] Failed to start embedded PostgreSQL:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Wait for pgserve to become healthy
+   */
+  private async waitForPgserveHealth(timeout = 30000): Promise<void> {
+    if (!this.pgserveManager) {
+      throw new Error('PgserveManager not initialized');
+    }
+
+    const start = Date.now();
+    const checkInterval = 500;
+
+    while (Date.now() - start < timeout) {
+      try {
+        const health = await this.pgserveManager.getHealth();
+        if (health.status === 'healthy') {
+          console.log('[ProcessManager] pgserve is healthy');
+          return;
+        }
+      } catch {
+        // Not ready yet
+      }
+      await new Promise((r) => setTimeout(r, checkInterval));
+    }
+
+    console.warn(`[ProcessManager] pgserve health check timed out after ${timeout}ms`);
+  }
+
+  /**
+   * Get pgserve health status
+   */
+  async getPgserveHealth(): Promise<PgserveHealth | null> {
+    if (!this.pgserveManager) {
+      return null;
+    }
+    return this.pgserveManager.getHealth();
+  }
+
+  /**
+   * Get PostgreSQL connection URL
+   */
+  getPgserveConnectionUrl(database: string = 'omni'): string | null {
+    if (!this.pgserveManager) {
+      return null;
+    }
+    return this.pgserveManager.getConnectionUrl(database);
+  }
+
+  /**
+   * Check if pgserve is running
+   */
+  isPgserveRunning(): boolean {
+    return this.pgserveManager?.isHealthy() ?? false;
   }
 
   /**
@@ -990,6 +1078,18 @@ export class ProcessManager {
     }
 
     await Promise.all(shutdownPromises);
+
+    // Stop pgserve (embedded PostgreSQL) last
+    if (this.pgserveManager) {
+      console.log('[ProcessManager] Stopping embedded PostgreSQL...');
+      try {
+        await this.pgserveManager.stop();
+        console.log('[ProcessManager] Embedded PostgreSQL stopped');
+      } catch (error) {
+        console.warn('[ProcessManager] Error stopping pgserve:', error);
+      }
+    }
+
     console.log('[ProcessManager] All processes stopped');
     process.exit(0);
   }

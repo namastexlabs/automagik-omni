@@ -16,8 +16,11 @@ export default function DatabaseSetup() {
   // Clear any stale API key and setup state from previous installations
   // This ensures fresh installs don't retain old localStorage data
   useEffect(() => {
-    removeApiKey();
-    localStorage.removeItem('omni_setup_complete');
+    const clearStaleData = async () => {
+      await removeApiKey();
+      localStorage.removeItem('omni_setup_complete');
+    };
+    clearStaleData();
   }, []);
 
   const handleWizardComplete = async (wizardConfig: DatabaseConfig) => {
@@ -40,9 +43,11 @@ export default function DatabaseSetup() {
       setIsSkipping(true);
       setError(null);
 
-      // Initialize with SQLite defaults
+      // Initialize with PostgreSQL defaults
       await api.setup.initialize({
-        db_type: 'sqlite',
+        data_dir: './data/postgres',
+        memory_mode: false,
+        replication_enabled: false,
         redis_enabled: false,
       });
 
@@ -65,10 +70,10 @@ export default function DatabaseSetup() {
       <div className="p-8">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Database Configuration
+            Storage Configuration
           </h2>
           <p className="text-gray-600">
-            Choose your database backend. You can change this later in Settings.
+            Configure PostgreSQL storage for your data. You can adjust these settings later.
           </p>
         </div>
 
@@ -96,11 +101,11 @@ export default function DatabaseSetup() {
                 Skipping...
               </>
             ) : (
-              'Skip - Use SQLite Defaults'
+              'Skip - Use Default Storage'
             )}
           </Button>
           <p className="text-xs text-gray-500 text-center mt-2">
-            SQLite is perfect for getting started. You can configure PostgreSQL later.
+            Default storage uses embedded PostgreSQL with persistent disk storage.
           </p>
         </div>
       </div>

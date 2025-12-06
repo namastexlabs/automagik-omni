@@ -45,21 +45,14 @@ class LoggingConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    """Database configuration with PostgreSQL and SQLite support."""
+    """Database configuration - PostgreSQL only (embedded via pgserve)."""
 
-    # Database type selection: "sqlite" (default) or "postgresql"
-    db_type: str = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_DB_TYPE", "sqlite")
-    )
-
-    # SQLite configuration (always used for global_settings bootstrap)
-    sqlite_path: str = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", "./data/automagik-omni.db")
-    )
-
-    # PostgreSQL configuration (shared with Evolution API)
+    # PostgreSQL configuration (embedded PostgreSQL via pgserve)
     postgres_url: str = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_POSTGRES_URL", "")
+        default_factory=lambda: os.getenv(
+            "AUTOMAGIK_OMNI_POSTGRES_URL",
+            "postgresql://postgres:postgres@127.0.0.1:5432/omni"  # Default embedded pgserve
+        )
     )
 
     # Legacy: explicit database URL override (takes precedence)
@@ -72,36 +65,23 @@ class DatabaseConfig(BaseModel):
 
     # Connection pooling settings (for PostgreSQL)
     pool_size: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_SIZE", "3"))
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_SIZE", "5"))
     )
     pool_max_overflow: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_MAX_OVERFLOW", "7"))
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_MAX_OVERFLOW", "10"))
     )
     pool_recycle: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_RECYCLE", "1800"))
+        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_RECYCLE", "3600"))
     )
-
-    @property
-    def use_postgres(self) -> bool:
-        """Check if PostgreSQL is configured."""
-        return self.db_type.lower() == "postgresql" and bool(self.postgres_url)
 
     @property
     def database_url(self) -> str:
-        """Get the complete database URL for runtime data."""
+        """Get the complete database URL for runtime data (PostgreSQL only)."""
         # Explicit URL override takes precedence
         if self.url:
             return self.url
-        # Use PostgreSQL if configured
-        if self.use_postgres:
-            return self.postgres_url
-        # Default to SQLite
-        return f"sqlite:///{self.sqlite_path}"
-
-    @property
-    def global_settings_url(self) -> str:
-        """Get the SQLite URL for global settings (always SQLite for bootstrap safety)."""
-        return f"sqlite:///{self.sqlite_path}"
+        # Use PostgreSQL (always)
+        return self.postgres_url
 
 
 class TracingConfig(BaseModel):

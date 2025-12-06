@@ -28,14 +28,7 @@ def get_database_url() -> str:
     return config.database.database_url
 
 
-def ensure_sqlite_directory(database_url: str) -> None:
-    """Ensure SQLite directory exists."""
-    if database_url.startswith("sqlite"):
-        sqlite_path = database_url.replace("sqlite:///", "")
-        sqlite_dir = Path(sqlite_path).parent
-        sqlite_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"SQLite database directory ensured: {sqlite_dir}")
-        logger.info(f"SQLite database file: {sqlite_path}")
+# SQLite support removed - PostgreSQL only (embedded via pgserve)
 
 
 _DATABASE_URL: str | None = None
@@ -47,7 +40,7 @@ Base = declarative_base()
 
 
 def _initialize_engine() -> None:
-    """Initialize the SQLAlchemy engine and session factory lazily."""
+    """Initialize the SQLAlchemy engine and session factory lazily (PostgreSQL only)."""
 
     global _DATABASE_URL, _engine, _SessionLocal
 
@@ -57,27 +50,19 @@ def _initialize_engine() -> None:
     database_url = get_database_url()
     _DATABASE_URL = database_url
 
-    ensure_sqlite_directory(database_url)
-
     if not initialize_database(database_url):
         logger.error("Failed to initialize database. Please check your database configuration and permissions.")
         # Continue anyway - let SQLAlchemy fail with a more specific error if needed
 
-    if database_url.startswith("sqlite"):
-        _engine = create_engine(
-            database_url,
-            connect_args={"check_same_thread": False},  # Needed for SQLite
-        )
-    elif database_url.startswith("postgresql"):
-        _engine = create_engine(
-            database_url,
-            pool_size=5,
-            max_overflow=10,
-            pool_pre_ping=True,
-            pool_recycle=3600,
-        )
-    else:
-        _engine = create_engine(database_url)
+    # PostgreSQL only - use connection pooling
+    from src.config import config
+    _engine = create_engine(
+        database_url,
+        pool_size=config.database.pool_size,
+        max_overflow=config.database.pool_max_overflow,
+        pool_pre_ping=True,
+        pool_recycle=config.database.pool_recycle,
+    )
 
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 

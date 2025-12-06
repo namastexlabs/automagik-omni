@@ -91,6 +91,9 @@ export async function main() {
     }
   }
 
+  // Get pgserve port from env or use default
+  const PGSERVE_PORT = parseInt(process.env.PGSERVE_PORT ?? '5432', 10);
+
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║           Automagik Omni Gateway                          ║
@@ -99,6 +102,7 @@ export async function main() {
 
 Mode: ${PROXY_ONLY ? 'PROXY-ONLY' : (DEV_MODE ? 'DEVELOPMENT' : 'PRODUCTION')}
 Gateway Port: ${GATEWAY_PORT} (--port or OMNI_PORT to change)
+${PROXY_ONLY ? '' : `PostgreSQL:   postgresql://127.0.0.1:${PGSERVE_PORT}/omni (embedded)`}
 Python API:   http://127.0.0.1:${PYTHON_PORT} (auto-managed)
 ${EVOLUTION_PORT ? `Evolution:    http://127.0.0.1:${EVOLUTION_PORT} (auto-managed)` : 'Evolution:    (not allocated)'}
 ${DEV_MODE && VITE_PORT ? `Vite Dev:     http://127.0.0.1:${VITE_PORT} (auto-managed)` : ''}
@@ -117,7 +121,10 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   if (!PROXY_ONLY) {
     console.log('\n[Gateway] Starting backend services...\n');
 
-    // Start Python API first (critical)
+    // Start embedded PostgreSQL first (database must be ready before Python)
+    await processManager.startPgserve();
+
+    // Start Python API (connects to PostgreSQL)
     await processManager.startPython();
 
     // Start standalone MCP server (eliminates double proxy layer)
@@ -177,6 +184,20 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // ============================================================
   fastify.get('/health', async () => {
     return healthChecker.getHealth();
+  });
+
+  // ============================================================
+  // Route: /health/pgserve - PostgreSQL health check
+  // ============================================================
+  fastify.get('/health/pgserve', async () => {
+    const health = await processManager.getPgserveHealth();
+    if (!health) {
+      return {
+        status: 'not_running',
+        message: 'Embedded PostgreSQL is not running (proxy-only mode?)',
+      };
+    }
+    return health;
   });
 
   // ============================================================
@@ -526,6 +547,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // Status endpoint (gateway internals)
   // ============================================================
   fastify.get('/gateway/status', async () => {
+    const pgserveHealth = await processManager.getPgserveHealth();
     return {
       gateway: {
         port: GATEWAY_PORT,
@@ -536,6 +558,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       },
       ports: portRegistry.toJSON(),
       processes: processManager.getStatus(),
+      pgserve: pgserveHealth ?? { status: 'not_running' },
     };
   });
 

@@ -237,6 +237,13 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Skipping database setup in test environment")
 
+    # Check for SQLite database migration warning
+    try:
+        from src.db.migration_check import log_migration_warning_on_startup
+        log_migration_warning_on_startup()
+    except Exception as e:
+        logger.debug(f"Migration check failed: {e}")
+
     logger.info(f"Log level set to: {config.logging.level}")
     logger.info(f"API Host: {config.api.host}")
     logger.info(f"API Port: {config.api.port}")
@@ -402,6 +409,11 @@ app.include_router(recovery_router, prefix="/api/v1", tags=["Recovery"])
 from src.api.routes.internal import router as internal_router
 
 app.include_router(internal_router, prefix="/api/v1", tags=["Internal"])
+
+# Include sync routes (localStorage + PostgreSQL sync for settings)
+from src.api.routes.sync import router as sync_router
+
+app.include_router(sync_router, prefix="/api/v1", tags=["Sync"])
 
 # Note: MCP server now runs as standalone service on port 18880
 # Gateway proxies /mcp requests directly to standalone MCP server
