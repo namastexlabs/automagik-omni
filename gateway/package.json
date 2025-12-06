@@ -18,7 +18,7 @@
     "@fastify/websocket": "^10.0.1",
     "execa": "^9.5.2",
     "fastify": "^4.28.0",
-    "pgserve": "file:../../pglite-embedded-server"
+    "pgserve": "^1.0.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
