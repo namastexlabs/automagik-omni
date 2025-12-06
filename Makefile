@@ -708,14 +708,6 @@ test-postgres-teardown: ## Stop and remove PostgreSQL test container
 	@./scripts/setup-test-postgres.sh remove
 	$(call print_success,PostgreSQL test environment removed)
 
-.PHONY: test-sqlite
-test-sqlite: ## Force tests to use SQLite (override PostgreSQL if set)
-	$(call check_prerequisites)
-	$(call print_status,Running tests with SQLite)
-	@unset POSTGRES_HOST POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB TEST_DATABASE_URL && \
-	$(UV) run pytest tests/ -v --tb=short
-	$(call print_success,SQLite tests completed)
-
 .PHONY: play play-full play-quick test-ui test-ui-quick wait-for-services
 play: play-full ## Run visual Playwright E2E tests (human-watchable)
 
@@ -778,17 +770,6 @@ e2e-onboarding: ## Run only the onboarding E2E test (headed)
 e2e-report: ## Show E2E test report
 	$(call print_status,Opening Playwright test report)
 	@cd resources/ui && pnpm exec playwright show-report
-
-e2e-reset-db: ## Wipe E2E database for fresh test run (requires E2E_DB_PASSWORD env var)
-	$(call print_status,Wiping E2E database...)
-	@if [ -z "$$E2E_DB_PASSWORD" ]; then \
-		echo -e "$(FONT_RED)$(CROSSMARK) E2E_DB_PASSWORD environment variable not set$(FONT_RESET)"; \
-		echo -e "$(FONT_YELLOW)$(INFO) Set it with: export E2E_DB_PASSWORD='your-password'$(FONT_RESET)"; \
-		exit 1; \
-	fi
-	@PGPASSWORD="$$E2E_DB_PASSWORD" psql -h $${E2E_DB_HOST:-10.114.1.135} -U $${E2E_DB_USER:-postgres} -c "DROP DATABASE IF EXISTS automagik_omni; CREATE DATABASE automagik_omni;" 2>/dev/null || \
-		echo -e "$(FONT_YELLOW)$(WARNING) Could not connect to PostgreSQL. Ensure psql is installed and network is reachable.$(FONT_RESET)"
-	$(call print_success,Database wiped - ready for fresh E2E run)
 
 wait-for-services: ## Wait for services to be healthy
 	$(call print_status,Checking service health...)
@@ -933,60 +914,6 @@ db-init: ## Initialize database with default instance
 	$(call print_status,Initializing database)
 	@$(UV) run python -c "from src.db.bootstrap import ensure_default_instance; from src.db.database import SessionLocal; db = SessionLocal(); ensure_default_instance(db); db.close()"
 	$(call print_success,Database initialized with default instance)
-
-.PHONY: wipe
-wipe: ## Wipe all data and restart for fresh onboarding (with confirmation)
-	@echo -e "$(FONT_RED)$(WARNING) WARNING: This will DELETE ALL DATA and restart services!$(FONT_RESET)"
-	@echo -e "$(FONT_YELLOW)Data to be wiped:$(FONT_RESET)"
-	@echo "  PostgreSQL tables:"
-	@echo "    - omni_global_settings"
-	@echo "    - omni_instance_configs"
-	@echo "    - omni_users"
-	@echo "    - omni_user_external_ids"
-	@echo "    - omni_message_traces"
-	@echo "    - omni_trace_payloads"
-	@echo "    - omni_setting_change_history"
-	@echo "    - omni_access_rules"
-	@echo "  SQLite database:"
-	@echo "    - data/automagik-omni.db"
-	@echo "  Evolution API:"
-	@echo "    - resources/omni-whatsapp-core/prisma/evolution.db"
-	@echo "    - resources/omni-whatsapp-core/instances/* (WhatsApp sessions)"
-	@echo ""
-	@read -p "Type 'WIPE' to confirm: " confirm && [ "$$confirm" = "WIPE" ] || { echo "$(FONT_GREEN)$(CHECKMARK) Aborted$(FONT_RESET)"; exit 1; }
-	$(call print_status,Wiping PostgreSQL database...)
-	@PGPASSWORD=omni_secure_2024 psql -h 10.114.1.135 -U omni -d automagik_omni -c "\
-		DO \$$\$$ \
-		DECLARE \
-			tables TEXT[] := ARRAY['omni_global_settings', 'omni_instance_configs', 'omni_users', 'omni_user_external_ids', 'omni_message_traces', 'omni_trace_payloads', 'omni_setting_change_history', 'omni_access_rules']; \
-			t TEXT; \
-		BEGIN \
-			FOREACH t IN ARRAY tables LOOP \
-				IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = t) THEN \
-					EXECUTE format('TRUNCATE %I CASCADE', t); \
-				END IF; \
-			END LOOP; \
-		END \$$\$$;"
-	$(call print_success,PostgreSQL wiped!)
-	$(call print_status,Wiping SQLite database...)
-	@rm -f data/automagik-omni.db
-	$(call print_success,SQLite wiped!)
-	$(call print_status,Wiping Evolution API database...)
-	@rm -f resources/omni-whatsapp-core/prisma/evolution.db
-	$(call print_success,Evolution database wiped!)
-	$(call print_status,Wiping WhatsApp sessions...)
-	@rm -rf resources/omni-whatsapp-core/instances/*
-	$(call print_success,WhatsApp sessions wiped!)
-	$(call print_status,Regenerating Prisma client...)
-	@cd resources/omni-whatsapp-core && npx prisma generate 2>/dev/null || true
-	$(call print_success,Prisma client regenerated!)
-	$(call print_status,Rebuilding gateway...)
-	@cd gateway && pnpm run build
-	$(call print_status,Restarting services...)
-	@pm2 restart 8882-automagik-omni 2>/dev/null || true
-	$(call print_success,Services restarted!)
-	@echo ""
-	@echo -e "$(FONT_GREEN)$(SPARKLES) Ready for fresh onboarding at http://localhost:8882$(FONT_RESET)"
 
 .PHONY: cli-instances
 cli-instances: ## List all instances via CLI
