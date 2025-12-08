@@ -12,7 +12,7 @@ from typing import Dict
 
 from src.db.database import get_db
 from src.db.models import UserPreference
-from src.api.deps import require_api_key
+from src.api.deps import verify_api_key
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ class PreferencesSyncRequest(BaseModel):
     preferences: Dict[str, str]
 
 
-def get_user_id_from_api_key(api_key: str = Depends(require_api_key)) -> str:
+def get_user_id_from_api_key(api_key: str = Depends(verify_api_key)) -> str:
     """Extract user ID from API key for preference isolation."""
     # For now, use API key itself as user ID
     # In future: Look up actual user_id from API key table
