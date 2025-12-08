@@ -79,15 +79,13 @@ def initialize_database(database_url: str) -> bool:
     """
     Initialize database, creating it if necessary for PostgreSQL.
     Returns True if successful, False otherwise.
-    """
-    # For SQLite, no need to create database
-    if database_url.startswith("sqlite"):
-        return True
 
-    # For PostgreSQL, attempt to create if needed
+    PostgreSQL only - SQLite is NOT supported.
+    """
+    # PostgreSQL only - attempt to create database if needed
     if database_url.startswith("postgresql://"):
         return create_postgres_database_if_needed(database_url)
 
-    # Unknown database type
-    logger.warning(f"Unknown database type in URL: {database_url}")
-    return True  # Assume it's OK and let SQLAlchemy handle it
+    # Unknown database type - fail explicitly
+    logger.error(f"Unsupported database type in URL: {database_url}. Only PostgreSQL is supported.")
+    return False

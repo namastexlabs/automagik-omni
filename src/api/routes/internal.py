@@ -6,6 +6,7 @@ These endpoints allow internal services (like Evolution) to fetch
 configuration from Omni without needing the API key.
 """
 
+import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -97,7 +98,7 @@ async def get_subprocess_config(
 
     Returns environment variables needed by subprocesses:
     - DATABASE_CONNECTION_URI: PostgreSQL connection string
-    - DATABASE_PROVIDER: "postgresql" or "sqlite"
+    - DATABASE_PROVIDER: "postgresql"
     - AUTHENTICATION_API_KEY: Unified API key
 
     **Localhost only** - No authentication required.
@@ -106,15 +107,18 @@ async def get_subprocess_config(
     """
     _verify_localhost(request)
 
-    # Get database config
-    db_type = settings_service.get_setting_value("database_type", db) or "sqlite"
-    postgres_url = settings_service.get_setting_value("postgres_url", db)
+    # Get database URL from env var (set by gateway when starting Python)
+    # The gateway passes AUTOMAGIK_OMNI_DATABASE_URL with the dynamic postgres port
+    database_url = os.getenv("AUTOMAGIK_OMNI_DATABASE_URL")
+
+    # Evolution shares the same database as Omni - table prefixes handle separation
+    # Python tables use 'omni_' prefix, Evolution tables use 'evo_' prefix
+    # PostgreSQL only - no SQLite support
+    database_uri = database_url if database_url else None
+    db_type = "postgresql"
 
     # Get API key
     api_key = settings_service.get_setting_value("omni_api_key", db)
-
-    # For Evolution, we need PostgreSQL - it doesn't support SQLite
-    database_uri = postgres_url if db_type == "postgresql" else None
 
     return SubprocessConfigResponse(
         database_connection_uri=database_uri,

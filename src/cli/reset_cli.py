@@ -31,10 +31,11 @@ def factory_reset(
     Factory reset Automagik Omni to fresh install state.
 
     This will delete:
-    - SQLite database file (API keys regenerate on next start)
+    - PostgreSQL tables (omni_* and evo_* - API keys regenerate on next start)
     - Evolution API instances (unless --keep-instances)
     - Log files
-    - Optionally: PostgreSQL omni_* tables (prompted)
+
+    PostgreSQL only - SQLite is NOT supported.
 
     Examples:
         omni reset factory              # Interactive reset
@@ -62,7 +63,7 @@ def factory_reset(
             state_table.add_column("Item", style="cyan")
             state_table.add_column("Value", style="white")
 
-            state_table.add_row("SQLite DB", f"{preview.sqlite_path} ({preview.sqlite_size_mb} MB)")
+            state_table.add_row("PostgreSQL", f"{len(preview.postgres_tables)} tables (omni_*, evo_*)")
             state_table.add_row("Instances", f"{preview.instance_count} ({', '.join(preview.instances[:3])}{'...' if len(preview.instances) > 3 else ''})")
             state_table.add_row("Users", str(preview.user_count))
             state_table.add_row("Message Traces", str(preview.trace_count))
@@ -70,15 +71,12 @@ def factory_reset(
             state_table.add_row("Settings", str(preview.setting_count))
             state_table.add_row("Logs", f"{preview.log_path} ({preview.log_size_mb} MB)")
 
-            if preview.postgres_connected:
-                state_table.add_row("PostgreSQL", f"Connected ({len(preview.postgres_tables)} omni_* tables)")
-
             console.print(state_table)
             console.print()
 
             # What will be deleted
             console.print("[bold]This will:[/bold]")
-            console.print("  [green]✓[/green] Delete SQLite database file")
+            console.print(f"  [green]✓[/green] Clear PostgreSQL tables ({len(preview.postgres_tables)} tables)")
             if not keep_instances and preview.instance_count > 0:
                 console.print(f"  [green]✓[/green] Delete {preview.instance_count} Evolution API instance(s)")
             elif keep_instances:
@@ -86,16 +84,8 @@ def factory_reset(
             console.print("  [green]✓[/green] Delete log files")
             console.print()
 
-            # Ask about PostgreSQL if connected
-            clear_postgres = False
-            if preview.postgres_connected and preview.postgres_tables:
-                if force:
-                    clear_postgres = False  # Default to no for --force
-                elif not dry_run:
-                    clear_postgres = Confirm.ask(
-                        f"  [yellow]?[/yellow] Clear PostgreSQL omni_* tables ({len(preview.postgres_tables)} tables)?",
-                        default=False
-                    )
+            # Default to clearing PostgreSQL tables (primary database)
+            clear_postgres = True
 
             if dry_run:
                 console.print()
@@ -131,9 +121,6 @@ def factory_reset(
 
             if results["postgres_tables"]:
                 console.print(f"  [green]✓[/green] Cleared {len(results['postgres_tables'])} PostgreSQL table(s)")
-
-            if results["sqlite_deleted"]:
-                console.print(f"  [green]✓[/green] Deleted SQLite database")
 
             if results["logs_deleted"]:
                 console.print(f"  [green]✓[/green] Deleted {results['logs_deleted']} log file(s)")

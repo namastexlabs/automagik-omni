@@ -605,7 +605,7 @@ Action: Append as new learning
 **Setup:**
 ```bash
 # Dependencies already in package.json
-pnpm install
+bun install
 
 # First run downloads model automatically (~10s, one-time)
 ```

@@ -23,14 +23,11 @@ interface DatabaseSetupWizardProps {
 }
 
 export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: DatabaseSetupWizardProps) {
-  // Storage mode: 'filesystem', 'external', or 'memory'
-  const [storageMode, setStorageMode] = useState<'filesystem' | 'external' | 'memory'>('filesystem');
+  // Storage mode: 'filesystem' or 'memory' (embedded pgserve only)
+  const [storageMode, setStorageMode] = useState<'filesystem' | 'memory'>('filesystem');
 
   // Filesystem mode options
   const [dataDir, setDataDir] = useState('./data/postgres');
-
-  // External PostgreSQL mode options
-  const [postgresUrl, setPostgresUrl] = useState('');
 
   // Redis configuration (optional)
   const [redisEnabled, setRedisEnabled] = useState(false);
@@ -42,17 +39,12 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
   const handleComplete = () => {
     const config: DatabaseConfig = {
-      // Flag to determine if pgserve should be used
-      use_pgserve: storageMode !== 'external',
-
-      // Pgserve options (only when use_pgserve=true)
-      memory_mode: storageMode === 'memory' ? true : storageMode === 'filesystem' ? false : undefined,
+      // PostgreSQL storage options (embedded pgserve)
       data_dir: storageMode === 'filesystem' ? dataDir : undefined,
+      memory_mode: storageMode === 'memory',
+      replication_enabled: false,
 
-      // External PostgreSQL URL (only when use_pgserve=false)
-      postgres_url: storageMode === 'external' ? postgresUrl : undefined,
-
-      // Redis (available for ALL modes)
+      // Redis cache (optional)
       redis_enabled: redisEnabled,
       redis_url: redisEnabled ? redisUrl : undefined,
       redis_prefix_key: redisEnabled ? redisPrefixKey : undefined,
@@ -65,7 +57,6 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
   const isValid =
     storageMode === 'filesystem' ? dataDir.trim().length > 0 :
-    storageMode === 'external' ? postgresUrl.trim().length > 0 :
     true; // memory mode always valid
 
   return (
@@ -126,41 +117,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
             </div>
           )}
 
-          {/* Option 2: External PostgreSQL */}
-          <label className="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
-            <input
-              type="radio"
-              value="external"
-              checked={storageMode === 'external'}
-              onChange={() => setStorageMode('external')}
-              className="mt-1"
-            />
-            <div className="flex-1">
-              <div className="font-medium">External PostgreSQL</div>
-              <p className="text-sm text-muted-foreground">
-                Connect to existing PostgreSQL server (no embedded database)
-              </p>
-            </div>
-          </label>
-
-          {storageMode === 'external' && (
-            <div className="space-y-2 pl-7">
-              <Label htmlFor="postgres-url">PostgreSQL URL</Label>
-              <Input
-                id="postgres-url"
-                type="text"
-                placeholder="postgresql://user:pass@host:5432/database"
-                value={postgresUrl}
-                onChange={(e) => setPostgresUrl(e.target.value)}
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Connection URL for external PostgreSQL server
-              </p>
-            </div>
-          )}
-
-          {/* Option 3: Memory Only */}
+          {/* Option 2: Memory Only */}
           <label className="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
             <input
               type="radio"
@@ -290,7 +247,6 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
               <li>
                 PostgreSQL: <strong>
                   {storageMode === 'filesystem' && `Embedded (Filesystem: ${dataDir})`}
-                  {storageMode === 'external' && 'External Server (No Embedded)'}
                   {storageMode === 'memory' && 'Embedded (Memory Only)'}
                 </strong>
               </li>

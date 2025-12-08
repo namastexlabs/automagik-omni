@@ -3,6 +3,7 @@
  * Centralized port allocation and tracking for internal services
  *
  * Each service gets a dedicated non-overlapping port range:
+ * - PostgreSQL: 8432-8449 (embedded pgserve)
  * - Python API: 18881-18899
  * - Evolution API: 18901-18919
  * - Vite Dev: 19881-19899
@@ -14,7 +15,7 @@
 import { EventEmitter } from 'node:events';
 import { createServer, type Server } from 'node:net';
 
-export type ServiceId = 'python' | 'evolution' | 'vite';
+export type ServiceId = 'python' | 'evolution' | 'vite' | 'postgres';
 
 export interface PortAllocation {
   serviceId: ServiceId;
@@ -33,6 +34,7 @@ interface PortRange {
  * This ensures services can never conflict with each other.
  */
 const PORT_RANGES: Record<ServiceId, PortRange> = {
+  postgres: { min: 8432, max: 8449 },
   python: { min: 18881, max: 18899 },
   evolution: { min: 18901, max: 18919 },
   vite: { min: 19881, max: 19899 },
@@ -214,6 +216,7 @@ export class PortRegistry extends EventEmitter {
    */
   toJSON(): Record<string, number | undefined> {
     return {
+      postgres: this.getPort('postgres'),
       python: this.getPort('python'),
       evolution: this.getPort('evolution'),
       vite: this.getPort('vite'),

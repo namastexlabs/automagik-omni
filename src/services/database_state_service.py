@@ -35,10 +35,8 @@ class DatabaseStateService:
             Dictionary with runtime configuration values
         """
         return {
-            "db_type": config.database.db_type,
-            "use_postgres": config.database.use_postgres,
+            "db_type": "postgresql",  # PostgreSQL only - no SQLite support
             "postgres_url_masked": self._mask_url(config.database.postgres_url),
-            "sqlite_path": config.database.sqlite_path,
             "table_prefix": config.database.table_prefix,
             "pool_size": config.database.pool_size,
             "pool_max_overflow": config.database.pool_max_overflow,
@@ -115,9 +113,9 @@ class DatabaseStateService:
         if saved is None:
             return False, None
 
-        # Check database type mismatch
-        runtime_type = runtime.get("db_type", "sqlite").lower()
-        saved_type = (saved.get("db_type") or "sqlite").lower()
+        # Check database type mismatch (PostgreSQL only - no SQLite support)
+        runtime_type = runtime.get("db_type", "postgresql").lower()
+        saved_type = (saved.get("db_type") or "postgresql").lower()
 
         if runtime_type != saved_type:
             return True, f"Database type changed from {runtime_type} to {saved_type}"

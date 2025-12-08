@@ -1,15 +1,10 @@
 export interface DatabaseConfig {
-  // NEW: Flag to determine if embedded pgserve should be used
-  use_pgserve?: boolean;
+  // PostgreSQL storage options (embedded pgserve)
+  data_dir?: string;        // Path for filesystem storage
+  memory_mode?: boolean;    // true = RAM only, false = disk storage
+  replication_enabled?: boolean;  // Enable replication (optional)
 
-  // Pgserve options (only when use_pgserve=true)
-  memory_mode?: boolean;
-  data_dir?: string;
-
-  // External PostgreSQL (only when use_pgserve=false)
-  postgres_url?: string;
-
-  // Redis (available for ALL modes)
+  // Redis cache (optional)
   redis_enabled?: boolean;
   redis_url?: string;
   redis_prefix_key?: string;

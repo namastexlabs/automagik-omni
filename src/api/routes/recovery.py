@@ -29,7 +29,7 @@ async def recover_api_key(
     Recover API key - localhost only, no authentication.
 
     Security rationale: If you have localhost access, you could
-    read the SQLite database file directly anyway. Adding password
+    access the database directly anyway. Adding password
     protection would create false security while making legitimate
     recovery harder.
     """

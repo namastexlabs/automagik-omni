@@ -4,7 +4,6 @@
  */
 
 import { PortRegistry } from './port-registry.js';
-import { execa } from 'execa';
 import { join } from 'path';
 
 export interface ProcessStats {
@@ -140,19 +139,19 @@ export class HealthChecker {
 
     try {
       const dbPath = join(this.rootDir, 'data', 'automagik-omni.db');
-      const { stdout } = await execa('sqlite3', [
-        dbPath,
-        "SELECT value FROM omni_global_settings WHERE key='omni_api_key';"
-      ]);
-      
-      const key = stdout.trim();
+      const proc = Bun.spawnSync(['sqlite3', dbPath, "SELECT value FROM omni_global_settings WHERE key='omni_api_key';"], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+
+      const key = proc.stdout.toString().trim();
       if (key) {
         this.omniApiKey = key;
       }
     } catch (err) {
       // Silent failure - will retry next time or fail auth
     }
-    
+
     return this.omniApiKey;
   }
 
@@ -261,11 +260,11 @@ export class HealthChecker {
     // Disk stats via df command (root partition only)
     let diskStats = { total: 0, used: 0, free: 0, usedPercent: 0, mountPoint: '/' };
     try {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-
-      const { stdout } = await execAsync('df -B1 / 2>/dev/null | tail -1');
+      const proc = Bun.spawnSync(['sh', '-c', 'df -B1 / 2>/dev/null | tail -1'], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const stdout = proc.stdout.toString();
       const parts = stdout.trim().split(/\s+/);
       // Format: Filesystem 1B-blocks Used Available Use% Mounted
       if (parts.length >= 4) {
@@ -312,21 +311,22 @@ export class HealthChecker {
     if (!evolutionPort) return null;
 
     try {
-      // Find Evolution process by looking for the port listener
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-
-      // Use lsof or ss to find the process listening on Evolution port
+      // Find Evolution process by looking for the port listener using Bun.spawnSync
       let pid: number | undefined;
       try {
-        const { stdout } = await execAsync(`ss -tlnp 2>/dev/null | grep ':${evolutionPort}' | grep -oP 'pid=\\K[0-9]+'`);
-        pid = parseInt(stdout.trim(), 10);
+        const proc = Bun.spawnSync(['sh', '-c', `ss -tlnp 2>/dev/null | grep ':${evolutionPort}' | grep -oP 'pid=\\K[0-9]+'`], {
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        pid = parseInt(proc.stdout.toString().trim(), 10);
       } catch {
         // Try alternative method with lsof
         try {
-          const { stdout } = await execAsync(`lsof -ti :${evolutionPort} 2>/dev/null | head -1`);
-          pid = parseInt(stdout.trim(), 10);
+          const proc = Bun.spawnSync(['sh', '-c', `lsof -ti :${evolutionPort} 2>/dev/null | head -1`], {
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          pid = parseInt(proc.stdout.toString().trim(), 10);
         } catch {
           return null;
         }

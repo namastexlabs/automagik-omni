@@ -4,13 +4,12 @@
  */
 
 import Fastify from 'fastify';
-import proxy from '@fastify/http-proxy';
+import { registerProxy } from './proxy.js';
 import fastifyStatic from '@fastify/static';
 import cors from '@fastify/cors';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
-import { execa } from 'execa';
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 
 import { ProcessManager } from './process.js';
 import { HealthChecker } from './health.js';
@@ -58,6 +57,31 @@ const PROXY_PYTHON_PORT = parsePort(process.env.PYTHON_API_PORT, '18881');
 const PROXY_EVOLUTION_PORT = parsePort(process.env.EVOLUTION_PORT, '18082');
 const PROXY_VITE_PORT = parsePort(process.env.VITE_PORT, '19882');
 
+/**
+ * Check if initial setup has been completed.
+ * This is checked BEFORE starting any services to implement wizard-first architecture.
+ * Returns true if setup is complete (normal startup), false if bootstrap mode needed.
+ *
+ * IMPORTANT: Only checks marker file - NOT directory existence.
+ * This ensures fresh installs trigger bootstrap mode even if data/ exists from previous run.
+ */
+function isSetupComplete(): boolean {
+  const setupMarkerPath = join(ROOT_DIR, 'data', '.setup-complete');
+  return existsSync(setupMarkerPath);
+}
+
+/**
+ * Mark setup as complete (called after wizard finishes).
+ * Creates marker file so subsequent restarts skip bootstrap mode.
+ */
+function markSetupComplete(): void {
+  const dataDir = join(ROOT_DIR, 'data');
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
+  writeFileSync(join(dataDir, '.setup-complete'), new Date().toISOString());
+}
+
 export async function main() {
   // Initialize port registry for dynamic port allocation
   const portRegistry = new PortRegistry();
@@ -91,9 +115,7 @@ export async function main() {
     }
   }
 
-  // Get pgserve port from env or use default
-  const PGSERVE_PORT = parseInt(process.env.PGSERVE_PORT ?? '5432', 10);
-
+  // PostgreSQL port is now dynamically allocated - fully transparent to users
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║           Automagik Omni Gateway                          ║
@@ -102,10 +124,6 @@ export async function main() {
 
 Mode: ${PROXY_ONLY ? 'PROXY-ONLY' : (DEV_MODE ? 'DEVELOPMENT' : 'PRODUCTION')}
 Gateway Port: ${GATEWAY_PORT} (--port or OMNI_PORT to change)
-${PROXY_ONLY ? '' : `PostgreSQL:   postgresql://127.0.0.1:${PGSERVE_PORT}/omni (embedded)`}
-Python API:   http://127.0.0.1:${PYTHON_PORT} (auto-managed)
-${EVOLUTION_PORT ? `Evolution:    http://127.0.0.1:${EVOLUTION_PORT} (auto-managed)` : 'Evolution:    (not allocated)'}
-${DEV_MODE && VITE_PORT ? `Vite Dev:     http://127.0.0.1:${VITE_PORT} (auto-managed)` : ''}
 ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing services)' : ''}
 `);
 
@@ -117,46 +135,78 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // Initialize health checker with port registry
   const healthChecker = new HealthChecker(portRegistry, ROOT_DIR);
 
+  // Track bootstrap mode state
+  let bootstrapMode = false;
+
   // Start backend services (unless proxy-only mode)
   if (!PROXY_ONLY) {
-    console.log('\n[Gateway] Starting backend services...\n');
+    // Check if setup is complete (wizard-first architecture)
+    const setupComplete = isSetupComplete();
 
-    // Start embedded PostgreSQL first (database must be ready before Python)
-    await processManager.startPgserve();
+    if (!setupComplete) {
+      // BOOTSTRAP MODE: Gateway + UI ONLY
+      // NO services start - wizard triggers them via internal endpoints
+      bootstrapMode = true;
+      console.log('\n[Gateway] ═══════════════════════════════════════════════════════');
+      console.log('[Gateway] BOOTSTRAP MODE - Fresh install detected');
+      console.log('[Gateway] Only serving UI wizard - no backend services');
+      console.log('[Gateway] Services will start when wizard triggers them');
+      console.log('[Gateway] ═══════════════════════════════════════════════════════\n');
 
-    // Start Python API (connects to PostgreSQL)
-    await processManager.startPython();
+      // DO NOT start ANY services in bootstrap mode:
+      // - NO pgserve (user hasn't configured storage yet)
+      // - NO Python (depends on pgserve)
+      // - NO MCP (optional, started after setup)
+      // - NO Evolution/Discord (user configures channels in wizard)
+      //
+      // The wizard will call /api/internal/services/:name/start to trigger each service
 
-    // Start standalone MCP server (eliminates double proxy layer)
-    await processManager.startMCP();
-
-    // Channel startup behavior: on-demand by default, eager if EAGER_CHANNELS=true
-    if (processManager.isLazyModeEnabled()) {
-      console.log('[Gateway] On-demand mode (default) - channels start when user enables them');
-      console.log('[Gateway] Set EAGER_CHANNELS=true to auto-start channels at boot');
     } else {
-      console.log('[Gateway] Eager mode enabled - auto-starting all channels...');
-      // Start Evolution API (WhatsApp channel - optional, soft-fail like Discord)
-      try {
-        await processManager.startEvolution();
-      } catch (error) {
-        console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
-        console.warn('[Gateway] WhatsApp functionality will be unavailable');
-        console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
+      // NORMAL MODE: Setup complete, start all enabled services
+      console.log('\n[Gateway] Starting backend services...\n');
+
+      // Start embedded PostgreSQL first (database must be ready before Python)
+      await processManager.startPgserve();
+
+      // Start Python API (connects to PostgreSQL)
+      await processManager.startPython();
+
+      // Start standalone MCP server only if enabled
+      const mcpEnabled = process.env.MCP_ENABLED !== 'false'; // Enabled by default for existing installs
+      if (mcpEnabled) {
+        await processManager.startMCP();
+      } else {
+        console.log('[Gateway] MCP server disabled (MCP_ENABLED=false)');
       }
 
-      // Start Discord service manager (optional but recommended)
-      try {
-        await processManager.startDiscord();
-      } catch (error) {
-        console.warn('[Gateway] Discord service failed to start, continuing without it');
-        console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
-      }
-    }
+      // Channel startup behavior: on-demand by default, eager if EAGER_CHANNELS=true
+      if (processManager.isLazyModeEnabled()) {
+        console.log('[Gateway] On-demand mode (default) - channels start when user enables them');
+        console.log('[Gateway] Set EAGER_CHANNELS=true to auto-start channels at boot');
+      } else {
+        console.log('[Gateway] Eager mode enabled - auto-starting all channels...');
+        // Start Evolution API (WhatsApp channel - optional, soft-fail like Discord)
+        try {
+          await processManager.startEvolution();
+        } catch (error) {
+          console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
+          console.warn('[Gateway] WhatsApp functionality will be unavailable');
+          console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
+        }
 
-    // Start Vite in dev mode
-    if (DEV_MODE) {
-      await processManager.startVite();
+        // Start Discord service manager (optional but recommended)
+        try {
+          await processManager.startDiscord();
+        } catch (error) {
+          console.warn('[Gateway] Discord service failed to start, continuing without it');
+          console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
+        }
+      }
+
+      // Start Vite in dev mode
+      if (DEV_MODE) {
+        await processManager.startVite();
+      }
     }
   } else {
     console.log('\n[Gateway] Proxy-only mode - connecting to existing services...\n');
@@ -345,13 +395,15 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   fastify.get('/api/gateway/discord-status', async () => {
     try {
       // Check if discord.py is importable
-      const result = await execa('uv', ['run', 'python', '-c', 'import discord; print(discord.__version__)'], {
+      const proc = Bun.spawnSync(['uv', 'run', 'python', '-c', 'import discord; print(discord.__version__)'], {
         cwd: ROOT_DIR,
-        timeout: 10000,
+        stdout: 'pipe',
+        stderr: 'pipe',
       });
+      if (proc.exitCode !== 0) throw new Error('Discord not installed');
       return {
         installed: true,
-        version: result.stdout.trim(),
+        version: proc.stdout.toString().trim(),
       };
     } catch {
       return {
@@ -379,28 +431,54 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'starting', message: 'Installing Discord dependencies...' })}\n\n`);
 
     try {
-      const proc = execa('uv', ['sync', '--extra', 'discord'], {
+      const proc = Bun.spawn(['uv', 'sync', '--extra', 'discord'], {
         cwd: ROOT_DIR,
-        all: true, // Combine stdout and stderr
+        stdout: 'pipe',
+        stderr: 'pipe',
       });
 
-      // Stream output
-      proc.all?.on('data', (chunk: Buffer) => {
-        const lines = chunk.toString().split('\n').filter(Boolean);
-        for (const line of lines) {
-          reply.raw.write(`event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`);
+      // Stream stdout
+      (async () => {
+        const reader = proc.stdout.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const lines = decoder.decode(value).split('\n').filter(Boolean);
+          for (const line of lines) {
+            reply.raw.write(`event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`);
+          }
         }
-      });
+      })();
 
-      await proc;
+      // Stream stderr
+      (async () => {
+        const reader = proc.stderr.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const lines = decoder.decode(value).split('\n').filter(Boolean);
+          for (const line of lines) {
+            reply.raw.write(`event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`);
+          }
+        }
+      })();
+
+      await proc.exited;
 
       // Verify installation
       try {
-        const verify = await execa('uv', ['run', 'python', '-c', 'import discord; print(discord.__version__)'], {
+        const verify = Bun.spawnSync(['uv', 'run', 'python', '-c', 'import discord; print(discord.__version__)'], {
           cwd: ROOT_DIR,
-          timeout: 10000,
+          stdout: 'pipe',
+          stderr: 'pipe',
         });
-        reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Discord installed successfully', version: verify.stdout.trim() })}\n\n`);
+        if (verify.exitCode === 0) {
+          reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Discord installed successfully', version: verify.stdout.toString().trim() })}\n\n`);
+        } else {
+          reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`);
+        }
       } catch {
         reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`);
       }
@@ -419,66 +497,59 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // ============================================================
   // Route: /api/v1/* - Proxy to Python FastAPI
   // ============================================================
-  await fastify.register(proxy, {
+  await registerProxy(fastify, {
     upstream: `http://127.0.0.1:${PYTHON_PORT}`,
     prefix: '/api/v1',
     rewritePrefix: '/api/v1',
-    http2: false,
   });
 
   // ============================================================
   // Route: /webhook/* - Proxy to Python FastAPI (Evolution webhooks)
   // ============================================================
-  await fastify.register(proxy, {
+  await registerProxy(fastify, {
     upstream: `http://127.0.0.1:${PYTHON_PORT}`,
     prefix: '/webhook',
     rewritePrefix: '/webhook',
-    http2: false,
   });
 
   // ============================================================
   // Route: /mcp - Proxy to standalone MCP server (eliminates double proxy layer)
   // ============================================================
-  await fastify.register(proxy, {
+  await registerProxy(fastify, {
     upstream: 'http://127.0.0.1:18880',  // Direct to standalone MCP server
     prefix: '/mcp',
     rewritePrefix: '/',  // MCP server serves at root
-    http2: false,
   });
 
   // ============================================================
   // Route: /docs - Proxy OpenAPI docs to Python
   // ============================================================
-  await fastify.register(proxy, {
+  await registerProxy(fastify, {
     upstream: `http://127.0.0.1:${PYTHON_PORT}`,
     prefix: '/docs',
     rewritePrefix: '/docs',
-    http2: false,
   });
 
-  await fastify.register(proxy, {
+  await registerProxy(fastify, {
     upstream: `http://127.0.0.1:${PYTHON_PORT}`,
     prefix: '/openapi.json',
     rewritePrefix: '/openapi.json',
-    http2: false,
   });
 
-  await fastify.register(proxy, {
+  await registerProxy(fastify, {
     upstream: `http://127.0.0.1:${PYTHON_PORT}`,
     prefix: '/redoc',
     rewritePrefix: '/redoc',
-    http2: false,
   });
 
   // ============================================================
   // Route: /evolution/* - Proxy to Evolution API
   // ============================================================
   if (EVOLUTION_PORT) {
-    await fastify.register(proxy, {
+    await registerProxy(fastify, {
       upstream: `http://127.0.0.1:${EVOLUTION_PORT}`,
       prefix: '/evolution',
       rewritePrefix: '',
-      http2: false,
     });
   } else {
     // Evolution not available - return 503
@@ -497,12 +568,11 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
   if (DEV_MODE && VITE_PORT) {
     // Development: Proxy to Vite dev server (with WebSocket for HMR)
-    await fastify.register(proxy, {
+    await registerProxy(fastify, {
       upstream: `http://127.0.0.1:${VITE_PORT}`,
       prefix: '/',
       rewritePrefix: '/',
       websocket: true,
-      http2: false,
     });
   } else if (existsSync(uiDistDir)) {
     // Production: Serve static files (in its own plugin context)
@@ -554,11 +624,95 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
         mode: DEV_MODE ? 'development' : 'production',
         proxyOnly: PROXY_ONLY,
         lazyChannels: processManager.isLazyModeEnabled(),
+        bootstrapMode,
         uptime: process.uptime(),
       },
       ports: portRegistry.toJSON(),
       processes: processManager.getStatus(),
       pgserve: pgserveHealth ?? { status: 'not_running' },
+    };
+  });
+
+  // ============================================================
+  // Internal service trigger endpoints (for wizard-driven startup)
+  // These endpoints allow the setup wizard to start services on-demand
+  // ============================================================
+
+  // POST /api/internal/services/:name/start - Start a service (wizard use)
+  fastify.post<{ Params: { name: string }; Body: Record<string, unknown> }>(
+    '/api/internal/services/:name/start',
+    async (request, reply) => {
+      // Security: Only allow from localhost (wizard runs locally)
+      const clientIp = request.ip;
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+        return reply.status(403).send({
+          error: 'Internal endpoints only accessible from localhost',
+        });
+      }
+
+      const { name } = request.params;
+
+      try {
+        switch (name.toLowerCase()) {
+          case 'pgserve':
+            await processManager.startPgserve();
+            break;
+          case 'python':
+            await processManager.startPython();
+            break;
+          case 'mcp':
+            await processManager.startMCP();
+            break;
+          case 'evolution':
+            await processManager.startEvolution();
+            break;
+          case 'discord':
+            await processManager.startDiscord();
+            break;
+          default:
+            return reply.status(400).send({
+              error: `Unknown service: ${name}. Valid services: pgserve, python, mcp, evolution, discord`,
+            });
+        }
+
+        console.log(`[Gateway] Service ${name} started via internal trigger`);
+        return { started: true, service: name };
+      } catch (error) {
+        console.error(`[Gateway] Failed to start ${name}:`, error);
+        return reply.status(500).send({
+          error: `Failed to start ${name}: ${error instanceof Error ? error.message : error}`,
+        });
+      }
+    }
+  );
+
+  // POST /api/internal/setup/complete - Mark setup as complete (wizard use)
+  fastify.post('/api/internal/setup/complete', async (request, reply) => {
+    // Security: Only allow from localhost
+    const clientIp = request.ip;
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+      return reply.status(403).send({
+        error: 'Internal endpoints only accessible from localhost',
+      });
+    }
+
+    try {
+      markSetupComplete();
+      console.log('[Gateway] Setup marked as complete - bootstrap mode disabled for future restarts');
+      return { success: true, message: 'Setup marked as complete' };
+    } catch (error) {
+      console.error('[Gateway] Failed to mark setup complete:', error);
+      return reply.status(500).send({
+        error: `Failed to mark setup complete: ${error instanceof Error ? error.message : error}`,
+      });
+    }
+  });
+
+  // GET /api/internal/setup/status - Check bootstrap mode status
+  fastify.get('/api/internal/setup/status', async () => {
+    return {
+      bootstrapMode,
+      setupComplete: isSetupComplete(),
     };
   });
 

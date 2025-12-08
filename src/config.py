@@ -51,7 +51,7 @@ class DatabaseConfig(BaseModel):
     postgres_url: str = Field(
         default_factory=lambda: os.getenv(
             "AUTOMAGIK_OMNI_POSTGRES_URL",
-            "postgresql://postgres:postgres@127.0.0.1:5432/omni"  # Default embedded pgserve
+            "postgresql://postgres:postgres@127.0.0.1:5432/automagik_omni"  # Default embedded pgserve
         )
     )
 

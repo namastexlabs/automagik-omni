@@ -41,7 +41,7 @@ function getDefaultDataDir(): string {
 export interface PgserveConfig {
   /** Data directory for persistent storage (null = memory mode) */
   dataDir: string | null;
-  /** TCP port for PostgreSQL connections (default: 5432) */
+  /** TCP port for PostgreSQL connections (allocated dynamically by PortRegistry) */
   port: number;
   /** Enable memory mode (ephemeral, no persistence) */
   memoryMode: boolean;
@@ -93,15 +93,16 @@ export class PgserveManager {
   private static readonly MAX_RESTARTS = 5;
   private static readonly RESTART_RESET_MS = 30000; // 30s stable = reset counter
 
-  constructor(config: Partial<PgserveConfig> = {}) {
+  constructor(config: Partial<PgserveConfig> & { port: number }) {
     // Determine memory mode based on environment
     const memoryMode = config.memoryMode ??
       process.env.PGSERVE_MEMORY_MODE === 'true' ??
       false;
 
+    // Port is required - must be allocated by PortRegistry (8432-8449 range)
     this.config = {
       dataDir: memoryMode ? null : (config.dataDir ?? getDefaultDataDir()),
-      port: config.port ?? parseInt(process.env.PGSERVE_PORT ?? '5432', 10),
+      port: config.port,
       memoryMode,
       logLevel: config.logLevel ?? (process.env.NODE_ENV === 'development' ? 'debug' : 'info'),
       replicationUrl: config.replicationUrl ?? process.env.PGSERVE_REPLICATION_URL,
@@ -252,12 +253,12 @@ export class PgserveManager {
     }
 
     try {
-      // Get size of data directory (recursive)
-      const { execSync } = require('child_process');
-      const result = execSync(`du -sm "${this.config.dataDir}" 2>/dev/null || echo "0"`, {
-        encoding: 'utf8',
-        timeout: 5000,
+      // Get size of data directory (recursive) using Bun.spawnSync
+      const proc = Bun.spawnSync(['du', '-sm', this.config.dataDir], {
+        stdout: 'pipe',
+        stderr: 'pipe',
       });
+      const result = proc.stdout.toString();
       const match = result.match(/^(\d+)/);
       return match ? parseInt(match[1], 10) : 0;
     } catch {
@@ -350,17 +351,3 @@ export class PgserveManager {
   }
 }
 
-/**
- * Default singleton instance
- */
-let defaultManager: PgserveManager | null = null;
-
-/**
- * Get or create the default PgserveManager instance
- */
-export function getDefaultPgserveManager(config?: Partial<PgserveConfig>): PgserveManager {
-  if (!defaultManager) {
-    defaultManager = new PgserveManager(config);
-  }
-  return defaultManager;
-}

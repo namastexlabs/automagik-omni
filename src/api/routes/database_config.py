@@ -89,12 +89,13 @@ class DatabaseConfigResponse(BaseModel):
 # New models for runtime vs saved state separation
 
 class RuntimeDatabaseConfig(BaseModel):
-    """Runtime configuration from frozen config object (set at startup from env vars)."""
+    """Runtime configuration from frozen config object (set at startup from env vars).
 
-    db_type: str
-    use_postgres: bool
+    PostgreSQL only - SQLite is NOT supported.
+    """
+
+    db_type: str  # Always "postgresql"
     postgres_url_masked: Optional[str] = None
-    sqlite_path: str
     table_prefix: str
     pool_size: int
     pool_max_overflow: int
@@ -135,8 +136,7 @@ class DatabaseConfigurationState(BaseModel):
     is_locked: bool  # True if instances exist (cannot change db_type)
 
     # Backward compatibility fields (deprecated - use runtime.* instead)
-    db_type: str
-    use_postgres: bool
+    db_type: str  # Always "postgresql"
     postgres_url_configured: bool
     table_prefix: str
     pool_size: int
@@ -144,10 +144,12 @@ class DatabaseConfigurationState(BaseModel):
 
 
 class DatabaseApplyRequest(BaseModel):
-    """Schema for applying database configuration."""
+    """Schema for applying database configuration.
 
-    db_type: str = Field(..., description="Database type: 'sqlite' or 'postgresql'")
-    postgres_url: Optional[str] = Field(None, description="PostgreSQL connection URL")
+    PostgreSQL only - SQLite is NOT supported.
+    """
+
+    postgres_url: str = Field(..., description="PostgreSQL connection URL")
     # Redis configuration
     redis_enabled: Optional[bool] = Field(False, description="Enable Redis cache")
     redis_url: Optional[str] = Field(None, description="Redis connection URL")
@@ -503,9 +505,7 @@ async def get_database_config(
             # New structured response
             runtime=RuntimeDatabaseConfig(
                 db_type=runtime["db_type"],
-                use_postgres=runtime["use_postgres"],
                 postgres_url_masked=runtime["postgres_url_masked"],
-                sqlite_path=runtime["sqlite_path"],
                 table_prefix=runtime["table_prefix"],
                 pool_size=runtime["pool_size"],
                 pool_max_overflow=runtime["pool_max_overflow"],
@@ -517,7 +517,6 @@ async def get_database_config(
             is_locked=is_locked,
             # Backward compatibility (deprecated)
             db_type=runtime["db_type"],
-            use_postgres=runtime["use_postgres"],
             postgres_url_configured=runtime["postgres_url_masked"] is not None,
             table_prefix=runtime["table_prefix"],
             pool_size=runtime["pool_size"],
@@ -697,22 +696,17 @@ async def apply_database_config(
     Note: Changes are saved to settings but require application restart to take effect.
     The application uses environment variables for database configuration, so this
     endpoint stores the configuration in global settings for the wizard UI to use.
+
+    PostgreSQL only - SQLite is NOT supported.
     """
     from src.db.database import get_db
     from src.services.settings_service import settings_service
 
-    # Validate db_type
-    if request.db_type not in ("sqlite", "postgresql"):
+    # Validate PostgreSQL URL format
+    if not request.postgres_url.startswith("postgresql://"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="db_type must be 'sqlite' or 'postgresql'",
-        )
-
-    # If PostgreSQL, require URL
-    if request.db_type == "postgresql" and not request.postgres_url:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="postgres_url is required when db_type is 'postgresql'",
+            detail="postgres_url must start with 'postgresql://'",
         )
 
     try:
@@ -722,25 +716,26 @@ async def apply_database_config(
 
         try:
             # Store configuration in global settings (create or update)
+            # PostgreSQL only - always set database_type to postgresql
             _set_or_update_setting(
                 db,
                 key="database_type",
-                value=request.db_type,
+                value="postgresql",
                 value_type="string",
                 category="database",
-                description="Database type (sqlite or postgresql)",
+                description="Database type (postgresql only)",
             )
 
-            if request.postgres_url:
-                _set_or_update_setting(
-                    db,
-                    key="postgres_url",
-                    value=request.postgres_url,
-                    value_type="secret",
-                    category="database",
-                    description="PostgreSQL connection URL",
-                    is_secret=True,
-                )
+            # Save PostgreSQL URL
+            _set_or_update_setting(
+                db,
+                key="postgres_url",
+                value=request.postgres_url,
+                value_type="secret",
+                category="database",
+                description="PostgreSQL connection URL",
+                is_secret=True,
+            )
 
             # Save Redis configuration
             if request.redis_enabled and request.redis_url:
@@ -814,10 +809,8 @@ async def apply_database_config(
 
             db.commit()
 
-            # Build response message
-            env_vars = [f"AUTOMAGIK_OMNI_DB_TYPE={request.db_type}"]
-            if request.db_type == "postgresql":
-                env_vars.append("AUTOMAGIK_OMNI_POSTGRES_URL")
+            # Build response message (PostgreSQL only)
+            env_vars = ["AUTOMAGIK_OMNI_POSTGRES_URL"]
             if request.redis_enabled:
                 env_vars.extend([
                     "CACHE_REDIS_ENABLED=true",

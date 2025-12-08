@@ -940,9 +940,10 @@ export const api = {
     },
 
     async initialize(config: {
-      db_type: 'sqlite' | 'postgresql';
-      postgres_url?: string;
-      redis_enabled: boolean;
+      data_dir?: string;
+      memory_mode?: boolean;
+      replication_enabled?: boolean;
+      redis_enabled?: boolean;
       redis_url?: string;
       redis_prefix_key?: string;
       redis_ttl?: number;
@@ -955,7 +956,14 @@ export const api = {
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Setup initialization failed' }));
-        throw new Error(error.detail || 'Setup initialization failed');
+        // Handle Pydantic validation errors (detail is array)
+        let message = 'Setup initialization failed';
+        if (Array.isArray(error.detail)) {
+          message = error.detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
+        } else if (typeof error.detail === 'string') {
+          message = error.detail;
+        }
+        throw new Error(message);
       }
       return response.json();
     },

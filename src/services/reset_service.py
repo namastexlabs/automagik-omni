@@ -3,9 +3,10 @@ Factory reset service for Automagik Omni.
 
 Handles:
 - Evolution API instance cleanup
-- PostgreSQL table clearing (omni_* tables)
-- SQLite database deletion
+- PostgreSQL table clearing (omni_* and evo_* tables)
 - Log file cleanup
+
+PostgreSQL only - SQLite is NOT supported.
 """
 
 import logging
@@ -28,8 +29,6 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ResetPreview:
     """Preview of what will be reset."""
-    sqlite_path: Path
-    sqlite_size_mb: float
     instances: List[str]
     instance_count: int
     user_count: int
@@ -38,15 +37,16 @@ class ResetPreview:
     setting_count: int
     log_path: Path
     log_size_mb: float
-    postgres_connected: bool
     postgres_tables: List[str]
 
 
 class ResetService:
-    """Service for factory reset operations."""
+    """Service for factory reset operations.
+
+    PostgreSQL only - SQLite is NOT supported.
+    """
 
     def __init__(self):
-        self.sqlite_path = Path(config.database.sqlite_path)
         self.log_path = Path(config.logging.log_folder)
 
     def get_preview(self, db: Session) -> ResetPreview:
@@ -62,25 +62,20 @@ class ResetService:
         except Exception:
             trace_count = 0
 
-        # Calculate sizes
-        sqlite_size = self.sqlite_path.stat().st_size / (1024 * 1024) if self.sqlite_path.exists() else 0
+        # Calculate log size
         log_size = sum(f.stat().st_size for f in self.log_path.rglob("*") if f.is_file()) / (1024 * 1024) if self.log_path.exists() else 0
 
-        # Check PostgreSQL
-        postgres_connected = config.database.use_postgres
+        # Get PostgreSQL tables (omni_* and evo_*)
         postgres_tables = []
-        if postgres_connected:
-            try:
-                result = db.execute(text(
-                    "SELECT tablename FROM pg_tables WHERE tablename LIKE 'omni_%'"
-                ))
-                postgres_tables = [row[0] for row in result]
-            except Exception:
-                postgres_tables = []
+        try:
+            result = db.execute(text(
+                "SELECT tablename FROM pg_tables WHERE tablename LIKE 'omni_%' OR tablename LIKE 'evo_%'"
+            ))
+            postgres_tables = [row[0] for row in result]
+        except Exception:
+            postgres_tables = []
 
         return ResetPreview(
-            sqlite_path=self.sqlite_path,
-            sqlite_size_mb=round(sqlite_size, 2),
             instances=instance_names,
             instance_count=len(instance_names),
             user_count=db.query(User).count(),
@@ -89,7 +84,6 @@ class ResetService:
             setting_count=db.query(GlobalSetting).count(),
             log_path=self.log_path,
             log_size_mb=round(log_size, 2),
-            postgres_connected=postgres_connected,
             postgres_tables=postgres_tables,
         )
 
@@ -125,14 +119,12 @@ class ResetService:
         return results
 
     def clear_postgres_tables(self, db: Session) -> List[str]:
-        """Clear all omni_* tables in PostgreSQL."""
+        """Clear all omni_* and evo_* tables in PostgreSQL."""
         cleared = []
 
-        if not config.database.use_postgres:
-            return cleared
-
         # Tables to clear in order (respecting foreign keys)
-        tables = [
+        # omni_* tables (Python/SQLAlchemy)
+        omni_tables = [
             "omni_trace_payloads",
             "omni_message_traces",
             "omni_setting_change_history",
@@ -143,7 +135,32 @@ class ResetService:
             "omni_global_settings",
         ]
 
-        for table in tables:
+        # evo_* tables (Evolution/Prisma)
+        evo_tables = [
+            "evo_Media",
+            "evo_MessageUpdate",
+            "evo_Message",
+            "evo_Chat",
+            "evo_Contact",
+            "evo_Template",
+            "evo_Label",
+            "evo_Webhook",
+            "evo_Proxy",
+            "evo_Setting",
+            "evo_Rabbitmq",
+            "evo_Nats",
+            "evo_Sqs",
+            "evo_Kafka",
+            "evo_Websocket",
+            "evo_Pusher",
+            "evo_Session",
+            "evo_Instance",
+            "evo_IsOnWhatsapp",
+        ]
+
+        all_tables = omni_tables + evo_tables
+
+        for table in all_tables:
             try:
                 db.execute(text(f"TRUNCATE TABLE {table} CASCADE"))
                 cleared.append(table)
@@ -153,14 +170,6 @@ class ResetService:
 
         db.commit()
         return cleared
-
-    def delete_sqlite(self) -> bool:
-        """Delete the SQLite database file."""
-        if self.sqlite_path.exists():
-            self.sqlite_path.unlink()
-            logger.info(f"Deleted SQLite database: {self.sqlite_path}")
-            return True
-        return False
 
     def delete_logs(self) -> int:
         """Delete all log files. Returns count of files deleted."""
@@ -176,7 +185,7 @@ class ResetService:
         self,
         db: Session,
         keep_instances: bool = False,
-        clear_postgres: bool = False,
+        clear_postgres: bool = True,
     ) -> Dict[str, any]:
         """
         Perform factory reset.
@@ -184,15 +193,16 @@ class ResetService:
         Args:
             db: Database session
             keep_instances: If True, don't delete Evolution instances
-            clear_postgres: If True, also clear PostgreSQL tables
+            clear_postgres: If True, clear PostgreSQL tables (default: True)
 
         Returns:
             Dict with results of each operation
+
+        PostgreSQL only - SQLite is NOT supported.
         """
         results = {
             "evolution_instances": {},
             "postgres_tables": [],
-            "sqlite_deleted": False,
             "logs_deleted": 0,
         }
 
@@ -200,14 +210,11 @@ class ResetService:
         if not keep_instances:
             results["evolution_instances"] = await self.delete_evolution_instances(db)
 
-        # 2. Clear PostgreSQL tables (if requested)
+        # 2. Clear PostgreSQL tables (omni_* and evo_*)
         if clear_postgres:
             results["postgres_tables"] = self.clear_postgres_tables(db)
 
-        # 3. Delete SQLite database
-        results["sqlite_deleted"] = self.delete_sqlite()
-
-        # 4. Delete logs
+        # 3. Delete logs
         results["logs_deleted"] = self.delete_logs()
 
         return results

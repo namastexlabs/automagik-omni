@@ -174,3 +174,6 @@ verify_api_key = globals().get("_shared_verify_api_key")
 if verify_api_key is None:
     verify_api_key = _create_verify_api_key()
     globals()["_shared_verify_api_key"] = verify_api_key
+
+# Alias for backward compatibility (sync.py uses require_api_key)
+require_api_key = verify_api_key

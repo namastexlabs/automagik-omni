@@ -25,6 +25,25 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
+// Find bun: prefer system bun (in PATH), then node_modules
+// Bun runs TypeScript natively - no build step needed
+const { execSync } = require('child_process');
+let bunPath = 'bun';  // Default: assume bun is in PATH
+
+// Check if system bun exists
+try {
+  execSync('which bun', { stdio: 'ignore' });
+  bunPath = 'bun';  // System bun found
+} catch {
+  // Fall back to node_modules if system bun not found
+  const bunLocations = [
+    path.join(PROJECT_ROOT, 'gateway', 'node_modules', '.bin', 'bun'),
+    path.join(PROJECT_ROOT, 'node_modules', '.bin', 'bun'),
+  ];
+  const found = bunLocations.find(p => fs.existsSync(p));
+  if (found) bunPath = found;
+}
+
 // Determine port for naming
 const OMNI_PORT = envVars.OMNI_PORT || envVars.AUTOMAGIK_OMNI_API_PORT || '8882';
 
@@ -33,8 +52,8 @@ module.exports = {
     {
       name: `${OMNI_PORT}-automagik-omni`,
       cwd: PROJECT_ROOT,
-      script: 'node',
-      args: 'gateway/dist/index.js',
+      script: bunPath,
+      args: 'gateway/src/index.ts',  // Run TS directly - no build needed
       interpreter: 'none',
       env: {
         ...envVars,

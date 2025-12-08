@@ -706,7 +706,7 @@ async def configure_channels(
                     db.refresh(new_instance)
 
                     # Check if Evolution already has this instance (might exist from before wipe)
-                    # This handles the case where SQLite was wiped but Evolution PostgreSQL wasn't
+                    # This handles the case where database was wiped but Evolution instance exists
                     try:
                         from src.channels.whatsapp.evolution_client import EvolutionClient
                         from src.services.settings_service import get_omni_api_key_global

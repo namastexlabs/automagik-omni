@@ -237,12 +237,6 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Skipping database setup in test environment")
 
-    # Check for SQLite database migration warning
-    try:
-        from src.db.migration_check import log_migration_warning_on_startup
-        log_migration_warning_on_startup()
-    except Exception as e:
-        logger.debug(f"Migration check failed: {e}")
 
     logger.info(f"Log level set to: {config.logging.level}")
     logger.info(f"API Host: {config.api.host}")
@@ -250,50 +244,65 @@ async def lifespan(app: FastAPI):
     logger.info(f"API URL: http://{config.api.host}:{config.api.port}")
 
     # Auto-discover existing Evolution instances (non-intrusive)
-    # Skip auto-discovery in test environment to prevent database conflicts
+    # Skip auto-discovery in test environment AND during onboarding
     if environment != "test":
-        # Initial discovery attempt (may fail if Evolution not ready yet)
-        initial_discovered = []
+        # Check if setup is complete - skip discovery during onboarding
+        # This prevents race conditions where services try to connect before wizard finishes
+        from src.services.settings_service import settings_service
+
+        setup_complete = False
         try:
-            logger.info("Starting Evolution instance auto-discovery...")
-            from src.services.discovery_service import discovery_service
-
             with SessionLocal() as db:
-                initial_discovered = await discovery_service.discover_evolution_instances(db)
-                if initial_discovered:
-                    logger.info(f"Auto-discovered {len(initial_discovered)} Evolution instances:")
-                    for instance in initial_discovered:
-                        logger.info(f"  - {instance.name} (active: {instance.is_active})")
-                else:
-                    logger.info("No new Evolution instances discovered")
-        except Exception as e:
-            logger.warning(f"Evolution instance auto-discovery failed: {e}")
-            logger.debug(f"Auto-discovery error details: {str(e)}")
-            logger.info("Continuing without auto-discovery - instances can be created manually")
+                setup_setting = settings_service.get_setting("setup_completed", db)
+                setup_complete = setup_setting and setup_setting.value.lower() in ("true", "1", "yes")
+        except Exception:
+            pass  # Database might not be ready yet during bootstrap
 
-        # Schedule delayed re-discovery to catch Evolution after it starts
-        # This ensures webhook URLs are synced even if initial discovery failed
-        async def delayed_discovery_and_webhook_sync():
-            """Re-run discovery after Evolution has had time to start."""
-            import asyncio
-            await asyncio.sleep(30)  # Wait for Evolution to start (it needs subprocess-config first)
-
+        if not setup_complete:
+            logger.info("Skipping Evolution auto-discovery during onboarding (setup not complete)")
+        else:
+            # Initial discovery attempt (may fail if Evolution not ready yet)
+            initial_discovered = []
             try:
-                logger.info("Running delayed discovery and webhook sync...")
+                logger.info("Starting Evolution instance auto-discovery...")
                 from src.services.discovery_service import discovery_service
 
                 with SessionLocal() as db:
-                    discovered = await discovery_service.discover_evolution_instances(db)
-                    if discovered:
-                        logger.info(f"Delayed discovery found {len(discovered)} instances - webhooks synced")
+                    initial_discovered = await discovery_service.discover_evolution_instances(db)
+                    if initial_discovered:
+                        logger.info(f"Auto-discovered {len(initial_discovered)} Evolution instances:")
+                        for instance in initial_discovered:
+                            logger.info(f"  - {instance.name} (active: {instance.is_active})")
                     else:
-                        logger.debug("Delayed discovery found no instances")
+                        logger.info("No new Evolution instances discovered")
             except Exception as e:
-                logger.warning(f"Delayed discovery failed: {e}")
+                logger.warning(f"Evolution instance auto-discovery failed: {e}")
+                logger.debug(f"Auto-discovery error details: {str(e)}")
+                logger.info("Continuing without auto-discovery - instances can be created manually")
 
-        # Start delayed discovery task (non-blocking)
-        import asyncio
-        asyncio.create_task(delayed_discovery_and_webhook_sync())
+            # Schedule delayed re-discovery to catch Evolution after it starts
+            # This ensures webhook URLs are synced even if initial discovery failed
+            async def delayed_discovery_and_webhook_sync():
+                """Re-run discovery after Evolution has had time to start."""
+                import asyncio
+                await asyncio.sleep(30)  # Wait for Evolution to start (it needs subprocess-config first)
+
+                try:
+                    logger.info("Running delayed discovery and webhook sync...")
+                    from src.services.discovery_service import discovery_service
+
+                    with SessionLocal() as db:
+                        discovered = await discovery_service.discover_evolution_instances(db)
+                        if discovered:
+                            logger.info(f"Delayed discovery found {len(discovered)} instances - webhooks synced")
+                        else:
+                            logger.debug("Delayed discovery found no instances")
+                except Exception as e:
+                    logger.warning(f"Delayed discovery failed: {e}")
+
+            # Start delayed discovery task (non-blocking)
+            import asyncio
+            asyncio.create_task(delayed_discovery_and_webhook_sync())
     else:
         logger.info("Skipping Evolution instance auto-discovery in test environment")
 

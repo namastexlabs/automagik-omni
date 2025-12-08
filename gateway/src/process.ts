@@ -3,7 +3,6 @@
  * Spawns and manages Python API, Evolution API, and Vite dev server as subprocesses
  */
 
-import { execa, type ExecaChildProcess, type Options } from 'execa';
 import { existsSync, readdirSync, createWriteStream, mkdirSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,7 +49,7 @@ export interface ProcessConfig {
 
 export interface ManagedProcess {
   name: string;
-  process: ExecaChildProcess | null;
+  process: Bun.Subprocess | null;
   port: number;
   healthy: boolean;
 }
@@ -79,9 +78,9 @@ export class ProcessManager {
   }
 
   /**
-   * Setup logging for a process (file + console)
+   * Setup logging for a process (file + console) using Bun's ReadableStream API
    */
-  private setupLogging(logName: string, proc: ExecaChildProcess, consolePrefix: string) {
+  private setupLogging(logName: string, proc: Bun.Subprocess, consolePrefix: string) {
     try {
       // Ensure logs directory exists
       const logsDir = join(ROOT_DIR, 'logs');
@@ -91,7 +90,7 @@ export class ProcessManager {
 
       const logFile = join(logsDir, `${logName}-combined.log`);
 
-      const writeLog = (data: Buffer) => {
+      const writeLog = (data: Uint8Array) => {
         try {
           appendFileSync(logFile, data);
         } catch (e) {
@@ -99,26 +98,41 @@ export class ProcessManager {
         }
       };
 
-      proc.stdout?.on('data', (data: Buffer) => {
-        writeLog(data); // Write raw to file immediately
-        const line = data.toString().trim();
-        if (line) console.log(`[${consolePrefix}] ${line}`);
-      });
+      // Stream stdout using Bun's ReadableStream
+      if (proc.stdout) {
+        (async () => {
+          const reader = proc.stdout!.getReader();
+          const decoder = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              writeLog(value);
+              const line = decoder.decode(value).trim();
+              if (line) console.log(`[${consolePrefix}] ${line}`);
+            }
+          }
+        })();
+      }
 
-      proc.stderr?.on('data', (data: Buffer) => {
-        writeLog(data);
-        const line = data.toString().trim();
-        if (line) console.error(`[${consolePrefix}] ${line}`);
-      });
+      // Stream stderr using Bun's ReadableStream
+      if (proc.stderr) {
+        (async () => {
+          const reader = proc.stderr!.getReader();
+          const decoder = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              writeLog(value);
+              const line = decoder.decode(value).trim();
+              if (line) console.error(`[${consolePrefix}] ${line}`);
+            }
+          }
+        })();
+      }
     } catch (error) {
       console.warn(`[ProcessManager] Failed to setup file logging for ${logName}:`, error);
-      // Fallback to console only
-      proc.stdout?.on('data', (data: Buffer) => {
-        console.log(`[${consolePrefix}] ${data.toString().trim()}`);
-      });
-      proc.stderr?.on('data', (data: Buffer) => {
-        console.error(`[${consolePrefix}] ${data.toString().trim()}`);
-      });
     }
   }
 
@@ -175,8 +189,8 @@ export class ProcessManager {
     if (!managed || !managed.process) {
       return false;
     }
-    // ExecaChildProcess.exitCode is null while running, number after exit
-    return managed.process.exitCode === null;
+    // Bun.Subprocess: check if process is still running via killed property
+    return !managed.process.killed;
   }
 
   /**
@@ -218,11 +232,15 @@ export class ProcessManager {
   async startPgserve(): Promise<void> {
     console.log('[ProcessManager] Starting embedded PostgreSQL via pgserve...');
 
-    // Create the pgserve manager
+    // Allocate port dynamically from registry (8432-8449 range)
+    const allocation = await this.portRegistry.allocate('postgres');
+    const pgPort = allocation.port;
+
+    // Create the pgserve manager with allocated port
     this.pgserveManager = new PgserveManager({
       // Use default data directory (./data/postgres) unless env overrides
       dataDir: process.env.PGSERVE_DATA_DIR || undefined,
-      port: parseInt(process.env.PGSERVE_PORT ?? '5432', 10),
+      port: pgPort,
       memoryMode: process.env.PGSERVE_MEMORY_MODE === 'true',
       logLevel: this.config.devMode ? 'debug' : 'info',
       replicationUrl: process.env.PGSERVE_REPLICATION_URL,
@@ -323,16 +341,21 @@ export class ProcessManager {
       uvicornArgs.push('--reload');
     }
 
-    const proc = execa(runtime.python, uvicornArgs, {
+    const proc = Bun.spawn([runtime.python, ...uvicornArgs], {
       cwd: runtime.backend,
       env: {
         ...process.env,
         AUTOMAGIK_OMNI_API_PORT: String(port),
         AUTOMAGIK_OMNI_API_HOST: '127.0.0.1',
         PYTHONPATH: runtime.backend,
+        // Pass pgserve's database URL with dynamic port (8432+) to Python
+        // This overrides the hardcoded 5432 default in src/config.py
+        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('omni') || '',
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    } as Options);
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
 
     this.processes.set(name, {
       name,
@@ -344,7 +367,8 @@ export class ProcessManager {
     // Setup logging (file: api-combined.log, console: [Python])
     this.setupLogging('api', proc, 'Python');
 
-    proc.on('exit', (code) => {
+    // Handle process exit with Bun's exited promise
+    proc.exited.then((code) => {
       if (!this.shuttingDown) {
         const count = this.restartCount.get(name) || 0;
 
@@ -389,9 +413,7 @@ export class ProcessManager {
     const runtime = detectPythonRuntime();
     console.log(`[ProcessManager] Starting standalone MCP server on port ${MCP_PORT}...`);
 
-    const proc = execa(runtime.python, [
-      'src/mcp_server.py'
-    ], {
+    const proc = Bun.spawn([runtime.python, 'src/mcp_server.py'], {
       cwd: runtime.backend,
       env: {
         ...process.env,
@@ -399,8 +421,10 @@ export class ProcessManager {
         MCP_HOST: '127.0.0.1',
         PYTHONPATH: runtime.backend,
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    } as Options);
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
 
     this.processes.set(name, {
       name,
@@ -409,15 +433,31 @@ export class ProcessManager {
       healthy: false,
     });
 
-    // Log output
-    proc.stdout?.on('data', (data: Buffer) => {
-      console.log(`[MCP] ${data.toString().trim()}`);
-    });
-    proc.stderr?.on('data', (data: Buffer) => {
-      console.error(`[MCP] ${data.toString().trim()}`);
-    });
+    // Log output using Bun's ReadableStream
+    if (proc.stdout) {
+      (async () => {
+        const reader = proc.stdout!.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) console.log(`[MCP] ${decoder.decode(value).trim()}`);
+        }
+      })();
+    }
+    if (proc.stderr) {
+      (async () => {
+        const reader = proc.stderr!.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) console.error(`[MCP] ${decoder.decode(value).trim()}`);
+        }
+      })();
+    }
 
-    proc.on('exit', (code) => {
+    proc.exited.then((code) => {
       if (!this.shuttingDown) {
         const count = this.restartCount.get(name) || 0;
 
@@ -525,30 +565,59 @@ export class ProcessManager {
 
     console.log(`[ProcessManager] Using ${packageManager} for Evolution API`);
 
-    // Ensure dependencies are installed (submodule's node_modules may not exist)
+    // Auto-install dependencies if missing (user-friendly onboarding)
     const nodeModulesPath = join(evolutionDir, 'node_modules');
     if (!existsSync(nodeModulesPath)) {
-      console.log(`[ProcessManager] Evolution dependencies not installed, running ${packageManager} install...`);
-      try {
-        await execa(packageManager, ['install'], {
-          cwd: evolutionDir,
-          stdio: 'inherit',
-        });
-        console.log('[ProcessManager] Evolution dependencies installed successfully');
-
-        // Generate Prisma client after fresh install
-        console.log('[ProcessManager] Generating Prisma client...');
-        await execa('npx', ['prisma', 'generate'], {
-          cwd: evolutionDir,
-          stdio: 'inherit',
-        });
-        console.log('[ProcessManager] Prisma client generated successfully');
-      } catch (installErr) {
-        throw new Error(`Failed to install Evolution dependencies: ${installErr instanceof Error ? installErr.message : installErr}`);
+      console.log(`[ProcessManager] Installing Evolution dependencies (first run)...`);
+      const installProc = Bun.spawnSync([packageManager, 'install'], {
+        cwd: evolutionDir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      if (installProc.exitCode !== 0) {
+        const stderr = installProc.stderr.toString();
+        throw new Error(`Failed to install Evolution dependencies: ${stderr}`);
       }
+      console.log(`[ProcessManager] Evolution dependencies installed successfully`);
     }
 
-    const proc = execa(packageManager, ['run', 'start'], {
+    // Auto-generate Prisma client if missing
+    const prismaClientPath = join(nodeModulesPath, '.prisma', 'client');
+    if (!existsSync(prismaClientPath)) {
+      console.log(`[ProcessManager] Generating Prisma client...`);
+      const prismaProc = Bun.spawnSync(['npx', 'prisma', 'generate'], {
+        cwd: evolutionDir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      if (prismaProc.exitCode !== 0) {
+        const stderr = prismaProc.stderr.toString();
+        throw new Error(`Failed to generate Prisma client: ${stderr}`);
+      }
+      console.log(`[ProcessManager] Prisma client generated successfully`);
+    }
+
+    // Auto-run Prisma migrations to create database schema
+    // This creates the Evolution tables (Instance, Message, etc.) in PostgreSQL
+    console.log(`[ProcessManager] Running Prisma migrations for Evolution...`);
+    const migrateProc = Bun.spawnSync(['npx', 'prisma', 'db', 'push', '--skip-generate'], {
+      cwd: evolutionDir,
+      env: {
+        ...process.env,
+        ...subprocessEnv,
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    if (migrateProc.exitCode !== 0) {
+      const stderr = migrateProc.stderr.toString();
+      // Don't fail on migration errors - tables might already exist
+      console.warn(`[ProcessManager] Prisma db push warning: ${stderr}`);
+    } else {
+      console.log(`[ProcessManager] Prisma migrations applied successfully`);
+    }
+
+    const proc = Bun.spawn([packageManager, 'run', 'start'], {
       cwd: evolutionDir,
       env: {
         ...process.env,
@@ -557,8 +626,10 @@ export class ProcessManager {
         SERVER_URL: `http://localhost:${port}`,
         NODE_ENV: 'production',
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    } as Options);
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
 
     this.processes.set(name, {
       name,
@@ -570,7 +641,7 @@ export class ProcessManager {
     // Setup logging (file: evolution-combined.log, console: [Evolution])
     this.setupLogging('evolution', proc, 'Evolution');
 
-    proc.on('exit', (code) => {
+    proc.exited.then((code) => {
       if (!this.shuttingDown) {
         const count = this.restartCount.get(name) || 0;
 
@@ -620,9 +691,7 @@ export class ProcessManager {
 
     const runtime = detectPythonRuntime();
 
-    const proc = execa(runtime.python, [
-      'src/commands/discord_service_manager.py'
-    ], {
+    const proc = Bun.spawn([runtime.python, 'src/commands/discord_service_manager.py'], {
       cwd: runtime.backend,
       env: {
         ...process.env,
@@ -631,8 +700,10 @@ export class ProcessManager {
         AUTOMAGIK_OMNI_API_PORT: String(this.portRegistry.getPort('python') || 8882),
         DISCORD_HEALTH_CHECK_TIMEOUT: '10',  // Reduced from 60s - Discord starts quickly
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    } as Options);
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
 
     this.processes.set(name, {
       name,
@@ -644,7 +715,7 @@ export class ProcessManager {
     // Setup logging (file: discord-combined.log, console: [Discord])
     this.setupLogging('discord', proc, 'Discord');
 
-    proc.on('exit', (code) => {
+    proc.exited.then((code) => {
       if (!this.shuttingDown) {
         const count = this.restartCount.get(name) || 0;
 
@@ -810,7 +881,7 @@ export class ProcessManager {
 
     console.log(`[ProcessManager] Starting Vite dev server on port ${port}...`);
 
-    const proc = execa('npm', ['run', 'dev'], {
+    const proc = Bun.spawn(['npm', 'run', 'dev'], {
       cwd: uiDir,
       env: {
         ...process.env,
@@ -819,8 +890,10 @@ export class ProcessManager {
         // Point Vite's API proxy to our gateway (not directly to Python)
         VITE_API_URL: `http://127.0.0.1:${process.env.OMNI_PORT ?? 8882}`,
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    } as Options);
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
 
     this.processes.set(name, {
       name,
@@ -829,20 +902,39 @@ export class ProcessManager {
       healthy: false,
     });
 
-    proc.stdout?.on('data', (data: Buffer) => {
-      const line = data.toString().trim();
-      console.log(`[Vite] ${line}`);
-      // Detect Vite ready message
-      if (line.includes('Local:') || line.includes('ready in')) {
-        const p = this.processes.get(name);
-        if (p) p.healthy = true;
-      }
-    });
-    proc.stderr?.on('data', (data: Buffer) => {
-      console.error(`[Vite] ${data.toString().trim()}`);
-    });
+    // Stream stdout using Bun's ReadableStream
+    if (proc.stdout) {
+      (async () => {
+        const reader = proc.stdout!.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            const line = decoder.decode(value).trim();
+            console.log(`[Vite] ${line}`);
+            // Detect Vite ready message
+            if (line.includes('Local:') || line.includes('ready in')) {
+              const p = this.processes.get(name);
+              if (p) p.healthy = true;
+            }
+          }
+        }
+      })();
+    }
+    if (proc.stderr) {
+      (async () => {
+        const reader = proc.stderr!.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) console.error(`[Vite] ${decoder.decode(value).trim()}`);
+        }
+      })();
+    }
 
-    proc.on('exit', (code) => {
+    proc.exited.then((code) => {
       if (!this.shuttingDown) {
         const count = this.restartCount.get(name) || 0;
 

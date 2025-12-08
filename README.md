@@ -137,50 +137,33 @@ Works seamlessly with the Automagik ecosystem:
 
 ### Installation
 
-#### Option 1: Make Commands (Recommended)
+#### Quick Start
 
 ```bash
-# 1. Clone with submodules (includes Evolution API for WhatsApp)
-git clone --recurse-submodules https://github.com/namastexlabs/automagik-omni.git
+# 1. Clone the repository
+git clone https://github.com/namastexlabs/automagik-omni.git
 cd automagik-omni
 
-# 2. Install all dependencies (Python + Evolution API + optional Discord)
+# 2. Install and deploy to PM2
 make install
-# Installs: Python deps (uv), Evolution API (pnpm/npm), optional Discord
 
-# 3. Start development servers
-make dev-all    # Starts Omni + Evolution API together
-# Or separately:
-make dev        # Omni API only
-make evo        # Evolution API only
-
-# ✅ Done! Services running:
-# - Omni API: http://localhost:8882
-# - Evolution API (WhatsApp): http://localhost:18082
-
-# Note: Configuration is managed via the database. The API key will be auto-generated on first run.
+# ✅ Done! Access at http://localhost:8882
 ```
 
-#### Option 2: PM2 Production Setup
+#### Development Mode
 
 ```bash
-# After running make install above:
-
-# Start all services with PM2 (production)
-pm2 start ecosystem.config.js
-
-# Monitor services
-pm2 monit
-
-# View logs
-pm2 logs
+# Start with hot reload (no PM2)
+make dev
 ```
 
-**What gets installed:**
-- ✅ **Omni Backend** - Multi-tenant messaging hub (Python/FastAPI)
-- ✅ **Evolution API** - WhatsApp integration with SQLite (no Docker!)
-- ✅ **Health Checks** - Ensures services start in correct order
-- ✅ **Discord Manager** - Multi-bot Discord integration (optional)
+#### Other Commands
+
+```bash
+make help       # Show available commands
+make update     # Pull updates, rebuild, restart
+make uninstall  # Stop services and cleanup
+```
 
 ### Your First Message in 60 Seconds
 
@@ -632,123 +615,33 @@ curl -X POST http://localhost:8000/api/v1/instances \
 
 ## 🚀 Development
 
-### Local Development
+### Commands
 
 ```bash
-# Installation
-make install          # Install all dependencies (Python + Evolution API + optional Discord)
-make install-omni     # Install only Python dependencies
-make install-evolution # Install only Evolution API dependencies
-make install-discord  # Install optional Discord dependencies
-
-# Development Servers
-make dev              # Start Omni API with hot reload
-make evo              # Start Evolution API (WhatsApp) with hot reload
-make dev-all          # Start both Omni + Evolution API together
-
-# Evolution API Management
-make evo-start        # Start Evolution API in development mode
-make evo-stop         # Stop Evolution API
-make evo-restart      # Restart Evolution API
-make evo-status       # Check Evolution API status
-make evo-logs         # Tail Evolution API logs
-
-# Testing & Quality
-make test             # Run backend test suite (Python + pytest)
-make test-coverage    # Run backend tests with coverage report
-make test-ui          # Run UI tests (Playwright, headless)
-make test-ui-quick    # Run quick UI smoke tests (headless)
-make play             # Run visual E2E tests (watch in browser)
-make play-quick       # Run quick visual smoke tests
-make lint             # Check code with ruff
-make format           # Format code with ruff
-make typecheck        # Type check with mypy
-make quality          # Run all quality checks (lint + typecheck)
-
-# Database Operations
-make db-init          # Initialize database with default instance
-make cli-instances    # List instances via CLI
-make cli-create       # Create instance via CLI (interactive)
-make validate         # Run multi-tenancy validation
+make help       # Show available commands
+make install    # Install dependencies and deploy to PM2
+make dev        # Start development server with hot reload
+make update     # Pull updates, rebuild, and restart
+make uninstall  # Stop services and cleanup
 ```
 
-### Testing
-
-**Backend Testing (Python)**
-
-Run the Python test suite with pytest:
+### Running Tests
 
 ```bash
-make test              # Run all Python tests
-make test-coverage     # Run tests with coverage report
+# Backend tests
+uv run pytest
+
+# With coverage
+uv run pytest --cov
+
+# Linting
+uv run ruff check src/
+uv run ruff format src/
 ```
 
-**Frontend Testing (Playwright)**
+### UI E2E Tests
 
-End-to-end tests for the UI using Playwright:
-
-```bash
-# Visual testing (headed mode - watch tests in browser)
-make play              # Run comprehensive E2E tests (~5-10 min)
-make play-quick        # Run quick smoke tests (~2 min)
-
-# Headless testing (background execution)
-make test-ui           # Run all UI tests (for CI)
-make test-ui-quick     # Run quick smoke tests (for CI)
-```
-
-**Test Structure:**
-- **Smoke Tests** (`resources/ui/e2e/smoke/`) - Critical path validation (~2 min)
-  - Authentication (5 tests)
-  - Navigation (7 tests)
-  - Health checks (7 tests)
-- **Comprehensive Tests** (`resources/ui/e2e/full/`) - Full feature coverage (~5-10 min)
-  - Global Settings (13 tests)
-  - Instances Management (12 tests)
-  - Theme Toggle (8 tests)
-  - Accessibility/WCAG (15 tests)
-
-**Total: 67 E2E tests** covering authentication, navigation, features, and accessibility.
-
-See [`resources/ui/e2e/README.md`](resources/ui/e2e/README.md) for detailed testing documentation.
-
-### Docker Deployment
-
-```bash
-# Build and run
-docker-compose up -d
-
-# View logs
-docker-compose logs -f omni-api
-
-# Restart services
-docker-compose restart
-
-# Stop everything
-docker-compose down
-```
-
-### Production Deployment with PM2
-
-```bash
-# Install PM2
-npm install -g pm2
-
-# Start all services
-pm2 start ecosystem.config.js
-
-# Monitor
-pm2 monit
-
-# View logs
-pm2 logs omni-api
-
-# Restart
-pm2 restart all
-
-# Stop
-pm2 stop all
-```
+See [`resources/ui/e2e/README.md`](resources/ui/e2e/README.md) for UI testing documentation.
 
 > **Important**: The system auto-generates strong API keys on first startup. Check the database or logs to retrieve them.
 
@@ -764,7 +657,7 @@ We love contributions! Here's how to get started:
 2. **Clone** your fork locally
 3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
 4. **Make** your changes
-5. **Test** thoroughly: `make test`
+5. **Test** thoroughly: `uv run pytest`
 6. **Commit** with conventional commits: `feat: add slack integration`
 7. **Push** to your fork: `git push origin feature/amazing-feature`
 8. **Open** a Pull Request with clear description
@@ -776,23 +669,20 @@ We love contributions! Here's how to get started:
 git clone https://github.com/YOUR_USERNAME/automagik-omni.git
 cd automagik-omni
 
-# Install dependencies with UV (recommended)
+# Install dependencies
 make install
 
-# Run migrations
-make migrate
-
-# Start development server
+# Start development server with hot reload
 make dev
 
 # Run tests before committing
-make test
-make lint
+uv run pytest
+uv run ruff check src/
 ```
 
 ### Contribution Guidelines
 
-- Follow existing code style (use `make format`)
+- Follow existing code style (`uv run ruff format src/`)
 - Write tests for new features
 - Update documentation
 - Use conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`)
