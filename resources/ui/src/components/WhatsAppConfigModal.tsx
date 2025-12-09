@@ -256,7 +256,12 @@ export function WhatsAppConfigModal({
 
   // Check for connection success
   useEffect(() => {
-    if (phase === 'qr' && connectionState?.state === 'open') {
+    const isConnected =
+      connectionState?.connected === true ||
+      connectionState?.status?.toLowerCase() === 'connected' ||
+      connectionState?.state?.toLowerCase() === 'open';
+
+    if (phase === 'qr' && isConnected) {
       setPhase('connected');
     }
   }, [phase, connectionState]);

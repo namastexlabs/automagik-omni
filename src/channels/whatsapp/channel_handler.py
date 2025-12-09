@@ -326,15 +326,29 @@ class WhatsAppChannelHandler(ChannelHandler):
         """Get WhatsApp connection status."""
         try:
             evolution_client = self._get_evolution_client(instance)
-            state_response = await evolution_client.get_connection_state(instance.name)
+            # Prefer fetch_instances (more accurate post-connect) and fall back to get_connection_state
+            evolution_instances = await evolution_client.fetch_instances(instance.name)
+            evolution_state = None
+            if evolution_instances:
+                evolution_state = (evolution_instances[0].status or "").lower()
+
+            if not evolution_state:
+                state_response = await evolution_client.get_connection_state(instance.name)
+                evolution_state = (state_response.get("instance", {}).get("state", "") or "").lower()
+                channel_data = {"evolution_state": evolution_state, "evolution_data": state_response}
+            else:
+                channel_data = {"evolution_state": evolution_state, "evolution_data": evolution_instances}
 
             # Map Evolution states to generic states
-            evolution_state = state_response.get("instance", {}).get("state", "unknown")
-
             status_map = {
                 "open": "connected",
+                "connected": "connected",
+                "online": "connected",
                 "close": "disconnected",
+                "disconnected": "disconnected",
                 "connecting": "connecting",
+                "qr": "connecting",
+                "pairing": "connecting",
                 "unknown": "error",
             }
 
@@ -345,10 +359,7 @@ class WhatsAppChannelHandler(ChannelHandler):
                 channel_type="whatsapp",
                 status=mapped_status,
                 connected=(mapped_status == "connected"),  # Set boolean based on status
-                channel_data={
-                    "evolution_state": evolution_state,
-                    "evolution_data": state_response,
-                },
+                channel_data=channel_data,
             )
 
         except Exception as e:
