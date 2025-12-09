@@ -209,8 +209,9 @@ def run_migrations() -> bool:
 
         # Run migrations - 'head' will upgrade to all heads if multiple exist
         try:
+            logger.info("Running command.upgrade(config, 'head')...")
             command.upgrade(config, "head")
-            logger.debug("Database migrations completed successfully")
+            logger.info("Database migrations completed successfully (command.upgrade finished)")
         except OperationalError as op_err:
             if _is_idempotent_schema_error(op_err):
                 logger.warning(
@@ -350,7 +351,7 @@ def auto_migrate() -> bool:
         head_revision = get_head_revision()
         has_tables = check_database_exists()
 
-        logger.debug(
+        logger.info(
             "Database state: current=%s, head=%s, has_tables=%s",
             current_revision,
             head_revision,
@@ -359,8 +360,10 @@ def auto_migrate() -> bool:
 
         if not has_tables:
             # Empty database - run all migrations
-            logger.debug("Empty database detected, running all migrations...")
-            return run_migrations()
+            logger.info("Empty database detected (no omni_* tables), running all migrations...")
+            result = run_migrations()
+            logger.info("run_migrations() returned: %s", result)
+            return result
 
         elif current_revision is None and has_tables:
             # Existing database without revision tracking - bypass Alembic completely
