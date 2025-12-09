@@ -161,8 +161,9 @@ class DiscoveryService:
             logger.warning("Cannot sync webhook URLs: config.api.port not available")
             return
 
-        current_host = config.api.host or "127.0.0.1"
-        current_port = config.api.port
+        # Prefer the gateway-exposed port if available (OMNI_PORT), otherwise fall back to API port
+        current_host = "127.0.0.1"
+        current_port = int(os.getenv("OMNI_PORT", config.api.port))
 
         logger.info(f"Syncing webhook URLs to http://{current_host}:{current_port}/webhook/evolution/...")
 

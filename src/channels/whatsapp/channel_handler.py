@@ -3,6 +3,7 @@ WhatsApp channel handler using Evolution API.
 """
 
 import logging
+import os
 from typing import Dict, Any
 from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
 from src.channels.whatsapp.evolution_client import (
@@ -92,9 +93,10 @@ class WhatsAppChannelHandler(ChannelHandler):
                 existing_instance = existing_instances[0]
                 logger.info(f"Evolution instance '{instance.name}' already exists, using existing instance")
 
-                # Set webhook URL for existing instance if needed
+                # Set webhook URL for existing instance if needed (prefer gateway port if available)
+                gateway_port = os.getenv("OMNI_PORT", "").strip() or str(config.api.port)
                 webhook_url = replace_localhost_with_ipv4(
-                    f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
+                    f"http://127.0.0.1:{gateway_port}/webhook/evolution/{instance.name}"
                 )
 
                 try:
@@ -133,9 +135,10 @@ class WhatsAppChannelHandler(ChannelHandler):
             auto_qr = kwargs.get("auto_qr", True)
             integration = kwargs.get("integration", "WHATSAPP-BAILEYS")
 
-            # Set webhook URL automatically
+            # Set webhook URL automatically (prefer gateway port if available)
+            gateway_port = os.getenv("OMNI_PORT", "").strip() or str(config.api.port)
             webhook_url = replace_localhost_with_ipv4(
-                f"http://{config.api.host}:{config.api.port}/webhook/evolution/{instance.name}"
+                f"http://127.0.0.1:{gateway_port}/webhook/evolution/{instance.name}"
             )
 
             # Prepare Evolution API request with webhook configuration
