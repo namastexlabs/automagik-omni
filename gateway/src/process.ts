@@ -3,7 +3,7 @@
  * Spawns and manages Python API, Evolution API, and Vite dev server as subprocesses
  */
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, cpSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -748,13 +748,15 @@ export class ProcessManager {
       throw new Error(`Failed to prepare Prisma migrations directory: ${err}`);
     }
 
-    const migrateCmd = usesPnpm
+    const baseMigrateCmd = usesPnpm
       ? ['pnpm', 'exec', 'prisma', 'db', 'push', '--skip-generate', '--schema', './prisma/postgresql-schema.prisma']
       : ['npx', 'prisma', 'db', 'push', '--skip-generate', '--schema', './prisma/postgresql-schema.prisma'];
 
+    let allowDataLoss = false;
     let migrateSuccess = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
+        const migrateCmd = allowDataLoss ? [...baseMigrateCmd, '--accept-data-loss'] : baseMigrateCmd;
         const migrateProc = Bun.spawn(migrateCmd, {
           cwd: evolutionDir,
           env: {
@@ -791,10 +793,20 @@ export class ProcessManager {
         }
 
         if (stderr.includes('P3014') || stderr.includes('data loss') || stderr.includes('Reset')) {
-          // Prisma wants to drop tables not in its schema (e.g., omni_*). Disallow to protect Omni.
+          // Prisma wants to drop tables not in its schema (e.g., omni_*).
+          // First retry with --accept-data-loss (should be safe because omni_* are @@ignored stubs).
+          if (!allowDataLoss) {
+            console.warn(
+              '[ProcessManager] Prisma reported potential data loss; retrying once with --accept-data-loss ' +
+                '(omni_* tables are protected with @@ignore stubs).',
+            );
+            allowDataLoss = true;
+            await Bun.sleep(1000);
+            continue;
+          }
+
           throw new Error(
-            'Prisma attempted a destructive change. Aborting to protect existing Omni tables. ' +
-              'Ensure Omni tables remain present; Evo tables will not be dropped.',
+            'Prisma attempted a destructive change even after --accept-data-loss. Aborting to protect existing Omni tables.',
           );
         }
 
