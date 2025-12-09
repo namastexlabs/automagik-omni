@@ -106,7 +106,11 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const completeSetup = async () => {
     try {
       // Step 1: Complete Python setup (saves to database)
-      await api.setup.complete();
+      try {
+        await api.setup.complete();
+      } catch (setupErr) {
+        console.warn('Failed to complete Python setup (continuing):', setupErr);
+      }
 
       // Step 2: Complete Gateway setup (creates marker file for future restarts)
       try {

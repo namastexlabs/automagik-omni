@@ -173,13 +173,8 @@ export function WhatsAppConfigModal({
     queryKey: ['connection-state-modal', instanceName],
     queryFn: () => api.instances.getStatus(instanceName),
     enabled:
-      open &&
-      instanceCreated &&
-      instanceReady &&
-      phase === 'qr' &&
-      qrPollReady &&
-      gatewayStatus?.processes?.evolution?.healthy,
-    refetchInterval: phase === 'qr' ? 3000 : false,
+      open && instanceCreated && instanceReady && phase === 'qr' && gatewayStatus?.processes?.evolution?.healthy,
+    refetchInterval: phase === 'qr' ? 2000 : false,
     retry: 5,
     retryDelay: 1500,
   });
