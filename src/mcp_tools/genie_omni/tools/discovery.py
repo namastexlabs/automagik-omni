@@ -13,8 +13,20 @@ from thefuzz import fuzz
 logger = logging.getLogger(__name__)
 
 def _get_db_path() -> str:
-    """Get the SQLite database path from environment."""
-    db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", "/home/namastex/data/automagik-omni.db")
+    """Get the SQLite database path from environment.
+
+    NOTE: This SQLite database is for MCP tool local contacts storage only.
+    The main Omni database uses PostgreSQL (via pgserve).
+    """
+    # Default: data/mcp-contacts.sqlite in project root
+    # This is separate from the main PostgreSQL database
+    default_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))),
+        "data", "mcp-contacts.sqlite"
+    )
+    db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", default_path)
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     return db_path
 
 def _normalize_search(text: str) -> str:
@@ -36,9 +48,6 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 ,
         ctx: Optional[Context] = None,) -> str:
         """Download media from WhatsApp message (image/video/audio/document). Args: message_id, instance_name, filename (optional, auto-detected). Returns: local file path where saved."""
-        import base64
-        import os
-        from pathlib import Path
 
         config = get_config(ctx)
         client = get_client(ctx)
@@ -51,7 +60,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
             if not response or "base64" not in response:
                 logger.warning(f"No base64 data in response for message {message_id}")
-                return None
+                return f"❌ No media found for message {message_id}"
 
             # Decode base64
             media_data = base64.b64decode(response["base64"])
@@ -255,7 +264,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         # Results containers
         people_results = {}  # phone -> {name, source, score}
         group_results = {}   # group_id -> {name, members, score}
-        message_results = [] # [{sender, text, time, mention}]
+        message_results: list[dict[str, str | int | None]] = []  # [{sender, text, time, mention}]
 
         client = get_client(ctx)
 

@@ -89,7 +89,7 @@ class OmniConfig(BaseSettings):
     def get_safety_warning(self) -> str:
         """Get safety warning if in dangerous mode"""
         if self.has_master_context():
-            master = "phone " + self.master_phone if self.master_phone else "group " + self.master_group
+            master = f"phone {self.master_phone}" if self.master_phone else f"group {self.master_group}"
             return f"✅ SAFE MODE: Context isolated to {master}"
         else:
             return (

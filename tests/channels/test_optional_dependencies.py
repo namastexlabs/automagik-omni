@@ -7,7 +7,7 @@ Tech Council requirement (oettam): Verify graceful degradation behavior.
 """
 import subprocess
 import sys
-import pytest
+import os
 
 
 class TestDiscordOptionalDependency:
@@ -15,7 +15,7 @@ class TestDiscordOptionalDependency:
 
     def test_app_imports_without_discord(self):
         """Verify app can import without discord.py installed.
-        
+
         This is a critical test - the app should not crash on import
         when discord.py is not installed.
         """
@@ -26,7 +26,7 @@ class TestDiscordOptionalDependency:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/produser/prod/automagik-omni",
+            cwd=os.getcwd(),
             timeout=30,
         )
         assert result.returncode == 0, f"App import failed: {result.stderr}"
@@ -41,7 +41,7 @@ class TestDiscordOptionalDependency:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/produser/prod/automagik-omni",
+            cwd=os.getcwd(),
             timeout=30,
         )
         assert result.returncode == 0, f"Channel factory test failed: {result.stderr}"
@@ -56,7 +56,7 @@ class TestDiscordOptionalDependency:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/produser/prod/automagik-omni",
+            cwd=os.getcwd(),
             timeout=30,
         )
         assert result.returncode == 0, f"Discord components check failed: {result.stderr}"
@@ -75,7 +75,7 @@ class TestWhatsAppChannel:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/produser/prod/automagik-omni",
+            cwd=os.getcwd(),
             timeout=30,
         )
         assert result.returncode == 0, f"WhatsApp channel test failed: {result.stderr}"
@@ -94,7 +94,7 @@ class TestStartupGracefulDegradation:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/produser/prod/automagik-omni",
+            cwd=os.getcwd(),
             timeout=30,
         )
         assert result.returncode == 0, f"Startup test failed: {result.stderr}"
@@ -110,7 +110,7 @@ class TestStartupGracefulDegradation:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/produser/prod/automagik-omni",
+            cwd=os.getcwd(),
             timeout=30,
         )
         assert result.returncode == 0, f"API routes test failed: {result.stderr}"
@@ -125,7 +125,7 @@ class TestStartupGracefulDegradation:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/produser/prod/automagik-omni",
+            cwd=os.getcwd(),
             timeout=30,
         )
         assert result.returncode == 0, f"Discord module exports test failed: {result.stderr}"

@@ -1,17 +1,18 @@
 """Discord channel implementation."""
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Discord components - all optional, guarded by try-except
 DISCORD_COMPONENTS_AVAILABLE = False
-DiscordChannelHandler = None
-DiscordBotManager = None
-DiscordVoiceManager = None
-VoiceSession = None
-STTProvider = None
-TTSProvider = None
+DiscordChannelHandler: Any = None
+DiscordBotManager: Any = None
+DiscordVoiceManager: Any = None
+VoiceSession: Any = None
+STTProvider: Any = None
+TTSProvider: Any = None
 
 try:
     from .channel_handler import DiscordChannelHandler

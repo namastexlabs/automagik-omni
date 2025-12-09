@@ -209,7 +209,7 @@ def _bootstrap_evolution_key(db: Session) -> None:
     else:
         # Keys differ - migrate to unified key
         logger.info("Migrating evolution_api_key to use unified omni_api_key")
-        logger.info(f"Old evolution_api_key will be replaced with omni_api_key")
+        logger.info("Old evolution_api_key will be replaced with omni_api_key")
 
         # Backup old key for reference
         try:
@@ -274,7 +274,6 @@ def _bootstrap_omni_api_key(db: Session) -> None:
 
     # Try to read from .env first (migration path for existing installations)
     # DEPRECATED: .env support removed. Only DB or auto-gen.
-    env_key = None 
 
     # Auto-generate secure key for fresh install
     key_value = f"sk-omni-{secrets.token_urlsafe(32)}"
@@ -353,7 +352,7 @@ def _bootstrap_setup_completed(db: Session) -> None:
 
     if existing:
         # Setting exists - check if it needs updating
-        current_is_true = existing.value.lower() in ("true", "1", "yes")
+        current_is_true = (existing.value or "false").lower() in ("true", "1", "yes")
         should_be_true = is_existing_install
 
         if current_is_true == should_be_true:

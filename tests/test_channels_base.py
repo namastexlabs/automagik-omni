@@ -18,8 +18,8 @@ class MockChannelHandler(ChannelHandler):
 
     async def get_qr_code(self, instance: InstanceConfig):
         return QRCodeResponse(
-            instance_name=instance.name,
-            channel_type=instance.channel_type,
+            instance_name=instance.name or "",
+            channel_type=instance.channel_type or "",
             qr_code="mock_qr",
             status="ready",
             message="Mock QR code",
@@ -27,8 +27,8 @@ class MockChannelHandler(ChannelHandler):
 
     async def get_status(self, instance: InstanceConfig):
         return ConnectionStatus(
-            instance_name=instance.name,
-            channel_type=instance.channel_type,
+            instance_name=instance.name or "",
+            channel_type=instance.channel_type or "",
             status="connected",
         )
 

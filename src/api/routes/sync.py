@@ -5,7 +5,7 @@ Provides fast localStorage reads (0ms latency) with PostgreSQL persistence
 (survives browser cache clear).
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Dict

@@ -2,9 +2,8 @@
 
 import logging
 from typing import Callable, Optional, Literal, Dict, List, Any
-from pathlib import Path
 from fastmcp import FastMCP, Context
-from ..models import SendMediaRequest, SendAudioRequest
+from ..models import SendAudioRequest
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +82,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
                 if ctx:
                     await ctx.info(
-                        f"Message delivered successfully",
+                        "Message delivered successfully",
                         extra={"message_id": message_id, "recipient": to}
                     )
 
@@ -193,7 +192,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
                 if ctx:
                     await ctx.info(
-                        f"Media delivered successfully",
+                        "Media delivered successfully",
                         extra={"message_id": message_id, "recipient": to, "media_type": detected_media_type}
                     )
 
@@ -256,16 +255,16 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         await ctx.debug(f"Detected remote audio URL: {audio_url}")
 
                 # Build request
-                request_data = {
-                    "phone": to,
-                    "quoted_message_id": quoted_message_id,
-                    "delay": delay,
-                }
+                request_data: Dict[str, Any] = {"phone": to}
+                if quoted_message_id is not None:
+                    request_data["quoted_message_id"] = quoted_message_id
+                if delay is not None:
+                    request_data["delay"] = delay
 
                 # Add audio_url OR audio_base64
                 if audio_base64_data:
                     request_data["audio_base64"] = audio_base64_data
-                else:
+                elif actual_audio_url is not None:
                     request_data["audio_url"] = actual_audio_url
 
                 if ctx:
@@ -276,7 +275,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
                 if response.success and ctx:
                     await ctx.info(
-                        f"Audio delivered successfully",
+                        "Audio delivered successfully",
                         extra={"message_id": response.message_id, "recipient": to}
                     )
             else:
@@ -331,7 +330,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             remote_jid = normalize_jid(phone)
 
             if ctx:
-                await ctx.debug(f"Fetching messages to detect sender (limit 100)")
+                await ctx.debug("Fetching messages to detect sender (limit 100)")
 
             # Fetch messages to find the target message
             messages_response = await client.evolution_find_messages(
@@ -352,10 +351,10 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         break
 
             if ctx:
-                await ctx.debug(f"Sending reaction to Evolution API")
+                await ctx.debug("Sending reaction to Evolution API")
 
             # Use Evolution API directly for reactions (Omni doesn't support it properly)
-            response = await client.evolution_send_reaction(
+            _response = await client.evolution_send_reaction(
                 instance_name=instance_name,
                 remote_jid=phone,
                 message_id=to_message_id,
@@ -365,7 +364,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
             if ctx:
                 await ctx.info(
-                    f"Reaction delivered successfully",
+                    "Reaction delivered successfully",
                     extra={"emoji": emoji, "message_id": to_message_id}
                 )
 
@@ -423,7 +422,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
             if ctx:
                 await ctx.info(
-                    f"Sticker delivered successfully",
+                    "Sticker delivered successfully",
                     extra={"message_id": message_id, "recipient": to}
                 )
 
@@ -480,7 +479,13 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     return text.lower().strip()
 
                 # Search local contacts database
-                db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", "/home/namastex/data/automagik-omni.db")
+                # NOTE: This SQLite is for MCP tool contacts only, not main Omni database
+                default_path = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))),
+                    "data", "mcp-contacts.sqlite"
+                )
+                db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", default_path)
+                os.makedirs(os.path.dirname(db_path), exist_ok=True)
                 db = sqlite3.connect(db_path)
                 cursor = db.cursor()
                 cursor.execute("SELECT phone_number, name, nickname FROM contacts")
@@ -608,7 +613,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         client = get_client(ctx)
 
         try:
-            response = await client.evolution_delete_message(
+            _response = await client.evolution_delete_message(
                 instance_name=instance_name,
                 remote_jid=phone,
                 message_id=message_id,
@@ -628,6 +633,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         presence: str = "composing",
         instance_name: str = "genie",
         delay: int = 0,
+        ctx: Optional[Context] = None,
 ) -> str:
         """
         Send presence status (typing, recording, etc) to a WhatsApp contact.
@@ -648,6 +654,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                      - "unavailable": Hide status
             instance_name: Your WhatsApp instance (default: "genie")
             delay: How long to show presence in milliseconds (0 = until next message)
+            ctx: Context for MCP tools (optional)
 
         Returns:
             Confirmation that presence was sent
@@ -673,7 +680,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         client = get_client(ctx)
 
         try:
-            response = await client.evolution_send_presence(
+            _response = await client.evolution_send_presence(
                 instance_name=instance_name,
                 remote_jid=to,
                 presence=presence,
@@ -748,7 +755,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         client = get_client(ctx)
 
         try:
-            response = await client.evolution_update_message(
+            _response = await client.evolution_update_message(
                 instance_name=instance_name,
                 remote_jid=phone,
                 message_id=message_id,
@@ -872,7 +879,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         client = get_client(ctx)
 
         try:
-            response = await client.evolution_send_poll(
+            _response = await client.evolution_send_poll(
                 instance_name=instance_name,
                 remote_jid=to,
                 name=question,
@@ -881,7 +888,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             )
 
             poll_type = "single choice" if selectable_count == 1 else f"multiple choice (max {selectable_count})"
-            return f"📊 Poll sent to {to}\nQuestion: {question}\nOptions: {len(options)} ({poll_type})\nMessage ID: {response.get('key', {}).get('id', 'None')}"
+            return f"📊 Poll sent to {to}\nQuestion: {question}\nOptions: {len(options)} ({poll_type})\nMessage ID: {_response.get('key', {}).get('id', 'None')}"
 
         except Exception as e:
             logger.error(f"Error sending poll: {e}")
@@ -891,5 +898,3 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
     # =============================================================================
     # CATEGORY 3: READ (Consume Context)
     # =============================================================================
-
-

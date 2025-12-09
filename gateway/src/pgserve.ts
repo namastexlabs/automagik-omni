@@ -96,8 +96,7 @@ export class PgserveManager {
   constructor(config: Partial<PgserveConfig> & { port: number }) {
     // Determine memory mode based on environment
     const memoryMode = config.memoryMode ??
-      process.env.PGSERVE_MEMORY_MODE === 'true' ??
-      false;
+      (process.env.PGSERVE_MEMORY_MODE === 'true');
 
     // Port is required - must be allocated by PortRegistry (8432-8449 range)
     this.config = {
@@ -325,7 +324,7 @@ export class PgserveManager {
   /**
    * Get PostgreSQL connection URL for a database
    */
-  getConnectionUrl(database: string = 'omni'): string {
+  getConnectionUrl(database: string = 'automagik_omni'): string {
     return `postgresql://postgres:postgres@127.0.0.1:${this.config.port}/${database}`;
   }
 

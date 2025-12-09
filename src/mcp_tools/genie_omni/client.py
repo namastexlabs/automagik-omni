@@ -2,7 +2,7 @@
 
 import httpx
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, cast
 from .config import OmniConfig
 from .models import (
     InstanceConfig,
@@ -84,7 +84,7 @@ class OmniClient:
         endpoint: str,
         json: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """Make HTTP request with error handling"""
         url = f"{self.base_url}{endpoint}"
 
@@ -119,7 +119,7 @@ class OmniClient:
     ) -> List[InstanceResponse]:
         """List all instances"""
         params = {"skip": skip, "limit": limit, "include_status": include_status}
-        data = await self._request("GET", "/api/v1/instances", params=params)
+        data = cast(List[Dict[str, Any]], await self._request("GET", "/api/v1/instances", params=params))
         return [InstanceResponse(**item) for item in data]
 
     async def get_instance(
@@ -253,7 +253,7 @@ class OmniClient:
             for k, v in filters.model_dump(exclude_none=True).items()
             if v is not None
         }
-        data = await self._request("GET", "/api/v1/traces", params=params)
+        data = cast(List[Dict[str, Any]], await self._request("GET", "/api/v1/traces", params=params))
         return [TraceResponse(**item) for item in data]
 
     async def get_trace(self, trace_id: str) -> TraceResponse:
@@ -266,8 +266,9 @@ class OmniClient:
     ) -> List[TracePayloadResponse]:
         """Get trace payloads"""
         params = {"include_payload": include_payload}
-        data = await self._request(
-            "GET", f"/api/v1/traces/{trace_id}/payloads", params=params
+        data = cast(
+            List[Dict[str, Any]],
+            await self._request("GET", f"/api/v1/traces/{trace_id}/payloads", params=params),
         )
         return [TracePayloadResponse(**item) for item in data]
 
@@ -296,8 +297,9 @@ class OmniClient:
     ) -> List[TraceResponse]:
         """Get traces for phone number"""
         params = {"limit": limit}
-        data = await self._request(
-            "GET", f"/api/v1/traces/phone/{phone_number}", params=params
+        data = cast(
+            List[Dict[str, Any]],
+            await self._request("GET", f"/api/v1/traces/phone/{phone_number}", params=params),
         )
         return [TraceResponse(**item) for item in data]
 

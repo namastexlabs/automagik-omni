@@ -6,7 +6,7 @@ This module is guarded - it only provides a functional handler when discord.py i
 """
 
 import logging
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ else:
     # Stub class when discord is not available
     class DiscordChatHandler:
         """Stub Discord chat handler when discord.py is not installed."""
-        
+
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "Discord chat handler requires discord.py. "

@@ -17,7 +17,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from src.api.deps import verify_api_key
-from src.config import config
 from src.services.settings_service import settings_service
 
 logger = logging.getLogger(__name__)
@@ -282,7 +281,7 @@ def _test_permissions(url: str) -> TestResult:
         latency = (time.time() - start) * 1000
         return TestResult(ok=True, message="CREATE TABLE permission verified", latency_ms=latency)
 
-    except ProgrammingError as e:
+    except ProgrammingError:
         return TestResult(ok=False, message="Insufficient permissions - cannot create tables")
     except Exception as e:
         return TestResult(ok=False, message=f"Permission test error: {str(e)[:100]}")
@@ -700,7 +699,6 @@ async def apply_database_config(
     PostgreSQL only - SQLite is NOT supported.
     """
     from src.db.database import get_db
-    from src.services.settings_service import settings_service
 
     # Validate PostgreSQL URL format
     if not request.postgres_url.startswith("postgresql://"):

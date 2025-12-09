@@ -13,7 +13,9 @@ before authentication is configured.
 
 import logging
 import os
+import json
 import secrets
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -25,6 +27,32 @@ from src.services.settings_service import settings_service
 from src.utils.instance_utils import normalize_instance_name
 
 logger = logging.getLogger(__name__)
+
+# Path for pgserve config file (read by gateway before DB is available)
+PGSERVE_CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "data" / "pgserve-config.json"
+
+
+def _write_pgserve_config(memory_mode: bool, data_dir: Optional[str], replication_url: Optional[str] = None):
+    """Write pgserve config to file for gateway to read on startup.
+
+    This is necessary because the gateway needs to know memory mode BEFORE
+    starting pgserve (and therefore before the database is available).
+
+    When memory_mode is True, data_dir should be None (no disk storage).
+    """
+    config = {
+        "memory_mode": memory_mode,
+        "data_dir": None if memory_mode else data_dir,
+        "replication_url": replication_url,
+    }
+
+    # Ensure data directory exists
+    PGSERVE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(PGSERVE_CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+
+    logger.info(f"Wrote pgserve config to {PGSERVE_CONFIG_PATH}")
 
 router = APIRouter(prefix="/setup", tags=["Setup"])
 
@@ -45,7 +73,7 @@ class DatabaseConfigRequest(BaseModel):
     """Request schema for database configuration during setup (PostgreSQL-only via pgserve)."""
 
     # PostgreSQL storage configuration
-    data_dir: str = Field(default="./data/postgres", description="PostgreSQL data directory path")
+    data_dir: str | None = Field(default=None, description="PostgreSQL data directory path")
     memory_mode: bool = Field(default=False, description="Use in-memory storage (ephemeral, no persistence)")
 
     # Replication configuration (optional, advanced)
@@ -99,7 +127,7 @@ async def get_setup_status(db: Session = Depends(get_db)):
             return SetupStatusResponse(requires_setup=True)
 
         # Parse boolean value (stored as string "true"/"false")
-        setup_complete = setup_setting.value.lower() in ("true", "1", "yes")
+        setup_complete = (setup_setting.value or "false").lower() in ("true", "1", "yes")
 
         logger.info(f"Setup status check: setup_complete={setup_complete}")
 
@@ -153,9 +181,11 @@ async def initialize_setup(
                 logger.info(f"Created setting: {key}")
 
         # Save PostgreSQL storage configuration
+        safe_data_dir = config.data_dir or "./data/postgres"
+
         _set_or_update(
             key="pgserve_data_dir",
-            value=config.data_dir,
+            value=safe_data_dir,
             value_type=SettingValueType.STRING,
             category="database",
             description="PostgreSQL data directory path"
@@ -167,6 +197,15 @@ async def initialize_setup(
             value_type=SettingValueType.BOOLEAN,
             category="database",
             description="Use in-memory storage (ephemeral)"
+        )
+
+        # Write pgserve config file for gateway to read on restart
+        # This is needed because gateway needs memory_mode BEFORE DB is available
+        replication_url = config.replication_url if config.replication_enabled else None
+        _write_pgserve_config(
+            memory_mode=config.memory_mode,
+            data_dir=config.data_dir, # Pass None if memory_mode is True, handled by _write_pgserve_config
+            replication_url=replication_url
         )
 
         # Save replication configuration if enabled
@@ -298,7 +337,7 @@ async def complete_setup(db: Session = Depends(get_db)):
 
         if setup_setting:
             # Check current value
-            is_already_complete = setup_setting.value.lower() in ("true", "1", "yes")
+            is_already_complete = (setup_setting.value or "false").lower() in ("true", "1", "yes")
 
             if is_already_complete:
                 logger.warning("Setup already marked as complete, ignoring duplicate request")
@@ -353,7 +392,7 @@ async def get_api_key(db: Session = Depends(get_db)):
     try:
         # Check if setup is already complete - if so, don't expose the key
         setup_setting = settings_service.get_setting("setup_completed", db)
-        if setup_setting and setup_setting.value.lower() in ("true", "1", "yes"):
+        if setup_setting and (setup_setting.value or "false").lower() in ("true", "1", "yes"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Setup already completed. API key cannot be retrieved after setup."
@@ -384,7 +423,7 @@ async def get_api_key(db: Session = Depends(get_db)):
             )
 
         return GenerateApiKeyResponse(
-            api_key=api_key_setting.value,
+            api_key=api_key_setting.value or "",
             message="Your API key is ready. Save this key securely!"
         )
 
@@ -556,7 +595,7 @@ async def _check_discord_status(db: Session) -> ChannelStatus:
     try:
         # Check if channel is enabled
         enabled_setting = settings_service.get_setting("channel_discord_enabled", db)
-        is_enabled = enabled_setting and enabled_setting.value.lower() in ("true", "1", "yes")
+        is_enabled = enabled_setting is not None and (enabled_setting.value or "false").lower() in ("true", "1", "yes")
 
         # Check if any Discord instance exists
         discord_instances = db.query(InstanceConfig).filter(

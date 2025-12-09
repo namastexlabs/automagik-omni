@@ -12,8 +12,20 @@ logger = logging.getLogger(__name__)
 _contacts_table_initialized = False
 
 def _get_db_path() -> str:
-    """Get the SQLite database path from environment."""
-    db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", "/home/namastex/data/automagik-omni.db")
+    """Get the SQLite database path from environment.
+
+    NOTE: This SQLite database is for MCP tool local contacts storage only.
+    The main Omni database uses PostgreSQL (via pgserve).
+    """
+    # Default: data/mcp-contacts.sqlite in project root
+    # This is separate from the main PostgreSQL database
+    default_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))),
+        "data", "mcp-contacts.sqlite"
+    )
+    db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", default_path)
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     return db_path
 
 def _ensure_contacts_table():
@@ -86,7 +98,7 @@ def register_tools(mcp: FastMCP, get_client: Callable):
         instance_name: str = "genie",
         conversation_type: Optional[Literal["direct", "group", "all"]] = "all",
         limit: int = 20,
-    
+
         ctx: Optional[Context] = None,) -> str:
         """Get active WhatsApp conversations. Args: instance_name, conversation_type filter, limit. Returns: list of active chats."""
         client = get_client(ctx)

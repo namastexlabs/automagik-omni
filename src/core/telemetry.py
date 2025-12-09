@@ -4,7 +4,6 @@ Uses asyncio + httpx for non-blocking OTLP-compatible traces.
 """
 
 import asyncio
-import json
 import logging
 import os
 import platform

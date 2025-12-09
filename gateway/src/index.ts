@@ -638,6 +638,50 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // These endpoints allow the setup wizard to start services on-demand
   // ============================================================
 
+  // POST /api/internal/pgserve-config - Write pgserve config BEFORE starting pgserve
+  // This is called by the UI wizard BEFORE starting pgserve to ensure memory mode is respected
+  fastify.post<{ Body: { memory_mode: boolean; data_dir?: string; replication_url?: string | null } }>(
+    '/api/internal/pgserve-config',
+    async (request, reply) => {
+      // Security: Only allow from localhost
+      const clientIp = request.ip;
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+        return reply.status(403).send({
+          error: 'Internal endpoints only accessible from localhost',
+        });
+      }
+
+      const { memory_mode, data_dir, replication_url } = request.body;
+
+      try {
+        const dataDir = join(ROOT_DIR, 'data');
+        const configPath = join(dataDir, 'pgserve-config.json');
+
+        // Ensure data directory exists
+        if (!existsSync(dataDir)) {
+          mkdirSync(dataDir, { recursive: true });
+        }
+
+        // Write config file - memory mode means no data_dir
+        const config = {
+          memory_mode,
+          data_dir: memory_mode ? null : (data_dir || './data/postgres'),
+          replication_url: replication_url || null,
+        };
+
+        writeFileSync(configPath, JSON.stringify(config, null, 2));
+        console.log(`[Gateway] Wrote pgserve config: memory_mode=${memory_mode}, data_dir=${config.data_dir}`);
+
+        return { success: true, config };
+      } catch (error) {
+        console.error('[Gateway] Failed to write pgserve config:', error);
+        return reply.status(500).send({
+          error: error instanceof Error ? error.message : 'Failed to write config',
+        });
+      }
+    }
+  );
+
   // POST /api/internal/services/:name/start - Start a service (wizard use)
   fastify.post<{ Params: { name: string }; Body: Record<string, unknown> }>(
     '/api/internal/services/:name/start',

@@ -27,7 +27,10 @@ async def get_live_status(instance: InstanceConfig) -> str:
 
     Returns: "connected" | "disconnected" | "connecting" | "error" | "unknown"
     """
-    instance_name = instance.name
+    instance_name = instance.name or ""
+    if not instance_name:
+        logger.warning("Instance name missing - returning unknown status")
+        return "unknown"
 
     # Check cache first
     if instance_name in _status_cache:
@@ -37,7 +40,12 @@ async def get_live_status(instance: InstanceConfig) -> str:
             return cached_status
 
     try:
-        handler = ChannelHandlerFactory.get_handler(instance.channel_type)
+        channel_type = instance.channel_type or ""
+        if not channel_type:
+            logger.warning("Channel type missing - returning unknown status")
+            return "unknown"
+
+        handler = ChannelHandlerFactory.get_handler(channel_type)
 
         # Fetch with timeout
         status_response = await asyncio.wait_for(
@@ -89,23 +97,25 @@ async def get_live_statuses(instances: List[InstanceConfig]) -> Dict[str, str]:
 
     async def fetch_one(instance: InstanceConfig) -> Tuple[str, str]:
         status = await get_live_status(instance)
-        return (instance.name, status)
+        return (instance.name or "", status)
 
     # Execute all fetches in parallel
-    results = await asyncio.gather(
+    results: List[Tuple[str, str] | BaseException] = await asyncio.gather(
         *[fetch_one(inst) for inst in instances],
         return_exceptions=True
     )
 
-    status_map = {}
+    status_map: Dict[str, str] = {}
     for i, result in enumerate(results):
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             # Should not happen due to try/except in get_live_status
             logger.error(f"Unexpected exception in parallel fetch: {result}")
-            status_map[instances[i].name] = "error"
+            name = instances[i].name or f"instance_{i}"
+            status_map[name] = "error"
         else:
             name, status = result
-            status_map[name] = status
+            key = name or f"instance_{i}"
+            status_map[key] = status
 
     return status_map
 

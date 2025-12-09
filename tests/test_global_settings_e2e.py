@@ -15,7 +15,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.db.models import Base, GlobalSetting, SettingChangeHistory
+from src.db.models import Base, GlobalSetting
 from src.db.bootstrap_settings import bootstrap_global_settings
 from src.services.settings_service import settings_service
 
@@ -172,7 +172,7 @@ class TestGlobalSettingsAPI:
         assert updated_setting["value"] == "http://updated-evolution.test:8080"
 
         # Verify audit trail was created
-        setting = settings_service.get_setting("evolution_api_url", test_db)
+        settings_service.get_setting("evolution_api_url", test_db)
         history = settings_service.get_change_history("evolution_api_url", test_db, limit=1)
         assert len(history) > 0
         assert history[0].new_value == "http://updated-evolution.test:8080"
@@ -263,7 +263,6 @@ class TestSettingsServiceLayer:
 
     def test_type_casting_json(self, test_db):
         """Test JSON type casting."""
-        import json
 
         test_data = {"key": "value", "nested": {"array": [1, 2, 3]}}
 

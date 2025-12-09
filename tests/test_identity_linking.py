@@ -36,6 +36,7 @@ def test_whatsapp_user_creation_creates_external_link(test_db: Session):
         .all()
     )
     assert len(links) == 1
+    assert links[0].external_id is not None
     assert links[0].external_id.endswith("@s.whatsapp.net")
 
 
@@ -61,6 +62,7 @@ def test_cross_channel_resolution_via_external_id(test_db: Session):
 
     # Link a Discord external ID to the same local user
     discord_id = "123456789012345678"
+    assert wa_user.id is not None
     user_service.link_external_id(wa_user.id, "discord", discord_id, "inst_b", test_db)
 
     # Act: resolve by Discord external ID
@@ -101,6 +103,8 @@ def test_link_reassignment_unifies_to_single_user(test_db: Session):
     discord_id = "999888777666555444"
 
     # Link to user1 then re-link to user2 (should reassign)
+    assert user1.id is not None
+    assert user2.id is not None
     user_service.link_external_id(user1.id, "discord", discord_id, "inst_c", test_db)
     user_service.link_external_id(user2.id, "discord", discord_id, "inst_c", test_db)
 

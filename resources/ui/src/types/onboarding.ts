@@ -3,6 +3,7 @@ export interface DatabaseConfig {
   data_dir?: string;        // Path for filesystem storage
   memory_mode?: boolean;    // true = RAM only, false = disk storage
   replication_enabled?: boolean;  // Enable replication (optional)
+  replication_url?: string;       // PostgreSQL URL for replication target
 
   // Redis cache (optional)
   redis_enabled?: boolean;

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, ConfigDict
 
 from src.api.deps import get_database, verify_api_key
-from src.db.models import GlobalSetting, SettingValueType
+from src.db.models import GlobalSetting, SettingChangeHistory
 from src.services.settings_service import settings_service
 
 logger = logging.getLogger(__name__)
@@ -93,26 +93,7 @@ async def list_settings(
     settings = settings_service.list_settings(db, category=category)
 
     # Mask secret values in response
-    response_settings = []
-    for setting in settings:
-        setting_dict = {
-            "id": setting.id,
-            "key": setting.key,
-            "value": _mask_if_secret(setting),
-            "value_type": setting.value_type,
-            "category": setting.category,
-            "description": setting.description,
-            "is_secret": setting.is_secret,
-            "is_required": setting.is_required,
-            "default_value": setting.default_value,
-            "created_at": setting.created_at.isoformat(),
-            "updated_at": setting.updated_at.isoformat(),
-            "created_by": setting.created_by,
-            "updated_by": setting.updated_by,
-        }
-        response_settings.append(SettingResponse(**setting_dict))
-
-    return response_settings
+    return [_to_setting_response(setting) for setting in settings]
 
 
 @router.get(
@@ -136,21 +117,7 @@ async def get_setting(
             detail=f"Setting '{key}' not found"
         )
 
-    return SettingResponse(
-        id=setting.id,
-        key=setting.key,
-        value=_mask_if_secret(setting),
-        value_type=setting.value_type,
-        category=setting.category,
-        description=setting.description,
-        is_secret=setting.is_secret,
-        is_required=setting.is_required,
-        default_value=setting.default_value,
-        created_at=setting.created_at.isoformat(),
-        updated_at=setting.updated_at.isoformat(),
-        created_by=setting.created_by,
-        updated_by=setting.updated_by,
-    )
+    return _to_setting_response(setting)
 
 
 @router.post(
@@ -182,21 +149,7 @@ async def create_setting(
             created_by=api_key[:8] if api_key else None  # Masked API key
         )
 
-        return SettingResponse(
-            id=setting.id,
-            key=setting.key,
-            value=_mask_if_secret(setting),
-            value_type=setting.value_type,
-            category=setting.category,
-            description=setting.description,
-            is_secret=setting.is_secret,
-            is_required=setting.is_required,
-            default_value=setting.default_value,
-            created_at=setting.created_at.isoformat(),
-            updated_at=setting.updated_at.isoformat(),
-            created_by=setting.created_by,
-            updated_by=setting.updated_by,
-        )
+        return _to_setting_response(setting)
 
     except ValueError as e:
         raise HTTPException(
@@ -228,21 +181,7 @@ async def update_setting(
             change_reason=update_data.change_reason
         )
 
-        return SettingResponse(
-            id=setting.id,
-            key=setting.key,
-            value=_mask_if_secret(setting),
-            value_type=setting.value_type,
-            category=setting.category,
-            description=setting.description,
-            is_secret=setting.is_secret,
-            is_required=setting.is_required,
-            default_value=setting.default_value,
-            created_at=setting.created_at.isoformat(),
-            updated_at=setting.updated_at.isoformat(),
-            created_by=setting.created_by,
-            updated_by=setting.updated_by,
-        )
+        return _to_setting_response(setting)
 
     except ValueError as e:
         raise HTTPException(
@@ -297,21 +236,51 @@ async def get_setting_history(
 
     history = settings_service.get_change_history(key, db, limit=limit)
 
-    return [
-        SettingHistoryResponse(
-            id=h.id,
-            setting_id=h.setting_id,
-            old_value=h.old_value,
-            new_value=h.new_value,
-            changed_by=h.changed_by,
-            changed_at=h.changed_at.isoformat(),
-            change_reason=h.change_reason,
-        )
-        for h in history
-    ]
+    return [_to_history_response(h) for h in history]
 
 
 # Helper functions
+
+def _to_setting_response(setting: GlobalSetting) -> SettingResponse:
+    """Convert ORM setting to response model with null-safe fields."""
+    assert setting.id is not None
+    assert setting.key is not None
+    assert setting.value_type is not None
+    created_at = setting.created_at.isoformat() if setting.created_at else ""
+    updated_at = setting.updated_at.isoformat() if setting.updated_at else ""
+
+    return SettingResponse(
+        id=setting.id,
+        key=setting.key,
+        value=_mask_if_secret(setting),
+        value_type=setting.value_type,
+        category=setting.category,
+        description=setting.description,
+        is_secret=bool(setting.is_secret),
+        is_required=bool(setting.is_required),
+        default_value=setting.default_value,
+        created_at=created_at,
+        updated_at=updated_at,
+        created_by=setting.created_by,
+        updated_by=setting.updated_by,
+    )
+
+
+def _to_history_response(history: SettingChangeHistory) -> SettingHistoryResponse:
+    """Convert ORM history entry to response model with null-safe fields."""
+    assert history.id is not None
+    assert history.setting_id is not None
+    changed_at = history.changed_at.isoformat() if history.changed_at else ""
+
+    return SettingHistoryResponse(
+        id=history.id,
+        setting_id=history.setting_id,
+        old_value=history.old_value,
+        new_value=history.new_value,
+        changed_by=history.changed_by,
+        changed_at=changed_at,
+        change_reason=history.change_reason,
+    )
 
 
 def _mask_if_secret(setting: GlobalSetting) -> Optional[str]:

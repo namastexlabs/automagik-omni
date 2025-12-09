@@ -9,8 +9,10 @@ You ARE connected to WhatsApp. You CAN send and read messages.
 import logging
 from typing import Optional
 from fastmcp import FastMCP, Context
-from .client import OmniClient
+from .tools import identity, contacts, reading, messaging, discovery, admin, multimodal
+
 from .config import OmniConfig
+from .client import OmniClient
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ def get_config(ctx: Optional[Context] = None) -> OmniConfig:
         # Try to get user-specific config from context (multi-tenant mode)
         if hasattr(ctx, "tool_config") and ctx.tool_config:
             try:
-                from automagik_tools.hub.config_injection import create_user_config_instance
+                from automagik_tools.hub.config_injection import create_user_config_instance  # type: ignore[import-not-found]
                 user_config = create_user_config_instance(OmniConfig, ctx.tool_config)
                 # Cache in context state for this request
                 ctx.set_state("genie_omni_config", user_config)
@@ -54,7 +56,7 @@ def get_config(ctx: Optional[Context] = None) -> OmniConfig:
 
     global _config
     if _config is None:
-        _config = OmniConfig.from_env()
+        _config = OmniConfig()
     return _config
 
 
@@ -82,7 +84,6 @@ def get_client(ctx: Optional[Context] = None) -> OmniClient:
 
 
 # Register all tool modules
-from .tools import identity, contacts, reading, messaging, discovery, admin, multimodal
 
 identity.register_tools(mcp, get_client)
 contacts.register_tools(mcp, get_client)

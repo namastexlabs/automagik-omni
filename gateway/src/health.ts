@@ -4,7 +4,6 @@
  */
 
 import { PortRegistry } from './port-registry.js';
-import { join } from 'path';
 
 export interface ProcessStats {
   memory: {
@@ -132,23 +131,32 @@ export class HealthChecker {
   }
 
   /**
-   * Fetch API key from SQLite database (Zero Config support)
+   * Fetch API key from Python API's internal endpoint (PostgreSQL-only architecture)
    */
   private async getApiKey(): Promise<string> {
     if (this.omniApiKey) return this.omniApiKey;
 
+    const pythonPort = this.portRegistry.getPort('python');
+    if (!pythonPort) return this.omniApiKey;
+
     try {
-      const dbPath = join(this.rootDir, 'data', 'automagik-omni.db');
-      const proc = Bun.spawnSync(['sqlite3', dbPath, "SELECT value FROM omni_global_settings WHERE key='omni_api_key';"], {
-        stdout: 'pipe',
-        stderr: 'pipe',
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+      const response = await fetch(`http://127.0.0.1:${pythonPort}/api/v1/_internal/evolution-key`, {
+        method: 'GET',
+        signal: controller.signal,
       });
 
-      const key = proc.stdout.toString().trim();
-      if (key) {
-        this.omniApiKey = key;
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json() as { key?: string };
+        if (data.key) {
+          this.omniApiKey = data.key;
+        }
       }
-    } catch (err) {
+    } catch {
       // Silent failure - will retry next time or fail auth
     }
 
@@ -304,6 +312,24 @@ export class HealthChecker {
   }
 
   /**
+   * Execute a shell command and return stdout
+   */
+  private async execCommand(command: string): Promise<string> {
+    try {
+      const proc = Bun.spawn(['sh', '-c', command], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      
+      const text = await new Response(proc.stdout).text();
+      await proc.exited;
+      return text;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  /**
    * Get Evolution process stats by finding its PID and reading from /proc
    */
   private async getEvolutionProcessStats(): Promise<EvolutionProcessStats | null> {
@@ -355,7 +381,7 @@ export class HealthChecker {
       let uptime = 0;
       try {
         // Get process start time in a parseable format
-        const { stdout } = await execAsync(`ps -p ${pid} -o lstart= 2>/dev/null`);
+        const stdout = await this.execCommand(`ps -p ${pid} -o lstart= 2>/dev/null`);
         const startTime = new Date(stdout.trim());
         if (!isNaN(startTime.getTime())) {
           uptime = Math.round((Date.now() - startTime.getTime()) / 1000);
@@ -367,7 +393,7 @@ export class HealthChecker {
       // Get CPU from /proc/[pid]/stat (simplified - instantaneous is tricky)
       let cpuPercent = 0;
       try {
-        const { stdout } = await execAsync(`ps -p ${pid} -o %cpu --no-headers 2>/dev/null`);
+        const stdout = await this.execCommand(`ps -p ${pid} -o %cpu --no-headers 2>/dev/null`);
         cpuPercent = parseFloat(stdout.trim()) || 0;
       } catch {
         // Ignore errors
@@ -631,7 +657,7 @@ export class HealthChecker {
     const gatewayHealth: ServiceHealth = {
       status: 'up',
       latency: 0,
-      details: gatewayStats,
+      details: gatewayStats as unknown as Record<string, unknown>,
     };
 
     // Merge evolution_key from Omni API into Evolution instance details

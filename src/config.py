@@ -5,7 +5,6 @@ Loads configuration from environment variables.
 
 import os
 import logging
-from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Any
 import pytz

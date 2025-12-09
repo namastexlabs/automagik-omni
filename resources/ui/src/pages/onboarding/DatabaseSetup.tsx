@@ -72,8 +72,24 @@ export default function DatabaseSetup() {
     try {
       setError(null);
 
-      // Phase 1: Start PostgreSQL
+      // Phase 0: Write pgserve config BEFORE starting pgserve
+      // This ensures memory mode is respected on first start
       setStartupPhase('pgserve');
+      const configResponse = await fetch('/api/internal/pgserve-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memory_mode: config.memory_mode ?? false,
+          data_dir: config.data_dir,
+          replication_url: config.replication_enabled ? config.replication_url : null,
+        }),
+      });
+      if (!configResponse.ok) {
+        const errorData = await configResponse.json();
+        throw new Error(errorData.error || 'Failed to write PostgreSQL config');
+      }
+
+      // Phase 1: Start PostgreSQL (now config exists)
       const pgserveResponse = await fetch('/api/internal/services/pgserve/start', { method: 'POST' });
       if (!pgserveResponse.ok) {
         const errorData = await pgserveResponse.json();

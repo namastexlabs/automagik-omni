@@ -43,7 +43,7 @@ def factory_reset(
         omni reset factory --force      # No prompts (for CI/CD)
     """
     from src.db.database import SessionLocal
-    from src.services.reset_service import reset_service
+    from src.services.reset_service import reset_service, FactoryResetResult
 
     try:
         with SessionLocal() as db:
@@ -106,7 +106,7 @@ def factory_reset(
             console.print("[bold]Resetting...[/bold]")
 
             # Run async reset
-            results = asyncio.run(
+            results: FactoryResetResult = asyncio.run(
                 reset_service.factory_reset(
                     db=db,
                     keep_instances=keep_instances,

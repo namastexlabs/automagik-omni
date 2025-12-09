@@ -19,21 +19,21 @@ def extract_response_text(response: Union[str, Dict[str, Any]]) -> str:
         Extracted text content
     """
     if isinstance(response, str):
-        text = response
+        text: str = response
     elif isinstance(response, dict):
         # Check common response fields
-        text = None
+        text = ""
         for field in ["message", "text", "content", "response"]:
             if field in response and response[field]:
                 text = str(response[field])
                 break
 
         # Check nested content
-        if text is None and "data" in response and isinstance(response["data"], dict):
+        if not text and "data" in response and isinstance(response["data"], dict):
             text = extract_response_text(response["data"])
 
         # If all else fails, convert to string
-        if text is None:
+        if not text:
             text = str(response)
     else:
         # Fallback for other types

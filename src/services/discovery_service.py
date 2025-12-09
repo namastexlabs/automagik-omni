@@ -79,8 +79,9 @@ class DiscoveryService:
             .all()
         )
 
-        existing_names = {inst.whatsapp_instance or inst.name for inst in existing_instances}
         logger.info(f"Found {len(existing_instances)} existing WhatsApp instances in database")
+
+        # 2. Get list of instances from Evolution API
 
         synced_instances = []
 

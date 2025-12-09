@@ -75,7 +75,7 @@ def _get_valid_api_keys() -> list[str]:
     global _cached_db_api_key, _cache_initialized
 
     keys = []
-    
+
     # Check env var
     env_key = config.api.api_key
     if env_key:
