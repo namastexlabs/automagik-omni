@@ -1,22 +1,9 @@
-import { useEffect, useRef, useMemo, useState, useCallback, memo } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useEffect, useRef, useMemo, useState, memo } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useLogStream } from '@/hooks/useLogStream';
-import {
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Copy,
-  RefreshCw,
-  Terminal,
-  AlertTriangle,
-} from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Copy, RefreshCw, Terminal, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LogEntry } from '@/lib';
 
@@ -64,7 +51,12 @@ function detectPhase(logs: LogEntry[]): Phase {
     }
 
     // Ready state
-    if (msg.includes('ready') || msg.includes('running on port') || msg.includes('started successfully') || msg.includes('listening on')) {
+    if (
+      msg.includes('ready') ||
+      msg.includes('running on port') ||
+      msg.includes('started successfully') ||
+      msg.includes('listening on')
+    ) {
       return 'ready';
     }
 
@@ -74,7 +66,13 @@ function detectPhase(logs: LogEntry[]): Phase {
     }
 
     // Spawn phase
-    if (msg.includes('prisma') || msg.includes('migration') || msg.includes('spawn') || msg.includes('starting evolution') || msg.includes('process')) {
+    if (
+      msg.includes('prisma') ||
+      msg.includes('migration') ||
+      msg.includes('spawn') ||
+      msg.includes('starting evolution') ||
+      msg.includes('process')
+    ) {
       return 'spawn';
     }
 
@@ -89,7 +87,7 @@ function detectPhase(logs: LogEntry[]): Phase {
 
 // Get user-friendly error message
 function getErrorMessage(logs: LogEntry[]): string | null {
-  const errorLogs = logs.filter(l => l.level === 'error');
+  const errorLogs = logs.filter((l) => l.level === 'error');
   if (errorLogs.length === 0) return null;
 
   const lastError = errorLogs[errorLogs.length - 1].message.toLowerCase();
@@ -134,12 +132,8 @@ const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
   <>
     {logs.map((log, i) => (
       <div key={`${log.timestamp}-${i}`} className="flex gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0">
-          [{new Date(log.timestamp).toLocaleTimeString()}]
-        </span>
-        <span className={cn('break-all', getLogColor(log.level))}>
-          {log.message}
-        </span>
+        <span className="text-muted-foreground/60 flex-shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+        <span className={cn('break-all', getLogColor(log.level))}>{log.message}</span>
       </div>
     ))}
   </>
@@ -155,7 +149,7 @@ export function EvolutionStartupModal({
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [copiedLogs, setCopiedLogs] = useState(false);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   // Sticky phase state
   const [stickyPhase, setStickyPhase] = useState<Phase>('init');
 
@@ -173,10 +167,7 @@ export function EvolutionStartupModal({
   });
 
   // Filter to only evolution logs
-  const evolutionLogs = useMemo(
-    () => logs.filter(l => l.service === 'evolution'),
-    [logs]
-  );
+  const evolutionLogs = useMemo(() => logs.filter((l) => l.service === 'evolution'), [logs]);
 
   // Calculate current phase based on logs
   const detectedPhase = useMemo(() => detectPhase(evolutionLogs), [evolutionLogs]);
@@ -211,7 +202,7 @@ export function EvolutionStartupModal({
 
   const errorMessage = useMemo(
     () => (currentPhase === 'error' ? getErrorMessage(evolutionLogs) : null),
-    [currentPhase, evolutionLogs]
+    [currentPhase, evolutionLogs],
   );
 
   // Auto-scroll to bottom when new logs arrive
@@ -252,9 +243,7 @@ export function EvolutionStartupModal({
 
   // Copy logs to clipboard
   const handleCopyLogs = async () => {
-    const logText = evolutionLogs
-      .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`)
-      .join('\n');
+    const logText = evolutionLogs.map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`).join('\n');
 
     try {
       await navigator.clipboard.writeText(logText);
@@ -315,7 +304,7 @@ export function EvolutionStartupModal({
                           ? 'bg-[#25D366] text-white'
                           : isError && index <= 0
                             ? 'bg-red-500 text-white'
-                            : 'bg-muted text-muted-foreground'
+                            : 'bg-muted text-muted-foreground',
                     )}
                   >
                     {isComplete ? (
@@ -326,19 +315,12 @@ export function EvolutionStartupModal({
                       index + 1
                     )}
                   </div>
-                  <span className="text-xs mt-1 text-muted-foreground">
-                    {PHASES[phase].label}
-                  </span>
+                  <span className="text-xs mt-1 text-muted-foreground">{PHASES[phase].label}</span>
                 </div>
 
                 {/* Connector line */}
                 {index < PHASE_ORDER.length - 1 && (
-                  <div
-                    className={cn(
-                      'h-0.5 w-8 mx-1 transition-colors',
-                      isComplete ? 'bg-green-500' : 'bg-muted'
-                    )}
-                  />
+                  <div className={cn('h-0.5 w-8 mx-1 transition-colors', isComplete ? 'bg-green-500' : 'bg-muted')} />
                 )}
               </div>
             );
@@ -387,9 +369,7 @@ export function EvolutionStartupModal({
           <Badge variant={isConnected ? 'default' : 'secondary'} className="text-xs h-5">
             {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
           </Badge>
-          {connectionError && (
-            <span className="text-red-500">{connectionError}</span>
-          )}
+          {connectionError && <span className="text-red-500">{connectionError}</span>}
         </div>
 
         {/* Log viewer */}
@@ -409,12 +389,7 @@ export function EvolutionStartupModal({
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopyLogs}
-            disabled={evolutionLogs.length === 0}
-          >
+          <Button variant="outline" size="sm" onClick={handleCopyLogs} disabled={evolutionLogs.length === 0}>
             <Copy className="h-4 w-4 mr-1" />
             {copiedLogs ? 'Copied!' : 'Copy Logs'}
           </Button>
@@ -422,21 +397,12 @@ export function EvolutionStartupModal({
           <div className="flex gap-2">
             {/* Show Retry when there's any error (external or log-detected) */}
             {(currentPhase === 'error' || externalError) && onRetry && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleRetry}
-                className="bg-[#25D366] hover:bg-[#1da851]"
-              >
+              <Button variant="default" size="sm" onClick={handleRetry} className="bg-[#25D366] hover:bg-[#1da851]">
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Retry
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               {currentPhase === 'ready' ? 'Close' : 'Cancel'}
             </Button>
           </div>

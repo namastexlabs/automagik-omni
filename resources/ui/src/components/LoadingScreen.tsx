@@ -24,13 +24,9 @@ export default function LoadingScreen() {
         </div>
         <div className="flex items-center justify-center gap-3">
           <Loader2 className="h-8 w-8 text-white animate-spin" />
-          <p className="text-2xl font-semibold text-white">
-            Loading...
-          </p>
+          <p className="text-2xl font-semibold text-white">Loading...</p>
         </div>
-        <p className="text-white/80 mt-2">
-          Please wait
-        </p>
+        <p className="text-white/80 mt-2">Please wait</p>
       </div>
     </div>
   );

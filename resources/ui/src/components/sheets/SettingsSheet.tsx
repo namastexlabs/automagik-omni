@@ -2,13 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -81,7 +75,7 @@ export function SettingsSheet({ instanceName, open, onOpenChange }: SettingsShee
   });
 
   const updateForm = (key: keyof SettingsForm, value: boolean | string) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
@@ -93,9 +87,7 @@ export function SettingsSheet({ instanceName, open, onOpenChange }: SettingsShee
             <Settings className="h-5 w-5" />
             Settings - {instanceName}
           </SheetTitle>
-          <SheetDescription>
-            Configure instance behavior and preferences
-          </SheetDescription>
+          <SheetDescription>Configure instance behavior and preferences</SheetDescription>
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-120px)] mt-6">

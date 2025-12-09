@@ -2,13 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bot, Loader2, Save, CheckCircle, XCircle, Mic, Terminal, Hash, Server } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -76,7 +70,7 @@ export function DiscordBotSettingsSheet({ instanceName, open, onOpenChange }: Di
   });
 
   const updateForm = (key: keyof DiscordSettingsForm, value: boolean | string) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
@@ -88,9 +82,7 @@ export function DiscordBotSettingsSheet({ instanceName, open, onOpenChange }: Di
             <Bot className="h-5 w-5 text-[#5865F2]" />
             Bot Settings - {instanceName}
           </SheetTitle>
-          <SheetDescription>
-            Configure Discord bot features and behavior
-          </SheetDescription>
+          <SheetDescription>Configure Discord bot features and behavior</SheetDescription>
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-120px)] mt-6">
@@ -125,9 +117,7 @@ export function DiscordBotSettingsSheet({ instanceName, open, onOpenChange }: Di
                     {instance?.discord_client_id && (
                       <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                         <span className="text-sm">Client ID</span>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">
-                          {instance.discord_client_id}
-                        </code>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">{instance.discord_client_id}</code>
                       </div>
                     )}
                   </div>
@@ -150,9 +140,7 @@ export function DiscordBotSettingsSheet({ instanceName, open, onOpenChange }: Di
                         onCheckedChange={(checked) => updateForm('discord_slash_commands_enabled', checked)}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground pl-6">
-                      Enable /help, /ask, /config, /status commands
-                    </p>
+                    <p className="text-xs text-muted-foreground pl-6">Enable /help, /ask, /config, /status commands</p>
 
                     <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center gap-2">

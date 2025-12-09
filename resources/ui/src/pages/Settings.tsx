@@ -75,7 +75,10 @@ export default function Settings() {
             </Card>
 
             {/* Global Settings Link */}
-            <Card className="border-border elevation-md hover:elevation-lg transition-all cursor-pointer" onClick={() => navigate('/global-settings')}>
+            <Card
+              className="border-border elevation-md hover:elevation-lg transition-all cursor-pointer"
+              onClick={() => navigate('/global-settings')}
+            >
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -88,9 +91,16 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Configure WhatsApp Web credentials, system limits, and other global settings that apply across all instances.
+                  Configure WhatsApp Web credentials, system limits, and other global settings that apply across all
+                  instances.
                 </p>
-                <Button className="mt-4" onClick={(e) => { e.stopPropagation(); navigate('/global-settings'); }}>
+                <Button
+                  className="mt-4"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate('/global-settings');
+                  }}
+                >
                   Open Global Settings
                 </Button>
               </CardContent>
@@ -110,9 +120,7 @@ export default function Settings() {
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
                   <div>
                     <span className="text-sm font-medium text-foreground block">Theme</span>
-                    <span className="text-xs text-muted-foreground">
-                      Toggle between light and dark mode
-                    </span>
+                    <span className="text-xs text-muted-foreground">Toggle between light and dark mode</span>
                   </div>
                   <ThemeToggle />
                 </div>
@@ -155,9 +163,7 @@ export default function Settings() {
                 {health?.timestamp && (
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
                     <span className="text-sm font-medium text-foreground">Last API Check</span>
-                    <span className="text-sm text-muted-foreground">
-                      {formatDateTime(health.timestamp)}
-                    </span>
+                    <span className="text-sm text-muted-foreground">{formatDateTime(health.timestamp)}</span>
                   </div>
                 )}
               </CardContent>

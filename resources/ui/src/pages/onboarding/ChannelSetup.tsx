@@ -12,16 +12,7 @@ import { EvolutionStartupModal } from '@/components/EvolutionStartupModal';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { DiscordInstallModal } from '@/components/DiscordInstallModal';
 import { WhatsAppConfigModal } from '@/components/WhatsAppConfigModal';
-import {
-  Loader2,
-  MessageCircle,
-  Bot,
-  CheckCircle2,
-  AlertCircle,
-  Wifi,
-  WifiOff,
-  Terminal,
-} from 'lucide-react';
+import { Loader2, MessageCircle, Bot, CheckCircle2, AlertCircle, Wifi, WifiOff, Terminal } from 'lucide-react';
 
 interface ChannelStatus {
   enabled: boolean;
@@ -164,7 +155,7 @@ export default function ChannelSetup() {
           throw new Error('Please enter your Discord bot token');
         }
         if (discordBotToken.length < 50) {
-          throw new Error('This doesn\'t look like a valid Discord bot token');
+          throw new Error("This doesn't look like a valid Discord bot token");
         }
       }
 
@@ -177,7 +168,7 @@ export default function ChannelSetup() {
         });
 
         // Additional delay for SSE connection to establish
-        await new Promise(r => setTimeout(r, 150));
+        await new Promise((r) => setTimeout(r, 150));
 
         try {
           await api.gateway.startChannel('evolution');
@@ -194,15 +185,15 @@ export default function ChannelSetup() {
           try {
             // Get API key for the probe request
             const { api_key } = await api.setup.getApiKey();
-            
+
             // Probe the API for up to 30 seconds
             for (let i = 0; i < 30; i++) {
               try {
                 // Use fetch directly to avoid the api wrapper's error handling
                 const res = await fetch('/evolution/instance/fetchInstances', {
-                  headers: { apikey: api_key }
+                  headers: { apikey: api_key },
                 });
-                
+
                 // If we get a valid response (even 404/400), the API is up
                 // 502/503/504 means the proxy target is not reachable yet
                 if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
@@ -212,18 +203,18 @@ export default function ChannelSetup() {
               } catch (e) {
                 // ignore connection errors
               }
-              await new Promise(r => setTimeout(r, 1000));
+              await new Promise((r) => setTimeout(r, 1000));
             }
           } catch (e) {
             console.warn('Failed to check API readiness:', e);
             // Continue anyway, maybe it will work
-            apiReady = true; 
+            apiReady = true;
           }
 
           if (!apiReady) {
-             setEvolutionError('WhatsApp service started but API is not responding. Please check logs.');
-             setIsSubmitting(false);
-             return;
+            setEvolutionError('WhatsApp service started but API is not responding. Please check logs.');
+            setIsSubmitting(false);
+            return;
           }
 
           setEvolutionReady(true);
@@ -391,12 +382,8 @@ export default function ChannelSetup() {
     <OnboardingLayout currentStep={3} totalSteps={3} title="Channel Setup">
       <div className="p-8">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Communication Channels
-          </h2>
-          <p className="text-gray-600">
-            Configure which messaging platforms you want to connect.
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Communication Channels</h2>
+          <p className="text-gray-600">Configure which messaging platforms you want to connect.</p>
         </div>
 
         {/* Only show error when modal is NOT open - modal is primary feedback */}
@@ -409,15 +396,19 @@ export default function ChannelSetup() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* WhatsApp Channel */}
-          <div className={`rounded-lg border-2 transition-colors ${
-            whatsappEnabled ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'
-          }`}>
+          <div
+            className={`rounded-lg border-2 transition-colors ${
+              whatsappEnabled ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'
+            }`}
+          >
             <div className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                    whatsappEnabled ? 'bg-green-500' : 'bg-gray-400'
-                  }`}>
+                  <div
+                    className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                      whatsappEnabled ? 'bg-green-500' : 'bg-gray-400'
+                    }`}
+                  >
                     <MessageCircle className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -514,15 +505,19 @@ export default function ChannelSetup() {
           </div>
 
           {/* Discord Channel */}
-          <div className={`rounded-lg border-2 transition-colors ${
-            discordEnabled ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-gray-50'
-          }`}>
+          <div
+            className={`rounded-lg border-2 transition-colors ${
+              discordEnabled ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-gray-50'
+            }`}
+          >
             <div className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                    discordEnabled ? 'bg-indigo-500' : 'bg-gray-400'
-                  }`}>
+                  <div
+                    className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                      discordEnabled ? 'bg-indigo-500' : 'bg-gray-400'
+                    }`}
+                  >
                     <Bot className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -619,9 +614,7 @@ export default function ChannelSetup() {
                           placeholder="Enter your Discord bot token"
                           className="font-mono text-sm"
                         />
-                        <p className="text-xs text-gray-500">
-                          Found in Discord Developer Portal → Bot → Reset Token
-                        </p>
+                        <p className="text-xs text-gray-500">Found in Discord Developer Portal → Bot → Reset Token</p>
                       </div>
                     </>
                   )}
@@ -652,17 +645,10 @@ export default function ChannelSetup() {
 
         {/* Skip option */}
         <div className="mt-6 pt-6 border-t">
-          <Button
-            variant="outline"
-            onClick={handleSkip}
-            disabled={isSubmitting}
-            className="w-full"
-          >
+          <Button variant="outline" onClick={handleSkip} disabled={isSubmitting} className="w-full">
             Skip - Use WhatsApp Only
           </Button>
-          <p className="text-xs text-gray-500 text-center mt-2">
-            You can add Discord later in the Instances settings.
-          </p>
+          <p className="text-xs text-gray-500 text-center mt-2">You can add Discord later in the Instances settings.</p>
         </div>
       </div>
 
@@ -709,21 +695,23 @@ export default function ChannelSetup() {
                 for (let i = 0; i < 30; i++) {
                   try {
                     const res = await fetch('/evolution/instance/fetchInstances', {
-                      headers: { apikey: api_key }
+                      headers: { apikey: api_key },
                     });
                     if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
                       apiReady = true;
                       break;
                     }
-                  } catch (e) { /* ignore */ }
-                  await new Promise(r => setTimeout(r, 1000));
+                  } catch (e) {
+                    /* ignore */
+                  }
+                  await new Promise((r) => setTimeout(r, 1000));
                 }
               } catch (e) {
                 apiReady = true; // optimistic fallthrough
               }
 
               if (!apiReady) {
-                 throw new Error('WhatsApp service started but API is not responding');
+                throw new Error('WhatsApp service started but API is not responding');
               }
 
               setEvolutionReady(true);

@@ -237,7 +237,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         except Exception as e:
             # Check if this is the known Evolution API SQL bug
             error_message = str(e)
-            if 'near "ON": syntax error' in error_message or 'prisma.$queryRaw' in error_message:
+            if 'near "ON": syntax error' in error_message or "prisma.$queryRaw" in error_message:
                 logger.warning(
                     f"Evolution API SQL bug detected for instance {instance.name}. "
                     f"Returning empty chats list as workaround. "

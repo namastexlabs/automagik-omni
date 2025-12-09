@@ -9,6 +9,7 @@ from fastmcp import FastMCP, Context
 
 logger = logging.getLogger(__name__)
 
+
 def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
     """Register multimodal tools with the MCP server."""
 
@@ -29,8 +30,8 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         delay: Optional[int] = None,
         mentioned: Optional[list] = None,
         mentions_every_one: bool = False,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Generate speech and send as WhatsApp voice message. Supports audio tags [happy], [laughs], etc. Shows "recording" presence automatically. Args: to, text (supports [tags]), voice_id, model_id (default: eleven_v3), stability (0-1, default 0.5), similarity_boost (0-1, default 0.75), instance_name, quoted_message_id, delay, mentioned, mentions_every_one. Returns: confirmation with delivery status."""
         config = get_config(ctx)
         client = get_client(ctx)
@@ -56,6 +57,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
         # Generate temporary filename
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"talk_{timestamp}.mp3"
         output_path = output_dir / filename
@@ -106,7 +108,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     instance_name=instance_name,
                     remote_jid=to,
                     presence="recording",
-                    delay=1200  # ~1 second
+                    delay=1200,  # ~1 second
                 )
             except Exception as e:
                 logger.warning(f"Failed to send presence: {e}")
@@ -141,7 +143,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     str(ogg_path),
                     format="ogg",
                     codec="libopus",
-                    parameters=["-ar", "16000", "-ac", "1", "-b:a", "32k"]  # WhatsApp optimal settings
+                    parameters=["-ar", "16000", "-ac", "1", "-b:a", "32k"],  # WhatsApp optimal settings
                 )
 
                 # Read the converted audio
@@ -161,7 +163,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         "mediatype": "audio",
                         "media": audio_base64,
                         "mimetype": "audio/ogg; codecs=opus",  # WhatsApp voice note format
-                        "ptt": True
+                        "ptt": True,
                     }
 
                     # Add optional WhatsApp features
@@ -169,11 +171,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         payload["delay"] = delay
 
                     if quoted_message_id:
-                        payload["quoted"] = {
-                            "key": {
-                                "id": quoted_message_id
-                            }
-                        }
+                        payload["quoted"] = {"key": {"id": quoted_message_id}}
 
                     if mentions_every_one:
                         payload["mentionsEveryOne"] = True
@@ -181,18 +179,11 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     if mentioned and len(mentioned) > 0:
                         payload["mentioned"] = mentioned
 
-                    headers = {
-                        "apikey": instance.evolution_key,
-                        "Content-Type": "application/json"
-                    }
+                    headers = {"apikey": instance.evolution_key, "Content-Type": "application/json"}
 
                     logger.info(f"Sending audio to Evolution API: {evolution_url}")
 
-                    response = await http_client.post(
-                        evolution_url,
-                        headers=headers,
-                        json=payload
-                    )
+                    response = await http_client.post(evolution_url, headers=headers, json=payload)
 
                     response.raise_for_status()
                     result = response.json()
@@ -220,7 +211,9 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         )
 
             except httpx.HTTPStatusError as http_error:
-                logger.error(f"Evolution API HTTP error: {http_error.response.status_code} - {http_error.response.text}")
+                logger.error(
+                    f"Evolution API HTTP error: {http_error.response.status_code} - {http_error.response.text}"
+                )
                 return (
                     f"✅ Speech generated ({file_size:.2f} KB)\n"
                     f"❌ Evolution API error: {http_error.response.status_code}\n"

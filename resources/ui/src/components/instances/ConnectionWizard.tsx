@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PlatformSelector, type Platform } from './PlatformSelector';
 import { ConnectionNamer } from './ConnectionNamer';
 import { WhatsAppConnector } from './WhatsAppConnector';
@@ -95,18 +89,13 @@ export function ConnectionWizard({ open, onOpenChange, onSuccess }: ConnectionWi
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Add Connection</DialogTitle>
-            <span className="text-xs text-muted-foreground font-medium">
-              Step {stepNumber} of 3
-            </span>
+            <span className="text-xs text-muted-foreground font-medium">Step {stepNumber} of 3</span>
           </div>
           <DialogDescription>
             {state.step === 'platform' && 'Connect your messaging platform to Omni'}
             {state.step === 'name' && 'Give your connection a name'}
-            {state.step === 'connect' && (
-              state.platform === 'whatsapp'
-                ? 'Scan the QR code to connect'
-                : 'Enter your bot credentials'
-            )}
+            {state.step === 'connect' &&
+              (state.platform === 'whatsapp' ? 'Scan the QR code to connect' : 'Enter your bot credentials')}
           </DialogDescription>
         </DialogHeader>
 
@@ -115,18 +104,14 @@ export function ConnectionWizard({ open, onOpenChange, onSuccess }: ConnectionWi
           {[1, 2, 3].map((num) => (
             <div
               key={num}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                num <= stepNumber ? 'bg-primary' : 'bg-muted'
-              }`}
+              className={`h-1 flex-1 rounded-full transition-colors ${num <= stepNumber ? 'bg-primary' : 'bg-muted'}`}
             />
           ))}
         </div>
 
         {/* Step Content */}
         <div className="py-4">
-          {state.step === 'platform' && (
-            <PlatformSelector onSelect={handlePlatformSelect} />
-          )}
+          {state.step === 'platform' && <PlatformSelector onSelect={handlePlatformSelect} />}
 
           {state.step === 'name' && state.platform && (
             <ConnectionNamer
@@ -138,19 +123,11 @@ export function ConnectionWizard({ open, onOpenChange, onSuccess }: ConnectionWi
           )}
 
           {state.step === 'connect' && state.platform === 'whatsapp' && (
-            <WhatsAppConnector
-              instanceName={state.name}
-              onBack={handleConnectBack}
-              onSuccess={handleConnectSuccess}
-            />
+            <WhatsAppConnector instanceName={state.name} onBack={handleConnectBack} onSuccess={handleConnectSuccess} />
           )}
 
           {state.step === 'connect' && state.platform === 'discord' && (
-            <DiscordConnector
-              instanceName={state.name}
-              onBack={handleConnectBack}
-              onSuccess={handleConnectSuccess}
-            />
+            <DiscordConnector instanceName={state.name} onBack={handleConnectBack} onSuccess={handleConnectSuccess} />
           )}
         </div>
       </DialogContent>

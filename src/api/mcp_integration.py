@@ -1,6 +1,7 @@
 """
 MCP server integration with FastAPI and authentication.
 """
+
 import logging
 from src.mcp_tools.genie_omni.server import mcp
 

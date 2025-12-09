@@ -3,13 +3,14 @@
  * Spawns and manages Python API, Evolution API, and Vite dev server as subprocesses
  */
 
-import { existsSync, readdirSync, createWriteStream, mkdirSync, appendFileSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { type PgserveHealth, PgserveManager } from './pgserve.js';
 import { PortRegistry } from './port-registry.js';
-import { PgserveManager, type PgserveHealth } from './pgserve.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -26,7 +27,9 @@ function readPgserveConfig(): { memoryMode: boolean; dataDir: string | undefined
     if (existsSync(PGSERVE_CONFIG_PATH)) {
       const content = readFileSync(PGSERVE_CONFIG_PATH, 'utf-8');
       const config = JSON.parse(content);
-      console.log(`[ProcessManager] Read pgserve config: memory_mode=${config.memory_mode}, data_dir=${config.data_dir}`);
+      console.log(
+        `[ProcessManager] Read pgserve config: memory_mode=${config.memory_mode}, data_dir=${config.data_dir}`,
+      );
       return {
         memoryMode: config.memory_mode === true,
         dataDir: config.data_dir || undefined,
@@ -64,9 +67,10 @@ function detectPythonRuntime(): { python: string; backend: string; mode: 'develo
 
   // Production/bundled mode: use extracted Python from user home
   const bundledRoot = join(homedir(), 'automagik', 'omni');
-  const pythonBin = process.platform === 'win32'
-    ? join(bundledRoot, 'python', 'Scripts', 'python.exe')
-    : join(bundledRoot, 'python', 'bin', 'python');
+  const pythonBin =
+    process.platform === 'win32'
+      ? join(bundledRoot, 'python', 'Scripts', 'python.exe')
+      : join(bundledRoot, 'python', 'bin', 'python');
 
   return {
     python: pythonBin,
@@ -330,7 +334,9 @@ export class ProcessManager {
       // Wait for PostgreSQL to be fully ready
       await this.waitForPgserveHealth();
 
-      console.log(`[ProcessManager] PostgreSQL ready at postgresql://127.0.0.1:${this.pgserveManager.getPort()}/automagik_omni`);
+      console.log(
+        `[ProcessManager] PostgreSQL ready at postgresql://127.0.0.1:${this.pgserveManager.getPort()}/automagik_omni`,
+      );
     } catch (error) {
       console.error('[ProcessManager] Failed to start embedded PostgreSQL:', error);
       throw error;
@@ -407,12 +413,7 @@ export class ProcessManager {
     console.log(`[ProcessManager] Python: ${runtime.python}`);
     console.log(`[ProcessManager] Backend: ${runtime.backend}`);
 
-    const uvicornArgs = [
-      '-m', 'uvicorn',
-      'src.api.app:app',
-      '--host', '127.0.0.1',
-      '--port', String(port),
-    ];
+    const uvicornArgs = ['-m', 'uvicorn', 'src.api.app:app', '--host', '127.0.0.1', '--port', String(port)];
 
     if (this.config.devMode && runtime.mode === 'development') {
       uvicornArgs.push('--reload');
@@ -458,7 +459,9 @@ export class ProcessManager {
         // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
         const delay = Math.min(2000 * Math.pow(2, count), 60000);
 
-        console.error(`[ProcessManager] Python exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        console.error(
+          `[ProcessManager] Python exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`,
+        );
         this.restartCount.set(name, count + 1);
         this.lastRestartTime.set(name, Date.now());
 
@@ -547,7 +550,9 @@ export class ProcessManager {
         // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
         const delay = Math.min(2000 * Math.pow(2, count), 60000);
 
-        console.error(`[ProcessManager] MCP exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        console.error(
+          `[ProcessManager] MCP exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`,
+        );
         this.restartCount.set(name, count + 1);
         this.lastRestartTime.set(name, Date.now());
 
@@ -623,13 +628,13 @@ export class ProcessManager {
       if (!pgserveUrl || config.database_provider !== 'postgresql') {
         throw new Error(
           'pgserve not running or missing database URI - cannot start Evolution without database. ' +
-          'Please ensure PostgreSQL is started before enabling WhatsApp.'
+            'Please ensure PostgreSQL is started before enabling WhatsApp.',
         );
       }
 
       subprocessEnv.DATABASE_CONNECTION_URI = pgserveUrl;
       subprocessEnv.DATABASE_PROVIDER = config.database_provider;
-      subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true';  // Enable Prisma auth state storage
+      subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true'; // Enable Prisma auth state storage
       console.log(`[ProcessManager] Evolution will use PostgreSQL at: ${pgserveUrl}`);
 
       if (config.authentication_api_key && config.authentication_api_key.trim().length > 0) {
@@ -669,10 +674,7 @@ export class ProcessManager {
     const prismaClientPath = join(nodeModulesPath, '.prisma', 'client');
     if (!existsSync(prismaClientPath)) {
       console.log(`[ProcessManager] Generating Prisma client with PostgreSQL schema...`);
-      const prismaProc = Bun.spawnSync([
-        'npx', 'prisma', 'generate',
-        '--schema', './prisma/postgresql-schema.prisma'
-      ], {
+      const prismaProc = Bun.spawnSync(['npx', 'prisma', 'generate', '--schema', './prisma/postgresql-schema.prisma'], {
         cwd: evolutionDir,
         stdout: 'pipe',
         stderr: 'pipe',
@@ -726,8 +728,7 @@ export class ProcessManager {
 
     if (!pgReady) {
       throw new Error(
-        `PostgreSQL not reachable on port ${pgservePort} after 10 attempts. ` +
-        'Please check pgserve logs for errors.'
+        `PostgreSQL not reachable on port ${pgservePort} after 10 attempts. ` + 'Please check pgserve logs for errors.',
       );
     }
 
@@ -739,24 +740,23 @@ export class ProcessManager {
       try {
         // Use Bun.spawn (async) instead of spawnSync to avoid blocking the event loop
         // This is critical because pgserve runs in the same process and needs the loop to handle DB connections
-        const migrateProc = Bun.spawn([
-          'npx', 'prisma', 'db', 'push',
-          '--schema', './prisma/postgresql-schema.prisma',
-          '--skip-generate'
-        ], {
-          cwd: evolutionDir,
-          env: {
-            ...process.env,
-            ...subprocessEnv,
+        const migrateProc = Bun.spawn(
+          ['npx', 'prisma', 'db', 'push', '--schema', './prisma/postgresql-schema.prisma', '--skip-generate'],
+          {
+            cwd: evolutionDir,
+            env: {
+              ...process.env,
+              ...subprocessEnv,
+            },
+            stdout: 'pipe',
+            stderr: 'pipe',
           },
-          stdout: 'pipe',
-          stderr: 'pipe',
-        });
+        );
 
         // Read streams asynchronously
         const stderrPromise = new Response(migrateProc.stderr).text();
         const stdoutPromise = new Response(migrateProc.stdout).text();
-        
+
         const exitCode = await migrateProc.exited;
         const stderr = await stderrPromise;
         await stdoutPromise; // Consume stdout to prevent buffering issues
@@ -771,18 +771,18 @@ export class ProcessManager {
           // P1001 = Can't reach database server - retry after delay
           if (attempt < 3) {
             console.log(`[ProcessManager] Database not ready, retrying in 3s (attempt ${attempt}/3)...`);
-            await Bun.sleep(3000);  // Increased from 2s to 3s
+            await Bun.sleep(3000); // Increased from 2s to 3s
           } else {
             // All retries exhausted - FAIL, don't start Evolution without database
             throw new Error(
               'Cannot start Evolution: PostgreSQL database unreachable after 3 attempts. ' +
-              `Please ensure pgserve is running and healthy. URL: ${pgserveUrl}`
+                `Please ensure pgserve is running and healthy. URL: ${pgserveUrl}`,
             );
           }
         } else {
           // Other errors (e.g., tables already exist) - warn but continue
           console.warn(`[ProcessManager] Prisma db push warning: ${stderr}`);
-          migrateSuccess = true;  // Non-P1001 errors are OK (schema might be up-to-date)
+          migrateSuccess = true; // Non-P1001 errors are OK (schema might be up-to-date)
           break;
         }
       } catch (err) {
@@ -834,7 +834,9 @@ export class ProcessManager {
         // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
         const delay = Math.min(2000 * Math.pow(2, count), 60000);
 
-        console.error(`[ProcessManager] Evolution exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        console.error(
+          `[ProcessManager] Evolution exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`,
+        );
         this.restartCount.set(name, count + 1);
         this.lastRestartTime.set(name, Date.now());
 
@@ -878,7 +880,7 @@ export class ProcessManager {
         PYTHONPATH: runtime.backend,
         AUTOMAGIK_OMNI_API_HOST: '127.0.0.1',
         AUTOMAGIK_OMNI_API_PORT: String(this.portRegistry.getPort('python') || 8882),
-        DISCORD_HEALTH_CHECK_TIMEOUT: '10',  // Reduced from 60s - Discord starts quickly
+        DISCORD_HEALTH_CHECK_TIMEOUT: '10', // Reduced from 60s - Discord starts quickly
       },
       stdin: 'ignore',
       stdout: 'pipe',
@@ -908,7 +910,9 @@ export class ProcessManager {
         // Exponential backoff: 5s, 10s, 20s, 40s, 60s (capped at 60s)
         const delay = Math.min(5000 * Math.pow(2, count), 60000);
 
-        console.error(`[ProcessManager] Discord exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        console.error(
+          `[ProcessManager] Discord exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`,
+        );
         this.restartCount.set(name, count + 1);
         this.lastRestartTime.set(name, Date.now());
 
@@ -973,7 +977,9 @@ export class ProcessManager {
                 return;
               }
             }
-            console.log(`[ProcessManager] Found ${discordSockets.length} Discord socket(s), waiting for healthy status...`);
+            console.log(
+              `[ProcessManager] Found ${discordSockets.length} Discord socket(s), waiting for healthy status...`,
+            );
           }
         }
       } catch {
@@ -1127,7 +1133,9 @@ export class ProcessManager {
         // Exponential backoff: 2s, 4s, 8s, 16s, 32s (capped at 60s)
         const delay = Math.min(2000 * Math.pow(2, count), 60000);
 
-        console.error(`[ProcessManager] Vite exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`);
+        console.error(
+          `[ProcessManager] Vite exited with code ${code}, restarting in ${delay}ms (attempt ${count + 1}/5)...`,
+        );
         this.restartCount.set(name, count + 1);
         this.lastRestartTime.set(name, Date.now());
 

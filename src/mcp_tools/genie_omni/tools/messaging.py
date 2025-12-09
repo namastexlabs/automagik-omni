@@ -14,7 +14,6 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
     # CATEGORY 2: SEND (Active Communication)
     # =============================================================================
 
-
     @mcp.tool()
     async def send_whatsapp(
         to: str,
@@ -28,8 +27,8 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         quoted_message_id: Optional[str] = None,
         delay: Optional[int] = None,
         split_message: Optional[bool] = None,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Send WhatsApp message (text/media/audio). Args: to (phone or contact ID), message (text or caption), instance_name, message_type, media_url, media_type, mime_type, audio_url, quoted_message_id, delay, split_message. Returns: confirmation with message ID."""
         # Safety check: validate recipient against master context
         config = get_config(ctx)
@@ -59,7 +58,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         instance_name=instance_name,
                         remote_jid=to,
                         presence="composing",
-                        delay=3000  # 3 seconds
+                        delay=3000,  # 3 seconds
                     )
                 except Exception as e:
                     logger.warning(f"Failed to send presence: {e}")
@@ -76,15 +75,12 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     text=message,
                     quoted_msg_id=quoted_message_id,
                     from_me=False if quoted_message_id else True,
-                    delay=delay
+                    delay=delay,
                 )
-                message_id = response_data.get('key', {}).get('id', 'Unknown')
+                message_id = response_data.get("key", {}).get("id", "Unknown")
 
                 if ctx:
-                    await ctx.info(
-                        "Message delivered successfully",
-                        extra={"message_id": message_id, "recipient": to}
-                    )
+                    await ctx.info("Message delivered successfully", extra={"message_id": message_id, "recipient": to})
 
                 return f"✅ Message sent to {to}\nMessage ID: {message_id}"
             elif message_type == "media":
@@ -186,14 +182,14 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     filename=Path(media_url).name if media_base64_data else None,
                     mime_type=detected_mime,
                     quoted_message_id=quoted_message_id,
-                    delay=delay
+                    delay=delay,
                 )
-                message_id = response_data.get('key', {}).get('id', 'Unknown')
+                message_id = response_data.get("key", {}).get("id", "Unknown")
 
                 if ctx:
                     await ctx.info(
                         "Media delivered successfully",
-                        extra={"message_id": message_id, "recipient": to, "media_type": detected_media_type}
+                        extra={"message_id": message_id, "recipient": to, "media_type": detected_media_type},
                     )
 
                 return f"✅ Media sent to {to}\nMessage ID: {message_id}"
@@ -210,7 +206,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         instance_name=instance_name,
                         remote_jid=to,
                         presence="recording",
-                        delay=3000  # 3 seconds
+                        delay=3000,  # 3 seconds
                     )
                 except Exception as e:
                     if ctx:
@@ -275,8 +271,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
                 if response.success and ctx:
                     await ctx.info(
-                        "Audio delivered successfully",
-                        extra={"message_id": response.message_id, "recipient": to}
+                        "Audio delivered successfully", extra={"message_id": response.message_id, "recipient": to}
                     )
             else:
                 return f"❌ Error: Unknown message type '{message_type}'"
@@ -287,25 +282,26 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                 if ctx:
                     await ctx.error(
                         f"Message delivery failed: {response.error or 'Unknown error'}",
-                        extra={"recipient": to, "message_type": message_type}
+                        extra={"recipient": to, "message_type": message_type},
                     )
                 return f"❌ Failed to send message: {response.error or 'Unknown error'}"
 
         except Exception as e:
             if ctx:
                 await ctx.error(
-                    f"WhatsApp message error: {str(e)}",
-                    extra={"recipient": to, "message_type": message_type}
+                    f"WhatsApp message error: {str(e)}", extra={"recipient": to, "message_type": message_type}
                 )
             logger.error(f"Error sending WhatsApp message: {e}")
             return f"❌ Failed to send message: {str(e)}"
 
-
     @mcp.tool()
     async def react_with(
-        emoji: str, to_message_id: str, phone: str, instance_name: str = "genie"
-,
-        ctx: Optional[Context] = None,) -> str:
+        emoji: str,
+        to_message_id: str,
+        phone: str,
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """React to message with emoji (auto-detects sender). Args: emoji, to_message_id, phone, instance_name. Returns: confirmation."""
         # Safety check: validate recipient against master context
         config = get_config(ctx)
@@ -327,6 +323,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
             # Auto-detect from_me by checking message in Evolution API
             from ..client import normalize_jid
+
             remote_jid = normalize_jid(phone)
 
             if ctx:
@@ -336,7 +333,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             messages_response = await client.evolution_find_messages(
                 instance_name=instance_name,
                 remote_jid=remote_jid,
-                limit=100  # Check last 100 messages
+                limit=100,  # Check last 100 messages
             )
 
             # Find the message and check if it's from me
@@ -355,30 +352,19 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
             # Use Evolution API directly for reactions (Omni doesn't support it properly)
             _response = await client.evolution_send_reaction(
-                instance_name=instance_name,
-                remote_jid=phone,
-                message_id=to_message_id,
-                emoji=emoji,
-                from_me=from_me
+                instance_name=instance_name, remote_jid=phone, message_id=to_message_id, emoji=emoji, from_me=from_me
             )
 
             if ctx:
-                await ctx.info(
-                    "Reaction delivered successfully",
-                    extra={"emoji": emoji, "message_id": to_message_id}
-                )
+                await ctx.info("Reaction delivered successfully", extra={"emoji": emoji, "message_id": to_message_id})
 
             return f"✅ Reacted with {emoji} to message {to_message_id}"
 
         except Exception as e:
             if ctx:
-                await ctx.error(
-                    f"Reaction error: {str(e)}",
-                    extra={"emoji": emoji, "message_id": to_message_id}
-                )
+                await ctx.error(f"Reaction error: {str(e)}", extra={"emoji": emoji, "message_id": to_message_id})
             logger.error(f"Error sending reaction: {e}")
             return f"❌ Failed to send reaction: {str(e)}"
-
 
     @mcp.tool()
     async def send_sticker(
@@ -387,8 +373,8 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         instance_name: str = "genie",
         quoted_message_id: Optional[str] = None,
         delay: Optional[int] = None,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Send WhatsApp sticker. Args: to, sticker_url, instance_name, quoted_message_id, delay. Returns: confirmation with message ID."""
         # Safety check: validate recipient against master context
         config = get_config(ctx)
@@ -421,22 +407,15 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             message_id = response.get("key", {}).get("id", "Unknown")
 
             if ctx:
-                await ctx.info(
-                    "Sticker delivered successfully",
-                    extra={"message_id": message_id, "recipient": to}
-                )
+                await ctx.info("Sticker delivered successfully", extra={"message_id": message_id, "recipient": to})
 
             return f"✅ Sticker sent to {to}\nMessage ID: {message_id}"
 
         except Exception as e:
             if ctx:
-                await ctx.error(
-                    f"Sticker send error: {str(e)}",
-                    extra={"recipient": to, "sticker_url": sticker_url}
-                )
+                await ctx.error(f"Sticker send error: {str(e)}", extra={"recipient": to, "sticker_url": sticker_url})
             logger.error(f"Error sending sticker: {e}")
             return f"❌ Failed to send sticker: {str(e)}"
-
 
     @mcp.tool()
     async def send_contact(
@@ -446,8 +425,8 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         instance_name: str = "genie",
         quoted_message_id: Optional[str] = None,
         delay: Optional[int] = None,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Send vCard contact. Use contacts= for custom data OR contact_name= to send saved contact by name. Args: to, contacts (list of dicts: full_name, phone_number, email, organization, url), contact_name (search saved contacts), instance_name, quoted_message_id, delay. Returns: confirmation with message ID."""
         # Safety check: validate recipient against master context
         config = get_config(ctx)
@@ -474,15 +453,18 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                 def _normalize(text: str) -> str:
                     if not text:
                         return ""
-                    text = unicodedata.normalize('NFD', text)
-                    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+                    text = unicodedata.normalize("NFD", text)
+                    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
                     return text.lower().strip()
 
                 # Search local contacts database
                 # NOTE: This SQLite is for MCP tool contacts only, not main Omni database
                 default_path = os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))),
-                    "data", "mcp-contacts.sqlite"
+                    os.path.dirname(
+                        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+                    ),
+                    "data",
+                    "mcp-contacts.sqlite",
                 )
                 db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", default_path)
                 os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -512,10 +494,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                     return f"❌ No contact found matching '{contact_name}'"
 
                 # Build contacts list from found contact
-                contacts = [{
-                    "full_name": best_match["name"],
-                    "phone_number": best_match["phone_number"]
-                }]
+                contacts = [{"full_name": best_match["name"], "phone_number": best_match["phone_number"]}]
 
             elif not contacts:
                 return "❌ Must provide either 'contacts' or 'contact_name' parameter"
@@ -527,7 +506,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                 remote_jid=to,
                 contacts=contacts,
                 quoted_message_id=quoted_message_id,
-                delay=delay
+                delay=delay,
             )
 
             # Extract message ID from Evolution API response
@@ -541,7 +520,6 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error sending contact: {e}")
             return f"❌ Failed to send contact(s): {str(e)}"
 
-
     @mcp.tool()
     async def send_location(
         to: str,
@@ -550,8 +528,8 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         instance_name: str = "genie",
         name: Optional[str] = None,
         address: Optional[str] = None,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Send location. Args: to, latitude, longitude, instance_name, name, address. Returns: confirmation with message ID."""
         # Safety check: validate recipient against master context
         config = get_config(ctx)
@@ -588,15 +566,14 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error sending location: {e}")
             return f"❌ Failed to send location: {str(e)}"
 
-
     @mcp.tool()
     async def delete_message(
         message_id: str,
         phone: str,
         instance_name: str = "genie",
         from_me: bool = True,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Delete message for everyone. Only works for messages from you (from_me=True), within ~48 hour window. Args: message_id, phone, instance_name, from_me. Returns: confirmation."""
         # Safety check: validate recipient against master context
         config = get_config(ctx)
@@ -626,7 +603,6 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error deleting message: {e}")
             return f"❌ Failed to delete message: {str(e)}"
 
-
     # Internal helper - presence is automatically sent with send_whatsapp
     async def send_presence(
         to: str,
@@ -634,7 +610,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         instance_name: str = "genie",
         delay: int = 0,
         ctx: Optional[Context] = None,
-) -> str:
+    ) -> str:
         """
         Send presence status (typing, recording, etc) to a WhatsApp contact.
 
@@ -692,7 +668,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                 "recording": "🎤",
                 "paused": "⏸️",
                 "available": "🟢",
-                "unavailable": "⚫"
+                "unavailable": "⚫",
             }.get(presence, "📡")
 
             return f"{presence_emoji} Presence '{presence}' sent to {to}"
@@ -701,7 +677,6 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error sending presence: {e}")
             return f"❌ Failed to send presence: {str(e)}"
 
-
     @mcp.tool()
     async def update_message(
         message_id: str,
@@ -709,8 +684,8 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         phone: str,
         instance_name: str = "genie",
         from_me: bool = True,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """
         Edit/update a WhatsApp message that was already sent.
 
@@ -769,13 +744,12 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error updating message: {e}")
             return f"❌ Failed to update message: {str(e)}"
 
-
     @mcp.tool()
     async def check_is_whatsapp(
         phone_numbers: List[str],
         instance_name: str = "genie",
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """
         Check if phone numbers are registered on WhatsApp.
 
@@ -827,7 +801,6 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error checking WhatsApp numbers: {e}")
             return f"❌ Failed to check WhatsApp numbers: {str(e)}"
 
-
     @mcp.tool()
     async def send_poll(
         to: str,
@@ -835,8 +808,8 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         options: List[str],
         instance_name: str = "genie",
         selectable_count: int = 1,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """
         Send an interactive poll to a WhatsApp contact.
 
@@ -893,7 +866,6 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         except Exception as e:
             logger.error(f"Error sending poll: {e}")
             return f"❌ Failed to send poll: {str(e)}"
-
 
     # =============================================================================
     # CATEGORY 3: READ (Consume Context)

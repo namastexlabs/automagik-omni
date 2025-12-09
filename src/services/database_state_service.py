@@ -84,23 +84,15 @@ class DatabaseStateService:
             "postgres_host": postgres_host,
             "postgres_port": postgres_port,
             "postgres_database": postgres_database,
-            "redis_enabled": settings_service.get_setting_value(
-                "cache_redis_enabled", db, default=False
-            ),
+            "redis_enabled": settings_service.get_setting_value("cache_redis_enabled", db, default=False),
             "redis_url_masked": self._mask_url(redis_uri) if redis_uri else None,
-            "redis_prefix_key": settings_service.get_setting_value(
-                "cache_redis_prefix_key", db
-            ),
+            "redis_prefix_key": settings_service.get_setting_value("cache_redis_prefix_key", db),
             "redis_ttl": settings_service.get_setting_value("cache_redis_ttl", db),
-            "redis_save_instances": settings_service.get_setting_value(
-                "cache_redis_save_instances", db
-            ),
+            "redis_save_instances": settings_service.get_setting_value("cache_redis_save_instances", db),
             "last_updated_at": last_updated,
         }
 
-    def check_requires_restart(
-        self, runtime: dict, saved: Optional[dict]
-    ) -> Tuple[bool, Optional[str]]:
+    def check_requires_restart(self, runtime: dict, saved: Optional[dict]) -> Tuple[bool, Optional[str]]:
         """Compare runtime vs saved configuration to detect restart requirement.
 
         Args:
@@ -161,9 +153,7 @@ class DatabaseStateService:
         Returns:
             True if setup_completed flag is true
         """
-        return settings_service.get_setting_value(
-            "setup_completed", db, default=False
-        )
+        return settings_service.get_setting_value("setup_completed", db, default=False)
 
     def _mask_url(self, url: Optional[str]) -> Optional[str]:
         """Mask sensitive parts of a URL (password, partial host).

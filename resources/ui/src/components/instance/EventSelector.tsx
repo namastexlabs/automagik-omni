@@ -12,7 +12,7 @@ export function EventSelector({ selectedEvents, onChange }: EventSelectorProps) 
     if (checked) {
       onChange([...selectedEvents, event]);
     } else {
-      onChange(selectedEvents.filter(e => e !== event));
+      onChange(selectedEvents.filter((e) => e !== event));
     }
   };
 

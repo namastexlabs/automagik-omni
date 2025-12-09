@@ -13,15 +13,10 @@ interface DatabaseStatusCardProps {
  * Dual-panel display showing Running vs Saved database configuration.
  * Green panel for runtime, blue panel for saved config.
  */
-export function DatabaseStatusCard({
-  runtime,
-  saved,
-  isSynced,
-}: DatabaseStatusCardProps) {
+export function DatabaseStatusCard({ runtime, saved, isSynced }: DatabaseStatusCardProps) {
   const formatDbType = (type: string | null) => {
     if (!type) return 'Not configured';
-    return type === 'postgresql' ? 'PostgreSQL' :
-           type === 'sqlite' ? 'SQLite' : type;
+    return type === 'postgresql' ? 'PostgreSQL' : type === 'sqlite' ? 'SQLite' : type;
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -65,9 +60,7 @@ export function DatabaseStatusCard({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-green-700 dark:text-green-300">Type:</span>
-                <span className="font-medium text-green-900 dark:text-green-100">
-                  {formatDbType(runtime.db_type)}
-                </span>
+                <span className="font-medium text-green-900 dark:text-green-100">{formatDbType(runtime.db_type)}</span>
               </div>
               {runtime.use_postgres && runtime.postgres_url_masked && (
                 <div className="flex justify-between">
@@ -79,9 +72,7 @@ export function DatabaseStatusCard({
               )}
               <div className="flex justify-between">
                 <span className="text-green-700 dark:text-green-300">Pool Size:</span>
-                <span className="font-medium text-green-900 dark:text-green-100">
-                  {runtime.pool_size}
-                </span>
+                <span className="font-medium text-green-900 dark:text-green-100">{runtime.pool_size}</span>
               </div>
             </div>
           </div>
@@ -96,9 +87,7 @@ export function DatabaseStatusCard({
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-blue-700 dark:text-blue-300">Type:</span>
-                  <span className="font-medium text-blue-900 dark:text-blue-100">
-                    {formatDbType(saved.db_type)}
-                  </span>
+                  <span className="font-medium text-blue-900 dark:text-blue-100">{formatDbType(saved.db_type)}</span>
                 </div>
                 {saved.postgres_host && (
                   <div className="flex justify-between">
@@ -119,16 +108,12 @@ export function DatabaseStatusCard({
                 {saved.last_updated_at && (
                   <div className="flex justify-between">
                     <span className="text-blue-700 dark:text-blue-300">Updated:</span>
-                    <span className="text-blue-900 dark:text-blue-100">
-                      {formatDate(saved.last_updated_at)}
-                    </span>
+                    <span className="text-blue-900 dark:text-blue-100">{formatDate(saved.last_updated_at)}</span>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-sm text-blue-600 dark:text-blue-400 italic">
-                Not configured via wizard
-              </div>
+              <div className="text-sm text-blue-600 dark:text-blue-400 italic">Not configured via wizard</div>
             )}
           </div>
         </div>

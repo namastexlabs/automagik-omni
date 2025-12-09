@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 
 from src.db.database import SessionLocal
 from src.db.models import InstanceConfig
+
 # Discord is optional - guard the import
 try:
     from src.channels.discord.bot_manager import DiscordBotManager, DISCORD_AVAILABLE
@@ -32,8 +33,7 @@ class DiscordService:
         """Initialize the Discord service."""
         if not DISCORD_AVAILABLE:
             logger.warning(
-                "Discord service unavailable: discord.py not installed. "
-                "Install with: uv sync --extra discord"
+                "Discord service unavailable: discord.py not installed. Install with: uv sync --extra discord"
             )
             self.bot_manager = None
             self._running_instances = {}

@@ -50,7 +50,7 @@ class DatabaseConfig(BaseModel):
     postgres_url: str = Field(
         default_factory=lambda: os.getenv(
             "AUTOMAGIK_OMNI_POSTGRES_URL",
-            "postgresql://postgres:postgres@127.0.0.1:5432/automagik_omni"  # Default embedded pgserve
+            "postgresql://postgres:postgres@127.0.0.1:5432/automagik_omni",  # Default embedded pgserve
         )
     )
 
@@ -58,20 +58,12 @@ class DatabaseConfig(BaseModel):
     url: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_DATABASE_URL", ""))
 
     # Table prefix for PostgreSQL (to coexist with Evolution tables)
-    table_prefix: str = Field(
-        default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_TABLE_PREFIX", "omni_")
-    )
+    table_prefix: str = Field(default_factory=lambda: os.getenv("AUTOMAGIK_OMNI_TABLE_PREFIX", "omni_"))
 
     # Connection pooling settings (for PostgreSQL)
-    pool_size: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_SIZE", "5"))
-    )
-    pool_max_overflow: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_MAX_OVERFLOW", "10"))
-    )
-    pool_recycle: int = Field(
-        default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_RECYCLE", "3600"))
-    )
+    pool_size: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_SIZE", "5")))
+    pool_max_overflow: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_MAX_OVERFLOW", "10")))
+    pool_recycle: int = Field(default_factory=lambda: int(os.getenv("AUTOMAGIK_OMNI_DB_POOL_RECYCLE", "3600")))
 
     @property
     def database_url(self) -> str:

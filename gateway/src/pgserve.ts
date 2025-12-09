@@ -10,14 +10,13 @@
  * - Graceful shutdown
  */
 
-import { join, dirname } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, statSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 
 // Import pgserve (ESM)
 // @ts-expect-error - pgserve has no TypeScript definitions yet
-import { startMultiTenantServer, type MultiTenantRouter } from 'pgserve';
+import { type MultiTenantRouter, startMultiTenantServer } from 'pgserve';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -95,8 +94,7 @@ export class PgserveManager {
 
   constructor(config: Partial<PgserveConfig> & { port: number }) {
     // Determine memory mode based on environment
-    const memoryMode = config.memoryMode ??
-      (process.env.PGSERVE_MEMORY_MODE === 'true');
+    const memoryMode = config.memoryMode ?? process.env.PGSERVE_MEMORY_MODE === 'true';
 
     // Port is required - must be allocated by PortRegistry (8432-8449 range)
     this.config = {
@@ -159,7 +157,6 @@ export class PgserveManager {
           console.log('[PgserveManager] Running stable, reset restart counter');
         }
       }, PgserveManager.RESTART_RESET_MS);
-
     } catch (error) {
       console.error('[PgserveManager] Failed to start:', error);
       this.healthy = false;
@@ -170,7 +167,9 @@ export class PgserveManager {
         this.restartCount++;
         this.lastRestartTime = Date.now();
 
-        console.error(`[PgserveManager] Restarting in ${delay}ms (attempt ${this.restartCount}/${PgserveManager.MAX_RESTARTS})`);
+        console.error(
+          `[PgserveManager] Restarting in ${delay}ms (attempt ${this.restartCount}/${PgserveManager.MAX_RESTARTS})`,
+        );
         setTimeout(() => this.start(), delay);
       } else {
         console.error('[PgserveManager] Circuit breaker: Max restarts reached, giving up');
@@ -221,9 +220,13 @@ export class PgserveManager {
 
         // Check disk usage thresholds
         if (health.diskUsageMb >= DISK_ERROR_THRESHOLD_MB) {
-          console.error(`[PgserveManager] CRITICAL: Disk usage ${health.diskUsageMb}MB exceeds ${DISK_ERROR_THRESHOLD_MB}MB threshold`);
+          console.error(
+            `[PgserveManager] CRITICAL: Disk usage ${health.diskUsageMb}MB exceeds ${DISK_ERROR_THRESHOLD_MB}MB threshold`,
+          );
         } else if (health.diskUsageMb >= DISK_WARN_THRESHOLD_MB) {
-          console.warn(`[PgserveManager] WARNING: Disk usage ${health.diskUsageMb}MB exceeds ${DISK_WARN_THRESHOLD_MB}MB threshold`);
+          console.warn(
+            `[PgserveManager] WARNING: Disk usage ${health.diskUsageMb}MB exceeds ${DISK_WARN_THRESHOLD_MB}MB threshold`,
+          );
         }
 
         // Log health state changes
@@ -296,10 +299,12 @@ export class PgserveManager {
         diskUsageMb,
         uptime,
         databases: stats.postgres?.databases ?? [],
-        replication: this.config.replicationUrl ? {
-          enabled: true,
-          targetUrl: this.config.replicationUrl,
-        } : { enabled: false },
+        replication: this.config.replicationUrl
+          ? {
+              enabled: true,
+              targetUrl: this.config.replicationUrl,
+            }
+          : { enabled: false },
       };
     } catch (error) {
       return {
@@ -349,4 +354,3 @@ export class PgserveManager {
     return this.config.memoryMode;
   }
 }
-

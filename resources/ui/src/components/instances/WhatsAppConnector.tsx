@@ -7,15 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EvolutionStartupModal } from '@/components/EvolutionStartupModal';
 import { api } from '@/lib';
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  MessageCircle,
-  RefreshCw,
-  Terminal,
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, MessageCircle, RefreshCw, Terminal } from 'lucide-react';
 
 interface WhatsAppConnectorProps {
   instanceName: string;
@@ -41,10 +33,11 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
 
   // Create instance mutation
   const createMutation = useMutation({
-    mutationFn: () => api.instances.create({
-      name: instanceName,
-      channel_type: 'whatsapp',
-    }),
+    mutationFn: () =>
+      api.instances.create({
+        name: instanceName,
+        channel_type: 'whatsapp',
+      }),
     onSuccess: () => {
       setInstanceCreated(true);
       setPhase('starting');
@@ -65,7 +58,12 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
   }, []);
 
   // Fetch QR code with auto-refresh
-  const { data: qrData, isLoading: qrLoading, error: qrError, refetch: refetchQR } = useQuery({
+  const {
+    data: qrData,
+    isLoading: qrLoading,
+    error: qrError,
+    refetch: refetchQR,
+  } = useQuery({
     queryKey: ['qr-code', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
     enabled: instanceCreated && phase !== 'connected' && phase !== 'error',
@@ -93,8 +91,7 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
   }, [qrData?.qr_code, phase]);
 
   // Check if connected
-  const isConnected = statusData?.connected === true ||
-                      statusData?.status?.toLowerCase() === 'connected';
+  const isConnected = statusData?.connected === true || statusData?.status?.toLowerCase() === 'connected';
 
   // Handle connection success
   useEffect(() => {
@@ -129,12 +126,11 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
   // Handle QR fetch errors with retry limit
   useEffect(() => {
     if (qrError && phase === 'starting') {
-      setQrRetryCount(prev => prev + 1);
+      setQrRetryCount((prev) => prev + 1);
 
       if (qrRetryCount >= QR_MAX_RETRIES) {
-        const errorMessage = qrError instanceof Error
-          ? qrError.message
-          : 'Failed to load QR code. WhatsApp service may not be running.';
+        const errorMessage =
+          qrError instanceof Error ? qrError.message : 'Failed to load QR code. WhatsApp service may not be running.';
         setError(errorMessage);
         setPhase('error');
       }
@@ -174,17 +170,10 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
             <p className="text-sm font-medium text-foreground">
               {phase === 'creating' ? 'Creating connection...' : 'Loading QR code...'}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              This may take a few seconds
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">This may take a few seconds</p>
           </div>
           {phase === 'starting' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowLogsModal(true)}
-              className="mt-2"
-            >
+            <Button variant="outline" size="sm" onClick={() => setShowLogsModal(true)} className="mt-2">
               <Terminal className="h-4 w-4 mr-1" />
               View Logs
             </Button>
@@ -200,9 +189,7 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
           </div>
           <div className="text-center">
             <p className="text-lg font-semibold text-[#25D366] mb-2">Successfully Connected!</p>
-            <p className="text-sm text-muted-foreground">
-              WhatsApp is now ready to use
-            </p>
+            <p className="text-sm text-muted-foreground">WhatsApp is now ready to use</p>
           </div>
           <Badge className="bg-[#25D366] border-0">Connected</Badge>
         </div>
@@ -242,13 +229,7 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
       {phase === 'qr' && qrImageUrl && (
         <div className="flex flex-col items-center space-y-4">
           <div className="p-4 bg-white rounded-lg border-2 border-border">
-            <img
-              src={qrImageUrl}
-              alt="WhatsApp QR Code"
-              className="w-56 h-56"
-              data-testid="qr-code"
-              key={qrImageUrl}
-            />
+            <img src={qrImageUrl} alt="WhatsApp QR Code" className="w-56 h-56" data-testid="qr-code" key={qrImageUrl} />
           </div>
 
           <div className="text-center space-y-3">
@@ -266,12 +247,7 @@ export function WhatsAppConnector({ instanceName, onBack, onSuccess }: WhatsAppC
               </ol>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefreshQR}
-              className="mt-2"
-            >
+            <Button variant="outline" size="sm" onClick={handleRefreshQR} className="mt-2">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh QR
             </Button>

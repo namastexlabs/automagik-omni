@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,7 +19,12 @@ export function QRCodeDialog({ open, onOpenChange, instanceName }: QRCodeDialogP
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
 
   // Fetch QR code with auto-refresh every 5 seconds
-  const { data: qrData, isLoading: qrLoading, error: qrError, refetch: refetchQR } = useQuery({
+  const {
+    data: qrData,
+    isLoading: qrLoading,
+    error: qrError,
+    refetch: refetchQR,
+  } = useQuery({
     queryKey: ['qr-code', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
     enabled: open,
@@ -97,9 +96,7 @@ export function QRCodeDialog({ open, onOpenChange, instanceName }: QRCodeDialogP
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-success mb-2">Successfully Connected!</p>
-                <p className="text-sm text-muted-foreground">
-                  WhatsApp is now connected and ready to use
-                </p>
+                <p className="text-sm text-muted-foreground">WhatsApp is now connected and ready to use</p>
               </div>
               <Badge className="gradient-success border-0">Connected</Badge>
             </div>
@@ -141,14 +138,12 @@ export function QRCodeDialog({ open, onOpenChange, instanceName }: QRCodeDialogP
                     {displayStatus}
                   </Badge>
                 </div>
-                {qrData?.message && (
-                  <p className="text-xs text-muted-foreground">
-                    {qrData.message}
-                  </p>
-                )}
+                {qrData?.message && <p className="text-xs text-muted-foreground">{qrData.message}</p>}
                 <p className="text-xs text-muted-foreground max-w-sm pt-2">
-                  1. Open WhatsApp on your phone<br />
-                  2. Go to Settings → Linked Devices<br />
+                  1. Open WhatsApp on your phone
+                  <br />
+                  2. Go to Settings → Linked Devices
+                  <br />
                   3. Tap "Link a Device" and scan this code
                 </p>
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-3">
@@ -156,12 +151,7 @@ export function QRCodeDialog({ open, onOpenChange, instanceName }: QRCodeDialogP
                   <span>Waiting for scan... (Auto-refreshing every 5s)</span>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefreshQR}
-                className="mt-2"
-              >
+              <Button variant="outline" size="sm" onClick={handleRefreshQR} className="mt-2">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh QR Code
               </Button>

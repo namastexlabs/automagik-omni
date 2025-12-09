@@ -53,9 +53,7 @@ class ProfileOperation(str, Enum):
 class InstanceConfig(BaseModel):
     """Instance configuration model - supports all channel types with extra fields"""
 
-    model_config = ConfigDict(
-        extra="allow"
-    )  # Allow extra fields for future API updates
+    model_config = ConfigDict(extra="allow")  # Allow extra fields for future API updates
 
     name: str
     channel_type: ChannelType = ChannelType.WHATSAPP
@@ -127,9 +125,7 @@ class SendTextRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    phone_number: str = Field(
-        ..., description="Phone number with country code", alias="phone"
-    )
+    phone_number: str = Field(..., description="Phone number with country code", alias="phone")
     text: str = Field(..., description="Message text", alias="message")
     quoted_message_id: Optional[str] = None
     delay: Optional[int] = Field(None, description="Delay in milliseconds")
@@ -144,9 +140,7 @@ class SendMediaRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    phone_number: str = Field(
-        ..., description="Phone number with country code", alias="phone"
-    )
+    phone_number: str = Field(..., description="Phone number with country code", alias="phone")
     media_url: Optional[str] = Field(None, description="URL of the media file")
     media_base64: Optional[str] = Field(None, description="Base64 encoded media for local files")
     media_type: Literal["image", "video", "document"] = "image"
@@ -162,9 +156,7 @@ class SendAudioRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    phone_number: str = Field(
-        ..., description="Phone number with country code", alias="phone"
-    )
+    phone_number: str = Field(..., description="Phone number with country code", alias="phone")
     audio_url: Optional[str] = Field(None, description="URL of the audio file")
     audio_base64: Optional[str] = Field(None, description="Base64 encoded audio for local files")
     ptt: bool = Field(True, description="Send as voice note")
@@ -177,9 +169,7 @@ class SendStickerRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    phone_number: str = Field(
-        ..., description="Phone number with country code", alias="phone"
-    )
+    phone_number: str = Field(..., description="Phone number with country code", alias="phone")
     sticker_url: str = Field(..., description="URL of the sticker file")
     quoted_message_id: Optional[str] = None
     delay: Optional[int] = None
@@ -202,9 +192,7 @@ class SendContactRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    phone_number: str = Field(
-        ..., description="Phone number with country code", alias="phone"
-    )
+    phone_number: str = Field(..., description="Phone number with country code", alias="phone")
     contacts: List[ContactInfo]
     quoted_message_id: Optional[str] = None
     delay: Optional[int] = None
@@ -215,9 +203,7 @@ class SendReactionRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    phone_number: str = Field(
-        ..., description="Phone number with country code", alias="phone"
-    )
+    phone_number: str = Field(..., description="Phone number with country code", alias="phone")
     message_id: str = Field(..., description="ID of message to react to")
     emoji: str = Field(..., description="Emoji reaction")
 

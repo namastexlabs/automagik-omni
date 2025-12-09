@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
@@ -7,7 +7,7 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { OnboardingProvider, useOnboarding } from './contexts/OnboardingContext';
 import { SetupGuard } from './components/SetupGuard';
 import LoadingScreen from './components/LoadingScreen';
-import { isAuthenticated, getApiKey, api } from './lib/api';
+import { isAuthenticated, api } from './lib/api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Instances from './pages/Instances';

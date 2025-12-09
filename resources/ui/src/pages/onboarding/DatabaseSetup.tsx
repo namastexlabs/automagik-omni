@@ -35,7 +35,7 @@ async function pollUntilHealthy(endpoint: string, timeoutMs: number = 30000): Pr
     } catch {
       // Service not ready yet, continue polling
     }
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
   throw new Error(`Service at ${endpoint} did not become healthy within ${timeoutMs}ms`);
 }
@@ -146,13 +146,8 @@ export default function DatabaseSetup() {
     });
   };
 
-
   return (
-    <OnboardingLayout
-      currentStep={1}
-      totalSteps={3}
-      title="Welcome to Automagik Omni"
-    >
+    <OnboardingLayout currentStep={1} totalSteps={3} title="Welcome to Automagik Omni">
       <DatabaseStartupModal
         open={showStartupModal}
         onOpenChange={setShowStartupModal}
@@ -163,9 +158,7 @@ export default function DatabaseSetup() {
       />
       <div className="p-8">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Storage Configuration
-          </h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Storage Configuration</h2>
           <p className="text-gray-600">
             Configure PostgreSQL storage for your data. You can adjust these settings later.
           </p>
@@ -177,18 +170,10 @@ export default function DatabaseSetup() {
           </div>
         )}
 
-        <DatabaseSetupWizard
-          onComplete={handleWizardComplete}
-          isFirstRun={true}
-        />
+        <DatabaseSetupWizard onComplete={handleWizardComplete} isFirstRun={true} />
 
         <div className="mt-6 pt-6 border-t">
-          <Button
-            variant="outline"
-            onClick={handleSkip}
-            disabled={showStartupModal}
-            className="w-full"
-          >
+          <Button variant="outline" onClick={handleSkip} disabled={showStartupModal} className="w-full">
             {showStartupModal ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

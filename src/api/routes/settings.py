@@ -81,7 +81,7 @@ class SettingHistoryResponse(BaseModel):
     "/settings",
     response_model=List[SettingResponse],
     summary="List Global Settings",
-    description="Retrieve all global application settings"
+    description="Retrieve all global application settings",
 )
 async def list_settings(
     category: Optional[str] = None,
@@ -100,7 +100,7 @@ async def list_settings(
     "/settings/{key}",
     response_model=SettingResponse,
     summary="Get Setting",
-    description="Retrieve a specific global setting by key"
+    description="Retrieve a specific global setting by key",
 )
 async def get_setting(
     key: str,
@@ -112,10 +112,7 @@ async def get_setting(
     setting = settings_service.get_setting(key, db)
 
     if not setting:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Setting '{key}' not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Setting '{key}' not found")
 
     return _to_setting_response(setting)
 
@@ -125,7 +122,7 @@ async def get_setting(
     response_model=SettingResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Setting",
-    description="Create a new global setting"
+    description="Create a new global setting",
 )
 async def create_setting(
     setting_data: SettingCreate,
@@ -146,23 +143,20 @@ async def create_setting(
             is_required=setting_data.is_required,
             default_value=setting_data.default_value,
             validation_rules=setting_data.validation_rules,
-            created_by=api_key[:8] if api_key else None  # Masked API key
+            created_by=api_key[:8] if api_key else None,  # Masked API key
         )
 
         return _to_setting_response(setting)
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.put(
     "/settings/{key}",
     response_model=SettingResponse,
     summary="Update Setting",
-    description="Update an existing global setting value"
+    description="Update an existing global setting value",
 )
 async def update_setting(
     key: str,
@@ -178,23 +172,16 @@ async def update_setting(
             value=update_data.value,
             db=db,
             updated_by=api_key[:8] if api_key else None,
-            change_reason=update_data.change_reason
+            change_reason=update_data.change_reason,
         )
 
         return _to_setting_response(setting)
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.delete(
-    "/settings/{key}",
-    summary="Delete Setting",
-    description="Delete a global setting (if not required)"
-)
+@router.delete("/settings/{key}", summary="Delete Setting", description="Delete a global setting (if not required)")
 async def delete_setting(
     key: str,
     db: Session = Depends(get_database),
@@ -206,25 +193,19 @@ async def delete_setting(
         success = settings_service.delete_setting(key, db)
 
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Setting '{key}' not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Setting '{key}' not found")
 
         return {"message": f"Setting '{key}' deleted successfully"}
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get(
     "/settings/{key}/history",
     response_model=List[SettingHistoryResponse],
     summary="Get Setting History",
-    description="Retrieve change history for a setting"
+    description="Retrieve change history for a setting",
 )
 async def get_setting_history(
     key: str,
@@ -240,6 +221,7 @@ async def get_setting_history(
 
 
 # Helper functions
+
 
 def _to_setting_response(setting: GlobalSetting) -> SettingResponse:
     """Convert ORM setting to response model with null-safe fields."""

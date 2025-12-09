@@ -19,6 +19,7 @@ router = APIRouter(prefix="/_internal", tags=["internal"])
 
 class EvolutionKeyResponse(BaseModel):
     """Response for Evolution API key retrieval."""
+
     key: str
     message: str
 
@@ -36,17 +37,11 @@ def _verify_localhost(request: Request) -> None:
     localhost_addresses = ("127.0.0.1", "::1", "localhost")
 
     if client_host not in localhost_addresses:
-        raise HTTPException(
-            status_code=403,
-            detail="Internal endpoints are only accessible from localhost."
-        )
+        raise HTTPException(status_code=403, detail="Internal endpoints are only accessible from localhost.")
 
 
 @router.get("/evolution-key", response_model=EvolutionKeyResponse)
-async def get_evolution_key(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+async def get_evolution_key(request: Request, db: Session = Depends(get_db)):
     """
     Get the unified API key for Evolution server configuration.
 
@@ -71,28 +66,24 @@ async def get_evolution_key(
 
     if not setting or not setting.value:
         raise HTTPException(
-            status_code=404,
-            detail="No API key found. Omni needs to be started first to generate the key."
+            status_code=404, detail="No API key found. Omni needs to be started first to generate the key."
         )
 
     return EvolutionKeyResponse(
-        key=setting.value,
-        message="Use this key as AUTHENTICATION_API_KEY for the WhatsApp Web server."
+        key=setting.value, message="Use this key as AUTHENTICATION_API_KEY for the WhatsApp Web server."
     )
 
 
 class SubprocessConfigResponse(BaseModel):
     """Configuration for subprocess startup (Evolution, etc.)."""
+
     database_connection_uri: str | None = None
     database_provider: str = "postgresql"
     authentication_api_key: str | None = None
 
 
 @router.get("/subprocess-config", response_model=SubprocessConfigResponse)
-async def get_subprocess_config(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+async def get_subprocess_config(request: Request, db: Session = Depends(get_db)):
     """
     Get configuration for subprocess startup (Evolution, Discord, etc.).
 
@@ -136,7 +127,4 @@ async def internal_health(request: Request):
     """
     _verify_localhost(request)
 
-    return {
-        "status": "healthy",
-        "service": "omni-internal"
-    }
+    return {"status": "healthy", "service": "omni-internal"}

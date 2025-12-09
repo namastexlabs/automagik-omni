@@ -37,11 +37,7 @@ function TracesTable({ traces, isLoading }: { traces: Trace[]; isLoading: boolea
   }
 
   if (traces.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        No messages in selected period
-      </div>
-    );
+    return <div className="text-center py-8 text-muted-foreground">No messages in selected period</div>;
   }
 
   return (
@@ -60,15 +56,11 @@ function TracesTable({ traces, isLoading }: { traces: Trace[]; isLoading: boolea
           {traces.map((trace) => (
             <tr key={trace.trace_id} className="border-b hover:bg-muted/50">
               <td className="py-3 px-2 text-muted-foreground">
-                {trace.received_at
-                  ? formatDistanceToNow(new Date(trace.received_at), { addSuffix: true })
-                  : '-'}
+                {trace.received_at ? formatDistanceToNow(new Date(trace.received_at), { addSuffix: true }) : '-'}
               </td>
               <td className="py-3 px-2">
                 <div className="font-medium">{trace.sender_name || 'Unknown'}</div>
-                <div className="text-xs text-muted-foreground">
-                  {trace.sender_phone?.slice(-10) || '-'}
-                </div>
+                <div className="text-xs text-muted-foreground">{trace.sender_phone?.slice(-10) || '-'}</div>
               </td>
               <td className="py-3 px-2">
                 <Badge variant="secondary" className="text-xs">
@@ -79,9 +71,7 @@ function TracesTable({ traces, isLoading }: { traces: Trace[]; isLoading: boolea
                 <StatusBadge status={trace.status} />
               </td>
               <td className="py-3 px-2 text-right text-muted-foreground">
-                {trace.total_processing_time_ms
-                  ? `${trace.total_processing_time_ms}ms`
-                  : '-'}
+                {trace.total_processing_time_ms ? `${trace.total_processing_time_ms}ms` : '-'}
               </td>
             </tr>
           ))}
@@ -96,20 +86,22 @@ export function MessagesTab() {
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<TraceAnalytics>({
     queryKey: ['traceAnalytics', dateRange],
-    queryFn: () => api.traces.getAnalytics({
-      start_date: dateRange.start_date,
-      end_date: dateRange.end_date,
-    }),
+    queryFn: () =>
+      api.traces.getAnalytics({
+        start_date: dateRange.start_date,
+        end_date: dateRange.end_date,
+      }),
     refetchInterval: 30000,
   });
 
   const { data: traces, isLoading: tracesLoading } = useQuery<Trace[]>({
     queryKey: ['traces', dateRange],
-    queryFn: () => api.traces.list({
-      start_date: dateRange.start_date,
-      end_date: dateRange.end_date,
-      limit: 50,
-    }),
+    queryFn: () =>
+      api.traces.list({
+        start_date: dateRange.start_date,
+        end_date: dateRange.end_date,
+        limit: 50,
+      }),
     refetchInterval: 30000,
   });
 

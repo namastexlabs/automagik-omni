@@ -2,13 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Radio, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -67,7 +61,7 @@ export function WebSocketSheet({ instanceName, open, onOpenChange }: WebSocketSh
   });
 
   const updateForm = <K extends keyof WebSocketForm>(key: K, value: WebSocketForm[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
@@ -78,11 +72,13 @@ export function WebSocketSheet({ instanceName, open, onOpenChange }: WebSocketSh
           <SheetTitle className="flex items-center gap-2">
             <Radio className="h-5 w-5" />
             WebSocket - {instanceName}
-            {form.enabled && <Badge variant="secondary" className="bg-green-500/20 text-green-600">Active</Badge>}
+            {form.enabled && (
+              <Badge variant="secondary" className="bg-green-500/20 text-green-600">
+                Active
+              </Badge>
+            )}
           </SheetTitle>
-          <SheetDescription>
-            Configure WebSocket for real-time event delivery
-          </SheetDescription>
+          <SheetDescription>Configure WebSocket for real-time event delivery</SheetDescription>
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-120px)] mt-6">
@@ -110,15 +106,14 @@ export function WebSocketSheet({ instanceName, open, onOpenChange }: WebSocketSh
                     {/* Info */}
                     <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
                       <p className="text-sm text-blue-600 dark:text-blue-400">
-                        Connect via Socket.io to receive real-time events. The WebSocket endpoint is available at the Evolution API base URL.
+                        Connect via Socket.io to receive real-time events. The WebSocket endpoint is available at the
+                        Evolution API base URL.
                       </p>
                     </div>
 
                     {/* Events */}
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">
-                        Events ({form.events.length} selected)
-                      </Label>
+                      <Label className="text-sm font-medium">Events ({form.events.length} selected)</Label>
                       <div className="p-4 rounded-lg bg-muted/50">
                         <EventSelector
                           selectedEvents={form.events}

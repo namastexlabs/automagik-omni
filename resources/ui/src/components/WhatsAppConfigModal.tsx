@@ -1,11 +1,6 @@
 import { useEffect, useRef, useMemo, useState, useCallback, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useLogStream } from '@/hooks/useLogStream';
@@ -21,7 +16,6 @@ import {
   MessageCircle,
   Play,
   QrCode,
-  Wifi,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LogEntry } from '@/lib';
@@ -68,7 +62,12 @@ function detectPhase(logs: LogEntry[]): 'starting' | 'ready' | 'error' | null {
       return 'error';
     }
 
-    if (msg.includes('ready') || msg.includes('running on port') || msg.includes('started successfully') || msg.includes('listening on')) {
+    if (
+      msg.includes('ready') ||
+      msg.includes('running on port') ||
+      msg.includes('started successfully') ||
+      msg.includes('listening on')
+    ) {
       return 'ready';
     }
   }
@@ -97,12 +96,8 @@ const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
   <>
     {logs.map((log, i) => (
       <div key={`${log.timestamp}-${i}`} className="flex gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0">
-          [{new Date(log.timestamp).toLocaleTimeString()}]
-        </span>
-        <span className={cn('break-all', getLogColor(log.level))}>
-          {log.message}
-        </span>
+        <span className="text-muted-foreground/60 flex-shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+        <span className={cn('break-all', getLogColor(log.level))}>{log.message}</span>
       </div>
     ))}
   </>
@@ -136,10 +131,7 @@ export function WhatsAppConfigModal({
     maxLogs: 200,
   });
 
-  const evolutionLogs = useMemo(
-    () => logs.filter(l => l.service === 'evolution'),
-    [logs]
-  );
+  const evolutionLogs = useMemo(() => logs.filter((l) => l.service === 'evolution'), [logs]);
 
   // Check Evolution service status
   const { data: gatewayStatus, refetch: refetchStatus } = useQuery({
@@ -306,7 +298,7 @@ export function WhatsAppConfigModal({
         for (let i = 0; i < 30; i++) {
           try {
             const res = await fetch('/evolution/instance/fetchInstances', {
-              headers: { apikey: api_key }
+              headers: { apikey: api_key },
             });
             if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
               apiReady = true;
@@ -315,7 +307,7 @@ export function WhatsAppConfigModal({
           } catch {
             // ignore connection errors
           }
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, 1000));
         }
       } catch {
         apiReady = true; // optimistic fallthrough
@@ -337,9 +329,7 @@ export function WhatsAppConfigModal({
 
   // Copy logs to clipboard
   const handleCopyLogs = async () => {
-    const logText = evolutionLogs
-      .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`)
-      .join('\n');
+    const logText = evolutionLogs.map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`).join('\n');
 
     try {
       await navigator.clipboard.writeText(logText);
@@ -426,7 +416,7 @@ export function WhatsAppConfigModal({
                             ? 'bg-[#25D366] text-white'
                             : isError && adjustedIndex <= 1
                               ? 'bg-red-500 text-white'
-                              : 'bg-muted text-muted-foreground'
+                              : 'bg-muted text-muted-foreground',
                       )}
                     >
                       {isComplete ? (
@@ -437,18 +427,11 @@ export function WhatsAppConfigModal({
                         index + 1
                       )}
                     </div>
-                    <span className="text-xs mt-1 text-muted-foreground">
-                      {PHASES[p].label}
-                    </span>
+                    <span className="text-xs mt-1 text-muted-foreground">{PHASES[p].label}</span>
                   </div>
 
                   {index < PHASE_ORDER.length - 2 && (
-                    <div
-                      className={cn(
-                        'h-0.5 w-8 mx-1 transition-colors',
-                        isComplete ? 'bg-green-500' : 'bg-muted'
-                      )}
-                    />
+                    <div className={cn('h-0.5 w-8 mx-1 transition-colors', isComplete ? 'bg-green-500' : 'bg-muted')} />
                   )}
                 </div>
               );
@@ -473,9 +456,7 @@ export function WhatsAppConfigModal({
             <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-green-500">WhatsApp Connected!</p>
-              <p className="text-sm text-muted-foreground">
-                Your WhatsApp is now connected and ready to use.
-              </p>
+              <p className="text-sm text-muted-foreground">Your WhatsApp is now connected and ready to use.</p>
             </div>
           </div>
         )}
@@ -486,9 +467,7 @@ export function WhatsAppConfigModal({
             <Loader2 className="h-12 w-12 text-[#25D366] animate-spin" />
             <div className="text-center space-y-2">
               <h3 className="font-medium">Checking WhatsApp Service</h3>
-              <p className="text-sm text-muted-foreground">
-                Please wait while we check the service status...
-              </p>
+              <p className="text-sm text-muted-foreground">Please wait while we check the service status...</p>
             </div>
           </div>
         )}
@@ -500,15 +479,11 @@ export function WhatsAppConfigModal({
             <div className="text-center space-y-2">
               <h3 className="font-medium">Start WhatsApp Service</h3>
               <p className="text-sm text-muted-foreground max-w-sm">
-                The WhatsApp service needs to be started before you can connect.
-                Click the button below to start the service.
+                The WhatsApp service needs to be started before you can connect. Click the button below to start the
+                service.
               </p>
             </div>
-            <Button
-              onClick={handleStartService}
-              disabled={isStarting}
-              className="bg-[#25D366] hover:bg-[#1da851]"
-            >
+            <Button onClick={handleStartService} disabled={isStarting} className="bg-[#25D366] hover:bg-[#1da851]">
               {isStarting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -530,9 +505,7 @@ export function WhatsAppConfigModal({
             <Loader2 className="h-12 w-12 text-[#25D366] animate-spin" />
             <div className="text-center space-y-2">
               <h3 className="font-medium">Creating WhatsApp Instance</h3>
-              <p className="text-sm text-muted-foreground">
-                Setting up your WhatsApp connection...
-              </p>
+              <p className="text-sm text-muted-foreground">Setting up your WhatsApp connection...</p>
             </div>
           </div>
         )}
@@ -540,13 +513,10 @@ export function WhatsAppConfigModal({
         {/* QR Code display */}
         {showQR && (
           <div className="flex flex-col items-center gap-4 p-4 bg-muted/50 rounded-lg">
-            <img
-              src={currentQrCode}
-              alt="QR Code"
-              className="w-48 h-48 rounded-lg border bg-white"
-            />
+            <img src={currentQrCode} alt="QR Code" className="w-48 h-48 rounded-lg border bg-white" />
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Open WhatsApp on your phone, go to <strong>Settings → Linked Devices → Link a Device</strong> and scan this QR code.
+              Open WhatsApp on your phone, go to <strong>Settings → Linked Devices → Link a Device</strong> and scan
+              this QR code.
             </p>
             <Button variant="outline" size="sm" onClick={() => refetchQR()}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -585,12 +555,7 @@ export function WhatsAppConfigModal({
         {/* Actions */}
         <div className="flex items-center justify-between pt-2">
           {showLogs ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyLogs}
-              disabled={evolutionLogs.length === 0}
-            >
+            <Button variant="outline" size="sm" onClick={handleCopyLogs} disabled={evolutionLogs.length === 0}>
               <Copy className="h-4 w-4 mr-1" />
               {copiedLogs ? 'Copied!' : 'Copy Logs'}
             </Button>
@@ -600,21 +565,12 @@ export function WhatsAppConfigModal({
 
           <div className="flex gap-2">
             {phase === 'error' && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleRetry}
-                className="bg-[#25D366] hover:bg-[#1da851]"
-              >
+              <Button variant="default" size="sm" onClick={handleRetry} className="bg-[#25D366] hover:bg-[#1da851]">
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Retry
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               {phase === 'connected' ? 'Continue' : 'Cancel'}
             </Button>
           </div>

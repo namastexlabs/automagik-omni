@@ -17,6 +17,7 @@ try:
     from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, OmniMessage
     from src.services.omni_transformers import DiscordTransformer
     from src.db.models import InstanceConfig
+
     DISCORD_HANDLER_AVAILABLE = True
 except (ImportError, AttributeError) as e:
     logger.warning(f"Discord chat handler not available: {e}")
@@ -61,12 +62,14 @@ if DISCORD_HANDLER_AVAILABLE:
                 user_list = list(all_users)
                 if search_query:
                     search_lower = search_query.lower()
-                    user_list = [u for u in user_list if search_lower in (u.global_name or u.display_name or u.name).lower()]
+                    user_list = [
+                        u for u in user_list if search_lower in (u.global_name or u.display_name or u.name).lower()
+                    ]
                 if status_filter:
                     user_list = [u for u in user_list if hasattr(u, "status") and str(u.status) == status_filter]
                 total_count = len(user_list)
                 start_idx = (page - 1) * page_size
-                paginated_users = user_list[start_idx:start_idx + page_size]
+                paginated_users = user_list[start_idx : start_idx + page_size]
                 for user in paginated_users:
                     try:
                         user_data = {
@@ -114,14 +117,16 @@ if DISCORD_HANDLER_AVAILABLE:
                     all_channels.extend(client.private_channels)
                 total_count = len(all_channels)
                 start_idx = (page - 1) * page_size
-                paginated_channels = all_channels[start_idx:start_idx + page_size]
+                paginated_channels = all_channels[start_idx : start_idx + page_size]
                 chats = []
                 for channel in paginated_channels:
                     try:
                         channel_data = {
                             "id": getattr(channel, "id", ""),
-                            "name": getattr(channel, "name", "") or f"Channel-{getattr(channel, id, )}",
-                            "type": getattr(channel, "type", 0).value if hasattr(getattr(channel, "type", 0), "value") else 0,
+                            "name": getattr(channel, "name", "") or f"Channel-{getattr(channel, id)}",
+                            "type": getattr(channel, "type", 0).value
+                            if hasattr(getattr(channel, "type", 0), "value")
+                            else 0,
                         }
                         chats.append(DiscordTransformer.chat_to_omni(channel_data, instance.name))
                     except Exception as e:
@@ -139,7 +144,9 @@ if DISCORD_HANDLER_AVAILABLE:
                 "instance_name": status_response.instance_name,
                 "channel_type": status_response.channel_type,
             }
-            return DiscordTransformer.channel_to_omni(instance.name, status_data, {"display_name": f"Discord - {instance.name}"})
+            return DiscordTransformer.channel_to_omni(
+                instance.name, status_data, {"display_name": f"Discord - {instance.name}"}
+            )
 
         async def get_contact_by_id(self, instance: InstanceConfig, contact_id: str) -> Optional[OmniContact]:
             """Get a specific Discord contact by ID."""
@@ -165,7 +172,4 @@ else:
         """Stub Discord chat handler when discord.py is not installed."""
 
         def __init__(self, *args, **kwargs):
-            raise ImportError(
-                "Discord chat handler requires discord.py. "
-                "Install with: uv sync --extra discord"
-            )
+            raise ImportError("Discord chat handler requires discord.py. Install with: uv sync --extra discord")

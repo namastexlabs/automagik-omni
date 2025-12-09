@@ -13,15 +13,7 @@ import { InstancesTab } from '@/components/dashboard/tabs/InstancesTab';
 import { SystemTab } from '@/components/dashboard/tabs/SystemTab';
 import { ManageTab } from '@/components/dashboard/tabs/ManageTab';
 import { LogsTab } from '@/components/dashboard/tabs/LogsTab';
-import {
-  MessageSquare,
-  Plus,
-  LayoutDashboard,
-  Server,
-  Cpu,
-  Settings,
-  ScrollText,
-} from 'lucide-react';
+import { MessageSquare, Plus, LayoutDashboard, Server, Cpu, Settings, ScrollText } from 'lucide-react';
 import type { InstanceConfig } from '@/lib';
 
 export default function Dashboard() {

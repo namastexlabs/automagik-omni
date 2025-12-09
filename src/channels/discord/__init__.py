@@ -23,6 +23,7 @@ try:
         STTProvider,
         TTSProvider,
     )
+
     DISCORD_COMPONENTS_AVAILABLE = True
     logger.info("Discord components loaded successfully")
 except (ImportError, AttributeError) as e:

@@ -48,10 +48,7 @@ async def get_live_status(instance: InstanceConfig) -> str:
         handler = ChannelHandlerFactory.get_handler(channel_type)
 
         # Fetch with timeout
-        status_response = await asyncio.wait_for(
-            handler.get_status(instance),
-            timeout=STATUS_TIMEOUT_SECONDS
-        )
+        status_response = await asyncio.wait_for(handler.get_status(instance), timeout=STATUS_TIMEOUT_SECONDS)
 
         # Normalize status to standard values
         status = status_response.status
@@ -101,8 +98,7 @@ async def get_live_statuses(instances: List[InstanceConfig]) -> Dict[str, str]:
 
     # Execute all fetches in parallel
     results: List[Tuple[str, str] | BaseException] = await asyncio.gather(
-        *[fetch_one(inst) for inst in instances],
-        return_exceptions=True
+        *[fetch_one(inst) for inst in instances], return_exceptions=True
     )
 
     status_map: Dict[str, str] = {}

@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 
 interface StatusBreakdownData {
@@ -32,7 +32,7 @@ export function StatusBreakdownChart({ data, className }: StatusBreakdownChartPr
     { name: 'Completed', value: data.completed, fill: chartConfig.completed.color },
     { name: 'Processing', value: data.processing, fill: chartConfig.processing.color },
     { name: 'Failed', value: data.failed, fill: chartConfig.failed.color },
-  ].filter(item => item.value > 0);
+  ].filter((item) => item.value > 0);
 
   const total = data.completed + data.processing + data.failed;
 

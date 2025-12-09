@@ -264,20 +264,13 @@ jobs:
                   changeText = 'no change ✅';
                 }
 
-                comparisonMessage = `## ${changeEmoji} Coverage Report
-
-  | Branch | Coverage | Change |
-  |--------|----------|--------|
-  | **${targetBranch}** (baseline) | ${targetCoverage} | - |
-  | **Current PR** | ${currentCoverage}% | ${changeText} |
-
-  ${coverageDetails}`;
+                const tableRow1 = '| Branch | Coverage | Change |';
+                const tableRow2 = '|--------|----------|--------|';
+                const tableRow3 = `| **${targetBranch}** (baseline) | ${targetCoverage} | - |`;
+                const tableRow4 = `| **Current PR** | ${currentCoverage}% | ${changeText} |`;
+                comparisonMessage = `## ${changeEmoji} Coverage Report\n\n${tableRow1}\n${tableRow2}\n${tableRow3}\n${tableRow4}\n\n${coverageDetails}`;
               } else {
-                comparisonMessage = `## 📊 Coverage Report
-
-  **Coverage data not available**
-
-  > Note: Coverage file may not have been generated or could not be parsed.`;
+                comparisonMessage = '## 📊 Coverage Report\n\n**Coverage data not available**\n\n> Note: Coverage file may not have been generated or could not be parsed.';
               }
 
               const body = comparisonMessage;

@@ -43,7 +43,7 @@ export default function ApiKey() {
             if (recoveryMsg.includes('localhost') || recoveryMsg.includes('403')) {
               setError(
                 'Setup is complete. To recover your API key, access this page from the server machine (localhost) ' +
-                'or check your database: SELECT value FROM omni_global_settings WHERE key="omni_api_key"'
+                  'or check your database: SELECT value FROM omni_global_settings WHERE key="omni_api_key"',
               );
             } else {
               setError('Could not retrieve API key. Please check the server logs.');
@@ -87,11 +87,7 @@ export default function ApiKey() {
   }
 
   return (
-    <OnboardingLayout
-      currentStep={2}
-      totalSteps={3}
-      title="API Key"
-    >
+    <OnboardingLayout currentStep={2} totalSteps={3} title="API Key">
       <div className="p-8">
         <div className="mb-6 text-center">
           <div className="flex justify-center mb-4">
@@ -99,12 +95,8 @@ export default function ApiKey() {
               <Key className="h-6 w-6 text-white" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Your API Key
-          </h2>
-          <p className="text-gray-600">
-            Save this key securely - you'll need it to access Automagik Omni
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Your API Key</h2>
+          <p className="text-gray-600">Save this key securely - you'll need it to access Automagik Omni</p>
         </div>
 
         {error && (
@@ -138,11 +130,7 @@ export default function ApiKey() {
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white hover:bg-gray-700"
                 onClick={handleCopy}
               >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-400" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
+                {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -166,9 +154,7 @@ export default function ApiKey() {
           )}
         </Button>
 
-        <p className="mt-4 text-xs text-gray-500 text-center">
-          You'll stay logged in on this browser.
-        </p>
+        <p className="mt-4 text-xs text-gray-500 text-center">You'll stay logged in on this browser.</p>
       </div>
     </OnboardingLayout>
   );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -63,10 +63,12 @@ export default function Contacts() {
   });
 
   // Check if error is likely Evolution-related (500/503)
-  const isEvolutionError = error && (
-    (error instanceof Error && (error.message.includes('500') || error.message.includes('503') || error.message.includes('Evolution'))) ||
-    String(error).includes('500') || String(error).includes('503')
-  );
+  const isEvolutionError =
+    error &&
+    ((error instanceof Error &&
+      (error.message.includes('500') || error.message.includes('503') || error.message.includes('Evolution'))) ||
+      String(error).includes('500') ||
+      String(error).includes('503'));
 
   const getStatusColor = (status: OmniContactStatus): string => {
     switch (status) {
@@ -88,13 +90,21 @@ export default function Contacts() {
       case 'online':
         return <Badge className="gradient-success border-0 capitalize">{status}</Badge>;
       case 'offline':
-        return <Badge variant="outline" className="capitalize">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="capitalize">
+            {status}
+          </Badge>
+        );
       case 'away':
         return <Badge className="gradient-warning border-0 capitalize">{status}</Badge>;
       case 'dnd':
         return <Badge className="gradient-danger border-0 capitalize">Do Not Disturb</Badge>;
       default:
-        return <Badge variant="outline" className="capitalize">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="capitalize">
+            {status}
+          </Badge>
+        );
     }
   };
 
@@ -151,7 +161,13 @@ export default function Contacts() {
               {/* Status Filter */}
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1); }}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => {
+                    setStatusFilter(value);
+                    setPage(1);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -174,16 +190,15 @@ export default function Contacts() {
             {/* Evolution Service Error - Show Start Button */}
             {isEvolutionError && (
               <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                <Alert variant={startEvolutionMutation.isSuccess ? "default" : "destructive"} className="max-w-md">
+                <Alert variant={startEvolutionMutation.isSuccess ? 'default' : 'destructive'} className="max-w-md">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>
-                    {startEvolutionMutation.isSuccess ? "Starting WhatsApp Service..." : "WhatsApp Service Not Running"}
+                    {startEvolutionMutation.isSuccess ? 'Starting WhatsApp Service...' : 'WhatsApp Service Not Running'}
                   </AlertTitle>
                   <AlertDescription>
                     {startEvolutionMutation.isSuccess
-                      ? "Please wait while the service starts. This may take a few seconds."
-                      : "The WhatsApp service needs to be started to load contacts."
-                    }
+                      ? 'Please wait while the service starts. This may take a few seconds.'
+                      : 'The WhatsApp service needs to be started to load contacts.'}
                   </AlertDescription>
                 </Alert>
 
@@ -236,9 +251,7 @@ export default function Contacts() {
             {instances && instances.length === 0 && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  No instances available. Please create an instance first.
-                </AlertDescription>
+                <AlertDescription>No instances available. Please create an instance first.</AlertDescription>
               </Alert>
             )}
 
@@ -272,9 +285,7 @@ export default function Contacts() {
                     <div>
                       <p className="text-lg font-semibold text-foreground mb-2">No contacts found</p>
                       <p className="text-sm text-muted-foreground">
-                        {searchQuery
-                          ? 'Try adjusting your search query'
-                          : 'No contacts available for this instance'}
+                        {searchQuery ? 'Try adjusting your search query' : 'No contacts available for this instance'}
                       </p>
                     </div>
                   </div>
@@ -320,7 +331,7 @@ export default function Contacts() {
                             {/* Status Indicator */}
                             <div
                               className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card ${getStatusColor(
-                                contact.status
+                                contact.status,
                               )}`}
                             />
                           </div>
@@ -329,9 +340,7 @@ export default function Contacts() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h3 className="font-semibold text-foreground truncate">{contact.name}</h3>
-                              {contact.is_verified && (
-                                <Badge className="gradient-primary text-xs border-0">✓</Badge>
-                              )}
+                              {contact.is_verified && <Badge className="gradient-primary text-xs border-0">✓</Badge>}
                               {contact.is_business && (
                                 <Badge variant="outline" className="text-xs">
                                   Business

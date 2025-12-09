@@ -1,23 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Send, Paperclip, Smile, Loader2, Mic, X, Image, FileText, Play, Pause, Trash2 } from 'lucide-react';
+import { Send, Paperclip, Smile, Loader2, Mic, Image, FileText, Play, Pause, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn, api } from '@/lib';
 
 interface ChatInputProps {
@@ -77,9 +68,13 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
     mutationFn: async (file: File) => {
       const number = remoteJid.split('@')[0];
       const base64 = await fileToBase64(file);
-      const mediaType = file.type.startsWith('image/') ? 'image' :
-                       file.type.startsWith('video/') ? 'video' :
-                       file.type.startsWith('audio/') ? 'audio' : 'document';
+      const mediaType = file.type.startsWith('image/')
+        ? 'image'
+        : file.type.startsWith('video/')
+          ? 'video'
+          : file.type.startsWith('audio/')
+            ? 'audio'
+            : 'document';
 
       return api.evolution.sendMedia(instanceName, {
         number,
@@ -141,17 +136,20 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
   };
 
   const handleEmojiSelect = (emoji: { native: string }) => {
-    setMessage(prev => prev + emoji.native);
+    setMessage((prev) => prev + emoji.native);
     textareaRef.current?.focus();
   };
 
   // File drop handler
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      sendMediaMutation.mutate(acceptedFiles[0]);
-    }
-    setShowAttachMenu(false);
-  }, [sendMediaMutation]);
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length > 0) {
+        sendMediaMutation.mutate(acceptedFiles[0]);
+      }
+      setShowAttachMenu(false);
+    },
+    [sendMediaMutation],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -194,7 +192,7 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       mediaRecorderRef.current = mediaRecorder;
@@ -203,9 +201,8 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
       setRecordingTime(0);
 
       recordingTimerRef.current = setInterval(() => {
-        setRecordingTime(t => t + 1);
+        setRecordingTime((t) => t + 1);
       }, 1000);
-
     } catch (error) {
       toast.error('Could not access microphone');
       console.error('Recording error:', error);
@@ -280,22 +277,11 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
             {isRecording ? (
               <>
                 <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-sm font-medium text-foreground">
-                  Recording...
-                </span>
+                <span className="text-sm font-medium text-foreground">Recording...</span>
               </>
             ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={togglePreviewPlayback}
-              >
-                {isPlayingPreview ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={togglePreviewPlayback}>
+                {isPlayingPreview ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </Button>
             )}
 
@@ -305,10 +291,8 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
                 <div
                   key={i}
                   className={cn(
-                    "w-1 rounded-full transition-all",
-                    isRecording
-                      ? "bg-primary animate-pulse"
-                      : "bg-muted-foreground"
+                    'w-1 rounded-full transition-all',
+                    isRecording ? 'bg-primary animate-pulse' : 'bg-muted-foreground',
                   )}
                   style={{
                     height: `${Math.random() * 16 + 8}px`,
@@ -318,27 +302,16 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
               ))}
             </div>
 
-            <span className="text-sm text-muted-foreground min-w-[40px]">
-              {formatTime(recordingTime)}
-            </span>
+            <span className="text-sm text-muted-foreground min-w-[40px]">{formatTime(recordingTime)}</span>
           </div>
 
           {/* Stop/Send button */}
           {isRecording ? (
-            <Button
-              size="icon"
-              className="h-10 w-10 bg-destructive hover:bg-destructive/90"
-              onClick={stopRecording}
-            >
+            <Button size="icon" className="h-10 w-10 bg-destructive hover:bg-destructive/90" onClick={stopRecording}>
               <div className="h-4 w-4 rounded-sm bg-white" />
             </Button>
           ) : (
-            <Button
-              size="icon"
-              className="h-10 w-10"
-              onClick={sendRecording}
-              disabled={sendAudioMutation.isPending}
-            >
+            <Button size="icon" className="h-10 w-10" onClick={sendRecording} disabled={sendAudioMutation.isPending}>
               {sendAudioMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
@@ -354,18 +327,10 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
   return (
     <div
       {...getRootProps()}
-      className={cn(
-        "bg-muted/50 border-t border-border px-4 py-3",
-        isDragActive && "ring-2 ring-primary ring-inset"
-      )}
+      className={cn('bg-muted/50 border-t border-border px-4 py-3', isDragActive && 'ring-2 ring-primary ring-inset')}
     >
       <input {...getInputProps()} />
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        onChange={handleFileChange}
-      />
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
 
       {isDragActive && (
         <div className="absolute inset-0 bg-primary/10 flex items-center justify-center z-10 pointer-events-none">
@@ -387,12 +352,7 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
               <Smile className="h-6 w-6" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent
-            className="w-auto p-0 border-0"
-            side="top"
-            align="start"
-            sideOffset={8}
-          >
+          <PopoverContent className="w-auto p-0 border-0" side="top" align="start" sideOffset={8}>
             <Picker
               data={data}
               onEmojiSelect={handleEmojiSelect}
@@ -411,19 +371,14 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
               variant="ghost"
               size="icon"
               className={cn(
-                "flex-shrink-0 h-10 w-10 text-muted-foreground hover:text-primary transition-transform",
-                showAttachMenu && "rotate-45"
+                'flex-shrink-0 h-10 w-10 text-muted-foreground hover:text-primary transition-transform',
+                showAttachMenu && 'rotate-45',
               )}
             >
               <Paperclip className="h-6 w-6" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent
-            className="w-auto p-2"
-            side="top"
-            align="start"
-            sideOffset={8}
-          >
+          <PopoverContent className="w-auto p-2" side="top" align="start" sideOffset={8}>
             <div className="flex flex-col gap-1">
               <Button
                 variant="ghost"
@@ -464,17 +419,8 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
 
         {/* Send or Mic button */}
         {message.trim() ? (
-          <Button
-            size="icon"
-            className="flex-shrink-0 h-10 w-10"
-            onClick={handleSend}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
+          <Button size="icon" className="flex-shrink-0 h-10 w-10" onClick={handleSend} disabled={isPending}>
+            {isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         ) : (
           <TooltipProvider>

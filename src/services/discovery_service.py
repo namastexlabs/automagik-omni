@@ -58,15 +58,16 @@ class DiscoveryService:
 
         # Use gateway proxy URL - Evolution runs on dynamic ports managed by gateway
         gateway_port = os.getenv("OMNI_PORT", "8882")
-        global_url = settings_service.get_setting_value("evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution")
+        global_url = settings_service.get_setting_value(
+            "evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution"
+        )
 
         # Use unified omni_api_key (same key for Omni API and Evolution API)
         bootstrap_key = get_omni_api_key_global()
 
         if not bootstrap_key:
             logger.warning(
-                "No API key found in database or environment. "
-                "The key should be auto-generated on first startup."
+                "No API key found in database or environment. The key should be auto-generated on first startup."
             )
             return []
 
@@ -104,9 +105,9 @@ class DiscoveryService:
 
                 # Check if instance already exists in database by WhatsApp instance name
                 existing_instance = (
-                    db.query(InstanceConfig).filter(
-                        InstanceConfig.whatsapp_instance == evo_instance.instanceName
-                    ).first()
+                    db.query(InstanceConfig)
+                    .filter(InstanceConfig.whatsapp_instance == evo_instance.instanceName)
+                    .first()
                 )
 
                 if existing_instance:
@@ -127,6 +128,7 @@ class DiscoveryService:
         except Exception as e:
             logger.warning(f"Failed to query Evolution API {global_url}: {e}")
             import traceback
+
             logger.debug(f"Discovery error details: {traceback.format_exc()}")
 
         # Commit all changes
@@ -155,7 +157,7 @@ class DiscoveryService:
             evolution_client: EvolutionClient instance
             config: Config module with api.host and api.port
         """
-        if not hasattr(config, 'api') or not config.api.port:
+        if not hasattr(config, "api") or not config.api.port:
             logger.warning("Cannot sync webhook URLs: config.api.port not available")
             return
 
@@ -179,10 +181,7 @@ class DiscoveryService:
                 if current_url != expected_webhook_url:
                     logger.info(f"Updating webhook for {instance_name}: {current_url} -> {expected_webhook_url}")
                     await evolution_client.set_webhook(
-                        instance_name,
-                        expected_webhook_url,
-                        events=["MESSAGES_UPSERT"],
-                        webhook_base64=True
+                        instance_name, expected_webhook_url, events=["MESSAGES_UPSERT"], webhook_base64=True
                     )
                     logger.info(f"✓ Webhook synced for {instance_name}")
                 else:

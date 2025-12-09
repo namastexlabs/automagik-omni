@@ -466,12 +466,7 @@ class EvolutionApiSender:
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
 
-        payload = {
-            "number": formatted_recipient,
-            "mediatype": "audio",
-            "media": audio,
-            "mimetype": "audio/mpeg"
-        }
+        payload = {"number": formatted_recipient, "mediatype": "audio", "media": audio, "mimetype": "audio/mpeg"}
 
         try:
             logger.info(f"Sending audio message to {formatted_recipient}")

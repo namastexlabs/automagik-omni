@@ -33,7 +33,10 @@
 		"build:ui": "cd resources/ui && bun run build",
 		"bundle:python": "./scripts/bundle-python.sh",
 		"gateway:dev": "cd gateway && bun run dev",
-		"prepublishOnly": "bun run build"
+		"prepublishOnly": "bun run build",
+		"prepare": "husky",
+		"lint:dead-code": "knip",
+		"lint:dead-code:fix": "knip --fix"
 	},
 	"engines": {
 		"node": ">=18.0.0"
@@ -57,8 +60,26 @@
 		"api"
 	],
 	"devDependencies": {
+		"@commitlint/cli": "^19.6.1",
+		"@commitlint/config-conventional": "^19.6.0",
 		"@playwright/test": "^1.56.1",
-		"tsx": "^4.19.2"
+		"husky": "^9.1.7",
+		"knip": "^5.43.3",
+		"lint-staged": "^15.3.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2"
+	},
+	"lint-staged": {
+		"*.py": [
+			"uv run ruff check --fix",
+			"uv run ruff format"
+		],
+		"gateway/src/**/*.ts": [
+			"eslint --fix --config gateway/eslint.config.js"
+		],
+		"resources/ui/src/**/*.{ts,tsx}": [
+			"eslint --fix --config resources/ui/eslint.config.js"
+		]
 	},
 	"dependencies": {
 		"forge-inspector": "^0.0.6",

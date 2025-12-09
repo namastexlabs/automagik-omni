@@ -21,6 +21,7 @@ from sqlalchemy.exc import DatabaseError
 try:
     import discord
     from discord.ext import commands
+
     DISCORD_AVAILABLE = True
 except ImportError:
     discord = None
@@ -219,10 +220,7 @@ class DiscordBotManager:
 
     def __init__(self, message_router: MessageRouter):
         if not DISCORD_AVAILABLE:
-            raise ImportError(
-                "discord.py is required for Discord integration. "
-                "Install with: uv sync --extra discord"
-            )
+            raise ImportError("discord.py is required for Discord integration. Install with: uv sync --extra discord")
         self.message_router = message_router
         self.bots: Dict[str, AutomagikBot] = {}
         self.bot_tasks: Dict[str, asyncio.Task] = {}

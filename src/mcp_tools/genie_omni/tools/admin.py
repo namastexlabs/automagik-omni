@@ -9,14 +9,14 @@ logger = logging.getLogger(__name__)
 
 def register_tools(mcp: FastMCP, get_client: Callable):
     """Register admin tools with the MCP server."""
-# =============================================================================
-# CATEGORY 5: ADMIN (Manage Connections - when needed)
-# =============================================================================
-
+    # =============================================================================
+    # CATEGORY 5: ADMIN (Manage Connections - when needed)
+    # =============================================================================
 
     @mcp.tool()
     async def my_connections(
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """List WhatsApp instances. Returns: all instances with status."""
         client = get_client(ctx)
 
@@ -45,10 +45,11 @@ def register_tools(mcp: FastMCP, get_client: Callable):
             logger.error(f"Error listing connections: {e}")
             return f"❌ Failed to list connections: {str(e)}"
 
-
     @mcp.tool()
-    async def connection_status(instance_name: str = "genie",
-        ctx: Optional[Context] = None,) -> str:
+    async def connection_status(
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Check WhatsApp instance connection status. Args: instance_name. Returns: detailed status."""
         client = get_client(ctx)
 

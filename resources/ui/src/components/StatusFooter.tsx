@@ -1,12 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api, cn } from '@/lib';
 import { Circle, Loader2, Database, Server, MessageSquare, Cpu } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // App version - will be replaced with npm package version
 const APP_VERSION = '0.1.0';
@@ -71,13 +66,11 @@ function StatusIndicator({
       {isLoading ? (
         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
       ) : (
-        <Circle className={cn("h-2 w-2 fill-current", statusColor, status === 'up' && "animate-pulse")} />
+        <Circle className={cn('h-2 w-2 fill-current', statusColor, status === 'up' && 'animate-pulse')} />
       )}
-      {Icon && <Icon className={cn("h-3 w-3", isLoading ? "text-muted-foreground" : statusColor)} />}
-      <span className={cn("text-xs", isLoading ? "text-muted-foreground" : statusColor)}>{label}</span>
-      {latency !== undefined && status === 'up' && (
-        <span className="text-xs text-muted-foreground">({latency}ms)</span>
-      )}
+      {Icon && <Icon className={cn('h-3 w-3', isLoading ? 'text-muted-foreground' : statusColor)} />}
+      <span className={cn('text-xs', isLoading ? 'text-muted-foreground' : statusColor)}>{label}</span>
+      {latency !== undefined && status === 'up' && <span className="text-xs text-muted-foreground">({latency}ms)</span>}
     </div>
   );
 
@@ -87,9 +80,7 @@ function StatusIndicator({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        {indicator}
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{indicator}</TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs">
         {tooltipContent}
       </TooltipContent>
@@ -108,45 +99,51 @@ export function StatusFooter() {
   const services = health?.services;
 
   // Gateway stats
-  const gatewayDetails = services?.gateway?.details as {
-    memory?: { heapUsed: number; heapTotal: number; rss: number };
-    uptime?: number;
-    nodeVersion?: string;
-    pid?: number;
-  } | undefined;
+  const gatewayDetails = services?.gateway?.details as
+    | {
+        memory?: { heapUsed: number; heapTotal: number; rss: number };
+        uptime?: number;
+        nodeVersion?: string;
+        pid?: number;
+      }
+    | undefined;
 
   // Python API details
-  const pythonDetails = services?.python?.details as {
-    status?: string;
-    timestamp?: string;
-    services?: {
-      api?: {
+  const pythonDetails = services?.python?.details as
+    | {
         status?: string;
-        uptime?: number;
-        memory_mb?: number;
-        checks?: {
-          database?: string;
-          runtime?: string;
+        timestamp?: string;
+        services?: {
+          api?: {
+            status?: string;
+            uptime?: number;
+            memory_mb?: number;
+            checks?: {
+              database?: string;
+              runtime?: string;
+            };
+          };
+          database?: {
+            status?: string;
+            pool_size?: number;
+            checked_out?: number;
+            checked_in?: number;
+            overflow?: number;
+          };
         };
-      };
-      database?: {
-        status?: string;
-        pool_size?: number;
-        checked_out?: number;
-        checked_in?: number;
-        overflow?: number;
-      };
-    };
-  } | undefined;
+      }
+    | undefined;
 
   // Evolution details
-  const evolutionDetails = services?.evolution?.details as {
-    version?: string;
-    whatsappWebVersion?: string;
-    clientName?: string;
-    instances?: { total: number; connected: number; disconnected: number };
-    totals?: { messages: number; contacts: number; chats: number };
-  } | undefined;
+  const evolutionDetails = services?.evolution?.details as
+    | {
+        version?: string;
+        whatsappWebVersion?: string;
+        clientName?: string;
+        instances?: { total: number; connected: number; disconnected: number };
+        totals?: { messages: number; contacts: number; chats: number };
+      }
+    | undefined;
 
   // Database status from Python API
   const dbInfo = pythonDetails?.services?.database;
@@ -174,7 +171,9 @@ export function StatusFooter() {
                   {gatewayDetails?.memory && (
                     <>
                       <span className="text-muted-foreground">Memory:</span>
-                      <span>{gatewayDetails.memory.heapUsed} / {gatewayDetails.memory.heapTotal} MB</span>
+                      <span>
+                        {gatewayDetails.memory.heapUsed} / {gatewayDetails.memory.heapTotal} MB
+                      </span>
                     </>
                   )}
 
@@ -317,7 +316,9 @@ export function StatusFooter() {
                   {evolutionDetails?.instances && (
                     <>
                       <span className="text-muted-foreground">Instances:</span>
-                      <span>{evolutionDetails.instances.connected}/{evolutionDetails.instances.total} connected</span>
+                      <span>
+                        {evolutionDetails.instances.connected}/{evolutionDetails.instances.total} connected
+                      </span>
                     </>
                   )}
 
@@ -340,11 +341,7 @@ export function StatusFooter() {
         </div>
 
         <div className="flex items-center gap-4 text-muted-foreground">
-          {health?.timestamp && (
-            <span>
-              {new Date(health.timestamp).toLocaleTimeString()}
-            </span>
-          )}
+          {health?.timestamp && <span>{new Date(health.timestamp).toLocaleTimeString()}</span>}
           <span>v{APP_VERSION}</span>
         </div>
       </footer>

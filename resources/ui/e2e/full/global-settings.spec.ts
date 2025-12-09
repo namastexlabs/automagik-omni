@@ -1,5 +1,4 @@
 import { test, expect } from '../fixtures';
-import { waitForToast } from '../utils/test-helpers';
 
 /**
  * Global Settings comprehensive E2E tests

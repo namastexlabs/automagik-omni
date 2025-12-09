@@ -23,11 +23,7 @@ interface UseLogStreamReturn {
 }
 
 export function useLogStream(options: UseLogStreamOptions = {}): UseLogStreamReturn {
-  const {
-    services: initialServices,
-    maxLogs = 500,
-    autoConnect = true,
-  } = options;
+  const { services: initialServices, maxLogs = 500, autoConnect = true } = options;
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -35,7 +31,7 @@ export function useLogStream(options: UseLogStreamOptions = {}): UseLogStreamRet
   const [error, setError] = useState<string | null>(null);
   const [availableServices, setAvailableServices] = useState<LogService[]>([]);
   const [selectedServices, setSelectedServices] = useState<LogServiceName[]>(
-    initialServices ?? ['api', 'discord', 'evolution', 'gateway']
+    initialServices ?? ['api', 'discord', 'evolution', 'gateway'],
   );
   const [isPaused, setIsPaused] = useState(false);
 
@@ -53,18 +49,21 @@ export function useLogStream(options: UseLogStreamOptions = {}): UseLogStreamRet
     api.logs.getServices().then(setAvailableServices);
   }, []);
 
-  const addLog = useCallback((entry: LogEntry) => {
-    if (pausedRef.current) return;
+  const addLog = useCallback(
+    (entry: LogEntry) => {
+      if (pausedRef.current) return;
 
-    setLogs(prev => {
-      const newLogs = [...prev, entry];
-      // Trim to max size
-      if (newLogs.length > maxLogs) {
-        return newLogs.slice(-maxLogs);
-      }
-      return newLogs;
-    });
-  }, [maxLogs]);
+      setLogs((prev) => {
+        const newLogs = [...prev, entry];
+        // Trim to max size
+        if (newLogs.length > maxLogs) {
+          return newLogs.slice(-maxLogs);
+        }
+        return newLogs;
+      });
+    },
+    [maxLogs],
+  );
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -145,7 +144,7 @@ export function useLogStream(options: UseLogStreamOptions = {}): UseLogStreamRet
     return () => {
       disconnect();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback, only autoConnect should trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback, only autoConnect should trigger
   }, [autoConnect]);
 
   // Reconnect when selected services change (if connected)
@@ -153,7 +152,7 @@ export function useLogStream(options: UseLogStreamOptions = {}): UseLogStreamRet
     if (isConnected || isConnecting) {
       connect();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only reconnect when selectedServices changes, connect is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only reconnect when selectedServices changes, connect is stable
   }, [selectedServices]);
 
   const clearLogs = useCallback(() => {
@@ -161,7 +160,7 @@ export function useLogStream(options: UseLogStreamOptions = {}): UseLogStreamRet
   }, []);
 
   const togglePause = useCallback(() => {
-    setIsPaused(prev => !prev);
+    setIsPaused((prev) => !prev);
   }, []);
 
   return {

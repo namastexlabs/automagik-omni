@@ -190,9 +190,7 @@ class EvolutionClient:
             try:
                 # Find instance by whatsapp_instance name
                 db_instance = (
-                    session.query(InstanceConfig)
-                    .filter(InstanceConfig.whatsapp_instance == self.instance_name)
-                    .first()
+                    session.query(InstanceConfig).filter(InstanceConfig.whatsapp_instance == self.instance_name).first()
                 )
 
                 if db_instance:

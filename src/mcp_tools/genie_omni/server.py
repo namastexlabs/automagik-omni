@@ -47,6 +47,7 @@ def get_config(ctx: Optional[Context] = None) -> OmniConfig:
         if hasattr(ctx, "tool_config") and ctx.tool_config:
             try:
                 from automagik_tools.hub.config_injection import create_user_config_instance  # type: ignore[import-not-found]
+
                 user_config = create_user_config_instance(OmniConfig, ctx.tool_config)
                 # Cache in context state for this request
                 ctx.set_state("genie_omni_config", user_config)

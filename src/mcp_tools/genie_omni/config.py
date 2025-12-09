@@ -8,9 +8,7 @@ from typing import Optional, Literal
 class OmniConfig(BaseSettings):
     """Configuration for OMNI multi-tenant messaging API tool"""
 
-    api_key: str = Field(
-        default="", description="API key for OMNI authentication", alias="OMNI_API_KEY"
-    )
+    api_key: str = Field(default="", description="API key for OMNI authentication", alias="OMNI_API_KEY")
 
     base_url: str = Field(
         default="http://localhost:8882",
@@ -24,9 +22,7 @@ class OmniConfig(BaseSettings):
         alias="OMNI_DEFAULT_INSTANCE",
     )
 
-    timeout: int = Field(
-        default=30, description="Request timeout in seconds", alias="OMNI_TIMEOUT"
-    )
+    timeout: int = Field(default=30, description="Request timeout in seconds", alias="OMNI_TIMEOUT")
 
     max_retries: int = Field(
         default=3,

@@ -61,16 +61,16 @@ class InstanceConfigCreate(BaseModel):
     session_id_prefix: Optional[str] = Field(None, description="Session ID prefix (WhatsApp)")
     webhook_base64: Optional[bool] = Field(None, description="Send base64 encoded data in webhooks (WhatsApp)")
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def migrate_legacy_evolution_fields(cls, data: Any) -> Any:
         """Accept legacy evolution_* field names and map to whatsapp_web_*."""
         if isinstance(data, dict):
             # Map legacy field names to new names
-            if 'evolution_url' in data and 'whatsapp_web_url' not in data:
-                data['whatsapp_web_url'] = data.pop('evolution_url')
-            if 'evolution_key' in data and 'whatsapp_web_key' not in data:
-                data['whatsapp_web_key'] = data.pop('evolution_key')
+            if "evolution_url" in data and "whatsapp_web_url" not in data:
+                data["whatsapp_web_url"] = data.pop("evolution_url")
+            if "evolution_key" in data and "whatsapp_web_key" not in data:
+                data["whatsapp_web_key"] = data.pop("evolution_key")
         return data
 
     # Discord-specific fields
@@ -136,15 +136,15 @@ class InstanceConfigUpdate(BaseModel):
     session_id_prefix: Optional[str] = None
     webhook_base64: Optional[bool] = None
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def migrate_legacy_evolution_fields(cls, data: Any) -> Any:
         """Accept legacy evolution_* field names and map to whatsapp_web_*."""
         if isinstance(data, dict):
-            if 'evolution_url' in data and 'whatsapp_web_url' not in data:
-                data['whatsapp_web_url'] = data.pop('evolution_url')
-            if 'evolution_key' in data and 'whatsapp_web_key' not in data:
-                data['whatsapp_web_key'] = data.pop('evolution_key')
+            if "evolution_url" in data and "whatsapp_web_url" not in data:
+                data["whatsapp_web_url"] = data.pop("evolution_url")
+            if "evolution_key" in data and "whatsapp_web_key" not in data:
+                data["whatsapp_web_key"] = data.pop("evolution_key")
         return data
 
     # Discord-specific fields
@@ -439,6 +439,7 @@ async def list_instances(
     if include_live_status:
         try:
             from src.services.instance_status_service import get_live_statuses
+
             live_statuses = await get_live_statuses(instances)
         except Exception as e:
             logger.warning(f"Failed to fetch live statuses: {e}")
@@ -513,13 +514,17 @@ async def list_instances(
                 # Get bootstrap key from database (with .env fallback)
                 # Use gateway proxy URL - Evolution runs on dynamic ports managed by gateway
                 gateway_port = os.getenv("OMNI_PORT", "8882")
-                evolution_url = instance.evolution_url or settings_service.get_setting_value("evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution")
+                evolution_url = instance.evolution_url or settings_service.get_setting_value(
+                    "evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution"
+                )
                 bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
                 if not bootstrap_key:
                     bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
                 if not bootstrap_key:
-                    logger.warning(f"No Evolution API key found in database or environment for {instance.name}, skipping status check")
+                    logger.warning(
+                        f"No Evolution API key found in database or environment for {instance.name}, skipping status check"
+                    )
                     instance_dict["whatsapp_web_status"] = None
                 else:
                     # Pass instance name for logging/debugging only (auth uses bootstrap key)
@@ -638,7 +643,9 @@ async def get_instance(
                 bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
             if not bootstrap_key:
-                logger.warning(f"No Evolution API key found in database or environment, skipping status check for {instance.name}")
+                logger.warning(
+                    f"No Evolution API key found in database or environment, skipping status check for {instance.name}"
+                )
             else:
                 # Pass instance name for logging/debugging only (auth uses bootstrap key)
                 whatsapp_instance_name = instance.whatsapp_instance or instance.name

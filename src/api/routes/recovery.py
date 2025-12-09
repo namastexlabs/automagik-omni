@@ -16,15 +16,13 @@ router = APIRouter(prefix="/recovery", tags=["recovery"])
 
 class ApiKeyRecoveryResponse(BaseModel):
     """Response for API key recovery."""
+
     api_key: str
     message: str
 
 
 @router.get("/api-key", response_model=ApiKeyRecoveryResponse)
-async def recover_api_key(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+async def recover_api_key(request: Request, db: Session = Depends(get_db)):
     """
     Recover API key - localhost only, no authentication.
 
@@ -43,19 +41,15 @@ async def recover_api_key(
         raise HTTPException(
             status_code=403,
             detail="API key recovery is only available from localhost. "
-                   "Access this endpoint from the same machine running Omni."
+            "Access this endpoint from the same machine running Omni.",
         )
 
     # Get the API key from database
     setting = settings_service.get_setting("omni_api_key", db)
 
     if not setting or not setting.value:
-        raise HTTPException(
-            status_code=404,
-            detail="No API key found. Run 'omni start' to auto-generate one."
-        )
+        raise HTTPException(status_code=404, detail="No API key found. Run 'omni start' to auto-generate one.")
 
     return ApiKeyRecoveryResponse(
-        api_key=setting.value,
-        message="Store this key securely. This endpoint is only accessible from localhost."
+        api_key=setting.value, message="Store this key securely. This endpoint is only accessible from localhost."
     )

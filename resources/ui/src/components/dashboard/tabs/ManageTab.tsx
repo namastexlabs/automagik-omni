@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -28,10 +26,8 @@ import {
   Settings,
   RefreshCw,
   LogOut,
-  QrCode,
   Smartphone,
   Clock,
-  Shield,
   Bell,
   BellOff,
   Eye,
@@ -105,13 +101,7 @@ interface InstanceManageCardProps {
   isLoggingOut: boolean;
 }
 
-function InstanceManageCard({
-  instance,
-  onRestart,
-  onLogout,
-  isRestarting,
-  isLoggingOut,
-}: InstanceManageCardProps) {
+function InstanceManageCard({ instance, onRestart, onLogout, isRestarting, isLoggingOut }: InstanceManageCardProps) {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const isConnected = instance.connectionStatus === 'open';
@@ -132,15 +122,10 @@ function InstanceManageCard({
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <CardTitle className="text-xl truncate">
-                {instance.profileName || instance.name}
-              </CardTitle>
+              <CardTitle className="text-xl truncate">{instance.profileName || instance.name}</CardTitle>
               <Badge
                 variant={isConnected ? 'default' : 'destructive'}
-                className={cn(
-                  'flex items-center gap-1',
-                  isConnected ? 'bg-success text-success-foreground' : ''
-                )}
+                className={cn('flex items-center gap-1', isConnected ? 'bg-success text-success-foreground' : '')}
               >
                 {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                 {isConnected ? 'Connected' : instance.connectionStatus}
@@ -208,7 +193,9 @@ function InstanceManageCard({
                 enabled={instance.settings.readMessages}
               />
               <SettingRow
-                icon={instance.settings.alwaysOnline ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                icon={
+                  instance.settings.alwaysOnline ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />
+                }
                 label="Always online"
                 description="Show as online even when inactive"
                 enabled={instance.settings.alwaysOnline}
@@ -261,17 +248,8 @@ function InstanceManageCard({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-muted-foreground">Evolution API Key</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowApiKey(!showApiKey)}
-              className="h-6 px-2"
-            >
-              {showApiKey ? (
-                <EyeOff className="h-3 w-3" />
-              ) : (
-                <Eye className="h-3 w-3" />
-              )}
+            <Button variant="ghost" size="sm" onClick={() => setShowApiKey(!showApiKey)} className="h-6 px-2">
+              {showApiKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
             </Button>
           </div>
 
@@ -296,26 +274,15 @@ function InstanceManageCard({
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Auto-generated key for Evolution API authentication
-          </p>
+          <p className="text-xs text-muted-foreground">Auto-generated key for Evolution API authentication</p>
         </div>
 
         <Separator />
 
         {/* Actions */}
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => onRestart(instance.name)}
-            disabled={isRestarting}
-          >
-            {isRestarting ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
+          <Button variant="outline" className="flex-1" onClick={() => onRestart(instance.name)} disabled={isRestarting}>
+            {isRestarting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Restart
           </Button>
           <Button
@@ -324,11 +291,7 @@ function InstanceManageCard({
             onClick={() => setShowLogoutDialog(true)}
             disabled={isLoggingOut || !isConnected}
           >
-            {isLoggingOut ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4 mr-2" />
-            )}
+            {isLoggingOut ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
             Logout
           </Button>
         </div>
@@ -343,8 +306,10 @@ function InstanceManageCard({
               Logout from WhatsApp
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to logout <span className="font-semibold text-foreground">"{instance.profileName || instance.name}"</span>?
-              <br /><br />
+              Are you sure you want to logout{' '}
+              <span className="font-semibold text-foreground">"{instance.profileName || instance.name}"</span>?
+              <br />
+              <br />
               This will disconnect the WhatsApp session. You'll need to scan a QR code to reconnect.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -380,10 +345,9 @@ function SettingRow({
   return (
     <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
       <div className="flex items-center gap-3">
-        <div className={cn(
-          'p-2 rounded-md',
-          enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
-        )}>
+        <div
+          className={cn('p-2 rounded-md', enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground')}
+        >
           {icon}
         </div>
         <div>
@@ -391,9 +355,10 @@ function SettingRow({
           <div className="text-xs text-muted-foreground">{description}</div>
         </div>
       </div>
-      <Badge variant={enabled ? 'default' : 'outline'} className={cn(
-        enabled ? 'bg-success/10 text-success border-success/20' : ''
-      )}>
+      <Badge
+        variant={enabled ? 'default' : 'outline'}
+        className={cn(enabled ? 'bg-success/10 text-success border-success/20' : '')}
+      >
         {enabled ? 'Enabled' : 'Disabled'}
       </Badge>
     </div>
@@ -434,9 +399,7 @@ export function ManageTab() {
   const discoverMutation = useMutation({
     mutationFn: () => api.instances.discover(),
     onSuccess: (data) => {
-      toast.success(
-        `Resync complete - ${data.total} instance${data.total !== 1 ? 's' : ''} configured`
-      );
+      toast.success(`Resync complete - ${data.total} instance${data.total !== 1 ? 's' : ''} configured`);
       queryClient.invalidateQueries({ queryKey: ['health'] });
     },
     onError: (error: Error) => {
@@ -445,19 +408,21 @@ export function ManageTab() {
   });
 
   // Extract Evolution instance details from health
-  const evolutionDetails = health?.services?.evolution?.details as {
-    instances?: { total: number; connected: number; disconnected: number };
-    totals?: { messages: number; contacts: number; chats: number };
-    instanceDetails?: EvolutionInstanceDetail[];
-    version?: string;
-    whatsappWebVersion?: string;
-  } | undefined;
+  const evolutionDetails = health?.services?.evolution?.details as
+    | {
+        instances?: { total: number; connected: number; disconnected: number };
+        totals?: { messages: number; contacts: number; chats: number };
+        instanceDetails?: EvolutionInstanceDetail[];
+        version?: string;
+        whatsappWebVersion?: string;
+      }
+    | undefined;
 
   const instances = evolutionDetails?.instanceDetails || [];
 
   // Populate per-instance authentication keys when instances are loaded
   useEffect(() => {
-    instances.forEach(instance => {
+    instances.forEach((instance) => {
       if (instance.name && instance.evolution_key) {
         setInstanceKey(instance.name, instance.evolution_key);
       }
@@ -475,9 +440,7 @@ export function ManageTab() {
                 <Smartphone className="h-5 w-5" />
                 WhatsApp Web Management
               </CardTitle>
-              <CardDescription>
-                Manage your WhatsApp instances, view settings, and monitor connections
-              </CardDescription>
+              <CardDescription>Manage your WhatsApp instances, view settings, and monitor connections</CardDescription>
             </div>
             <div className="flex items-center gap-4">
               {evolutionDetails && (
@@ -517,21 +480,15 @@ export function ManageTab() {
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-success" />
-                <span className="text-sm">
-                  {evolutionDetails.instances.connected} connected
-                </span>
+                <span className="text-sm">{evolutionDetails.instances.connected} connected</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-destructive" />
-                <span className="text-sm">
-                  {evolutionDetails.instances.disconnected} disconnected
-                </span>
+                <span className="text-sm">{evolutionDetails.instances.disconnected} disconnected</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-muted-foreground" />
-                <span className="text-sm">
-                  {evolutionDetails.instances.total} total
-                </span>
+                <span className="text-sm">{evolutionDetails.instances.total} total</span>
               </div>
             </div>
           </CardContent>

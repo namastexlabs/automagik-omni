@@ -12,11 +12,7 @@ interface RestartRequiredBannerProps {
  * Amber warning banner shown when runtime config differs from saved config.
  * Indicates that a restart is required to apply changes.
  */
-export function RestartRequiredBanner({
-  runtimeDbType,
-  savedDbType,
-  reason,
-}: RestartRequiredBannerProps) {
+export function RestartRequiredBanner({ runtimeDbType, savedDbType, reason }: RestartRequiredBannerProps) {
   return (
     <Alert className="border-amber-400 bg-amber-50 dark:bg-amber-950">
       <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -37,11 +33,7 @@ export function RestartRequiredBanner({
             Saved: {savedDbType}
           </Badge>
         </div>
-        {reason && (
-          <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-            Reason: {reason}
-          </p>
-        )}
+        {reason && <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">Reason: {reason}</p>}
       </AlertDescription>
     </Alert>
   );

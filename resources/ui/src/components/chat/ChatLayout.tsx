@@ -1,11 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, MessageSquare, AlertCircle, Play } from 'lucide-react';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@/components/ui/resizable';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ChatList } from './ChatList';
@@ -60,7 +56,13 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
   });
 
   // Fetch chats
-  const { data: chatsResponse, isLoading: chatsLoading, isError: chatsError, error: chatsErrorData, refetch: refetchChats } = useQuery<EvolutionChat[]>({
+  const {
+    data: chatsResponse,
+    isLoading: chatsLoading,
+    isError: chatsError,
+    error: chatsErrorData,
+    refetch: refetchChats,
+  } = useQuery<EvolutionChat[]>({
     queryKey: ['chats', instanceName],
     queryFn: () => api.evolution.findChats(instanceName),
     refetchInterval: 30000,
@@ -68,7 +70,11 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
   });
 
   // Fetch groups to get proper group names
-  const { data: groupsResponse, isLoading: groupsLoading, isError: groupsError } = useQuery<EvolutionGroup[]>({
+  const {
+    data: groupsResponse,
+    isLoading: groupsLoading,
+    isError: groupsError,
+  } = useQuery<EvolutionGroup[]>({
     queryKey: ['groups', instanceName],
     queryFn: () => api.evolution.fetchAllGroups(instanceName),
     refetchInterval: 60000,
@@ -140,16 +146,13 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
     return (
       <div className="flex items-center justify-center h-full bg-background">
         <div className="max-w-md text-center space-y-4">
-          <Alert variant={justStarted ? "default" : "destructive"}>
+          <Alert variant={justStarted ? 'default' : 'destructive'}>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>
-              {justStarted ? "Starting WhatsApp Service..." : "WhatsApp Service Not Running"}
-            </AlertTitle>
+            <AlertTitle>{justStarted ? 'Starting WhatsApp Service...' : 'WhatsApp Service Not Running'}</AlertTitle>
             <AlertDescription>
               {justStarted
-                ? "Please wait while the service starts. This may take a few seconds."
-                : "The WhatsApp service needs to be started to load your chats."
-              }
+                ? 'Please wait while the service starts. This may take a few seconds.'
+                : 'The WhatsApp service needs to be started to load your chats.'}
             </AlertDescription>
           </Alert>
 
@@ -159,11 +162,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
               <span>Connecting...</span>
             </div>
           ) : (
-            <Button
-              onClick={() => startEvolutionMutation.mutate()}
-              disabled={isStarting}
-              className="gap-2"
-            >
+            <Button onClick={() => startEvolutionMutation.mutate()} disabled={isStarting} className="gap-2">
               {isStarting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -207,10 +206,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
       {/* Chat View */}
       <ResizablePanel defaultSize={65}>
         {selectedChat ? (
-          <ChatView
-            instanceName={instanceName}
-            chat={selectedChat}
-          />
+          <ChatView instanceName={instanceName} chat={selectedChat} />
         ) : (
           <div className="flex flex-col items-center justify-center h-full bg-muted/20 text-muted-foreground">
             <div className="text-center">

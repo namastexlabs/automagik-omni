@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MessageSquare, AlertCircle } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { PageHeader } from '@/components/PageHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -65,16 +64,12 @@ export default function Chats() {
             <div className="p-8">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  No instances available. Please create an instance first.
-                </AlertDescription>
+                <AlertDescription>No instances available. Please create an instance first.</AlertDescription>
               </Alert>
             </div>
           )}
 
-          {selectedInstance && (
-            <ChatLayout instanceName={selectedInstance} />
-          )}
+          {selectedInstance && <ChatLayout instanceName={selectedInstance} />}
         </div>
       </div>
     </DashboardLayout>

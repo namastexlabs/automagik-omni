@@ -59,10 +59,7 @@ function InstanceCard({ name, status, messages, contacts, chats }: InstanceCardP
       <CardContent className="pt-4">
         <div className="flex items-center gap-3">
           <Circle
-            className={cn(
-              'h-3 w-3 fill-current',
-              status === 'connected' ? 'text-success' : 'text-destructive'
-            )}
+            className={cn('h-3 w-3 fill-current', status === 'connected' ? 'text-success' : 'text-destructive')}
           />
           <div className="flex-1">
             <div className="font-medium">{name}</div>
@@ -79,16 +76,25 @@ function InstanceCard({ name, status, messages, contacts, chats }: InstanceCardP
 export function OverviewTab() {
   const { dateRange } = useTimeRange();
 
-  const { data: analytics, isLoading: analyticsLoading, error: analyticsError } = useQuery<TraceAnalytics>({
+  const {
+    data: analytics,
+    isLoading: analyticsLoading,
+    error: analyticsError,
+  } = useQuery<TraceAnalytics>({
     queryKey: ['traceAnalytics', dateRange],
-    queryFn: () => api.traces.getAnalytics({
-      start_date: dateRange.start_date,
-      end_date: dateRange.end_date,
-    }),
+    queryFn: () =>
+      api.traces.getAnalytics({
+        start_date: dateRange.start_date,
+        end_date: dateRange.end_date,
+      }),
     refetchInterval: 30000,
   });
 
-  const { data: health, isLoading: healthLoading, error: healthError } = useQuery<HealthResponse>({
+  const {
+    data: health,
+    isLoading: healthLoading,
+    error: healthError,
+  } = useQuery<HealthResponse>({
     queryKey: ['health'],
     queryFn: () => api.health(),
     refetchInterval: 30000,
@@ -102,15 +108,18 @@ export function OverviewTab() {
     console.error('[OverviewTab] Health error:', healthError);
   }
 
-  const evolutionDetails = health?.services?.evolution?.details as {
-    instances?: { total: number; connected: number };
-    totals?: { messages: number; contacts: number; chats: number };
-  } | undefined;
+  const evolutionDetails = health?.services?.evolution?.details as
+    | {
+        instances?: { total: number; connected: number };
+        totals?: { messages: number; contacts: number; chats: number };
+      }
+    | undefined;
 
   // Calculate status breakdown from analytics
   const statusData = {
     completed: analytics?.successful_messages || 0,
-    processing: (analytics?.total_messages || 0) - (analytics?.successful_messages || 0) - (analytics?.failed_messages || 0),
+    processing:
+      (analytics?.total_messages || 0) - (analytics?.successful_messages || 0) - (analytics?.failed_messages || 0),
     failed: analytics?.failed_messages || 0,
   };
 
@@ -119,7 +128,8 @@ export function OverviewTab() {
       {/* Error Banner */}
       {analyticsError && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive">
-          <strong>Analytics Error:</strong> {analyticsError instanceof Error ? analyticsError.message : 'Failed to load analytics'}
+          <strong>Analytics Error:</strong>{' '}
+          {analyticsError instanceof Error ? analyticsError.message : 'Failed to load analytics'}
         </div>
       )}
 
@@ -162,11 +172,7 @@ export function OverviewTab() {
             <CardTitle className="text-base">Status Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            {analyticsLoading ? (
-              <Skeleton className="h-[200px] w-full" />
-            ) : (
-              <StatusBreakdownChart data={statusData} />
-            )}
+            {analyticsLoading ? <Skeleton className="h-[200px] w-full" /> : <StatusBreakdownChart data={statusData} />}
           </CardContent>
         </Card>
 

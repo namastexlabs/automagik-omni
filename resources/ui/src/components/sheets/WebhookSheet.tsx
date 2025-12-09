@@ -2,13 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Webhook, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -77,7 +71,7 @@ export function WebhookSheet({ instanceName, open, onOpenChange }: WebhookSheetP
   });
 
   const updateForm = <K extends keyof WebhookForm>(key: K, value: WebhookForm[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
@@ -88,11 +82,13 @@ export function WebhookSheet({ instanceName, open, onOpenChange }: WebhookSheetP
           <SheetTitle className="flex items-center gap-2">
             <Webhook className="h-5 w-5" />
             Webhook - {instanceName}
-            {form.enabled && <Badge variant="secondary" className="bg-green-500/20 text-green-600">Active</Badge>}
+            {form.enabled && (
+              <Badge variant="secondary" className="bg-green-500/20 text-green-600">
+                Active
+              </Badge>
+            )}
           </SheetTitle>
-          <SheetDescription>
-            Configure webhook notifications for events
-          </SheetDescription>
+          <SheetDescription>Configure webhook notifications for events</SheetDescription>
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-120px)] mt-6">
@@ -161,9 +157,7 @@ export function WebhookSheet({ instanceName, open, onOpenChange }: WebhookSheetP
 
                     {/* Events */}
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">
-                        Events ({form.events.length} selected)
-                      </Label>
+                      <Label className="text-sm font-medium">Events ({form.events.length} selected)</Label>
                       <div className="p-4 rounded-lg bg-muted/50">
                         <EventSelector
                           selectedEvents={form.events}

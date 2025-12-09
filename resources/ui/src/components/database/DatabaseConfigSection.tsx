@@ -26,7 +26,12 @@ export function DatabaseConfigSection() {
   const [wizardOpen, setWizardOpen] = useState(false);
 
   // Fetch database configuration state
-  const { data: config, isLoading, error, refetch } = useQuery({
+  const {
+    data: config,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['database-config'],
     queryFn: () => api.database.getConfig(),
   });
@@ -58,9 +63,7 @@ export function DatabaseConfigSection() {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-destructive">
-            Failed to load database configuration. Please refresh the page.
-          </p>
+          <p className="text-sm text-destructive">Failed to load database configuration. Please refresh the page.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-2">
             Retry
           </Button>
@@ -131,26 +134,20 @@ export function DatabaseConfigSection() {
         )}
 
         {/* Status Cards */}
-        <DatabaseStatusCard
-          runtime={config.runtime}
-          saved={config.saved}
-          isSynced={isSynced}
-        />
+        <DatabaseStatusCard runtime={config.runtime} saved={config.saved} isSynced={isSynced} />
 
         {/* First-time Setup - Show wizard inline when not configured */}
         {!config.is_configured && (
           <div className="mt-4">
-            <DatabaseSetupWizard
-              onComplete={() => refetch()}
-            />
+            <DatabaseSetupWizard onComplete={() => refetch()} />
           </div>
         )}
 
         {/* Locked Notice for users trying to change */}
         {config.is_locked && (
           <p className="text-xs text-muted-foreground text-center pt-2">
-            Database type is locked because messaging instances exist.
-            To change database type, all instances must be removed first.
+            Database type is locked because messaging instances exist. To change database type, all instances must be
+            removed first.
           </p>
         )}
       </CardContent>

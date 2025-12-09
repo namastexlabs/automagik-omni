@@ -6,15 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  Database,
-  CheckCircle2,
-  AlertTriangle,
-  HardDrive,
-  ChevronDown,
-  ChevronRight,
-  FolderOpen,
-} from 'lucide-react';
+import { Database, CheckCircle2, AlertTriangle, HardDrive, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
 import { DatabaseConfig } from '@/types/onboarding';
 
 interface DatabaseSetupWizardProps {
@@ -55,9 +47,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
     onComplete?.(config);
   };
 
-  const isValid =
-    storageMode === 'filesystem' ? dataDir.trim().length > 0 :
-    true; // memory mode always valid
+  const isValid = storageMode === 'filesystem' ? dataDir.trim().length > 0 : true; // memory mode always valid
 
   return (
     <Card className="border-border elevation-md">
@@ -66,18 +56,14 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
           <Database className="h-5 w-5" />
           PostgreSQL Storage Configuration
         </CardTitle>
-        <CardDescription>
-          Configure embedded PostgreSQL storage. Data is stored locally using pgserve.
-        </CardDescription>
+        <CardDescription>Configure embedded PostgreSQL storage. Data is stored locally using pgserve.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* PostgreSQL Storage Mode */}
         <div className="space-y-4">
           <div>
             <Label className="text-base font-semibold">Storage Mode</Label>
-            <p className="text-sm text-muted-foreground mt-1">
-              Choose how PostgreSQL stores data.
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Choose how PostgreSQL stores data.</p>
           </div>
 
           {/* Option 1: Filesystem (Production) */}
@@ -91,9 +77,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
             />
             <div className="flex-1">
               <div className="font-medium">Filesystem Storage (Recommended for Production)</div>
-              <p className="text-sm text-muted-foreground">
-                Persistent data stored on disk
-              </p>
+              <p className="text-sm text-muted-foreground">Persistent data stored on disk</p>
             </div>
           </label>
 
@@ -128,18 +112,14 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
             />
             <div className="flex-1">
               <div className="font-medium">Memory Storage (Development)</div>
-              <p className="text-sm text-muted-foreground">
-                Embedded PostgreSQL in RAM, data lost on restart
-              </p>
+              <p className="text-sm text-muted-foreground">Embedded PostgreSQL in RAM, data lost on restart</p>
             </div>
           </label>
 
           {storageMode === 'memory' && (
             <Alert className="ml-7">
               <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Data will be lost on restart (memory only, no persistence)
-              </AlertDescription>
+              <AlertDescription>Data will be lost on restart (memory only, no persistence)</AlertDescription>
             </Alert>
           )}
         </div>
@@ -151,15 +131,10 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
               <HardDrive className="h-5 w-5 text-muted-foreground" />
               <div>
                 <Label className="text-base font-semibold">Redis Cache (Optional)</Label>
-                <p className="text-xs text-muted-foreground">
-                  Enable Redis caching for faster instance restarts
-                </p>
+                <p className="text-xs text-muted-foreground">Enable Redis caching for faster instance restarts</p>
               </div>
             </div>
-            <Switch
-              checked={redisEnabled}
-              onCheckedChange={setRedisEnabled}
-            />
+            <Switch checked={redisEnabled} onCheckedChange={setRedisEnabled} />
           </div>
 
           {redisEnabled && (
@@ -174,18 +149,12 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                   onChange={(e) => setRedisUrl(e.target.value)}
                   className="font-mono"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Redis connection URL (redis:// or rediss:// for TLS)
-                </p>
+                <p className="text-xs text-muted-foreground">Redis connection URL (redis:// or rediss:// for TLS)</p>
               </div>
 
               <Collapsible open={showAdvancedRedis} onOpenChange={setShowAdvancedRedis}>
                 <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  {showAdvancedRedis ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
+                  {showAdvancedRedis ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   Advanced Redis options
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-4 pt-4">
@@ -199,9 +168,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                       onChange={(e) => setRedisPrefixKey(e.target.value)}
                       className="font-mono"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Prefix for all Redis keys (default: omni)
-                    </p>
+                    <p className="text-xs text-muted-foreground">Prefix for all Redis keys (default: omni)</p>
                   </div>
 
                   <div className="space-y-2">
@@ -222,9 +189,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="redis-save-instances">Save Instances in Redis</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Store instance state in Redis for faster restarts
-                      </p>
+                      <p className="text-xs text-muted-foreground">Store instance state in Redis for faster restarts</p>
                     </div>
                     <Switch
                       id="redis-save-instances"
@@ -245,7 +210,8 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
           <AlertDescription className="space-y-2">
             <ul className="list-disc list-inside text-sm">
               <li>
-                PostgreSQL: <strong>
+                PostgreSQL:{' '}
+                <strong>
                   {storageMode === 'filesystem' && `Embedded (Filesystem: ${dataDir})`}
                   {storageMode === 'memory' && 'Embedded (Memory Only)'}
                 </strong>
@@ -259,12 +225,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
 
         {/* Complete Button */}
         <div className="flex justify-end pt-4">
-          <Button
-            onClick={handleComplete}
-            disabled={!isValid}
-            size="lg"
-            className="w-full sm:w-auto"
-          >
+          <Button onClick={handleComplete} disabled={!isValid} size="lg" className="w-full sm:w-auto">
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Continue to API Key Setup
           </Button>

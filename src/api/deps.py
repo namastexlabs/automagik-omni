@@ -85,6 +85,7 @@ def _get_valid_api_keys() -> list[str]:
     if not _cache_initialized:
         try:
             from src.services.settings_service import settings_service
+
             db_gen = get_db()
             db = next(db_gen)
             setting = settings_service.get_setting("omni_api_key", db)

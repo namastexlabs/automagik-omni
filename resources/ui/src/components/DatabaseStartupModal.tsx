@@ -1,10 +1,5 @@
 import { useEffect, useRef, useMemo, useState, memo } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useLogStream } from '@/hooks/useLogStream';
@@ -76,20 +71,32 @@ function detectPhase(logs: LogEntry[], externalPhase?: string): Phase {
     }
 
     // Ready state - Python API is up
-    if (msg.includes('api ready') || msg.includes('started on port') ||
-        msg.includes('python is healthy') || msg.includes('api host:')) {
+    if (
+      msg.includes('api ready') ||
+      msg.includes('started on port') ||
+      msg.includes('python is healthy') ||
+      msg.includes('api host:')
+    ) {
       return 'ready';
     }
 
     // Python phase
-    if (msg.includes('[python]') || msg.includes('[processmanager] starting python') ||
-        msg.includes('python api') || msg.includes('uvicorn')) {
+    if (
+      msg.includes('[python]') ||
+      msg.includes('[processmanager] starting python') ||
+      msg.includes('python api') ||
+      msg.includes('uvicorn')
+    ) {
       return 'python';
     }
 
     // pgserve phase
-    if (msg.includes('pgserve') || msg.includes('[pgservemanager]') ||
-        msg.includes('postgresql') || msg.includes('postgres')) {
+    if (
+      msg.includes('pgserve') ||
+      msg.includes('[pgservemanager]') ||
+      msg.includes('postgresql') ||
+      msg.includes('postgres')
+    ) {
       return 'pgserve';
     }
   }
@@ -103,7 +110,7 @@ function detectPhase(logs: LogEntry[], externalPhase?: string): Phase {
 
 // Get user-friendly error message
 function getErrorMessage(logs: LogEntry[]): string | null {
-  const errorLogs = logs.filter(l => l.level === 'error');
+  const errorLogs = logs.filter((l) => l.level === 'error');
   if (errorLogs.length === 0) return null;
 
   const lastError = errorLogs[errorLogs.length - 1].message.toLowerCase();
@@ -148,12 +155,8 @@ const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
   <>
     {logs.map((log, i) => (
       <div key={`${log.timestamp}-${i}`} className="flex gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0">
-          [{new Date(log.timestamp).toLocaleTimeString()}]
-        </span>
-        <span className={cn('break-all', getLogColor(log.level))}>
-          {log.message}
-        </span>
+        <span className="text-muted-foreground/60 flex-shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+        <span className={cn('break-all', getLogColor(log.level))}>{log.message}</span>
       </div>
     ))}
   </>
@@ -186,18 +189,10 @@ export function DatabaseStartupModal({
   });
 
   // Filter to relevant logs (gateway for pgserve, api for python)
-  const relevantLogs = useMemo(
-    () => logs.filter(l =>
-      l.service === 'gateway' || l.service === 'api'
-    ),
-    [logs]
-  );
+  const relevantLogs = useMemo(() => logs.filter((l) => l.service === 'gateway' || l.service === 'api'), [logs]);
 
   // Calculate current phase based on logs and external phase
-  const detectedPhase = useMemo(
-    () => detectPhase(relevantLogs, externalPhase),
-    [relevantLogs, externalPhase]
-  );
+  const detectedPhase = useMemo(() => detectPhase(relevantLogs, externalPhase), [relevantLogs, externalPhase]);
 
   // Update sticky phase - only move forward or to error
   useEffect(() => {
@@ -225,7 +220,7 @@ export function DatabaseStartupModal({
 
   const errorMessage = useMemo(
     () => (currentPhase === 'error' ? getErrorMessage(relevantLogs) : null),
-    [currentPhase, relevantLogs]
+    [currentPhase, relevantLogs],
   );
 
   // Auto-scroll to bottom
@@ -263,9 +258,7 @@ export function DatabaseStartupModal({
   }, [open, connect, clearLogs]);
 
   const handleCopyLogs = async () => {
-    const logText = relevantLogs
-      .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`)
-      .join('\n');
+    const logText = relevantLogs.map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`).join('\n');
 
     try {
       await navigator.clipboard.writeText(logText);
@@ -325,7 +318,7 @@ export function DatabaseStartupModal({
                           ? 'bg-blue-500 text-white'
                           : isError && actualIndex <= 1
                             ? 'bg-red-500 text-white'
-                            : 'bg-muted text-muted-foreground'
+                            : 'bg-muted text-muted-foreground',
                     )}
                   >
                     {isComplete ? (
@@ -336,18 +329,11 @@ export function DatabaseStartupModal({
                       <PhaseIcon className="h-5 w-5" />
                     )}
                   </div>
-                  <span className="text-xs mt-1 text-muted-foreground font-medium">
-                    {PHASES[phase].label}
-                  </span>
+                  <span className="text-xs mt-1 text-muted-foreground font-medium">{PHASES[phase].label}</span>
                 </div>
 
                 {index < PHASE_ORDER.length - 2 && (
-                  <div
-                    className={cn(
-                      'h-0.5 w-12 mx-2 transition-colors',
-                      isComplete ? 'bg-green-500' : 'bg-muted'
-                    )}
-                  />
+                  <div className={cn('h-0.5 w-12 mx-2 transition-colors', isComplete ? 'bg-green-500' : 'bg-muted')} />
                 )}
               </div>
             );
@@ -396,9 +382,7 @@ export function DatabaseStartupModal({
           <Badge variant={isConnected ? 'default' : 'secondary'} className="text-xs h-5">
             {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
           </Badge>
-          {connectionError && (
-            <span className="text-red-500">{connectionError}</span>
-          )}
+          {connectionError && <span className="text-red-500">{connectionError}</span>}
         </div>
 
         {/* Log viewer */}
@@ -418,33 +402,19 @@ export function DatabaseStartupModal({
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopyLogs}
-            disabled={relevantLogs.length === 0}
-          >
+          <Button variant="outline" size="sm" onClick={handleCopyLogs} disabled={relevantLogs.length === 0}>
             <Copy className="h-4 w-4 mr-1" />
             {copiedLogs ? 'Copied!' : 'Copy Logs'}
           </Button>
 
           <div className="flex gap-2">
             {(currentPhase === 'error' || externalError) && onRetry && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleRetry}
-                className="bg-blue-500 hover:bg-blue-600"
-              >
+              <Button variant="default" size="sm" onClick={handleRetry} className="bg-blue-500 hover:bg-blue-600">
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Retry
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               {currentPhase === 'ready' ? 'Close' : 'Cancel'}
             </Button>
           </div>

@@ -409,9 +409,7 @@ class UserPreference(Base):
     created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "key", name="uq_user_preferences_user_key"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_user_preferences_user_key"),)
 
     def __repr__(self):
         return f"<UserPreference(user='{self.user_id[:8]}...', key='{self.key}', value='{self.value}')>"

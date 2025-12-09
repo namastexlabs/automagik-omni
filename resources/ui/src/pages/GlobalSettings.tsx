@@ -19,14 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default function GlobalSettings() {
   const queryClient = useQueryClient();
@@ -50,8 +43,7 @@ export default function GlobalSettings() {
 
   // Update setting mutation
   const updateMutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) =>
-      api.settings.update(key, { value }),
+    mutationFn: ({ key, value }: { key: string; value: string }) => api.settings.update(key, { value }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       setEditingKey(null);
@@ -88,9 +80,8 @@ export default function GlobalSettings() {
 
   const renderValue = (setting: GlobalSetting) => {
     const isEditing = editingKey === setting.key;
-    const displayValue = setting.is_secret && !showSecrets[setting.key]
-      ? maskSecret(setting.value)
-      : setting.value || '';
+    const displayValue =
+      setting.is_secret && !showSecrets[setting.key] ? maskSecret(setting.value) : setting.value || '';
 
     if (isEditing) {
       return (
@@ -101,20 +92,11 @@ export default function GlobalSettings() {
             onChange={(e) => setEditValues({ ...editValues, [setting.key]: e.target.value })}
             className="flex-1 font-mono text-sm"
           />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleSave(setting)}
-            disabled={updateMutation.isPending}
-          >
+          <Button size="sm" variant="outline" onClick={() => handleSave(setting)} disabled={updateMutation.isPending}>
             <Save className="h-4 w-4 mr-1" />
             Save
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleCancel}
-          >
+          <Button size="sm" variant="ghost" onClick={handleCancel}>
             Cancel
           </Button>
         </div>
@@ -123,34 +105,22 @@ export default function GlobalSettings() {
 
     return (
       <div className="flex items-center gap-2 flex-1 justify-between">
-        <code className="text-sm text-muted-foreground font-mono">
-          {displayValue}
-        </code>
+        <code className="text-sm text-muted-foreground font-mono">{displayValue}</code>
         <div className="flex items-center gap-1">
           {setting.is_secret && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => toggleSecret(setting.key)}
-            >
-              {showSecrets[setting.key] ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
+            <Button size="sm" variant="ghost" onClick={() => toggleSecret(setting.key)}>
+              {showSecrets[setting.key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
           )}
           {!setting.is_required && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleEdit(setting)}
-            >
+            <Button size="sm" variant="outline" onClick={() => handleEdit(setting)}>
               Edit
             </Button>
           )}
           {setting.is_required && (
-            <Badge variant="secondary" className="text-xs">Required</Badge>
+            <Badge variant="secondary" className="text-xs">
+              Required
+            </Badge>
           )}
         </div>
       </div>
@@ -158,14 +128,17 @@ export default function GlobalSettings() {
   };
 
   // Group settings by category
-  const groupedSettings = settings?.reduce((acc, setting: GlobalSetting) => {
-    const category = setting.category || 'general';
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(setting);
-    return acc;
-  }, {} as Record<string, GlobalSetting[]>);
+  const groupedSettings = settings?.reduce(
+    (acc, setting: GlobalSetting) => {
+      const category = setting.category || 'general';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(setting);
+      return acc;
+    },
+    {} as Record<string, GlobalSetting[]>,
+  );
 
   return (
     <DashboardLayout>
@@ -201,29 +174,20 @@ export default function GlobalSettings() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {categorySettings.map((setting: GlobalSetting) => (
-                        <div
-                          key={setting.key}
-                          className="p-4 bg-muted rounded-lg border border-border space-y-2"
-                        >
+                        <div key={setting.key} className="p-4 bg-muted rounded-lg border border-border space-y-2">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <Label className="text-sm font-semibold">
-                                  {setting.key}
-                                </Label>
+                                <Label className="text-sm font-semibold">{setting.key}</Label>
                                 <Badge variant="outline" className="text-xs">
                                   {setting.value_type}
                                 </Badge>
                                 {setting.is_secret && (
-                                  <Badge className="text-xs gradient-primary border-0">
-                                    Secret
-                                  </Badge>
+                                  <Badge className="text-xs gradient-primary border-0">Secret</Badge>
                                 )}
                               </div>
                               {setting.description && (
-                                <p className="text-xs text-muted-foreground mb-2">
-                                  {setting.description}
-                                </p>
+                                <p className="text-xs text-muted-foreground mb-2">{setting.description}</p>
                               )}
                               {renderValue(setting)}
                               <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
@@ -244,9 +208,7 @@ export default function GlobalSettings() {
                                   <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
                                     <DialogHeader>
                                       <DialogTitle>Change History: {setting.key}</DialogTitle>
-                                      <DialogDescription>
-                                        Audit trail of all changes to this setting
-                                      </DialogDescription>
+                                      <DialogDescription>Audit trail of all changes to this setting</DialogDescription>
                                     </DialogHeader>
                                     <div className="mt-4">
                                       {history && history.length > 0 ? (
@@ -279,9 +241,7 @@ export default function GlobalSettings() {
                                                     ? maskSecret(entry.new_value)
                                                     : entry.new_value || '(empty)'}
                                                 </TableCell>
-                                                <TableCell className="text-xs">
-                                                  {entry.change_reason || '-'}
-                                                </TableCell>
+                                                <TableCell className="text-xs">{entry.change_reason || '-'}</TableCell>
                                               </TableRow>
                                             ))}
                                           </TableBody>

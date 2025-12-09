@@ -67,11 +67,7 @@ export function McpConfigCopy() {
       aria-label="Copy MCP Config"
       title="Copy MCP configuration for Claude Code / Cursor"
     >
-      {copied ? (
-        <Check className="h-4 w-4 text-success" />
-      ) : (
-        <Wrench className="h-4 w-4" />
-      )}
+      {copied ? <Check className="h-4 w-4 text-success" /> : <Wrench className="h-4 w-4" />}
     </Button>
   );
 }

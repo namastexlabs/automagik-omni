@@ -17,15 +17,9 @@ console = Console()
 
 @app.command("factory")
 def factory_reset(
-    keep_instances: bool = typer.Option(
-        False, "--keep-instances", help="Preserve Evolution API instances"
-    ),
-    force: bool = typer.Option(
-        False, "--force", "-f", help="Skip all confirmation prompts"
-    ),
-    dry_run: bool = typer.Option(
-        False, "--dry-run", help="Preview what would be deleted without executing"
-    ),
+    keep_instances: bool = typer.Option(False, "--keep-instances", help="Preserve Evolution API instances"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip all confirmation prompts"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview what would be deleted without executing"),
 ):
     """
     Factory reset Automagik Omni to fresh install state.
@@ -52,10 +46,7 @@ def factory_reset(
 
             # Display current state
             console.print()
-            console.print(Panel.fit(
-                "[bold]Factory Reset - Automagik Omni[/bold]",
-                border_style="red"
-            ))
+            console.print(Panel.fit("[bold]Factory Reset - Automagik Omni[/bold]", border_style="red"))
             console.print()
 
             # Current state table
@@ -64,7 +55,10 @@ def factory_reset(
             state_table.add_column("Value", style="white")
 
             state_table.add_row("PostgreSQL", f"{len(preview.postgres_tables)} tables (omni_*, evo_*)")
-            state_table.add_row("Instances", f"{preview.instance_count} ({', '.join(preview.instances[:3])}{'...' if len(preview.instances) > 3 else ''})")
+            state_table.add_row(
+                "Instances",
+                f"{preview.instance_count} ({', '.join(preview.instances[:3])}{'...' if len(preview.instances) > 3 else ''})",
+            )
             state_table.add_row("Users", str(preview.user_count))
             state_table.add_row("Message Traces", str(preview.trace_count))
             state_table.add_row("Access Rules", str(preview.access_rule_count))
@@ -126,12 +120,14 @@ def factory_reset(
                 console.print(f"  [green]✓[/green] Deleted {results['logs_deleted']} log file(s)")
 
             console.print()
-            console.print(Panel.fit(
-                "[green bold]Factory reset complete![/green bold]\n\n"
-                "API keys will regenerate on next start.\n"
-                "Run: [cyan]omni start[/cyan]",
-                border_style="green"
-            ))
+            console.print(
+                Panel.fit(
+                    "[green bold]Factory reset complete![/green bold]\n\n"
+                    "API keys will regenerate on next start.\n"
+                    "Run: [cyan]omni start[/cyan]",
+                    border_style="green",
+                )
+            )
 
             track_command(
                 "factory_reset",

@@ -3,7 +3,7 @@ import { api, TraceAnalytics, HealthResponse, cn } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTimeRange } from '../TimeRangeSelector';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { Circle, MessageSquare, Users, MessagesSquare, Smartphone } from 'lucide-react';
 
@@ -42,10 +42,7 @@ function InstanceDetailCard({
       <CardHeader className="pb-2">
         <div className="flex items-center gap-3">
           <Circle
-            className={cn(
-              'h-3 w-3 fill-current',
-              status === 'connected' ? 'text-success' : 'text-destructive'
-            )}
+            className={cn('h-3 w-3 fill-current', status === 'connected' ? 'text-success' : 'text-destructive')}
           />
           <CardTitle className="text-base">{name}</CardTitle>
         </div>
@@ -103,11 +100,7 @@ function InstanceDetailCard({
           </div>
         )}
 
-        {version && (
-          <div className="text-xs text-muted-foreground">
-            WhatsApp Web v{version}
-          </div>
-        )}
+        {version && <div className="text-xs text-muted-foreground">WhatsApp Web v{version}</div>}
       </CardContent>
     </Card>
   );
@@ -118,10 +111,11 @@ export function InstancesTab() {
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<TraceAnalytics>({
     queryKey: ['traceAnalytics', dateRange],
-    queryFn: () => api.traces.getAnalytics({
-      start_date: dateRange.start_date,
-      end_date: dateRange.end_date,
-    }),
+    queryFn: () =>
+      api.traces.getAnalytics({
+        start_date: dateRange.start_date,
+        end_date: dateRange.end_date,
+      }),
     refetchInterval: 30000,
   });
 
@@ -131,12 +125,14 @@ export function InstancesTab() {
     refetchInterval: 30000,
   });
 
-  const evolutionDetails = health?.services?.evolution?.details as {
-    version?: string;
-    whatsappWebVersion?: string;
-    instances?: { total: number; connected: number };
-    totals?: { messages: number; contacts: number; chats: number };
-  } | undefined;
+  const evolutionDetails = health?.services?.evolution?.details as
+    | {
+        version?: string;
+        whatsappWebVersion?: string;
+        instances?: { total: number; connected: number };
+        totals?: { messages: number; contacts: number; chats: number };
+      }
+    | undefined;
 
   // Prepare chart data from analytics.instances
   const instanceChartData = Object.entries(analytics?.instances || {}).map(([name, count]) => ({

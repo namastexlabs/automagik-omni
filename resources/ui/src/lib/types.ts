@@ -272,7 +272,7 @@ export const EVOLUTION_EVENTS = [
   'REMOVE_INSTANCE',
 ] as const;
 
-export type EvolutionEventType = typeof EVOLUTION_EVENTS[number];
+export type EvolutionEventType = (typeof EVOLUTION_EVENTS)[number];
 
 // Global Settings Types
 export type SettingValueType = 'string' | 'integer' | 'boolean' | 'json' | 'secret';

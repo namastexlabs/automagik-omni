@@ -4,10 +4,10 @@
  */
 
 import { EventEmitter } from 'events';
-import { stat, open, readFile } from 'fs/promises';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
+import { open, readFile, stat } from 'fs/promises';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -76,7 +76,7 @@ function parseLevel(message: string): LogEntry['level'] {
  * - Python: "✓ 15:32:37 -03 - [36mlogger[0m - [92mINFO[0m - message"
  * - Evolution: "[Evolution API] 90522 - Wed Nov 19 2025 16:03:57 WARN [Service] message"
  */
-export function parseLogLine(line: string, service: ServiceName): LogEntry | null {
+function parseLogLine(line: string, service: ServiceName): LogEntry | null {
   if (!line.trim()) return null;
 
   // Strip ANSI codes first
@@ -165,26 +165,29 @@ export class LogTailer extends EventEmitter {
   /**
    * Read recent lines from a log file
    */
-  async getRecentLogs(services: ServiceName[] = Object.keys(LOG_SERVICES) as ServiceName[], limit = 100): Promise<LogEntry[]> {
+  async getRecentLogs(
+    services: ServiceName[] = Object.keys(LOG_SERVICES) as ServiceName[],
+    limit = 100,
+  ): Promise<LogEntry[]> {
     const allEntries: LogEntry[] = [];
 
-    await Promise.all(services.map(async (service) => {
-      const logPath = this.getLogPath(service);
-      if (!existsSync(logPath)) return;
+    await Promise.all(
+      services.map(async (service) => {
+        const logPath = this.getLogPath(service);
+        if (!existsSync(logPath)) return;
 
-      try {
-        // Read last N lines efficiently
-        const entries = await this.readLastLines(logPath, service, limit);
-        allEntries.push(...entries);
-      } catch (error) {
-        console.warn(`[LogTailer] Failed to read ${service} logs:`, error);
-      }
-    }));
+        try {
+          // Read last N lines efficiently
+          const entries = await this.readLastLines(logPath, service, limit);
+          allEntries.push(...entries);
+        } catch (error) {
+          console.warn(`[LogTailer] Failed to read ${service} logs:`, error);
+        }
+      }),
+    );
 
     // Sort by timestamp and return limited results
-    return allEntries
-      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
-      .slice(-limit);
+    return allEntries.sort((a, b) => a.timestamp.localeCompare(b.timestamp)).slice(-limit);
   }
 
   /**
@@ -364,7 +367,7 @@ export function getLogTailer(): LogTailer {
  * Get available log services
  */
 export function getAvailableServices(): { id: ServiceName; name: string; color: string; available: boolean }[] {
-  return (Object.keys(LOG_SERVICES) as ServiceName[]).map(id => ({
+  return (Object.keys(LOG_SERVICES) as ServiceName[]).map((id) => ({
     id,
     name: LOG_SERVICES[id].name,
     color: LOG_SERVICES[id].color,
@@ -373,7 +376,7 @@ export function getAvailableServices(): { id: ServiceName; name: string; color: 
 }
 
 // PM2 process name mapping for restart functionality
-export const PM2_PROCESS_NAMES: Record<ServiceName, string[]> = {
+const PM2_PROCESS_NAMES: Record<ServiceName, string[]> = {
   api: ['Omni Backend - API', 'omni-api'],
   discord: ['Omni Backend - Discord', 'omni-discord'],
   evolution: ['Evolution API', 'Omni-Evolution-API'],
@@ -459,7 +462,7 @@ export async function getPm2Status(service: ServiceName): Promise<{
 
     // Find matching process
     for (const proc of processes) {
-      if (processNames.some(name => proc.name.includes(name) || name.includes(proc.name))) {
+      if (processNames.some((name) => proc.name.includes(name) || name.includes(proc.name))) {
         return {
           online: proc.pm2_env.status === 'online',
           pm2_id: proc.pm_id,

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ResetPreview:
     """Preview of what will be reset."""
+
     instances: List[str]
     instance_count: int
     user_count: int
@@ -64,19 +65,24 @@ class ResetService:
         # Import trace models only if needed
         try:
             from src.db.trace_models import MessageTrace
+
             trace_count = db.query(MessageTrace).count()
         except Exception:
             trace_count = 0
 
         # Calculate log size
-        log_size = sum(f.stat().st_size for f in self.log_path.rglob("*") if f.is_file()) / (1024 * 1024) if self.log_path.exists() else 0
+        log_size = (
+            sum(f.stat().st_size for f in self.log_path.rglob("*") if f.is_file()) / (1024 * 1024)
+            if self.log_path.exists()
+            else 0
+        )
 
         # Get PostgreSQL tables (omni_* and evo_*)
         postgres_tables = []
         try:
-            result = db.execute(text(
-                "SELECT tablename FROM pg_tables WHERE tablename LIKE 'omni_%' OR tablename LIKE 'evo_%'"
-            ))
+            result = db.execute(
+                text("SELECT tablename FROM pg_tables WHERE tablename LIKE 'omni_%' OR tablename LIKE 'evo_%'")
+            )
             postgres_tables = [row[0] for row in result]
         except Exception:
             postgres_tables = []
@@ -96,9 +102,7 @@ class ResetService:
     async def delete_evolution_instances(self, db: Session) -> Dict[str, str]:
         """Delete all Evolution API instances."""
         results: Dict[str, str] = {}
-        instances = db.query(InstanceConfig).filter(
-            InstanceConfig.channel_type == "whatsapp"
-        ).all()
+        instances = db.query(InstanceConfig).filter(InstanceConfig.channel_type == "whatsapp").all()
 
         if not instances:
             return results
@@ -112,7 +116,7 @@ class ResetService:
                 try:
                     client = EvolutionClient(
                         base_url=instance.evolution_url or config.get_env("EVOLUTION_URL", "http://localhost:18082"),
-                        api_key=instance.evolution_key or ""
+                        api_key=instance.evolution_key or "",
                     )
                     await client.delete_instance(instance.name)
                     results[instance.name] = "deleted"

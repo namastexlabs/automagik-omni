@@ -9,7 +9,6 @@ import type {
   EvolutionSettings,
   EvolutionWebhookConfig,
   EvolutionWebSocketConfig,
-  GatewayStatus,
   HealthResponse,
   InstanceConfig,
   InstanceCreateRequest,
@@ -18,7 +17,6 @@ import type {
   OmniChat,
   OmniContact,
   PaginatedResponse,
-  SettingChangeHistory,
   SettingHistoryEntry,
   SettingEntry,
 } from './types';
@@ -68,9 +66,9 @@ export interface Trace {
 // Health Types
 export interface ServerStats {
   memory: {
-    total: number;       // GB
-    used: number;        // GB
-    free: number;        // GB
+    total: number; // GB
+    used: number; // GB
+    free: number; // GB
     usedPercent: number; // %
   };
   cpu: {
@@ -79,14 +77,14 @@ export interface ServerStats {
     usagePercent: number; // %
   };
   disk: {
-    total: number;       // GB
-    used: number;        // GB
-    free: number;        // GB
+    total: number; // GB
+    used: number; // GB
+    free: number; // GB
     usedPercent: number; // %
     mountPoint: string;
   };
   loadAverage: [number, number, number];
-  uptime: number;        // seconds
+  uptime: number; // seconds
   platform: string;
   hostname: string;
 }
@@ -338,10 +336,7 @@ export async function restorePreferences(): Promise<void> {
 }
 
 // API client helper
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const apiKey = await getApiKey();
 
   if (!apiKey) {
@@ -400,7 +395,11 @@ export const api = {
 
   // Instances API
   instances: {
-    async list(params?: { limit?: number; include_status?: boolean; include_live_status?: boolean }): Promise<InstanceConfig[]> {
+    async list(params?: {
+      limit?: number;
+      include_status?: boolean;
+      include_live_status?: boolean;
+    }): Promise<InstanceConfig[]> {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.append('limit', params.limit.toString());
       if (params?.include_status) queryParams.append('include_status', params.include_status.toString());
@@ -475,12 +474,15 @@ export const api = {
 
   // Contacts API
   contacts: {
-    async list(instanceId: string, params?: {
-      page?: number;
-      page_size?: number;
-      search_query?: string;
-      status_filter?: string;
-    }): Promise<PaginatedResponse<OmniContact>> {
+    async list(
+      instanceId: string,
+      params?: {
+        page?: number;
+        page_size?: number;
+        search_query?: string;
+        status_filter?: string;
+      },
+    ): Promise<PaginatedResponse<OmniContact>> {
       const queryParams = new URLSearchParams();
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
@@ -494,13 +496,16 @@ export const api = {
 
   // Chats API
   chats: {
-    async list(instanceId: string, params?: {
-      page?: number;
-      page_size?: number;
-      search_query?: string;
-      chat_type?: string;
-      include_archived?: boolean;
-    }): Promise<PaginatedResponse<OmniChat>> {
+    async list(
+      instanceId: string,
+      params?: {
+        page?: number;
+        page_size?: number;
+        search_query?: string;
+        chat_type?: string;
+        include_archived?: boolean;
+      },
+    ): Promise<PaginatedResponse<OmniChat>> {
       const queryParams = new URLSearchParams();
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
@@ -558,11 +563,14 @@ export const api = {
     return apiRequest(`/instances/${instanceId}/status`);
   },
 
-  async getContacts(instanceId: string, params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-  }): Promise<PaginatedResponse<OmniContact>> {
+  async getContacts(
+    instanceId: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+    },
+  ): Promise<PaginatedResponse<OmniContact>> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
@@ -572,11 +580,14 @@ export const api = {
     return apiRequest(`/instances/${instanceId}/contacts${query ? `?${query}` : ''}`);
   },
 
-  async getChats(instanceId: string, params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-  }): Promise<PaginatedResponse<OmniChat>> {
+  async getChats(
+    instanceId: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+    },
+  ): Promise<PaginatedResponse<OmniChat>> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
@@ -760,15 +771,23 @@ export const api = {
     },
 
     async restart(instanceName: string): Promise<ActionResponse> {
-      return evolutionRequest(`/instance/restart/${instanceName}`, {
-        method: 'POST',
-      }, instanceName);
+      return evolutionRequest(
+        `/instance/restart/${instanceName}`,
+        {
+          method: 'POST',
+        },
+        instanceName,
+      );
     },
 
     async logout(instanceName: string): Promise<ActionResponse> {
-      return evolutionRequest(`/instance/logout/${instanceName}`, {
-        method: 'DELETE',
-      }, instanceName);
+      return evolutionRequest(
+        `/instance/logout/${instanceName}`,
+        {
+          method: 'DELETE',
+        },
+        instanceName,
+      );
     },
 
     async connect(instanceName: string): Promise<ActionResponse> {
@@ -813,10 +832,14 @@ export const api = {
 
     // Chats
     async findChats(instanceName: string, params?: Record<string, unknown>): Promise<EvolutionChat[]> {
-      const data = await evolutionRequest<unknown>(`/chat/findChats/${instanceName}`, {
-        method: 'POST',
-        body: JSON.stringify(params || {}),
-      }, instanceName);
+      const data = await evolutionRequest<unknown>(
+        `/chat/findChats/${instanceName}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(params || {}),
+        },
+        instanceName,
+      );
       if (Array.isArray(data)) {
         return data as EvolutionChat[];
       }
@@ -826,16 +849,27 @@ export const api = {
       return [];
     },
 
-    async findMessages(instanceName: string, params: { where: { key: { remoteJid: string } }; limit?: number }): Promise<EvolutionMessage[]> {
-      const data = await evolutionRequest<unknown>(`/chat/findMessages/${instanceName}`, {
-        method: 'POST',
-        body: JSON.stringify(params),
-      }, instanceName);
+    async findMessages(
+      instanceName: string,
+      params: { where: { key: { remoteJid: string } }; limit?: number },
+    ): Promise<EvolutionMessage[]> {
+      const data = await evolutionRequest<unknown>(
+        `/chat/findMessages/${instanceName}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(params),
+        },
+        instanceName,
+      );
       if (Array.isArray(data)) return data as EvolutionMessage[];
       if (data && typeof data === 'object') {
         const maybeMessages = (data as { messages?: unknown }).messages;
         if (Array.isArray(maybeMessages)) return maybeMessages as EvolutionMessage[];
-        if (maybeMessages && typeof maybeMessages === 'object' && Array.isArray((maybeMessages as { records?: unknown }).records)) {
+        if (
+          maybeMessages &&
+          typeof maybeMessages === 'object' &&
+          Array.isArray((maybeMessages as { records?: unknown }).records)
+        ) {
           return (maybeMessages as { records: EvolutionMessage[] }).records;
         }
       }
@@ -843,10 +877,14 @@ export const api = {
     },
 
     async findContacts(instanceName: string, params?: Record<string, unknown>): Promise<EvolutionContact[]> {
-      const data = await evolutionRequest<unknown>(`/chat/findContacts/${instanceName}`, {
-        method: 'POST',
-        body: JSON.stringify(params || {}),
-      }, instanceName);
+      const data = await evolutionRequest<unknown>(
+        `/chat/findContacts/${instanceName}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(params || {}),
+        },
+        instanceName,
+      );
       if (Array.isArray(data)) return data as EvolutionContact[];
       return [];
     },
@@ -871,14 +909,20 @@ export const api = {
       });
     },
 
-    async sendWhatsAppAudio(instanceName: string, data: { number: string; audio: string; encoding?: boolean }): Promise<ActionResponse> {
+    async sendWhatsAppAudio(
+      instanceName: string,
+      data: { number: string; audio: string; encoding?: boolean },
+    ): Promise<ActionResponse> {
       return evolutionRequest(`/message/sendWhatsAppAudio/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async markAsRead(instanceName: string, data: { readMessages: Array<{ remoteJid: string; id: string }> }): Promise<ActionResponse> {
+    async markAsRead(
+      instanceName: string,
+      data: { readMessages: Array<{ remoteJid: string; id: string }> },
+    ): Promise<ActionResponse> {
       return evolutionRequest(`/chat/markMessageAsRead/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -894,7 +938,10 @@ export const api = {
     },
 
     // Media
-    async getBase64FromMediaMessage(instanceName: string, data: { message: { key: { id: string; remoteJid: string } }; convertToMp4?: boolean }): Promise<{
+    async getBase64FromMediaMessage(
+      instanceName: string,
+      data: { message: { key: { id: string; remoteJid: string } }; convertToMp4?: boolean },
+    ): Promise<{
       mediaType: string;
       fileName: string;
       caption?: string;
@@ -964,11 +1011,7 @@ export const api = {
       });
     },
 
-    async apply(
-      dbType: string,
-      postgresUrl?: string,
-      redisConfig?: RedisConfig
-    ): Promise<DatabaseApplyResponse> {
+    async apply(dbType: string, postgresUrl?: string, redisConfig?: RedisConfig): Promise<DatabaseApplyResponse> {
       return apiRequest('/database/apply', {
         method: 'POST',
         body: JSON.stringify({
@@ -1131,7 +1174,10 @@ export const api = {
       return response.json();
     },
 
-    async validateDiscordToken(bot_token: string, client_id: string): Promise<{
+    async validateDiscordToken(
+      bot_token: string,
+      client_id: string,
+    ): Promise<{
       valid: boolean;
       bot_name?: string;
       bot_id?: string;
@@ -1202,11 +1248,14 @@ export const api = {
         uptime: number;
       };
       ports: Record<string, number>;
-      processes: Record<string, {
-        port: number;
-        healthy: boolean;
-        pid?: number;
-      }>;
+      processes: Record<
+        string,
+        {
+          port: number;
+          healthy: boolean;
+          pid?: number;
+        }
+      >;
     }> {
       const response = await fetch('/gateway/status');
       if (!response.ok) {
@@ -1228,7 +1277,7 @@ export const api = {
         } catch (e) {
           // Keep polling
         }
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
       }
       return false;
     },
@@ -1261,18 +1310,14 @@ const EVOLUTION_BASE_URL = '/evolution';
 
 // DEPRECATED: Instance keys are no longer used (Option A: Bootstrap Key Only)
 // Kept for backwards compatibility only
-let instanceKeys: Map<string, string> = new Map();
+const instanceKeys: Map<string, string> = new Map();
 
 export function setInstanceKey(instanceName: string, evolutionKey: string) {
   // No-op: Instance keys are deprecated, always use bootstrap key
   instanceKeys.set(instanceName, evolutionKey);
 }
 
-async function evolutionRequest<T>(
-  endpoint: string,
-  options: RequestInit = {},
-  instanceName?: string
-): Promise<T> {
+async function evolutionRequest<T>(endpoint: string, options: RequestInit = {}, instanceName?: string): Promise<T> {
   const apiKey = await getApiKey();
 
   if (!apiKey) {
@@ -1286,7 +1331,7 @@ async function evolutionRequest<T>(
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'apikey': apiKey,
+      apikey: apiKey,
       ...options.headers,
     },
   });

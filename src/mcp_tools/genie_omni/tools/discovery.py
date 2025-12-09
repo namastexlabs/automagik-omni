@@ -12,6 +12,7 @@ from thefuzz import fuzz
 
 logger = logging.getLogger(__name__)
 
+
 def _get_db_path() -> str:
     """Get the SQLite database path from environment.
 
@@ -22,31 +23,36 @@ def _get_db_path() -> str:
     # This is separate from the main PostgreSQL database
     default_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))),
-        "data", "mcp-contacts.sqlite"
+        "data",
+        "mcp-contacts.sqlite",
     )
     db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", default_path)
     # Ensure data directory exists
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     return db_path
 
+
 def _normalize_search(text: str) -> str:
     """Normalize search text: lowercase, remove accents, strip spaces."""
     if not text:
         return ""
     # Remove accents
-    text = unicodedata.normalize('NFD', text)
-    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
     # Lowercase and strip
     return text.lower().strip()
 
 
 def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
     """Register discovery tools with the MCP server."""
+
     @mcp.tool()
     async def download_media(
-        message_id: str, instance_name: str = "genie", filename: Optional[str] = None
-,
-        ctx: Optional[Context] = None,) -> str:
+        message_id: str,
+        instance_name: str = "genie",
+        filename: Optional[str] = None,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Download media from WhatsApp message (image/video/audio/document). Args: message_id, instance_name, filename (optional, auto-detected). Returns: local file path where saved."""
 
         config = get_config(ctx)
@@ -54,9 +60,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
         try:
             # Get media as base64
-            response = await client.evolution_get_base64_media(
-                instance_name=instance_name, message_id=message_id
-            )
+            response = await client.evolution_get_base64_media(instance_name=instance_name, message_id=message_id)
 
             if not response or "base64" not in response:
                 logger.warning(f"No base64 data in response for message {message_id}")
@@ -114,17 +118,17 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Failed to download media for message {message_id}: {e}")
             return f"❌ Failed to download media: {str(e)}"
 
-
-# =============================================================================
-# CATEGORY 1: WHO AM I (Identity & Context)
-# =============================================================================
-
+    # =============================================================================
+    # CATEGORY 1: WHO AM I (Identity & Context)
+    # =============================================================================
 
     @mcp.tool()
     async def find_message(
-        trace_id: str, instance_name: str = "genie", include_payload: bool = False
-,
-        ctx: Optional[Context] = None,) -> str:
+        trace_id: str,
+        instance_name: str = "genie",
+        include_payload: bool = False,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Get message details by trace ID. Args: trace_id, instance_name, include_payload. Returns: message details with status."""
         client = get_client(ctx)
 
@@ -159,10 +163,12 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error finding message: {e}")
             return f"❌ Failed to find message: {str(e)}"
 
-
     @mcp.tool()
-    async def find_person(search: str, instance_name: str = "genie",
-        ctx: Optional[Context] = None,) -> str:
+    async def find_person(
+        search: str,
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Find person by name with fuzzy search (handles typos, accents, case). Searches local DB + WhatsApp. Args: search (name), instance_name. Returns: matching contacts sorted by relevance."""
         all_contacts = {}  # phone_number -> {name, source, original_name, score}
         normalized_search = _normalize_search(search)
@@ -192,7 +198,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                         "name": display_name,
                         "source": "local",
                         "original_name": name,
-                        "score": best_score
+                        "score": best_score,
                     }
 
             db.close()
@@ -225,7 +231,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                                 "name": contact.name,
                                 "source": "whatsapp",
                                 "original_name": contact.name,
-                                "score": score
+                                "score": score,
                             }
 
         except Exception as e:
@@ -239,10 +245,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         result.append("")
 
         # Sort by score (highest first), then by name
-        sorted_contacts = sorted(
-            all_contacts.items(),
-            key=lambda x: (-x[1]["score"], x[1]["original_name"].lower())
-        )
+        sorted_contacts = sorted(all_contacts.items(), key=lambda x: (-x[1]["score"], x[1]["original_name"].lower()))
 
         for phone, data in sorted_contacts:
             source_icon = "💾" if data["source"] == "local" else "📱"
@@ -253,17 +256,19 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
         return "\n".join(result)
 
-
     @mcp.tool()
-    async def search(query: str, instance_name: str = "genie",
-        ctx: Optional[Context] = None,) -> str:
+    async def search(
+        query: str,
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Universal search across people, groups, messages, and group members. Args: query (name/phone/keyword), instance_name. Returns: categorized results sorted by relevance."""
         MIN_SCORE = 60
         normalized_query = _normalize_search(query)
 
         # Results containers
         people_results = {}  # phone -> {name, source, score}
-        group_results = {}   # group_id -> {name, members, score}
+        group_results = {}  # group_id -> {name, members, score}
         message_results: list[dict[str, str | int | None]] = []  # [{sender, text, time, mention}]
 
         client = get_client(ctx)
@@ -293,9 +298,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
         try:
             # WhatsApp contacts
-            contacts = await client.list_contacts(
-                instance_name=instance_name, page=1, page_size=20, search_query=query
-            )
+            contacts = await client.list_contacts(instance_name=instance_name, page=1, page_size=20, search_query=query)
 
             if contacts.contacts:
                 for contact in contacts.contacts:
@@ -343,7 +346,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                                 people_results[participant_phone] = {
                                     "name": f"Member of {group_name}",
                                     "source": "group",
-                                    "score": score
+                                    "score": score,
                                 }
         except Exception as e:
             logger.warning(f"Group search failed: {e}")
@@ -379,10 +382,11 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
         return "\n".join(result)
 
-
     @mcp.tool()
-    async def find_chats(instance_name: str = "genie",
-        ctx: Optional[Context] = None,) -> str:
+    async def find_chats(
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Find all chat conversations in WhatsApp. Args: instance_name. Returns: list of chats with details."""
         client = get_client(ctx)
 
@@ -421,17 +425,16 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error finding chats: {e}")
             return f"❌ Failed to find chats: {str(e)}"
 
-
     @mcp.tool()
-    async def list_all_groups(instance_name: str = "genie",
-        ctx: Optional[Context] = None,) -> str:
+    async def list_all_groups(
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """List all WhatsApp groups you're a member of. Args: instance_name. Returns: groups with member counts."""
         client = get_client(ctx)
 
         try:
-            response = await client.evolution_fetch_all_groups(
-                instance_name=instance_name, get_participants=True
-            )
+            response = await client.evolution_fetch_all_groups(instance_name=instance_name, get_participants=True)
 
             # Evolution API returns different structures
             groups = response if isinstance(response, list) else response.get("groups", [])
@@ -466,17 +469,17 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
             logger.error(f"Error listing groups: {e}")
             return f"❌ Failed to list groups: {str(e)}"
 
-
     @mcp.tool()
-    async def get_group_members(group_jid: str, instance_name: str = "genie",
-        ctx: Optional[Context] = None,) -> str:
+    async def get_group_members(
+        group_jid: str,
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Get members of a WhatsApp group with real phone numbers. Args: group_jid (from list_all_groups), instance_name. Returns: members with roles, LID, and real phone numbers."""
         client = get_client(ctx)
 
         try:
-            response = await client.evolution_find_group_members(
-                instance_name=instance_name, group_jid=group_jid
-            )
+            response = await client.evolution_find_group_members(instance_name=instance_name, group_jid=group_jid)
 
             # Evolution API returns different structures
             participants = response if isinstance(response, list) else response.get("participants", [])

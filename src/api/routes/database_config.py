@@ -46,6 +46,7 @@ def _set_or_update_setting(
             is_secret=is_secret,
         )
 
+
 router = APIRouter(prefix="/database", tags=["Database Configuration"])
 
 
@@ -86,6 +87,7 @@ class DatabaseConfigResponse(BaseModel):
 
 
 # New models for runtime vs saved state separation
+
 
 class RuntimeDatabaseConfig(BaseModel):
     """Runtime configuration from frozen config object (set at startup from env vars).
@@ -337,10 +339,7 @@ def _ensure_database_exists(url: str) -> TestResult:
 
         with engine.connect() as conn:
             # Check if database exists
-            result = conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = :db_name"),
-                {"db_name": db_name}
-            )
+            result = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :db_name"), {"db_name": db_name})
             exists = result.fetchone() is not None
 
             if not exists:
@@ -492,9 +491,7 @@ async def get_database_config(
         saved = database_state_service.get_saved_config(db)
 
         # Check if restart is required
-        requires_restart, reason = database_state_service.check_requires_restart(
-            runtime, saved
-        )
+        requires_restart, reason = database_state_service.check_requires_restart(runtime, saved)
 
         # Check configuration status
         is_configured = database_state_service.is_setup_completed(db)
@@ -810,14 +807,16 @@ async def apply_database_config(
             # Build response message (PostgreSQL only)
             env_vars = ["AUTOMAGIK_OMNI_POSTGRES_URL"]
             if request.redis_enabled:
-                env_vars.extend([
-                    "CACHE_REDIS_ENABLED=true",
-                    "CACHE_REDIS_URI",
-                    f"CACHE_REDIS_PREFIX_KEY={request.redis_prefix_key or 'evolution'}",
-                    f"CACHE_REDIS_TTL={request.redis_ttl or 604800}",
-                    f"CACHE_REDIS_SAVE_INSTANCES={'true' if request.redis_save_instances else 'false'}",
-                    "CACHE_LOCAL_ENABLED=false",
-                ])
+                env_vars.extend(
+                    [
+                        "CACHE_REDIS_ENABLED=true",
+                        "CACHE_REDIS_URI",
+                        f"CACHE_REDIS_PREFIX_KEY={request.redis_prefix_key or 'evolution'}",
+                        f"CACHE_REDIS_TTL={request.redis_ttl or 604800}",
+                        f"CACHE_REDIS_SAVE_INSTANCES={'true' if request.redis_save_instances else 'false'}",
+                        "CACHE_LOCAL_ENABLED=false",
+                    ]
+                )
 
             return DatabaseApplyResponse(
                 success=True,

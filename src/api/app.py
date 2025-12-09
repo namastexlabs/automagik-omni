@@ -237,7 +237,6 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Skipping database setup in test environment")
 
-
     logger.info(f"Log level set to: {config.logging.level}")
     logger.info(f"API Host: {config.api.host}")
     logger.info(f"API Port: {config.api.port}")
@@ -285,6 +284,7 @@ async def lifespan(app: FastAPI):
             async def delayed_discovery_and_webhook_sync():
                 """Re-run discovery after Evolution has had time to start."""
                 import asyncio
+
                 await asyncio.sleep(30)  # Wait for Evolution to start (it needs subprocess-config first)
 
                 try:
@@ -302,6 +302,7 @@ async def lifespan(app: FastAPI):
 
             # Start delayed discovery task (non-blocking)
             import asyncio
+
             asyncio.create_task(delayed_discovery_and_webhook_sync())
     else:
         logger.info("Skipping Evolution instance auto-discovery in test environment")
@@ -551,7 +552,8 @@ async def health_check():
         mem_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         # On Linux, ru_maxrss is in KB; on macOS it's in bytes
         import platform
-        if platform.system() == 'Darwin':
+
+        if platform.system() == "Darwin":
             memory_mb = round(mem_usage / 1024 / 1024, 1)
         else:
             memory_mb = round(mem_usage / 1024, 1)
@@ -562,8 +564,7 @@ async def health_check():
     cpu_percent = 0.0
     try:
         result = subprocess.run(
-            ['ps', '-p', str(pid), '-o', '%cpu', '--no-headers'],
-            capture_output=True, text=True, timeout=1
+            ["ps", "-p", str(pid), "-o", "%cpu", "--no-headers"], capture_output=True, text=True, timeout=1
         )
         cpu_percent = round(float(result.stdout.strip()), 1)
     except Exception:
@@ -574,12 +575,12 @@ async def health_check():
     try:
         engine = get_engine()
         pool = engine.pool
-        if hasattr(pool, 'checkedout') and hasattr(pool, 'size'):
+        if hasattr(pool, "checkedout") and hasattr(pool, "size"):
             db_pool_stats = {
                 "pool_size": pool.size(),
                 "checked_out": pool.checkedout(),
-                "overflow": pool.overflow() if hasattr(pool, 'overflow') else 0,
-                "checked_in": pool.checkedin() if hasattr(pool, 'checkedin') else None,
+                "overflow": pool.overflow() if hasattr(pool, "overflow") else 0,
+                "checked_in": pool.checkedin() if hasattr(pool, "checkedin") else None,
             }
     except Exception:
         pass

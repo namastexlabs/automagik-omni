@@ -8,12 +8,7 @@ interface OnboardingLayoutProps {
   title: string;
 }
 
-export default function OnboardingLayout({
-  children,
-  currentStep,
-  totalSteps,
-  title,
-}: OnboardingLayoutProps) {
+export default function OnboardingLayout({ children, currentStep, totalSteps, title }: OnboardingLayoutProps) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       {/* Animated gradient background (matching Login.tsx) */}
@@ -37,9 +32,7 @@ export default function OnboardingLayout({
               </div>
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">
-            {title}
-          </h1>
+          <h1 className="text-4xl font-bold text-white mb-2">{title}</h1>
 
           {/* Progress indicator */}
           <div className="flex items-center justify-center gap-2 mt-6">
@@ -47,9 +40,7 @@ export default function OnboardingLayout({
               <div
                 key={i}
                 className={`h-2 transition-all duration-300 rounded-full ${
-                  i < currentStep
-                    ? 'bg-white w-12'
-                    : 'bg-white/30 w-8'
+                  i < currentStep ? 'bg-white w-12' : 'bg-white/30 w-8'
                 }`}
               />
             ))}
@@ -60,9 +51,7 @@ export default function OnboardingLayout({
         </div>
 
         {/* Content card */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl">
-          {children}
-        </div>
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl">{children}</div>
       </div>
     </div>
   );

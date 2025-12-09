@@ -3,7 +3,7 @@
  * Replaces @fastify/http-proxy which uses undici Pool (not supported in Bun)
  */
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 interface ProxyOptions {
   prefix: string;
@@ -40,8 +40,15 @@ export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions
 
       // Build headers - filter out undefined values and hop-by-hop headers
       const hopByHopHeaders = new Set([
-        'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
-        'te', 'trailers', 'transfer-encoding', 'upgrade', 'host'
+        'connection',
+        'keep-alive',
+        'proxy-authenticate',
+        'proxy-authorization',
+        'te',
+        'trailers',
+        'transfer-encoding',
+        'upgrade',
+        'host',
       ]);
 
       const headers: Record<string, string> = {};
@@ -69,9 +76,7 @@ export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions
           body = candidate;
         } else {
           body = JSON.stringify(candidate);
-          const hasContentType = Object.keys(headers).some(
-            (key) => key.toLowerCase() === 'content-type'
-          );
+          const hasContentType = Object.keys(headers).some((key) => key.toLowerCase() === 'content-type');
           if (!hasContentType) {
             headers['content-type'] = 'application/json';
           }
@@ -129,16 +134,4 @@ export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions
 
   // Handle /prefix (exact match, no trailing content)
   fastify.all(prefix, proxyHandler);
-}
-
-/**
- * Register multiple proxy routes at once
- */
-export async function registerProxies(
-  fastify: FastifyInstance,
-  proxies: ProxyOptions[]
-): Promise<void> {
-  for (const opts of proxies) {
-    await registerProxy(fastify, opts);
-  }
 }

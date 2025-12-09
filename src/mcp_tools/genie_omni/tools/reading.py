@@ -15,9 +15,9 @@ def register_tools(mcp: FastMCP, get_client: Callable):
         from_phone: str,
         instance_name: str = "genie",
         limit: int = 50,
-        before_message_id: str = None
-    ,
-        ctx: Optional[Context] = None,) -> str:
+        before_message_id: str = None,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Read messages from person or conversation. Args: from_phone (number or group ID), instance_name, limit, before_message_id (for pagination). Returns: messages newest first, with pagination info."""
         client = get_client(ctx)
 
@@ -47,6 +47,7 @@ def register_tools(mcp: FastMCP, get_client: Callable):
                 timestamp = msg.get("messageTimestamp", 0)
                 if timestamp:
                     from datetime import datetime
+
                     dt = datetime.fromtimestamp(timestamp)
                     time_str = dt.strftime("%Y-%m-%d %H:%M")
                 else:
@@ -111,22 +112,23 @@ def register_tools(mcp: FastMCP, get_client: Callable):
 
     @mcp.tool()
     async def check_new_messages(
-        instance_name: str = "genie", hours: int = 24, limit: int = 50
-    ,
-        ctx: Optional[Context] = None,) -> str:
+        instance_name: str = "genie",
+        hours: int = 24,
+        limit: int = 50,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Check recent incoming messages. Args: instance_name, hours (lookback), limit. Returns: messages grouped by sender."""
         client = get_client(ctx)
 
         try:
             from datetime import datetime, timedelta
+
             # Import models from parent package
             from ..models import TraceFilter
 
             start_time = datetime.utcnow() - timedelta(hours=hours)
 
-            filters = TraceFilter(
-                instance_name=instance_name, start_date=start_time, limit=limit
-            )
+            filters = TraceFilter(instance_name=instance_name, start_date=start_time, limit=limit)
 
             traces = await client.list_traces(filters)
 

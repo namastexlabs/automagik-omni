@@ -96,9 +96,7 @@ export class PortRegistry extends EventEmitter {
       }
     }
 
-    throw new Error(
-      `No available port for ${serviceId} in range ${range.min}-${range.max}`
-    );
+    throw new Error(`No available port for ${serviceId} in range ${range.min}-${range.max}`);
   }
 
   /**

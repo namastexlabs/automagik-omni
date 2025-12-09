@@ -44,13 +44,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Desktop sidebar - collapsible */}
       <div
         className={cn(
-          "hidden lg:flex flex-col transition-all duration-300 ease-in-out relative",
-          desktopCollapsed ? "w-0" : "w-64"
+          'hidden lg:flex flex-col transition-all duration-300 ease-in-out relative',
+          desktopCollapsed ? 'w-0' : 'w-64',
         )}
       >
-        {!desktopCollapsed && (
-          <Sidebar onLogout={handleLogout} />
-        )}
+        {!desktopCollapsed && <Sidebar onLogout={handleLogout} />}
 
         {/* Desktop collapse/expand button */}
         <Button
@@ -58,23 +56,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           size="icon"
           onClick={() => setDesktopCollapsed(!desktopCollapsed)}
           className={cn(
-            "absolute top-3 z-50 h-8 w-8 bg-card border border-border shadow-sm hover:bg-accent",
-            desktopCollapsed ? "left-3" : "-right-4"
+            'absolute top-3 z-50 h-8 w-8 bg-card border border-border shadow-sm hover:bg-accent',
+            desktopCollapsed ? 'left-3' : '-right-4',
           )}
         >
-          {desktopCollapsed ? (
-            <PanelLeft className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
+          {desktopCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </Button>
       </div>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto">
-          {children}
-        </div>
+        <div className="flex-1 overflow-auto">{children}</div>
         <StatusFooter />
       </div>
     </div>

@@ -28,11 +28,7 @@ export interface ValidationRule {
  * @param debounceMs - Debounce delay in milliseconds (default: 500ms)
  * @returns ValidationResult with state and error message
  */
-export function useFieldValidation(
-  value: string,
-  rule: ValidationRule,
-  debounceMs: number = 500
-): ValidationResult {
+export function useFieldValidation(value: string, rule: ValidationRule, debounceMs: number = 500): ValidationResult {
   const [state, setState] = useState<ValidationState>('idle');
   const [error, setError] = useState<string | null>(null);
 

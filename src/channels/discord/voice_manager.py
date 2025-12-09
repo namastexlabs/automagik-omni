@@ -20,6 +20,7 @@ from datetime import datetime
 try:
     import discord
     from discord import VoiceClient, AudioSource
+
     DISCORD_VOICE_AVAILABLE = True
 except ImportError:
     discord = None
@@ -326,6 +327,7 @@ class VoiceSession:
 
 # Only define AudioSource subclass if discord is available
 if DISCORD_VOICE_AVAILABLE and AudioSource is not None:
+
     class AutomagikAudioSource(AudioSource):
         """Custom audio source for Discord voice streaming."""
 

@@ -1,4 +1,4 @@
-import { User, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib';
 import type { EvolutionChat, EvolutionMessage } from '@/lib';
@@ -23,7 +23,7 @@ export function ChatListItem({ chat, isSelected, onClick }: ChatListItemProps) {
       className={cn(
         'flex items-center gap-3 px-3 py-3 cursor-pointer transition-colors',
         'hover:bg-accent/50',
-        isSelected && 'bg-accent'
+        isSelected && 'bg-accent',
       )}
       onClick={onClick}
     >
@@ -33,23 +33,21 @@ export function ChatListItem({ chat, isSelected, onClick }: ChatListItemProps) {
           {isGroup ? (
             <Users className="h-6 w-6" />
           ) : (
-            <span className="text-lg font-medium">
-              {name.charAt(0).toUpperCase()}
-            </span>
+            <span className="text-lg font-medium">{name.charAt(0).toUpperCase()}</span>
           )}
         </AvatarFallback>
       </Avatar>
 
       <div className="flex-1 min-w-0 border-b border-border py-2 -my-2 -mr-3 pr-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium truncate text-foreground">
-            {name}
-          </span>
+          <span className="font-medium truncate text-foreground">{name}</span>
           {timestamp && (
-            <span className={cn(
-              'text-xs flex-shrink-0',
-              unreadCount > 0 ? 'text-primary font-medium' : 'text-muted-foreground'
-            )}>
+            <span
+              className={cn(
+                'text-xs flex-shrink-0',
+                unreadCount > 0 ? 'text-primary font-medium' : 'text-muted-foreground',
+              )}
+            >
               {timestamp}
             </span>
           )}
@@ -114,9 +112,11 @@ function formatTimestamp(timestamp: number | string | undefined): string {
   // Yesterday
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (date.getDate() === yesterday.getDate() &&
-      date.getMonth() === yesterday.getMonth() &&
-      date.getFullYear() === yesterday.getFullYear()) {
+  if (
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear()
+  ) {
     return 'Yesterday';
   }
 

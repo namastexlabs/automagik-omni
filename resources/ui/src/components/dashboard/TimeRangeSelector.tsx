@@ -1,12 +1,6 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Clock } from 'lucide-react';
 
 export type TimeRange = '1h' | '24h' | '7d' | '15d' | '30d';

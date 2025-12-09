@@ -24,13 +24,7 @@ interface InstanceCardProps {
   isDeleting?: boolean;
 }
 
-export function InstanceCard({
-  instance,
-  onShowQR,
-  onSettings,
-  onDelete,
-  isDeleting
-}: InstanceCardProps) {
+export function InstanceCard({ instance, onShowQR, onSettings, onDelete, isDeleting }: InstanceCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleDeleteClick = () => {
@@ -53,9 +47,8 @@ export function InstanceCard({
       const statusStr = instance.evolution_status?.status?.toLowerCase();
 
       // Also check if evolution_status has raw data indicating connection
-      const isOpen = state === 'open' ||
-                     statusStr === 'connected' ||
-                     instance.evolution_status?.instance?.state === 'open';
+      const isOpen =
+        state === 'open' || statusStr === 'connected' || instance.evolution_status?.instance?.state === 'open';
 
       if (isOpen) {
         return <Badge className="gradient-success border-0">Connected</Badge>;
@@ -84,9 +77,7 @@ export function InstanceCard({
     const state = instance.evolution_status?.state?.toLowerCase();
     const statusStr = instance.evolution_status?.status?.toLowerCase();
 
-    return state === 'open' ||
-           statusStr === 'connected' ||
-           instance.evolution_status?.instance?.state === 'open';
+    return state === 'open' || statusStr === 'connected' || instance.evolution_status?.instance?.state === 'open';
   };
 
   return (
@@ -96,9 +87,7 @@ export function InstanceCard({
           <div className="flex-1 space-y-1">
             <CardTitle className="text-xl flex items-center gap-2 text-foreground">
               {instance.name}
-              {instance.is_default && (
-                <Badge className="gradient-primary text-xs border-0">Default</Badge>
-              )}
+              {instance.is_default && <Badge className="gradient-primary text-xs border-0">Default</Badge>}
             </CardTitle>
             <CardDescription className="capitalize flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-primary"></span>
@@ -125,9 +114,7 @@ export function InstanceCard({
           )}
           <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
             <span className="text-muted-foreground">Status</span>
-            <span className="font-medium text-foreground">
-              {instance.is_active ? 'Active' : 'Inactive'}
-            </span>
+            <span className="font-medium text-foreground">{instance.is_active ? 'Active' : 'Inactive'}</span>
           </div>
         </div>
 
@@ -186,11 +173,7 @@ export function InstanceCard({
               onClick={handleDeleteClick}
               disabled={isDeleting}
             >
-              {isDeleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             </Button>
           )}
         </div>
@@ -206,7 +189,8 @@ export function InstanceCard({
             </AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete <span className="font-semibold text-foreground">"{instance.name}"</span>?
-              <br /><br />
+              <br />
+              <br />
               This action cannot be undone. All instance data, configurations, and settings will be permanently removed.
             </AlertDialogDescription>
           </AlertDialogHeader>

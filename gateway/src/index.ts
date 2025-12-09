@@ -3,18 +3,27 @@
  * Single-port TypeScript gateway that proxies to Python API, Evolution API, and serves UI
  */
 
-import Fastify from 'fastify';
-import { registerProxy } from './proxy.js';
-import fastifyStatic from '@fastify/static';
-import cors from '@fastify/cors';
-import { join, dirname } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 
-import { ProcessManager } from './process.js';
+import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
+import Fastify from 'fastify';
+
 import { HealthChecker } from './health.js';
+import {
+  getAvailableServices,
+  getLogTailer,
+  getPm2Status,
+  LOG_SERVICES,
+  type LogEntry,
+  restartPm2Service,
+  type ServiceName,
+} from './logs.js';
 import { PortRegistry } from './port-registry.js';
-import { getLogTailer, getAvailableServices, LOG_SERVICES, restartPm2Service, getPm2Status, type ServiceName, type LogEntry } from './logs.js';
+import { ProcessManager } from './process.js';
+import { registerProxy } from './proxy.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -48,7 +57,10 @@ const parsePort = (value: string | undefined, defaultValue: string): number => {
 };
 
 // Configuration
-const GATEWAY_PORT = parsePort(cliArgs.port as string ?? process.env.OMNI_PORT ?? process.env.AUTOMAGIK_OMNI_API_PORT, '8882');
+const GATEWAY_PORT = parsePort(
+  (cliArgs.port as string) ?? process.env.OMNI_PORT ?? process.env.AUTOMAGIK_OMNI_API_PORT,
+  '8882',
+);
 const DEV_MODE = process.env.NODE_ENV === 'development' || cliArgs.dev === true;
 const PROXY_ONLY = process.env.PROXY_ONLY === 'true' || cliArgs.proxyOnly === true;
 
@@ -122,7 +134,7 @@ export async function main() {
 ║           Single Port Access to All Services              ║
 ╚═══════════════════════════════════════════════════════════╝
 
-Mode: ${PROXY_ONLY ? 'PROXY-ONLY' : (DEV_MODE ? 'DEVELOPMENT' : 'PRODUCTION')}
+Mode: ${PROXY_ONLY ? 'PROXY-ONLY' : DEV_MODE ? 'DEVELOPMENT' : 'PRODUCTION'}
 Gateway Port: ${GATEWAY_PORT} (--port or OMNI_PORT to change)
 ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing services)' : ''}
 `);
@@ -160,7 +172,6 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       // - NO Evolution/Discord (user configures channels in wizard)
       //
       // The wizard will call /api/internal/services/:name/start to trigger each service
-
     } else {
       // NORMAL MODE: Setup complete, start all enabled services
       console.log('\n[Gateway] Starting backend services...\n');
@@ -216,10 +227,12 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   const fastify = Fastify({
     logger: {
       level: DEV_MODE ? 'info' : 'warn',
-      transport: DEV_MODE ? {
-        target: 'pino-pretty',
-        options: { colorize: true },
-      } : undefined,
+      transport: DEV_MODE
+        ? {
+            target: 'pino-pretty',
+            options: { colorize: true },
+          }
+        : undefined,
     },
   });
 
@@ -268,7 +281,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     const limit = Math.min(Math.max(parseInt(limitParam ?? '100', 10), 1), 500);
     const services = servicesParam
       ? servicesParam.split(',').filter((s): s is ServiceName => s in LOG_SERVICES)
-      : Object.keys(LOG_SERVICES) as ServiceName[];
+      : (Object.keys(LOG_SERVICES) as ServiceName[]);
 
     const tailer = getLogTailer();
     return tailer.getRecentLogs(services, limit);
@@ -282,13 +295,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
     const services = servicesParam
       ? servicesParam.split(',').filter((s): s is ServiceName => s in LOG_SERVICES)
-      : Object.keys(LOG_SERVICES) as ServiceName[];
+      : (Object.keys(LOG_SERVICES) as ServiceName[]);
 
     // Set SSE headers
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
       'X-Accel-Buffering': 'no', // Disable nginx buffering
     });
@@ -380,8 +393,8 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
     await Promise.all(
       (Object.keys(LOG_SERVICES) as ServiceName[]).map(async (service) => {
-        statuses[service] = await getPm2Status(service) || { online: false };
-      })
+        statuses[service] = (await getPm2Status(service)) || { online: false };
+      }),
     );
 
     return statuses;
@@ -422,13 +435,15 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
       'X-Accel-Buffering': 'no',
     });
 
     // Send initial message
-    reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'starting', message: 'Installing Discord dependencies...' })}\n\n`);
+    reply.raw.write(
+      `event: status\ndata: ${JSON.stringify({ phase: 'starting', message: 'Installing Discord dependencies...' })}\n\n`,
+    );
 
     try {
       const proc = Bun.spawn(['uv', 'sync', '--extra', 'discord'], {
@@ -446,7 +461,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           if (done) break;
           const lines = decoder.decode(value).split('\n').filter(Boolean);
           for (const line of lines) {
-            reply.raw.write(`event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`);
+            reply.raw.write(
+              `event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`,
+            );
           }
         }
       })();
@@ -460,7 +477,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           if (done) break;
           const lines = decoder.decode(value).split('\n').filter(Boolean);
           for (const line of lines) {
-            reply.raw.write(`event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`);
+            reply.raw.write(
+              `event: log\ndata: ${JSON.stringify({ timestamp: new Date().toISOString(), message: line })}\n\n`,
+            );
           }
         }
       })();
@@ -475,12 +494,18 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           stderr: 'pipe',
         });
         if (verify.exitCode === 0) {
-          reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Discord installed successfully', version: verify.stdout.toString().trim() })}\n\n`);
+          reply.raw.write(
+            `event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Discord installed successfully', version: verify.stdout.toString().trim() })}\n\n`,
+          );
         } else {
-          reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`);
+          reply.raw.write(
+            `event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`,
+          );
         }
       } catch {
-        reply.raw.write(`event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`);
+        reply.raw.write(
+          `event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`,
+        );
       }
 
       reply.raw.write(`event: done\ndata: ${JSON.stringify({ success: true })}\n\n`);
@@ -516,9 +541,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // Route: /mcp - Proxy to standalone MCP server (eliminates double proxy layer)
   // ============================================================
   await registerProxy(fastify, {
-    upstream: 'http://127.0.0.1:18880',  // Direct to standalone MCP server
+    upstream: 'http://127.0.0.1:18880', // Direct to standalone MCP server
     prefix: '/mcp',
-    rewritePrefix: '/',  // MCP server serves at root
+    rewritePrefix: '/', // MCP server serves at root
   });
 
   // ============================================================
@@ -586,17 +611,19 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     // SPA fallback - serve index.html for unmatched routes
     fastify.setNotFoundHandler(async (request, reply) => {
       // Don't serve index.html for API routes
-      if (request.url.startsWith('/api/v1') ||
-          request.url.startsWith('/api/gateway') ||
-          request.url.startsWith('/api/logs') ||
-          request.url.startsWith('/api/setup') ||
-          request.url.startsWith('/webhook') ||
-          request.url.startsWith('/evolution') ||
-          request.url.startsWith('/health') ||
-          request.url.startsWith('/docs') ||
-          request.url.startsWith('/redoc') ||
-          request.url.startsWith('/openapi.json') ||
-          request.url.startsWith('/mcp')) {
+      if (
+        request.url.startsWith('/api/v1') ||
+        request.url.startsWith('/api/gateway') ||
+        request.url.startsWith('/api/logs') ||
+        request.url.startsWith('/api/setup') ||
+        request.url.startsWith('/webhook') ||
+        request.url.startsWith('/evolution') ||
+        request.url.startsWith('/health') ||
+        request.url.startsWith('/docs') ||
+        request.url.startsWith('/redoc') ||
+        request.url.startsWith('/openapi.json') ||
+        request.url.startsWith('/mcp')
+      ) {
         return reply.status(404).send({ error: 'Not Found' });
       }
       return reply.sendFile('index.html');
@@ -665,7 +692,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
         // Write config file - memory mode means no data_dir
         const config = {
           memory_mode,
-          data_dir: memory_mode ? null : (data_dir || './data/postgres'),
+          data_dir: memory_mode ? null : data_dir || './data/postgres',
           replication_url: replication_url || null,
         };
 
@@ -679,7 +706,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           error: error instanceof Error ? error.message : 'Failed to write config',
         });
       }
-    }
+    },
   );
 
   // POST /api/internal/services/:name/start - Start a service (wizard use)
@@ -727,7 +754,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           error: `Failed to start ${name}: ${error instanceof Error ? error.message : error}`,
         });
       }
-    }
+    },
   );
 
   // POST /api/internal/setup/complete - Mark setup as complete (wizard use)
@@ -769,7 +796,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     const channels = ['evolution', 'discord'];
     return {
       lazyMode: processManager.isLazyModeEnabled(),
-      channels: channels.map(channel => ({
+      channels: channels.map((channel) => ({
         name: channel,
         enabled: processManager.isChannelEnabled(channel),
         running: processManager.isChannelRunning(channel),
@@ -836,7 +863,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
     try {
       await processManager.stopChannel(channel);
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Cleanup delay
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Cleanup delay
       await processManager.ensureChannelRunning(channel);
       return { status: 'restarted', channel };
     } catch (error) {

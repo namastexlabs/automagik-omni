@@ -38,10 +38,10 @@ function normalizeInstanceName(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '-')  // Replace spaces with hyphens
-    .replace(/[^a-z0-9-_]/g, '')  // Remove invalid characters
-    .replace(/-+/g, '-')  // Collapse multiple hyphens
-    .replace(/^-|-$/g, '');  // Remove leading/trailing hyphens
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/[^a-z0-9-_]/g, '') // Remove invalid characters
+    .replace(/-+/g, '-') // Collapse multiple hyphens
+    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
 }
 
 export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated }: InstanceDialogProps) {
@@ -121,8 +121,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ name, data }: { name: string; data: InstanceUpdateRequest }) =>
-      api.instances.update(name, data),
+    mutationFn: ({ name, data }: { name: string; data: InstanceUpdateRequest }) => api.instances.update(name, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['instances'] });
       toast.success(`Instance "${variables.name}" updated successfully`);
@@ -231,10 +230,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
             {/* Instance Name */}
             <div className="grid gap-2">
               <Label htmlFor="name">
-                Instance Name *
-                <span className="text-xs text-muted-foreground ml-2">
-                  (lowercase, no spaces)
-                </span>
+                Instance Name *<span className="text-xs text-muted-foreground ml-2">(lowercase, no spaces)</span>
               </Label>
               <Input
                 id="name"
@@ -244,9 +240,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 required
                 disabled={isEditing || isPending}
               />
-              {nameWarning && (
-                <p className="text-xs text-warning">{nameWarning}</p>
-              )}
+              {nameWarning && <p className="text-xs text-warning">{nameWarning}</p>}
               <p className="text-xs text-muted-foreground">
                 Unique identifier for this instance (letters, numbers, hyphens only)
               </p>
@@ -271,9 +265,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Select the messaging channel for this instance
-              </p>
+              <p className="text-xs text-muted-foreground">Select the messaging channel for this instance</p>
             </div>
 
             {/* Agent API URL */}
@@ -288,9 +280,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 required
                 disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">
-                Automagik agent API endpoint
-              </p>
+              <p className="text-xs text-muted-foreground">Automagik agent API endpoint</p>
             </div>
 
             {/* Agent API Key */}
@@ -317,9 +307,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 placeholder="agent-name"
                 disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">
-                Default agent to use for this instance
-              </p>
+              <p className="text-xs text-muted-foreground">Default agent to use for this instance</p>
             </div>
 
             {/* Automagik Instance Name */}
@@ -346,9 +334,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                     placeholder="+1234567890"
                     disabled={isPending}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Phone number for display purposes
-                  </p>
+                  <p className="text-xs text-muted-foreground">Phone number for display purposes</p>
                 </div>
                 <Alert>
                   <AlertDescription className="text-xs">
@@ -372,11 +358,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                     required={!isEditing}
                     disabled={isPending}
                   />
-                  {isEditing && (
-                    <p className="text-xs text-warning">
-                      Leave empty to keep existing token
-                    </p>
-                  )}
+                  {isEditing && <p className="text-xs text-warning">Leave empty to keep existing token</p>}
                 </div>
 
                 <div className="grid gap-2">
@@ -409,12 +391,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               Cancel
             </Button>
             <Button type="submit" className="gradient-primary" disabled={isPending}>

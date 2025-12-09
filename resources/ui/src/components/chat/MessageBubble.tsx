@@ -18,12 +18,7 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
   const senderName = message.pushName;
 
   return (
-    <div
-      className={cn(
-        'flex gap-2 mb-1',
-        isFromMe ? 'justify-end' : 'justify-start'
-      )}
-    >
+    <div className={cn('flex gap-2 mb-1', isFromMe ? 'justify-end' : 'justify-start')}>
       {/* Avatar for group messages (not from me) */}
       {showAvatar && !isFromMe && (
         <Avatar className="h-8 w-8 flex-shrink-0 mt-auto">
@@ -36,66 +31,37 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
       <div
         className={cn(
           'max-w-[65%] rounded-lg shadow-sm relative',
-          isFromMe
-            ? 'bg-primary/20 dark:bg-primary/30'
-            : 'bg-card',
-          content.type === 'image' || content.type === 'video' || content.type === 'sticker'
-            ? 'p-1'
-            : 'px-3 py-1.5'
+          isFromMe ? 'bg-primary/20 dark:bg-primary/30' : 'bg-card',
+          content.type === 'image' || content.type === 'video' || content.type === 'sticker' ? 'p-1' : 'px-3 py-1.5',
         )}
       >
         {/* Sender name in groups */}
         {showAvatar && !isFromMe && senderName && (
-          <p className="text-xs font-medium mb-0.5 text-primary">
-            {senderName}
-          </p>
+          <p className="text-xs font-medium mb-0.5 text-primary">{senderName}</p>
         )}
 
         {/* Media content */}
         {content.type === 'image' && (
-          <ImageMessage
-            message={message}
-            instanceName={instanceName}
-            caption={content.text}
-          />
+          <ImageMessage message={message} instanceName={instanceName} caption={content.text} />
         )}
 
         {content.type === 'video' && (
-          <VideoMessage
-            message={message}
-            instanceName={instanceName}
-            caption={content.text}
-          />
+          <VideoMessage message={message} instanceName={instanceName} caption={content.text} />
         )}
 
         {(content.type === 'audio' || content.type === 'ptt') && (
-          <AudioMessage
-            message={message}
-            instanceName={instanceName}
-            isPtt={content.type === 'ptt'}
-          />
+          <AudioMessage message={message} instanceName={instanceName} isPtt={content.type === 'ptt'} />
         )}
 
         {content.type === 'document' && (
-          <DocumentMessage
-            message={message}
-            instanceName={instanceName}
-            filename={content.filename}
-          />
+          <DocumentMessage message={message} instanceName={instanceName} filename={content.filename} />
         )}
 
-        {content.type === 'sticker' && (
-          <StickerMessage
-            message={message}
-            instanceName={instanceName}
-          />
-        )}
+        {content.type === 'sticker' && <StickerMessage message={message} instanceName={instanceName} />}
 
         {/* Text only message */}
         {content.type === 'text' && content.text && (
-          <p className="text-sm whitespace-pre-wrap break-words text-foreground">
-            {content.text}
-          </p>
+          <p className="text-sm whitespace-pre-wrap break-words text-foreground">{content.text}</p>
         )}
 
         {/* Location message */}
@@ -113,28 +79,25 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
         )}
 
         {/* Reaction message */}
-        {content.type === 'reaction' && (
-          <div className="text-2xl">{content.text}</div>
-        )}
+        {content.type === 'reaction' && <div className="text-2xl">{content.text}</div>}
 
         {/* Unsupported */}
-        {content.type === 'unsupported' && (
-          <p className="text-sm text-muted-foreground italic">{content.text}</p>
-        )}
+        {content.type === 'unsupported' && <p className="text-sm text-muted-foreground italic">{content.text}</p>}
 
         {/* Timestamp and status */}
         <div
           className={cn(
             'flex items-center gap-1 justify-end mt-0.5',
-            (content.type === 'image' || content.type === 'video') && 'absolute bottom-2 right-2 bg-black/40 rounded px-1'
+            (content.type === 'image' || content.type === 'video') &&
+              'absolute bottom-2 right-2 bg-black/40 rounded px-1',
           )}
         >
-          <span className={cn(
-            'text-[11px]',
-            (content.type === 'image' || content.type === 'video')
-              ? 'text-white'
-              : 'text-muted-foreground'
-          )}>
+          <span
+            className={cn(
+              'text-[11px]',
+              content.type === 'image' || content.type === 'video' ? 'text-white' : 'text-muted-foreground',
+            )}
+          >
             {timestamp}
           </span>
           {isFromMe && <StatusIcon status={status} light={content.type === 'image' || content.type === 'video'} />}
@@ -145,7 +108,15 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
 }
 
 // Image Message Component
-function ImageMessage({ message, instanceName, caption }: { message: EvolutionMessage; instanceName: string; caption?: string }) {
+function ImageMessage({
+  message,
+  instanceName,
+  caption,
+}: {
+  message: EvolutionMessage;
+  instanceName: string;
+  caption?: string;
+}) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -173,11 +144,7 @@ function ImageMessage({ message, instanceName, caption }: { message: EvolutionMe
   return (
     <div className="relative">
       {loading && thumbnailSrc ? (
-        <img
-          src={thumbnailSrc}
-          alt="Loading..."
-          className="rounded-lg max-w-full max-h-80 object-contain blur-sm"
-        />
+        <img src={thumbnailSrc} alt="Loading..." className="rounded-lg max-w-full max-h-80 object-contain blur-sm" />
       ) : error ? (
         <div className="flex items-center justify-center h-40 w-60 bg-muted rounded-lg">
           <ImageIcon className="h-8 w-8 text-muted-foreground" />
@@ -190,17 +157,21 @@ function ImageMessage({ message, instanceName, caption }: { message: EvolutionMe
           onClick={() => imageSrc && window.open(imageSrc, '_blank')}
         />
       )}
-      {caption && (
-        <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
-          {caption}
-        </p>
-      )}
+      {caption && <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">{caption}</p>}
     </div>
   );
 }
 
 // Video Message Component
-function VideoMessage({ message, instanceName, caption }: { message: EvolutionMessage; instanceName: string; caption?: string }) {
+function VideoMessage({
+  message,
+  instanceName,
+  caption,
+}: {
+  message: EvolutionMessage;
+  instanceName: string;
+  caption?: string;
+}) {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const thumbnail = message.message?.videoMessage?.jpegThumbnail;
@@ -245,17 +216,21 @@ function VideoMessage({ message, instanceName, caption }: { message: EvolutionMe
           poster={thumbnailSrc || undefined}
         />
       )}
-      {caption && (
-        <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
-          {caption}
-        </p>
-      )}
+      {caption && <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">{caption}</p>}
     </div>
   );
 }
 
 // Audio Message Component (WhatsApp style waveform player)
-function AudioMessage({ message, instanceName, isPtt }: { message: EvolutionMessage; instanceName: string; isPtt: boolean }) {
+function AudioMessage({
+  message,
+  instanceName,
+  isPtt,
+}: {
+  message: EvolutionMessage;
+  instanceName: string;
+  isPtt: boolean;
+}) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -334,7 +309,7 @@ function AudioMessage({ message, instanceName, isPtt }: { message: EvolutionMess
         className={cn(
           'flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors',
           isPtt ? 'bg-primary' : 'bg-muted-foreground',
-          loading && 'opacity-50'
+          loading && 'opacity-50',
         )}
       >
         {loading ? (
@@ -352,7 +327,7 @@ function AudioMessage({ message, instanceName, isPtt }: { message: EvolutionMess
           <div
             className={cn(
               'absolute left-0 top-0 h-full rounded-full transition-all',
-              isPtt ? 'bg-primary' : 'bg-muted-foreground'
+              isPtt ? 'bg-primary' : 'bg-muted-foreground',
             )}
             style={{ width: `${progress}%` }}
           />
@@ -363,7 +338,7 @@ function AudioMessage({ message, instanceName, isPtt }: { message: EvolutionMess
                 key={i}
                 className={cn(
                   'w-0.5 rounded-full',
-                  i < (progress / 100) * 30 ? (isPtt ? 'bg-primary' : 'bg-muted-foreground') : 'bg-muted-foreground/40'
+                  i < (progress / 100) * 30 ? (isPtt ? 'bg-primary' : 'bg-muted-foreground') : 'bg-muted-foreground/40',
                 )}
                 style={{ height: `${Math.random() * 100}%`, minHeight: '20%' }}
               />
@@ -371,25 +346,27 @@ function AudioMessage({ message, instanceName, isPtt }: { message: EvolutionMess
           </div>
         </div>
         <div className="flex justify-between mt-1">
-          <span className="text-[11px] text-muted-foreground">
-            {formatTime(audioRef.current?.currentTime || 0)}
-          </span>
-          <span className="text-[11px] text-muted-foreground">
-            {formatTime(audioDuration)}
-          </span>
+          <span className="text-[11px] text-muted-foreground">{formatTime(audioRef.current?.currentTime || 0)}</span>
+          <span className="text-[11px] text-muted-foreground">{formatTime(audioDuration)}</span>
         </div>
       </div>
 
       {/* Mic icon for PTT */}
-      {isPtt && (
-        <Mic className="h-4 w-4 text-primary flex-shrink-0" />
-      )}
+      {isPtt && <Mic className="h-4 w-4 text-primary flex-shrink-0" />}
     </div>
   );
 }
 
 // Document Message Component
-function DocumentMessage({ message, instanceName, filename }: { message: EvolutionMessage; instanceName: string; filename?: string }) {
+function DocumentMessage({
+  message,
+  instanceName,
+  filename,
+}: {
+  message: EvolutionMessage;
+  instanceName: string;
+  filename?: string;
+}) {
   const [loading, setLoading] = useState(false);
 
   const handleDownload = async () => {
@@ -422,9 +399,7 @@ function DocumentMessage({ message, instanceName, filename }: { message: Evoluti
         <FileText className="h-5 w-5 text-white" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">
-          {filename || 'Document'}
-        </p>
+        <p className="text-sm font-medium text-foreground truncate">{filename || 'Document'}</p>
         <p className="text-xs text-muted-foreground">
           {pageCount && `${pageCount} pages • `}
           {fileSize && `${(fileSize / 1024).toFixed(1)} KB`}
@@ -457,13 +432,7 @@ function StickerMessage({ message, instanceName }: { message: EvolutionMessage; 
     fetchMedia();
   }, [message.key.id, message.key.remoteJid, instanceName]);
 
-  return (
-    <img
-      src={stickerSrc || ''}
-      alt="Sticker"
-      className="w-32 h-32 object-contain"
-    />
-  );
+  return <img src={stickerSrc || ''} alt="Sticker" className="w-32 h-32 object-contain" />;
 }
 
 function StatusIcon({ status, light = false }: { status?: string; light?: boolean }) {
@@ -486,7 +455,18 @@ function StatusIcon({ status, light = false }: { status?: string; light?: boolea
 }
 
 interface MessageContent {
-  type: 'text' | 'image' | 'video' | 'audio' | 'ptt' | 'document' | 'sticker' | 'location' | 'contact' | 'reaction' | 'unsupported';
+  type:
+    | 'text'
+    | 'image'
+    | 'video'
+    | 'audio'
+    | 'ptt'
+    | 'document'
+    | 'sticker'
+    | 'location'
+    | 'contact'
+    | 'reaction'
+    | 'unsupported';
   text?: string;
   url?: string;
   filename?: string;

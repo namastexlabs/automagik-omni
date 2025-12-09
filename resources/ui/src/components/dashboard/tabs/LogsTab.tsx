@@ -5,19 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLogStream } from '@/hooks/useLogStream';
 import { api, type LogEntry, type LogServiceName, type Pm2Status, cn } from '@/lib';
 import {
@@ -109,24 +98,14 @@ function ServiceStatusBadge({ service, status, onRestart, isRestarting }: Servic
                 'text-xs cursor-default',
                 status?.online
                   ? 'bg-green-500/10 text-green-400 border-green-500/30'
-                  : 'bg-red-500/10 text-red-400 border-red-500/30'
+                  : 'bg-red-500/10 text-red-400 border-red-500/30',
               )}
             >
               <Power className={cn('h-3 w-3 mr-1', status?.online ? 'text-green-400' : 'text-red-400')} />
               {status?.online ? 'Online' : 'Offline'}
             </Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={onRestart}
-              disabled={isRestarting}
-            >
-              {isRestarting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RotateCcw className="h-3.5 w-3.5" />
-              )}
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRestart} disabled={isRestarting}>
+              {isRestarting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
             </Button>
           </div>
         </TooltipTrigger>
@@ -152,20 +131,12 @@ function ServiceStatusBadge({ service, status, onRestart, isRestarting }: Servic
                   </div>
                 )}
                 {status.restarts !== undefined && status.restarts > 0 && (
-                  <div className="text-muted-foreground">
-                    Restarts: {status.restarts}
-                  </div>
+                  <div className="text-muted-foreground">Restarts: {status.restarts}</div>
                 )}
-                {status.pid && (
-                  <div className="text-muted-foreground">
-                    PID: {status.pid}
-                  </div>
-                )}
+                {status.pid && <div className="text-muted-foreground">PID: {status.pid}</div>}
               </>
             )}
-            <div className="pt-1 border-t text-muted-foreground">
-              Click restart button to restart this service
-            </div>
+            <div className="pt-1 border-t text-muted-foreground">Click restart button to restart this service</div>
           </div>
         </TooltipContent>
       </Tooltip>
@@ -208,11 +179,11 @@ export function LogsTab() {
   const restartMutation = useMutation({
     mutationFn: (service: LogServiceName) => api.logs.restart(service),
     onMutate: (service) => {
-      setRestartingServices(prev => new Set(prev).add(service));
+      setRestartingServices((prev) => new Set(prev).add(service));
       setRestartMessage(null);
     },
     onSuccess: (result, service) => {
-      setRestartingServices(prev => {
+      setRestartingServices((prev) => {
         const next = new Set(prev);
         next.delete(service);
         return next;
@@ -224,7 +195,7 @@ export function LogsTab() {
       }, 2000);
     },
     onError: (error, service) => {
-      setRestartingServices(prev => {
+      setRestartingServices((prev) => {
         const next = new Set(prev);
         next.delete(service);
         return next;
@@ -252,21 +223,22 @@ export function LogsTab() {
   }, [logs, autoScroll, isPaused]);
 
   // Filter logs by level
-  const filteredLogs = levelFilter === 'all'
-    ? logs
-    : logs.filter(log => log.level === levelFilter);
+  const filteredLogs = levelFilter === 'all' ? logs : logs.filter((log) => log.level === levelFilter);
 
   const handleServiceToggle = (service: LogServiceName, checked: boolean) => {
     if (checked) {
       setSelectedServices([...selectedServices, service]);
     } else {
-      setSelectedServices(selectedServices.filter(s => s !== service));
+      setSelectedServices(selectedServices.filter((s) => s !== service));
     }
   };
 
-  const handleRestart = useCallback((service: LogServiceName) => {
-    restartMutation.mutate(service);
-  }, [restartMutation]);
+  const handleRestart = useCallback(
+    (service: LogServiceName) => {
+      restartMutation.mutate(service);
+    },
+    [restartMutation],
+  );
 
   return (
     <div className="space-y-4 h-[calc(100vh-220px)]">
@@ -299,12 +271,7 @@ export function LogsTab() {
 
             <div className="flex items-center gap-2">
               {/* Pause/Resume */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={togglePause}
-                className={isPaused ? 'text-yellow-400' : ''}
-              >
+              <Button variant="outline" size="sm" onClick={togglePause} className={isPaused ? 'text-yellow-400' : ''}>
                 {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
               </Button>
 
@@ -326,11 +293,7 @@ export function LogsTab() {
             </div>
           </div>
 
-          {error && (
-            <CardDescription className="text-destructive mt-2">
-              {error}
-            </CardDescription>
-          )}
+          {error && <CardDescription className="text-destructive mt-2">{error}</CardDescription>}
 
           {restartMessage && (
             <CardDescription className={cn('mt-2', restartMessage.success ? 'text-green-400' : 'text-destructive')}>
@@ -347,7 +310,7 @@ export function LogsTab() {
                 <Filter className="h-3.5 w-3.5" />
                 Services:
               </span>
-              {services.map(service => (
+              {services.map((service) => (
                 <div key={service.id} className="flex items-center gap-1.5">
                   <Checkbox
                     checked={selectedServices.includes(service.id)}
@@ -358,7 +321,7 @@ export function LogsTab() {
                     variant="outline"
                     className={cn(
                       'text-xs',
-                      selectedServices.includes(service.id) ? SERVICE_COLORS[service.id] : 'opacity-50'
+                      selectedServices.includes(service.id) ? SERVICE_COLORS[service.id] : 'opacity-50',
                     )}
                   >
                     {service.name}
@@ -392,10 +355,7 @@ export function LogsTab() {
 
             {/* Auto-scroll Toggle */}
             <label className="flex items-center gap-2 cursor-pointer ml-auto">
-              <Checkbox
-                checked={autoScroll}
-                onCheckedChange={(checked) => setAutoScroll(!!checked)}
-              />
+              <Checkbox checked={autoScroll} onCheckedChange={(checked) => setAutoScroll(!!checked)} />
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <ArrowDown className="h-3.5 w-3.5" />
                 Auto-scroll
@@ -430,9 +390,7 @@ export function LogsTab() {
                 )}
               </div>
             ) : (
-              filteredLogs.map((entry, index) => (
-                <LogLine key={`${entry.timestamp}-${index}`} entry={entry} />
-              ))
+              filteredLogs.map((entry, index) => <LogLine key={`${entry.timestamp}-${index}`} entry={entry} />)
             )}
             <div ref={bottomRef} />
           </div>

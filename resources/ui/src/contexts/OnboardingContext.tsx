@@ -4,8 +4,8 @@ import { api } from '../lib/api';
 interface OnboardingState {
   requiresSetup: boolean;
   setupComplete: boolean;
-  bootstrapMode: boolean;  // True when services not yet started
-  servicesRunning: boolean;  // True when pgserve+Python are running
+  bootstrapMode: boolean; // True when services not yet started
+  servicesRunning: boolean; // True when pgserve+Python are running
   currentStep: 'setup' | 'api-key' | 'complete';
   isLoading: boolean;
   error: string | null;
@@ -33,11 +33,11 @@ interface OnboardingProviderProps {
 
 export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const [state, setState] = useState<OnboardingState>({
-    requiresSetup: true,      // Assume setup needed until backend confirms otherwise
-    setupComplete: false,     // Assume not complete until verified
-    bootstrapMode: false,     // Will be set by Gateway check
-    servicesRunning: false,   // Will be set based on service availability
-    currentStep: 'setup',     // Start at setup step
+    requiresSetup: true, // Assume setup needed until backend confirms otherwise
+    setupComplete: false, // Assume not complete until verified
+    bootstrapMode: false, // Will be set by Gateway check
+    servicesRunning: false, // Will be set based on service availability
+    currentStep: 'setup', // Start at setup step
     isLoading: true,
     error: null,
   });
@@ -48,7 +48,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   }, []);
 
   const checkSetupStatus = async () => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
       // STEP 1: Check Gateway bootstrap status first (always available)
@@ -85,23 +85,20 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       });
 
       // Cache in localStorage for quick subsequent checks
-      localStorage.setItem(
-        'omni_setup_complete',
-        response.requires_setup ? 'false' : 'true'
-      );
+      localStorage.setItem('omni_setup_complete', response.requires_setup ? 'false' : 'true');
     } catch (error) {
       console.error('Failed to check setup status:', error);
       // If Gateway check fails, something is very broken
       // If Python check fails but Gateway worked, we're in bootstrap mode
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         requiresSetup: true,
         setupComplete: false,
-        bootstrapMode: true,  // Assume bootstrap if we can't reach services
+        bootstrapMode: true, // Assume bootstrap if we can't reach services
         servicesRunning: false,
         currentStep: 'setup',
         isLoading: false,
-        error: null,  // Don't show error - wizard will handle bootstrap
+        error: null, // Don't show error - wizard will handle bootstrap
       }));
     }
   };
@@ -149,9 +146,5 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     refreshStatus,
   };
 
-  return (
-    <OnboardingContext.Provider value={value}>
-      {children}
-    </OnboardingContext.Provider>
-  );
+  return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;
 }

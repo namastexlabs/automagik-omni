@@ -55,6 +55,7 @@ def _initialize_engine() -> None:
 
     # PostgreSQL only - use connection pooling
     from src.config import config
+
     _engine = create_engine(
         database_url,
         pool_size=config.database.pool_size,

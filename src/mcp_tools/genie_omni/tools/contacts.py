@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Track if we've already initialized the contacts table
 _contacts_table_initialized = False
 
+
 def _get_db_path() -> str:
     """Get the SQLite database path from environment.
 
@@ -21,12 +22,14 @@ def _get_db_path() -> str:
     # This is separate from the main PostgreSQL database
     default_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))),
-        "data", "mcp-contacts.sqlite"
+        "data",
+        "mcp-contacts.sqlite",
     )
     db_path = os.getenv("AUTOMAGIK_OMNI_SQLITE_DATABASE_PATH", default_path)
     # Ensure data directory exists
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     return db_path
+
 
 def _ensure_contacts_table():
     """Ensure contacts table exists. Runs once per process, safe to call multiple times."""
@@ -62,9 +65,11 @@ def register_tools(mcp: FastMCP, get_client: Callable):
 
     @mcp.tool()
     async def my_contacts(
-        instance_name: str = "genie", search: Optional[str] = None, limit: int = 50
-    ,
-        ctx: Optional[Context] = None,) -> str:
+        instance_name: str = "genie",
+        search: Optional[str] = None,
+        limit: int = 50,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Get contacts from WhatsApp. Args: instance_name, search query, limit. Returns: list of contacts with names and phone numbers."""
         client = get_client(ctx)
 
@@ -98,8 +103,8 @@ def register_tools(mcp: FastMCP, get_client: Callable):
         instance_name: str = "genie",
         conversation_type: Optional[Literal["direct", "group", "all"]] = "all",
         limit: int = 20,
-
-        ctx: Optional[Context] = None,) -> str:
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Get active WhatsApp conversations. Args: instance_name, conversation_type filter, limit. Returns: list of active chats."""
         client = get_client(ctx)
 
@@ -141,9 +146,9 @@ def register_tools(mcp: FastMCP, get_client: Callable):
         phone_number: str,
         name: str,
         nickname: Optional[str] = None,
-        notes: Optional[str] = None
-    ,
-        ctx: Optional[Context] = None,) -> str:
+        notes: Optional[str] = None,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Add contact to local database. Args: phone_number, name, nickname, notes. Returns: confirmation."""
         _ensure_contacts_table()
 
@@ -151,10 +156,13 @@ def register_tools(mcp: FastMCP, get_client: Callable):
             db = sqlite3.connect(_get_db_path())
             cursor = db.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO contacts (phone_number, name, nickname, notes)
                 VALUES (?, ?, ?, ?)
-            """, (phone_number, name, nickname, notes))
+            """,
+                (phone_number, name, nickname, notes),
+            )
 
             db.commit()
             db.close()
@@ -179,9 +187,9 @@ def register_tools(mcp: FastMCP, get_client: Callable):
         phone_number: str,
         name: Optional[str] = None,
         nickname: Optional[str] = None,
-        notes: Optional[str] = None
-    ,
-        ctx: Optional[Context] = None,) -> str:
+        notes: Optional[str] = None,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Update existing contact in local database. Args: phone_number, name, nickname, notes. Returns: confirmation."""
         _ensure_contacts_table()
 
@@ -234,8 +242,10 @@ def register_tools(mcp: FastMCP, get_client: Callable):
             return f"❌ Failed to update contact: {str(e)}"
 
     @mcp.tool()
-    async def remove_contact(phone_number: str,
-        ctx: Optional[Context] = None,) -> str:
+    async def remove_contact(
+        phone_number: str,
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Remove contact from local database. Args: phone_number. Returns: confirmation."""
         _ensure_contacts_table()
 

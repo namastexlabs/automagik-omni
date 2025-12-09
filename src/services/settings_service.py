@@ -36,13 +36,7 @@ class SettingsService:
         """
         return db.query(GlobalSetting).filter_by(key=key).first()
 
-    def get_setting_value(
-        self,
-        key: str,
-        db: Session,
-        default: Any = None,
-        cast_type: bool = True
-    ) -> Any:
+    def get_setting_value(self, key: str, db: Session, default: Any = None, cast_type: bool = True) -> Any:
         """
         Get a setting's value with type casting.
 
@@ -66,7 +60,7 @@ class SettingsService:
         # Type casting based on value_type
         try:
             if setting.value_type == SettingValueType.BOOLEAN:
-                return setting.value.lower() in ('true', '1', 'yes')
+                return setting.value.lower() in ("true", "1", "yes")
             elif setting.value_type == SettingValueType.INTEGER:
                 return int(setting.value)
             elif setting.value_type == SettingValueType.JSON:
@@ -78,10 +72,7 @@ class SettingsService:
             return default
 
     def list_settings(
-        self,
-        db: Session,
-        category: Optional[str] = None,
-        include_secrets: bool = True
+        self, db: Session, category: Optional[str] = None, include_secrets: bool = True
     ) -> List[GlobalSetting]:
         """
         List all settings, optionally filtered by category.
@@ -113,7 +104,7 @@ class SettingsService:
         is_required: bool = False,
         default_value: Any = None,
         validation_rules: Optional[Dict] = None,
-        created_by: Optional[str] = None
+        created_by: Optional[str] = None,
     ) -> GlobalSetting:
         """
         Create a new global setting.
@@ -162,7 +153,7 @@ class SettingsService:
             created_at=datetime_utcnow(),
             updated_at=datetime_utcnow(),
             created_by=created_by,
-            updated_by=created_by
+            updated_by=created_by,
         )
 
         db.add(setting)
@@ -173,12 +164,7 @@ class SettingsService:
         return setting
 
     def update_setting(
-        self,
-        key: str,
-        value: Any,
-        db: Session,
-        updated_by: Optional[str] = None,
-        change_reason: Optional[str] = None
+        self, key: str, value: Any, db: Session, updated_by: Optional[str] = None, change_reason: Optional[str] = None
     ) -> GlobalSetting:
         """
         Update an existing setting value with audit trail.
@@ -220,7 +206,7 @@ class SettingsService:
             new_value=new_value_str,
             changed_by=updated_by,
             changed_at=datetime_utcnow(),
-            change_reason=change_reason
+            change_reason=change_reason,
         )
 
         db.add(history)
@@ -311,35 +297,31 @@ class SettingsService:
         try:
             rules = json.loads(str(setting.validation_rules))
         except Exception:
-            return True # Ignore invalid rules if we can't parse them
+            return True  # Ignore invalid rules if we can't parse them
 
         # Type validation
         if setting.value_type == SettingValueType.INTEGER:
             if not isinstance(value, int):
                 raise ValueError("Value must be an integer")
-            if 'min' in rules and value < rules['min']:
+            if "min" in rules and value < rules["min"]:
                 raise ValueError(f"Value must be >= {rules['min']}")
-            if 'max' in rules and value > rules['max']:
+            if "max" in rules and value > rules["max"]:
                 raise ValueError(f"Value must be <= {rules['max']}")
 
         elif setting.value_type == SettingValueType.STRING:
-            if 'pattern' in rules:
+            if "pattern" in rules:
                 import re
-                if not re.match(rules['pattern'], str(value)):
+
+                if not re.match(rules["pattern"], str(value)):
                     raise ValueError(f"Value does not match pattern: {rules['pattern']}")
-            if 'min_length' in rules and len(str(value)) < rules['min_length']:
+            if "min_length" in rules and len(str(value)) < rules["min_length"]:
                 raise ValueError(f"Value must be at least {rules['min_length']} characters")
-            if 'max_length' in rules and len(str(value)) > rules['max_length']:
+            if "max_length" in rules and len(str(value)) > rules["max_length"]:
                 raise ValueError(f"Value must be at most {rules['max_length']} characters")
 
         return True
 
-    def get_change_history(
-        self,
-        key: str,
-        db: Session,
-        limit: int = 50
-    ) -> List[SettingChangeHistory]:
+    def get_change_history(self, key: str, db: Session, limit: int = 50) -> List[SettingChangeHistory]:
         """Get change history for a setting.
 
         Args:

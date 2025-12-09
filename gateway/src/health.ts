@@ -7,14 +7,14 @@ import { PortRegistry } from './port-registry.js';
 
 export interface ProcessStats {
   memory: {
-    heapUsed: number;  // MB
+    heapUsed: number; // MB
     heapTotal: number; // MB
-    rss: number;       // MB
+    rss: number; // MB
   };
-  uptime: number;      // seconds
+  uptime: number; // seconds
   nodeVersion: string;
   pid: number;
-  cpu?: number;        // CPU percentage (if available)
+  cpu?: number; // CPU percentage (if available)
 }
 
 export interface GatewayStats extends ProcessStats {}
@@ -47,7 +47,7 @@ export interface EvolutionInstanceDetail {
   integration?: string;
   createdAt?: string;
   updatedAt?: string;
-  evolution_key?: string;  // Per-instance Evolution API authentication key from Omni DB
+  evolution_key?: string; // Per-instance Evolution API authentication key from Omni DB
   counts: {
     messages: number;
     contacts: number;
@@ -76,9 +76,9 @@ export interface ServiceHealth {
 
 export interface ServerStats {
   memory: {
-    total: number;       // GB
-    used: number;        // GB
-    free: number;        // GB
+    total: number; // GB
+    used: number; // GB
+    free: number; // GB
     usedPercent: number; // %
   };
   cpu: {
@@ -87,15 +87,15 @@ export interface ServerStats {
     usagePercent: number; // % (average across cores)
   };
   disk: {
-    total: number;       // GB
-    used: number;        // GB
-    free: number;        // GB
+    total: number; // GB
+    used: number; // GB
+    free: number; // GB
     usedPercent: number; // %
-    mountPoint: string;  // "/"
+    mountPoint: string; // "/"
   };
   loadAverage: [number, number, number]; // 1, 5, 15 min
-  uptime: number;        // seconds
-  platform: string;      // "linux", "darwin", etc.
+  uptime: number; // seconds
+  platform: string; // "linux", "darwin", etc.
   hostname: string;
 }
 
@@ -151,7 +151,7 @@ export class HealthChecker {
       clearTimeout(timeoutId);
 
       if (response.ok) {
-        const data = await response.json() as { key?: string };
+        const data = (await response.json()) as { key?: string };
         if (data.key) {
           this.omniApiKey = data.key;
         }
@@ -228,9 +228,9 @@ export class HealthChecker {
     const mem = process.memoryUsage();
     return {
       memory: {
-        heapUsed: Math.round(mem.heapUsed / 1024 / 1024 * 10) / 10,
-        heapTotal: Math.round(mem.heapTotal / 1024 / 1024 * 10) / 10,
-        rss: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
+        heapUsed: Math.round((mem.heapUsed / 1024 / 1024) * 10) / 10,
+        heapTotal: Math.round((mem.heapTotal / 1024 / 1024) * 10) / 10,
+        rss: Math.round((mem.rss / 1024 / 1024) * 10) / 10,
       },
       uptime: Math.round(process.uptime()),
       nodeVersion: process.version,
@@ -263,7 +263,7 @@ export class HealthChecker {
       }
       totalIdle += cpu.times.idle;
     }
-    const cpuUsage = totalTick > 0 ? 100 - (100 * totalIdle / totalTick) : 0;
+    const cpuUsage = totalTick > 0 ? 100 - (100 * totalIdle) / totalTick : 0;
 
     // Disk stats via df command (root partition only)
     let diskStats = { total: 0, used: 0, free: 0, usedPercent: 0, mountPoint: '/' };
@@ -280,9 +280,9 @@ export class HealthChecker {
         const used = parseInt(parts[2], 10);
         const free = parseInt(parts[3], 10);
         diskStats = {
-          total: Math.round(total / 1024 / 1024 / 1024 * 10) / 10,
-          used: Math.round(used / 1024 / 1024 / 1024 * 10) / 10,
-          free: Math.round(free / 1024 / 1024 / 1024 * 10) / 10,
+          total: Math.round((total / 1024 / 1024 / 1024) * 10) / 10,
+          used: Math.round((used / 1024 / 1024 / 1024) * 10) / 10,
+          free: Math.round((free / 1024 / 1024 / 1024) * 10) / 10,
           usedPercent: total > 0 ? Math.round((used / total) * 100) : 0,
           mountPoint: '/',
         };
@@ -293,9 +293,9 @@ export class HealthChecker {
 
     return {
       memory: {
-        total: Math.round(totalMem / 1024 / 1024 / 1024 * 10) / 10,
-        used: Math.round(usedMem / 1024 / 1024 / 1024 * 10) / 10,
-        free: Math.round(freeMem / 1024 / 1024 / 1024 * 10) / 10,
+        total: Math.round((totalMem / 1024 / 1024 / 1024) * 10) / 10,
+        used: Math.round((usedMem / 1024 / 1024 / 1024) * 10) / 10,
+        free: Math.round((freeMem / 1024 / 1024 / 1024) * 10) / 10,
         usedPercent: totalMem > 0 ? Math.round((usedMem / totalMem) * 100) : 0,
       },
       cpu: {
@@ -304,7 +304,7 @@ export class HealthChecker {
         usagePercent: Math.round(cpuUsage * 10) / 10,
       },
       disk: diskStats,
-      loadAverage: os.loadavg().map(l => Math.round(l * 100) / 100) as [number, number, number],
+      loadAverage: os.loadavg().map((l) => Math.round(l * 100) / 100) as [number, number, number],
       uptime: Math.round(os.uptime()),
       platform: os.platform(),
       hostname: os.hostname(),
@@ -320,7 +320,7 @@ export class HealthChecker {
         stdout: 'pipe',
         stderr: 'pipe',
       });
-      
+
       const text = await new Response(proc.stdout).text();
       await proc.exited;
       return text;
@@ -340,10 +340,13 @@ export class HealthChecker {
       // Find Evolution process by looking for the port listener using Bun.spawnSync
       let pid: number | undefined;
       try {
-        const proc = Bun.spawnSync(['sh', '-c', `ss -tlnp 2>/dev/null | grep ':${evolutionPort}' | grep -oP 'pid=\\K[0-9]+'`], {
-          stdout: 'pipe',
-          stderr: 'pipe',
-        });
+        const proc = Bun.spawnSync(
+          ['sh', '-c', `ss -tlnp 2>/dev/null | grep ':${evolutionPort}' | grep -oP 'pid=\\K[0-9]+'`],
+          {
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
         pid = parseInt(proc.stdout.toString().trim(), 10);
       } catch {
         // Try alternative method with lsof
@@ -371,7 +374,7 @@ export class HealthChecker {
         const status = await fs.readFile(`/proc/${pid}/status`, 'utf-8');
         const vmRssMatch = status.match(/VmRSS:\s*(\d+)\s*kB/);
         if (vmRssMatch) {
-          memoryMb = Math.round(parseInt(vmRssMatch[1], 10) / 1024 * 10) / 10;
+          memoryMb = Math.round((parseInt(vmRssMatch[1], 10) / 1024) * 10) / 10;
         }
       } catch {
         // Ignore read errors
@@ -472,13 +475,13 @@ export class HealthChecker {
         Websocket?: unknown;
       }
 
-      const data = await response.json() as EvolutionApiInstance[];
+      const data = (await response.json()) as EvolutionApiInstance[];
 
       if (!Array.isArray(data)) {
         return null;
       }
 
-      const connected = data.filter(i => i.connectionStatus === 'open').length;
+      const connected = data.filter((i) => i.connectionStatus === 'open').length;
       const totals = data.reduce(
         (acc, instance) => {
           acc.messages += instance._count?.Message ?? 0;
@@ -486,11 +489,11 @@ export class HealthChecker {
           acc.chats += instance._count?.Chat ?? 0;
           return acc;
         },
-        { messages: 0, contacts: 0, chats: 0 }
+        { messages: 0, contacts: 0, chats: 0 },
       );
 
       // Build detailed per-instance data
-      const details: EvolutionInstanceDetail[] = data.map(instance => ({
+      const details: EvolutionInstanceDetail[] = data.map((instance) => ({
         name: instance.name ?? 'unknown',
         connectionStatus: instance.connectionStatus ?? 'unknown',
         profileName: instance.profileName,
@@ -504,14 +507,16 @@ export class HealthChecker {
           contacts: instance._count?.Contact ?? 0,
           chats: instance._count?.Chat ?? 0,
         },
-        settings: instance.Setting ? {
-          rejectCall: instance.Setting.rejectCall,
-          groupsIgnore: instance.Setting.groupsIgnore,
-          alwaysOnline: instance.Setting.alwaysOnline,
-          readMessages: instance.Setting.readMessages,
-          readStatus: instance.Setting.readStatus,
-          syncFullHistory: instance.Setting.syncFullHistory,
-        } : undefined,
+        settings: instance.Setting
+          ? {
+              rejectCall: instance.Setting.rejectCall,
+              groupsIgnore: instance.Setting.groupsIgnore,
+              alwaysOnline: instance.Setting.alwaysOnline,
+              readMessages: instance.Setting.readMessages,
+              readStatus: instance.Setting.readStatus,
+              syncFullHistory: instance.Setting.syncFullHistory,
+            }
+          : undefined,
         integrations: {
           chatwoot: instance.Chatwoot != null,
           rabbitmq: instance.Rabbitmq != null,
@@ -569,7 +574,7 @@ export class HealthChecker {
         evolution_key?: string;
       }
 
-      const instances = await response.json() as OmniInstance[];
+      const instances = (await response.json()) as OmniInstance[];
       const keyMap = new Map<string, string>();
 
       for (const instance of instances) {
@@ -607,7 +612,7 @@ export class HealthChecker {
         try {
           const contentType = response.headers.get('content-type');
           if (contentType?.includes('application/json')) {
-            details = await response.json() as Record<string, unknown>;
+            details = (await response.json()) as Record<string, unknown>;
           }
         } catch {
           // Ignore JSON parse errors
@@ -642,9 +647,21 @@ export class HealthChecker {
     const evolutionUrl = this.getEvolutionUrl();
     const viteUrl = this.getViteUrl();
 
-    const [pythonHealth, evolutionHealth, uiHealth, evolutionInstances, evolutionProcess, serverStats, omniInstanceKeys] = await Promise.all([
-      pythonUrl ? this.checkService(pythonUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
-      evolutionUrl ? this.checkService(evolutionUrl) : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
+    const [
+      pythonHealth,
+      evolutionHealth,
+      uiHealth,
+      evolutionInstances,
+      evolutionProcess,
+      serverStats,
+      omniInstanceKeys,
+    ] = await Promise.all([
+      pythonUrl
+        ? this.checkService(pythonUrl)
+        : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
+      evolutionUrl
+        ? this.checkService(evolutionUrl)
+        : Promise.resolve({ status: 'down' as const, details: { error: 'Port not allocated' } }),
       viteUrl ? this.checkService(viteUrl) : Promise.resolve(undefined),
       this.getEvolutionInstances(),
       this.getEvolutionProcessStats(),
@@ -674,14 +691,18 @@ export class HealthChecker {
     if (evolutionHealth.status === 'up') {
       evolutionHealth.details = {
         ...evolutionHealth.details,
-        ...(evolutionInstances ? {
-          instances: evolutionInstances.instances,
-          totals: evolutionInstances.totals,
-          instanceDetails: evolutionInstances.details,
-        } : {}),
-        ...(evolutionProcess ? {
-          process: evolutionProcess,
-        } : {}),
+        ...(evolutionInstances
+          ? {
+              instances: evolutionInstances.instances,
+              totals: evolutionInstances.totals,
+              instanceDetails: evolutionInstances.details,
+            }
+          : {}),
+        ...(evolutionProcess
+          ? {
+              process: evolutionProcess,
+            }
+          : {}),
       };
     }
 

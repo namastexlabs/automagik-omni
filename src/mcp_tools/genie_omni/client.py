@@ -71,11 +71,7 @@ class OmniClient:
         # Persistent client with connection pooling for performance
         self._client = httpx.AsyncClient(
             timeout=self.timeout,
-            limits=httpx.Limits(
-                max_keepalive_connections=20,
-                max_connections=50,
-                keepalive_expiry=30.0
-            )
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=30.0),
         )
 
     async def _request(
@@ -106,9 +102,7 @@ class OmniClient:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
-            raise Exception(
-                f"API error: {e.response.status_code} - {e.response.text}"
-            )
+            raise Exception(f"API error: {e.response.status_code} - {e.response.text}")
         except Exception as e:
             logger.error(f"Request failed: {str(e)}")
             raise
@@ -122,30 +116,20 @@ class OmniClient:
         data = cast(List[Dict[str, Any]], await self._request("GET", "/api/v1/instances", params=params))
         return [InstanceResponse(**item) for item in data]
 
-    async def get_instance(
-        self, instance_name: str, include_status: bool = True
-    ) -> InstanceResponse:
+    async def get_instance(self, instance_name: str, include_status: bool = True) -> InstanceResponse:
         """Get specific instance"""
         params = {"include_status": include_status}
-        data = await self._request(
-            "GET", f"/api/v1/instances/{instance_name}", params=params
-        )
+        data = await self._request("GET", f"/api/v1/instances/{instance_name}", params=params)
         return InstanceResponse(**data)
 
     async def create_instance(self, config: InstanceConfig) -> InstanceResponse:
         """Create new instance"""
-        data = await self._request(
-            "POST", "/api/v1/instances", json=config.model_dump(exclude_none=True)
-        )
+        data = await self._request("POST", "/api/v1/instances", json=config.model_dump(exclude_none=True))
         return InstanceResponse(**data)
 
-    async def update_instance(
-        self, instance_name: str, config: Dict[str, Any]
-    ) -> InstanceResponse:
+    async def update_instance(self, instance_name: str, config: Dict[str, Any]) -> InstanceResponse:
         """Update instance"""
-        data = await self._request(
-            "PUT", f"/api/v1/instances/{instance_name}", json=config
-        )
+        data = await self._request("PUT", f"/api/v1/instances/{instance_name}", json=config)
         return InstanceResponse(**data)
 
     async def delete_instance(self, instance_name: str) -> bool:
@@ -155,9 +139,7 @@ class OmniClient:
 
     async def set_default_instance(self, instance_name: str) -> InstanceResponse:
         """Set instance as default"""
-        data = await self._request(
-            "POST", f"/api/v1/instances/{instance_name}/set-default"
-        )
+        data = await self._request("POST", f"/api/v1/instances/{instance_name}/set-default")
         return InstanceResponse(**data)
 
     async def get_instance_status(self, instance_name: str) -> ConnectionStatus:
@@ -179,9 +161,7 @@ class OmniClient:
         return await self._request("POST", f"/api/v1/instances/{instance_name}/logout")
 
     # Message Operations
-    async def send_text(
-        self, instance_name: str, request: SendTextRequest
-    ) -> MessageResponse:
+    async def send_text(self, instance_name: str, request: SendTextRequest) -> MessageResponse:
         """Send text message"""
         data = await self._request(
             "POST",
@@ -190,9 +170,7 @@ class OmniClient:
         )
         return MessageResponse(**data)
 
-    async def send_media(
-        self, instance_name: str, request: SendMediaRequest
-    ) -> MessageResponse:
+    async def send_media(self, instance_name: str, request: SendMediaRequest) -> MessageResponse:
         """Send media message"""
         data = await self._request(
             "POST",
@@ -201,9 +179,7 @@ class OmniClient:
         )
         return MessageResponse(**data)
 
-    async def send_audio(
-        self, instance_name: str, request: SendAudioRequest
-    ) -> MessageResponse:
+    async def send_audio(self, instance_name: str, request: SendAudioRequest) -> MessageResponse:
         """Send audio message"""
         data = await self._request(
             "POST",
@@ -212,9 +188,7 @@ class OmniClient:
         )
         return MessageResponse(**data)
 
-    async def send_sticker(
-        self, instance_name: str, request: SendStickerRequest
-    ) -> MessageResponse:
+    async def send_sticker(self, instance_name: str, request: SendStickerRequest) -> MessageResponse:
         """Send sticker message"""
         data = await self._request(
             "POST",
@@ -223,9 +197,7 @@ class OmniClient:
         )
         return MessageResponse(**data)
 
-    async def send_contact(
-        self, instance_name: str, request: SendContactRequest
-    ) -> MessageResponse:
+    async def send_contact(self, instance_name: str, request: SendContactRequest) -> MessageResponse:
         """Send contact message"""
         data = await self._request(
             "POST",
@@ -234,9 +206,7 @@ class OmniClient:
         )
         return MessageResponse(**data)
 
-    async def send_reaction(
-        self, instance_name: str, request: SendReactionRequest
-    ) -> MessageResponse:
+    async def send_reaction(self, instance_name: str, request: SendReactionRequest) -> MessageResponse:
         """Send reaction"""
         data = await self._request(
             "POST",
@@ -248,11 +218,7 @@ class OmniClient:
     # Trace Operations
     async def list_traces(self, filters: TraceFilter) -> List[TraceResponse]:
         """List traces with filters"""
-        params = {
-            k: v
-            for k, v in filters.model_dump(exclude_none=True).items()
-            if v is not None
-        }
+        params = {k: v for k, v in filters.model_dump(exclude_none=True).items() if v is not None}
         data = cast(List[Dict[str, Any]], await self._request("GET", "/api/v1/traces", params=params))
         return [TraceResponse(**item) for item in data]
 
@@ -261,9 +227,7 @@ class OmniClient:
         data = await self._request("GET", f"/api/v1/traces/{trace_id}")
         return TraceResponse(**data)
 
-    async def get_trace_payloads(
-        self, trace_id: str, include_payload: bool = False
-    ) -> List[TracePayloadResponse]:
+    async def get_trace_payloads(self, trace_id: str, include_payload: bool = False) -> List[TracePayloadResponse]:
         """Get trace payloads"""
         params = {"include_payload": include_payload}
         data = cast(
@@ -287,14 +251,10 @@ class OmniClient:
         if instance_name:
             params["instance_name"] = instance_name
 
-        data = await self._request(
-            "GET", "/api/v1/traces/analytics/summary", params=params
-        )
+        data = await self._request("GET", "/api/v1/traces/analytics/summary", params=params)
         return TraceAnalytics(**data)
 
-    async def get_traces_by_phone(
-        self, phone_number: str, limit: int = 50
-    ) -> List[TraceResponse]:
+    async def get_traces_by_phone(self, phone_number: str, limit: int = 50) -> List[TraceResponse]:
         """Get traces for phone number"""
         params = {"limit": limit}
         data = cast(
@@ -303,17 +263,13 @@ class OmniClient:
         )
         return [TraceResponse(**item) for item in data]
 
-    async def cleanup_traces(
-        self, days_old: int = 30, dry_run: bool = True
-    ) -> Dict[str, Any]:
+    async def cleanup_traces(self, days_old: int = 30, dry_run: bool = True) -> Dict[str, Any]:
         """Cleanup old traces"""
         params = {"days_old": days_old, "dry_run": dry_run}
         return await self._request("DELETE", "/api/v1/traces/cleanup", params=params)
 
     # Profile Operations
-    async def fetch_profile(
-        self, instance_name: str, request: FetchProfileRequest
-    ) -> Dict[str, Any]:
+    async def fetch_profile(self, instance_name: str, request: FetchProfileRequest) -> Dict[str, Any]:
         """Fetch user profile"""
         data = await self._request(
             "POST",
@@ -322,9 +278,7 @@ class OmniClient:
         )
         return data
 
-    async def update_profile_picture(
-        self, instance_name: str, request: UpdateProfilePictureRequest
-    ) -> MessageResponse:
+    async def update_profile_picture(self, instance_name: str, request: UpdateProfilePictureRequest) -> MessageResponse:
         """Update profile picture"""
         data = await self._request(
             "POST",
@@ -352,16 +306,12 @@ class OmniClient:
         if channel_type:
             params["channel_type"] = channel_type
 
-        data = await self._request(
-            "GET", f"/api/v1/instances/{instance_name}/chats", params=params
-        )
+        data = await self._request("GET", f"/api/v1/instances/{instance_name}/chats", params=params)
         return ChatListResponse(**data)
 
     async def get_chat(self, instance_name: str, chat_id: str) -> ChatResponse:
         """Get specific chat"""
-        data = await self._request(
-            "GET", f"/api/v1/instances/{instance_name}/chats/{chat_id}"
-        )
+        data = await self._request("GET", f"/api/v1/instances/{instance_name}/chats/{chat_id}")
         return ChatResponse(**data)
 
     # Contact Operations
@@ -383,22 +333,16 @@ class OmniClient:
         if channel_type:
             params["channel_type"] = channel_type
 
-        data = await self._request(
-            "GET", f"/api/v1/instances/{instance_name}/contacts", params=params
-        )
+        data = await self._request("GET", f"/api/v1/instances/{instance_name}/contacts", params=params)
         return ContactListResponse(**data)
 
     async def get_contact(self, instance_name: str, contact_id: str) -> ContactResponse:
         """Get specific contact"""
-        data = await self._request(
-            "GET", f"/api/v1/instances/{instance_name}/contacts/{contact_id}"
-        )
+        data = await self._request("GET", f"/api/v1/instances/{instance_name}/contacts/{contact_id}")
         return ContactResponse(**data)
 
     # Channel Operations
-    async def list_channels(
-        self, channel_type: Optional[str] = None
-    ) -> ChannelListResponse:
+    async def list_channels(self, channel_type: Optional[str] = None) -> ChannelListResponse:
         """List all channels/instances in Omni format"""
         params = {}
         if channel_type:
@@ -409,9 +353,13 @@ class OmniClient:
 
     # Evolution API Direct Access
     async def evolution_send_text(
-        self, instance_name: str, remote_jid: str, text: str,
-        quoted_msg_id: Optional[str] = None, from_me: bool = False,
-        delay: Optional[int] = None
+        self,
+        instance_name: str,
+        remote_jid: str,
+        text: str,
+        quoted_msg_id: Optional[str] = None,
+        from_me: bool = False,
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Send text message via Evolution API directly (with optional quote)"""
         remote_jid = normalize_jid(remote_jid)
@@ -421,30 +369,18 @@ class OmniClient:
             raise Exception("Evolution API not configured for this instance")
 
         try:
-            payload: Dict[str, Any] = {
-                "number": remote_jid,
-                "text": text
-            }
+            payload: Dict[str, Any] = {"number": remote_jid, "text": text}
 
             if delay:
                 payload["delay"] = delay
 
             if quoted_msg_id:
-                payload["quoted"] = {
-                    "key": {
-                        "remoteJid": remote_jid,
-                        "fromMe": from_me,
-                        "id": quoted_msg_id
-                    }
-                }
+                payload["quoted"] = {"key": {"remoteJid": remote_jid, "fromMe": from_me, "id": quoted_msg_id}}
 
             response = await self._client.post(
                 f"{instance.evolution_url}/message/sendText/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json=payload
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json=payload,
             )
             response.raise_for_status()
             return response.json()
@@ -461,11 +397,7 @@ class OmniClient:
         """Legacy method - use evolution_send_text instead"""
         remote_jid = normalize_jid(remote_jid)
         return await self.evolution_send_text(
-            instance_name=instance_name,
-            remote_jid=remote_jid,
-            text=text,
-            quoted_msg_id=quoted_msg_id,
-            from_me=from_me
+            instance_name=instance_name, remote_jid=remote_jid, text=text, quoted_msg_id=quoted_msg_id, from_me=from_me
         )
 
     async def evolution_send_reaction(
@@ -481,18 +413,8 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/message/sendReaction/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "key": {
-                        "remoteJid": remote_jid,
-                        "fromMe": from_me,
-                        "id": message_id
-                    },
-                    "reaction": emoji
-                }
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json={"key": {"remoteJid": remote_jid, "fromMe": from_me, "id": message_id}, "reaction": emoji},
             )
             response.raise_for_status()
             return response.json()
@@ -503,9 +425,7 @@ class OmniClient:
             logger.error(f"Evolution API request failed: {str(e)}")
             raise
 
-    async def evolution_find_messages(
-        self, instance_name: str, remote_jid: str, limit: int = 50
-    ) -> Dict[str, Any]:
+    async def evolution_find_messages(self, instance_name: str, remote_jid: str, limit: int = 50) -> Dict[str, Any]:
         """Call Evolution API findMessages directly for message history"""
         remote_jid = normalize_jid(remote_jid)
 
@@ -519,15 +439,12 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/chat/findMessages/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
                 json={
                     "where": {"key": {"remoteJid": remote_jid}},
                     "limit": limit,
-                    "sort": {"messageTimestamp": -1}  # Newest first
-                }
+                    "sort": {"messageTimestamp": -1},  # Newest first
+                },
             )
             response.raise_for_status()
             result = response.json()
@@ -541,8 +458,13 @@ class OmniClient:
             raise
 
     async def evolution_send_location(
-        self, instance_name: str, remote_jid: str, latitude: float, longitude: float,
-        name: Optional[str] = None, address: Optional[str] = None
+        self,
+        instance_name: str,
+        remote_jid: str,
+        latitude: float,
+        longitude: float,
+        name: Optional[str] = None,
+        address: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Send location via Evolution API directly"""
         remote_jid = normalize_jid(remote_jid)
@@ -551,11 +473,7 @@ class OmniClient:
         if not instance.evolution_url or not instance.evolution_key:
             raise Exception("Evolution API not configured for this instance")
 
-        payload = {
-            "number": remote_jid,
-            "latitude": latitude,
-            "longitude": longitude
-        }
+        payload = {"number": remote_jid, "latitude": latitude, "longitude": longitude}
 
         if name:
             payload["name"] = name
@@ -565,11 +483,8 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/message/sendLocation/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json=payload
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json=payload,
             )
             response.raise_for_status()
             return response.json()
@@ -594,15 +509,8 @@ class OmniClient:
             response = await self._client.request(
                 method="DELETE",
                 url=f"{instance.evolution_url}/chat/deleteMessageForEveryone/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "id": message_id,
-                    "remoteJid": remote_jid,
-                    "fromMe": from_me
-                }
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json={"id": message_id, "remoteJid": remote_jid, "fromMe": from_me},
             )
             response.raise_for_status()
             return response.json()
@@ -631,18 +539,8 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/chat/sendPresence/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "number": remote_jid,
-                    "options": {
-                        "delay": delay,
-                        "presence": presence,
-                        "number": remote_jid
-                    }
-                }
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json={"number": remote_jid, "options": {"delay": delay, "presence": presence, "number": remote_jid}},
             )
             response.raise_for_status()
             return response.json()
@@ -666,19 +564,12 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/chat/updateMessage/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
                 json={
                     "number": remote_jid,
                     "text": new_text,
-                    "key": {
-                        "remoteJid": remote_jid,
-                        "fromMe": from_me,
-                        "id": message_id
-                    }
-                }
+                    "key": {"remoteJid": remote_jid, "fromMe": from_me, "id": message_id},
+                },
             )
             response.raise_for_status()
             return response.json()
@@ -689,9 +580,7 @@ class OmniClient:
             logger.error(f"Evolution API request failed: {str(e)}")
             raise
 
-    async def evolution_check_is_whatsapp(
-        self, instance_name: str, phone_numbers: List[str]
-    ) -> Dict[str, Any]:
+    async def evolution_check_is_whatsapp(self, instance_name: str, phone_numbers: List[str]) -> Dict[str, Any]:
         """Check if phone numbers are registered on WhatsApp via Evolution API directly"""
         instance = await self.get_instance(instance_name, include_status=False)
 
@@ -701,13 +590,8 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/chat/whatsappNumbers/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "numbers": phone_numbers
-                }
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json={"numbers": phone_numbers},
             )
             response.raise_for_status()
             return response.json()
@@ -731,16 +615,8 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/message/sendPoll/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "number": remote_jid,
-                    "name": name,
-                    "selectableCount": selectable_count,
-                    "values": options
-                }
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json={"number": remote_jid, "name": name, "selectableCount": selectable_count, "values": options},
             )
             response.raise_for_status()
             return response.json()
@@ -752,8 +628,12 @@ class OmniClient:
             raise
 
     async def evolution_send_sticker(
-        self, instance_name: str, remote_jid: str, sticker_url: str,
-        quoted_message_id: Optional[str] = None, delay: Optional[int] = None
+        self,
+        instance_name: str,
+        remote_jid: str,
+        sticker_url: str,
+        quoted_message_id: Optional[str] = None,
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Send sticker via Evolution API directly"""
         remote_jid = normalize_jid(remote_jid)
@@ -763,10 +643,7 @@ class OmniClient:
             raise Exception("Evolution API not configured for this instance")
 
         try:
-            payload: Dict[str, Any] = {
-                "number": remote_jid,
-                "sticker": sticker_url
-            }
+            payload: Dict[str, Any] = {"number": remote_jid, "sticker": sticker_url}
 
             if delay:
                 payload["delay"] = delay
@@ -775,11 +652,8 @@ class OmniClient:
 
             response = await self._client.post(
                 f"{instance.evolution_url}/message/sendSticker/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json=payload
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json=payload,
             )
             response.raise_for_status()
             return response.json()
@@ -791,11 +665,17 @@ class OmniClient:
             raise
 
     async def evolution_send_media(
-        self, instance_name: str, remote_jid: str,
-        media_url: Optional[str] = None, media_base64: Optional[str] = None,
-        media_type: str = "image", caption: Optional[str] = None,
-        filename: Optional[str] = None, mime_type: Optional[str] = None,
-        quoted_message_id: Optional[str] = None, delay: Optional[int] = None
+        self,
+        instance_name: str,
+        remote_jid: str,
+        media_url: Optional[str] = None,
+        media_base64: Optional[str] = None,
+        media_type: str = "image",
+        caption: Optional[str] = None,
+        filename: Optional[str] = None,
+        mime_type: Optional[str] = None,
+        quoted_message_id: Optional[str] = None,
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Send media (image/video/document) via Evolution API directly
 
@@ -813,7 +693,7 @@ class OmniClient:
         try:
             payload: Dict[str, Any] = {
                 "number": remote_jid,
-                "mediatype": media_type  # Required: image, video, or document
+                "mediatype": media_type,  # Required: image, video, or document
             }
 
             # Add media (URL or base64)
@@ -835,20 +715,13 @@ class OmniClient:
                 payload["quoted"] = {"key": {"id": quoted_message_id}}
 
             # Determine endpoint based on media type
-            endpoint_map = {
-                "image": "sendMedia",
-                "video": "sendMedia",
-                "document": "sendMedia"
-            }
+            endpoint_map = {"image": "sendMedia", "video": "sendMedia", "document": "sendMedia"}
             endpoint = endpoint_map.get(media_type, "sendMedia")
 
             response = await self._client.post(
                 f"{instance.evolution_url}/message/{endpoint}/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json=payload
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json=payload,
             )
             response.raise_for_status()
             return response.json()
@@ -860,8 +733,12 @@ class OmniClient:
             raise
 
     async def evolution_send_contact(
-        self, instance_name: str, remote_jid: str, contacts: List[Dict[str, Any]],
-        quoted_message_id: Optional[str] = None, delay: Optional[int] = None
+        self,
+        instance_name: str,
+        remote_jid: str,
+        contacts: List[Dict[str, Any]],
+        quoted_message_id: Optional[str] = None,
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Send contact(s) via Evolution API directly"""
         remote_jid = normalize_jid(remote_jid)
@@ -887,10 +764,7 @@ class OmniClient:
                     evolution_contact["url"] = contact["url"]
                 evolution_contacts.append(evolution_contact)
 
-            payload: Dict[str, Any] = {
-                "number": remote_jid,
-                "contact": evolution_contacts
-            }
+            payload: Dict[str, Any] = {"number": remote_jid, "contact": evolution_contacts}
 
             if delay:
                 payload["delay"] = delay
@@ -899,11 +773,8 @@ class OmniClient:
 
             response = await self._client.post(
                 f"{instance.evolution_url}/message/sendContact/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json=payload
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json=payload,
             )
             response.raise_for_status()
             return response.json()
@@ -914,9 +785,7 @@ class OmniClient:
             logger.error(f"Evolution API request failed: {str(e)}")
             raise
 
-    async def evolution_find_chats(
-        self, instance_name: str
-    ) -> Dict[str, Any]:
+    async def evolution_find_chats(self, instance_name: str) -> Dict[str, Any]:
         """Find all chats via Evolution API"""
         instance = await self.get_instance(instance_name, include_status=False)
 
@@ -926,11 +795,8 @@ class OmniClient:
         try:
             response = await self._client.post(
                 f"{instance.evolution_url}/chat/findChats/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json={}
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json={},
             )
             response.raise_for_status()
             return response.json()
@@ -941,9 +807,7 @@ class OmniClient:
             logger.error(f"Evolution API request failed: {str(e)}")
             raise
 
-    async def evolution_fetch_all_groups(
-        self, instance_name: str, get_participants: bool = True
-    ) -> Dict[str, Any]:
+    async def evolution_fetch_all_groups(self, instance_name: str, get_participants: bool = True) -> Dict[str, Any]:
         """Fetch all groups via Evolution API"""
         instance = await self.get_instance(instance_name, include_status=False)
 
@@ -953,10 +817,8 @@ class OmniClient:
         try:
             response = await self._client.get(
                 f"{instance.evolution_url}/group/fetchAllGroups/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key
-                },
-                params={"getParticipants": str(get_participants).lower()}
+                headers={"apikey": instance.evolution_key},
+                params={"getParticipants": str(get_participants).lower()},
             )
             response.raise_for_status()
             return response.json()
@@ -967,9 +829,7 @@ class OmniClient:
             logger.error(f"Evolution API request failed: {str(e)}")
             raise
 
-    async def evolution_find_group_members(
-        self, instance_name: str, group_jid: str
-    ) -> Dict[str, Any]:
+    async def evolution_find_group_members(self, instance_name: str, group_jid: str) -> Dict[str, Any]:
         """Find group members via Evolution API"""
         instance = await self.get_instance(instance_name, include_status=False)
 
@@ -979,10 +839,8 @@ class OmniClient:
         try:
             response = await self._client.get(
                 f"{instance.evolution_url}/group/participants/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key
-                },
-                params={"groupJid": group_jid}
+                headers={"apikey": instance.evolution_key},
+                params={"groupJid": group_jid},
             )
             response.raise_for_status()
             return response.json()
@@ -1007,22 +865,12 @@ class OmniClient:
             raise Exception("Evolution API not configured for this instance")
 
         try:
-            payload = {
-                "message": {
-                    "key": {
-                        "id": message_id
-                    }
-                },
-                "convertToMp4": convert_to_mp4
-            }
+            payload = {"message": {"key": {"id": message_id}}, "convertToMp4": convert_to_mp4}
 
             response = await self._client.post(
                 f"{instance.evolution_url}/chat/getBase64FromMediaMessage/{instance_name}",
-                headers={
-                    "apikey": instance.evolution_key,
-                    "Content-Type": "application/json"
-                },
-                json=payload
+                headers={"apikey": instance.evolution_key, "Content-Type": "application/json"},
+                json=payload,
             )
             response.raise_for_status()
             return response.json()

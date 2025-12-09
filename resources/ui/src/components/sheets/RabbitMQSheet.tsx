@@ -2,13 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Server, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -74,7 +68,7 @@ export function RabbitMQSheet({ instanceName, open, onOpenChange }: RabbitMQShee
   });
 
   const updateForm = <K extends keyof RabbitMQForm>(key: K, value: RabbitMQForm[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
@@ -85,11 +79,13 @@ export function RabbitMQSheet({ instanceName, open, onOpenChange }: RabbitMQShee
           <SheetTitle className="flex items-center gap-2">
             <Server className="h-5 w-5" />
             RabbitMQ - {instanceName}
-            {form.enabled && <Badge variant="secondary" className="bg-green-500/20 text-green-600">Active</Badge>}
+            {form.enabled && (
+              <Badge variant="secondary" className="bg-green-500/20 text-green-600">
+                Active
+              </Badge>
+            )}
           </SheetTitle>
-          <SheetDescription>
-            Configure RabbitMQ for message queue event delivery
-          </SheetDescription>
+          <SheetDescription>Configure RabbitMQ for message queue event delivery</SheetDescription>
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-120px)] mt-6">
@@ -143,9 +139,7 @@ export function RabbitMQSheet({ instanceName, open, onOpenChange }: RabbitMQShee
 
                     {/* Events */}
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">
-                        Events ({form.events.length} selected)
-                      </Label>
+                      <Label className="text-sm font-medium">Events ({form.events.length} selected)</Label>
                       <div className="p-4 rounded-lg bg-muted/50">
                         <EventSelector
                           selectedEvents={form.events}

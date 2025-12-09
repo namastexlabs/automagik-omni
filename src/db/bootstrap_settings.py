@@ -58,7 +58,9 @@ def bootstrap_global_settings(db: Session) -> None:
         {
             "key": "evolution_api_url",
             # Use gateway proxy URL - Evolution runs on dynamic ports managed by gateway
-            "value": config.get_env("EVOLUTION_URL", f"http://localhost:{config.get_env('OMNI_PORT', '8882')}/evolution"),
+            "value": config.get_env(
+                "EVOLUTION_URL", f"http://localhost:{config.get_env('OMNI_PORT', '8882')}/evolution"
+            ),
             "value_type": SettingValueType.STRING,
             "category": "integration",
             "description": "Default WhatsApp Web API base URL (alias: whatsapp_web_api_url)",
@@ -151,7 +153,7 @@ def bootstrap_global_settings(db: Session) -> None:
                     is_required=setting_def.get("is_required", False),
                     default_value=setting_def.get("default_value"),
                     validation_rules=setting_def.get("validation_rules"),
-                    created_by="system_bootstrap"
+                    created_by="system_bootstrap",
                 )
                 logger.info(f"Created default setting: {setting_def['key']}")
             except Exception as e:
@@ -202,7 +204,7 @@ def _bootstrap_evolution_key(db: Session) -> None:
                 omni_key.value,  # Ensure it matches omni_api_key
                 db,
                 updated_by="system_bootstrap",
-                change_reason="Unified with omni_api_key (deprecated)"
+                change_reason="Unified with omni_api_key (deprecated)",
             )
         except Exception as e:
             logger.warning(f"Could not update evolution_api_key: {e}")
@@ -224,7 +226,7 @@ def _bootstrap_evolution_key(db: Session) -> None:
                 is_required=False,
                 default_value="",
                 created_by="system_bootstrap",
-                db=db
+                db=db,
             )
             logger.info(f"Backed up old evolution_api_key to {backup_key}")
         except Exception as e:
@@ -237,7 +239,7 @@ def _bootstrap_evolution_key(db: Session) -> None:
                 omni_key.value,
                 db,
                 updated_by="system_bootstrap",
-                change_reason="Unified with omni_api_key"
+                change_reason="Unified with omni_api_key",
             )
             logger.info("evolution_api_key now unified with omni_api_key")
         except Exception as e:
@@ -292,7 +294,7 @@ def _bootstrap_omni_api_key(db: Session) -> None:
             is_required=True,
             default_value="",
             created_by="system_bootstrap",
-            db=db
+            db=db,
         )
         logger.info(f"Omni API key stored in database ({migration_source})")
     except Exception as e:
@@ -383,7 +385,7 @@ def _bootstrap_setup_completed(db: Session) -> None:
                 is_required=False,
                 default_value=False,  # Use boolean, not string
                 created_by="system_bootstrap",
-                db=db
+                db=db,
             )
             logger.info(f"setup_completed flag created: '{setup_value_str}' ({description})")
         except Exception as e:

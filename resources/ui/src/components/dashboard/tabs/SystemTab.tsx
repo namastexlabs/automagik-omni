@@ -63,20 +63,13 @@ function ServiceCard({ title, icon, status, latency, children, badge }: ServiceC
             {badge}
             <Badge
               variant={status === 'up' ? 'default' : status === 'degraded' ? 'secondary' : 'destructive'}
-              className={cn(
-                'text-xs',
-                status === 'up' && 'bg-success text-success-foreground'
-              )}
+              className={cn('text-xs', status === 'up' && 'bg-success text-success-foreground')}
             >
               {status === 'up' ? 'Healthy' : status === 'degraded' ? 'Degraded' : 'Down'}
             </Badge>
           </div>
         </div>
-        {latency !== undefined && (
-          <CardDescription className="text-xs">
-            Response time: {latency}ms
-          </CardDescription>
-        )}
+        {latency !== undefined && <CardDescription className="text-xs">Response time: {latency}ms</CardDescription>}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
@@ -95,23 +88,14 @@ interface MetricRowProps {
 function MetricRow({ icon, label, value, subValue, progress, progressColor }: MetricRowProps) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-      <div className="p-2 rounded-md bg-primary/10 text-primary">
-        {icon}
-      </div>
+      <div className="p-2 rounded-md bg-primary/10 text-primary">{icon}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">{label}</span>
           <span className="font-medium">{value}</span>
         </div>
-        {subValue && (
-          <div className="text-xs text-muted-foreground mt-0.5">{subValue}</div>
-        )}
-        {progress !== undefined && (
-          <Progress
-            value={progress}
-            className={cn('h-1.5 mt-2', progressColor)}
-          />
-        )}
+        {subValue && <div className="text-xs text-muted-foreground mt-0.5">{subValue}</div>}
+        {progress !== undefined && <Progress value={progress} className={cn('h-1.5 mt-2', progressColor)} />}
       </div>
     </div>
   );
@@ -153,9 +137,7 @@ function ServerOverviewCard({ server, isLoading }: ServerOverviewCardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center text-muted-foreground py-4">
-            Server stats unavailable
-          </div>
+          <div className="text-center text-muted-foreground py-4">Server stats unavailable</div>
         </CardContent>
       </Card>
     );
@@ -199,9 +181,7 @@ function ServerOverviewCard({ server, isLoading }: ServerOverviewCardProps) {
               <span className="text-xs font-medium">CPU</span>
             </div>
             <div className="text-2xl font-bold">{server.cpu.usagePercent}%</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {server.cpu.cores} cores
-            </div>
+            <div className="text-xs text-muted-foreground mt-1">{server.cpu.cores} cores</div>
             <Progress
               value={server.cpu.usagePercent}
               className={cn('h-1.5 mt-2', server.cpu.usagePercent > 90 ? '[&>div]:bg-destructive' : '')}
@@ -234,9 +214,7 @@ function ServerOverviewCard({ server, isLoading }: ServerOverviewCardProps) {
             <div className="text-xs text-muted-foreground mt-1">
               {server.loadAverage[1].toFixed(2)} / {server.loadAverage[2].toFixed(2)}
             </div>
-            <div className="text-xs text-muted-foreground">
-              1m / 5m / 15m
-            </div>
+            <div className="text-xs text-muted-foreground">1m / 5m / 15m</div>
           </div>
 
           {/* System Uptime */}
@@ -246,9 +224,7 @@ function ServerOverviewCard({ server, isLoading }: ServerOverviewCardProps) {
               <span className="text-xs font-medium">System Uptime</span>
             </div>
             <div className="text-2xl font-bold">{formatUptime(server.uptime)}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Since boot
-            </div>
+            <div className="text-xs text-muted-foreground mt-1">Since boot</div>
           </div>
         </div>
       </CardContent>
@@ -261,10 +237,11 @@ export function SystemTab() {
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<TraceAnalytics>({
     queryKey: ['traceAnalytics', dateRange],
-    queryFn: () => api.traces.getAnalytics({
-      start_date: dateRange.start_date,
-      end_date: dateRange.end_date,
-    }),
+    queryFn: () =>
+      api.traces.getAnalytics({
+        start_date: dateRange.start_date,
+        end_date: dateRange.end_date,
+      }),
     refetchInterval: 30000,
   });
 
@@ -274,43 +251,49 @@ export function SystemTab() {
     refetchInterval: 5000, // More frequent for system metrics
   });
 
-  const gatewayDetails = health?.services?.gateway?.details as {
-    memory?: { heapUsed: number; heapTotal: number; rss: number };
-    uptime?: number;
-    nodeVersion?: string;
-    pid?: number;
-    cpu?: number;
-  } | undefined;
-
-  const pythonDetails = health?.services?.python?.details as {
-    services?: {
-      api?: {
+  const gatewayDetails = health?.services?.gateway?.details as
+    | {
+        memory?: { heapUsed: number; heapTotal: number; rss: number };
         uptime?: number;
-        memory_mb?: number;
-        cpu_percent?: number;
+        nodeVersion?: string;
         pid?: number;
-      };
-      database?: {
-        status?: string;
-        pool_size?: number;
-        checked_out?: number;
-        checked_in?: number;
-        overflow?: number;
-      };
-    };
-  } | undefined;
+        cpu?: number;
+      }
+    | undefined;
 
-  const evolutionDetails = health?.services?.evolution?.details as {
-    version?: string;
-    whatsappWebVersion?: string;
-    instances?: { total: number; connected: number; disconnected: number };
-    process?: {
-      pid?: number;
-      memory_mb?: number;
-      cpu_percent?: number;
-      uptime?: number;
-    };
-  } | undefined;
+  const pythonDetails = health?.services?.python?.details as
+    | {
+        services?: {
+          api?: {
+            uptime?: number;
+            memory_mb?: number;
+            cpu_percent?: number;
+            pid?: number;
+          };
+          database?: {
+            status?: string;
+            pool_size?: number;
+            checked_out?: number;
+            checked_in?: number;
+            overflow?: number;
+          };
+        };
+      }
+    | undefined;
+
+  const evolutionDetails = health?.services?.evolution?.details as
+    | {
+        version?: string;
+        whatsappWebVersion?: string;
+        instances?: { total: number; connected: number; disconnected: number };
+        process?: {
+          pid?: number;
+          memory_mb?: number;
+          cpu_percent?: number;
+          uptime?: number;
+        };
+      }
+    | undefined;
 
   const apiInfo = pythonDetails?.services?.api;
   const dbInfo = pythonDetails?.services?.database;
@@ -472,15 +455,16 @@ export function SystemTab() {
             </CardTitle>
             <Badge
               variant={dbInfo?.status === 'connected' ? 'default' : 'destructive'}
-              className={cn(
-                'text-xs',
-                dbInfo?.status === 'connected' && 'bg-success text-success-foreground'
-              )}
+              className={cn('text-xs', dbInfo?.status === 'connected' && 'bg-success text-success-foreground')}
             >
               {dbInfo?.status === 'connected' ? (
-                <><CheckCircle className="h-3 w-3 mr-1" /> Connected</>
+                <>
+                  <CheckCircle className="h-3 w-3 mr-1" /> Connected
+                </>
               ) : (
-                <><AlertCircle className="h-3 w-3 mr-1" /> {dbInfo?.status || 'Unknown'}</>
+                <>
+                  <AlertCircle className="h-3 w-3 mr-1" /> {dbInfo?.status || 'Unknown'}
+                </>
               )}
             </Badge>
           </div>
@@ -495,7 +479,9 @@ export function SystemTab() {
                 <div className="flex-1">
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="text-muted-foreground">Pool Utilization</span>
-                    <span className="font-medium">{poolUsed} / {poolTotal} connections</span>
+                    <span className="font-medium">
+                      {poolUsed} / {poolTotal} connections
+                    </span>
                   </div>
                   <Progress value={poolPercent} className="h-3" />
                 </div>
@@ -551,9 +537,7 @@ export function SystemTab() {
             <Activity className="h-4 w-4" />
             Message Processing Performance
           </CardTitle>
-          <CardDescription>
-            Trace statistics for the selected time period
-          </CardDescription>
+          <CardDescription>Trace statistics for the selected time period</CardDescription>
         </CardHeader>
         <CardContent>
           {analyticsLoading ? (
@@ -562,29 +546,25 @@ export function SystemTab() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-lg bg-muted/30 text-center">
                 <div className="text-3xl font-bold">
-                  {analytics?.avg_processing_time_ms
-                    ? `${Math.round(analytics.avg_processing_time_ms)}`
-                    : '—'}
+                  {analytics?.avg_processing_time_ms ? `${Math.round(analytics.avg_processing_time_ms)}` : '—'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">ms avg total</div>
               </div>
               <div className="p-4 rounded-lg bg-muted/30 text-center">
                 <div className="text-3xl font-bold">
-                  {analytics?.avg_agent_time_ms
-                    ? `${Math.round(analytics.avg_agent_time_ms)}`
-                    : '—'}
+                  {analytics?.avg_agent_time_ms ? `${Math.round(analytics.avg_agent_time_ms)}` : '—'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">ms avg agent</div>
               </div>
               <div className="p-4 rounded-lg bg-muted/30 text-center">
-                <div className="text-3xl font-bold text-success">
-                  {analytics?.successful_messages || 0}
-                </div>
+                <div className="text-3xl font-bold text-success">{analytics?.successful_messages || 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">completed</div>
               </div>
               <div className="p-4 rounded-lg bg-muted/30 text-center">
                 <div className="text-3xl font-bold text-warning">
-                  {(analytics?.total_messages || 0) - (analytics?.successful_messages || 0) - (analytics?.failed_messages || 0)}
+                  {(analytics?.total_messages || 0) -
+                    (analytics?.successful_messages || 0) -
+                    (analytics?.failed_messages || 0)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">processing</div>
               </div>

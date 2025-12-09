@@ -60,8 +60,7 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
   }, [open, instance]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: InstanceUpdateRequest) =>
-      api.instances.update(instance.name, data),
+    mutationFn: (data: InstanceUpdateRequest) => api.instances.update(instance.name, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instances'] });
       toast.success(`Settings for "${instance.name}" updated`);
@@ -115,9 +114,7 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
               <Settings className="h-5 w-5 text-primary" />
               Connection Settings
             </DialogTitle>
-            <DialogDescription>
-              Configure agent integration for "{instance.name}"
-            </DialogDescription>
+            <DialogDescription>Configure agent integration for "{instance.name}"</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
@@ -145,9 +142,7 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
                     placeholder="https://your-agent-api.com"
                     disabled={isPending}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    The URL of your Automagik agent API
-                  </p>
+                  <p className="text-xs text-muted-foreground">The URL of your Automagik agent API</p>
                 </div>
 
                 <div className="space-y-2">
@@ -175,9 +170,7 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
                     placeholder="agent-name"
                     disabled={isPending}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Agent to use for incoming messages
-                  </p>
+                  <p className="text-xs text-muted-foreground">Agent to use for incoming messages</p>
                 </div>
 
                 <div className="space-y-2">
@@ -229,9 +222,7 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
                         placeholder="Leave empty to keep current token"
                         disabled={isPending}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Only fill this if you want to change the token
-                      </p>
+                      <p className="text-xs text-muted-foreground">Only fill this if you want to change the token</p>
                     </div>
                   </div>
                 </div>
@@ -246,9 +237,7 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
                 <Label htmlFor="is_default" className="text-sm font-medium">
                   Default Connection
                 </Label>
-                <p className="text-xs text-muted-foreground">
-                  Use this connection for new conversations
-                </p>
+                <p className="text-xs text-muted-foreground">Use this connection for new conversations</p>
               </div>
               <Switch
                 id="is_default"
@@ -260,12 +249,7 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               Cancel
             </Button>
             <Button type="submit" disabled={isPending}>

@@ -20,7 +20,11 @@ export default function Instances() {
   const [settingsInstance, setSettingsInstance] = useState<InstanceConfig | null>(null);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
 
-  const { data: instances, isLoading, error } = useQuery({
+  const {
+    data: instances,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['instances'],
     queryFn: () => api.instances.list({ limit: 100, include_status: true }),
     refetchInterval: 30000, // Refresh every 30s

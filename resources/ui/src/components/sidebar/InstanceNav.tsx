@@ -1,6 +1,18 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Activity, Wifi, Settings, Webhook, Radio, Server, Loader2, Bot, type LucideIcon } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Activity,
+  Wifi,
+  Settings,
+  Webhook,
+  Radio,
+  Server,
+  Loader2,
+  Bot,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn, api } from '@/lib';
 import { ConnectionSheet } from '@/components/sheets/ConnectionSheet';
 import { SettingsSheet } from '@/components/sheets/SettingsSheet';
@@ -38,9 +50,7 @@ const CHANNEL_SUB_ITEMS: Record<'whatsapp' | 'discord' | 'slack', SubItemConfig[
     { id: 'connection', label: 'Connection', icon: Wifi },
     { id: 'bot-settings', label: 'Bot Settings', icon: Bot },
   ],
-  slack: [
-    { id: 'connection', label: 'Connection', icon: Wifi },
-  ],
+  slack: [{ id: 'connection', label: 'Connection', icon: Wifi }],
 };
 
 // Channel type icons and colors (using brand SVG icons)
@@ -65,9 +75,9 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
   });
 
   const toggleInstance = (instanceName: string) => {
-    setExpandedInstances(prev => ({
+    setExpandedInstances((prev) => ({
       ...prev,
-      [instanceName]: !prev[instanceName]
+      [instanceName]: !prev[instanceName],
     }));
   };
 
@@ -108,7 +118,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
         onClick={onToggle}
         className={cn(
           'group flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200',
-          'text-foreground hover:bg-accent hover:text-accent-foreground'
+          'text-foreground hover:bg-accent hover:text-accent-foreground',
         )}
       >
         <Activity className="h-5 w-5 text-muted-foreground group-hover:text-accent-foreground" />
@@ -135,7 +145,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
                   onClick={() => toggleInstance(instance.name)}
                   className={cn(
                     'group flex w-full items-center space-x-2 rounded-lg px-3 py-2 text-sm transition-all duration-200',
-                    'text-foreground hover:bg-accent hover:text-accent-foreground'
+                    'text-foreground hover:bg-accent hover:text-accent-foreground',
                   )}
                 >
                   {expandedInstances[instance.name] ? (
@@ -145,13 +155,18 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
                   )}
                   {getChannelIcon(instance.channel_type || 'whatsapp')}
                   <span className="flex-1 text-left truncate">{instance.name}</span>
-                  <span className={cn(
-                    'h-2 w-2 rounded-full',
-                    instance.connection_status === 'connected' ? 'bg-green-500' :
-                    instance.connection_status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                    instance.connection_status === 'disconnected' || instance.connection_status === 'error' ? 'bg-red-500' :
-                    'bg-gray-400'
-                  )} />
+                  <span
+                    className={cn(
+                      'h-2 w-2 rounded-full',
+                      instance.connection_status === 'connected'
+                        ? 'bg-green-500'
+                        : instance.connection_status === 'connecting'
+                          ? 'bg-yellow-500 animate-pulse'
+                          : instance.connection_status === 'disconnected' || instance.connection_status === 'error'
+                            ? 'bg-red-500'
+                            : 'bg-gray-400',
+                    )}
+                  />
                 </button>
 
                 {/* Sub-items - channel-aware */}
@@ -160,10 +175,12 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
                     {getSubItems(instance.channel_type || 'whatsapp').map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => openSheet(item.id as SheetType, instance.name, instance.channel_type || 'whatsapp')}
+                        onClick={() =>
+                          openSheet(item.id as SheetType, instance.name, instance.channel_type || 'whatsapp')
+                        }
                         className={cn(
                           'flex w-full items-center space-x-2 rounded-lg px-3 py-1.5 text-xs transition-all duration-200',
-                          'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                          'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                         )}
                       >
                         <item.icon className="h-3.5 w-3.5" />

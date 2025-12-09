@@ -21,12 +21,17 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
   const isGroup = remoteJid?.includes('@g.us') || chat.isGroup;
 
   // Fetch messages
-  const { data: messagesResponse, isLoading, refetch } = useQuery<EvolutionMessage[]>({
+  const {
+    data: messagesResponse,
+    isLoading,
+    refetch,
+  } = useQuery<EvolutionMessage[]>({
     queryKey: ['messages', instanceName, remoteJid],
-    queryFn: () => api.evolution.findMessages(instanceName, {
-      where: { key: { remoteJid } },
-      limit: 100,
-    }),
+    queryFn: () =>
+      api.evolution.findMessages(instanceName, {
+        where: { key: { remoteJid } },
+        limit: 100,
+      }),
     refetchInterval: 5000,
   });
 
@@ -34,7 +39,9 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
   const messages: EvolutionMessage[] = Array.isArray(messagesResponse) ? messagesResponse : [];
 
   // Sort messages by timestamp
-  const sortedMessages = [...messages].sort((a, b) => (Number(a.messageTimestamp) || 0) - (Number(b.messageTimestamp) || 0));
+  const sortedMessages = [...messages].sort(
+    (a, b) => (Number(a.messageTimestamp) || 0) - (Number(b.messageTimestamp) || 0),
+  );
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -69,40 +76,31 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
       </div>
 
       {/* Messages */}
-      <ScrollArea
-        className="flex-1 bg-muted/20"
-        ref={scrollRef}
-      >
+      <ScrollArea className="flex-1 bg-muted/20" ref={scrollRef}>
         <div className="p-3">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : sortedMessages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            No messages yet
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {sortedMessages.map((message, index) => (
-              <MessageBubble
-                key={message.key?.id || index}
-                message={message}
-                instanceName={instanceName}
-                showAvatar={isGroup}
-              />
-            ))}
-          </div>
-        )}
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : sortedMessages.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground">No messages yet</div>
+          ) : (
+            <div className="space-y-1">
+              {sortedMessages.map((message, index) => (
+                <MessageBubble
+                  key={message.key?.id || index}
+                  message={message}
+                  instanceName={instanceName}
+                  showAvatar={isGroup}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </ScrollArea>
 
       {/* Input */}
-      <ChatInput
-        instanceName={instanceName}
-        remoteJid={remoteJid}
-        onMessageSent={handleMessageSent}
-      />
+      <ChatInput instanceName={instanceName} remoteJid={remoteJid} onMessageSent={handleMessageSent} />
     </div>
   );
 }

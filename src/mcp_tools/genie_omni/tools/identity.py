@@ -11,8 +11,10 @@ def register_tools(mcp: FastMCP, get_client: Callable):
     """Register identity tools with the MCP server."""
 
     @mcp.tool()
-    async def my_whatsapp_info(instance_name: str = "genie",
-        ctx: Optional[Context] = None,) -> str:
+    async def my_whatsapp_info(
+        instance_name: str = "genie",
+        ctx: Optional[Context] = None,
+    ) -> str:
         """Get WhatsApp identity and connection status. Args: instance_name. Returns: number, status, profile info."""
         client = get_client(ctx)
 

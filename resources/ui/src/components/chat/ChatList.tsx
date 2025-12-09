@@ -50,9 +50,7 @@ export function ChatList({ chats, selectedChatId, onSelectChat }: ChatListProps)
       {/* Chat List */}
       <ScrollArea className="flex-1">
         {sortedChats.length === 0 ? (
-          <div className="p-4 text-center text-muted-foreground">
-            {search ? 'No chats found' : 'No chats yet'}
-          </div>
+          <div className="p-4 text-center text-muted-foreground">{search ? 'No chats found' : 'No chats yet'}</div>
         ) : (
           sortedChats.map((chat) => (
             <ChatListItem

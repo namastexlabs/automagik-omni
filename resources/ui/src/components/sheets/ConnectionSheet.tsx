@@ -1,26 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Wifi,
-  WifiOff,
-  RefreshCw,
-  LogOut,
-  QrCode,
-  Loader2,
-  User,
-  Bot,
-  ExternalLink,
-  Server,
-  Play,
-} from 'lucide-react';
+import { Wifi, WifiOff, RefreshCw, LogOut, QrCode, Loader2, User, Bot, ExternalLink, Server, Play } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -54,7 +36,11 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
   });
 
   // QR code query (WhatsApp only)
-  const { data: qrData, isLoading: isLoadingQR, refetch: refetchQR } = useQuery({
+  const {
+    data: qrData,
+    isLoading: isLoadingQR,
+    refetch: refetchQR,
+  } = useQuery({
     queryKey: ['qr-code', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
     enabled: open && showQR && channelType === 'whatsapp' && connectionState?.state !== 'open',
@@ -116,9 +102,7 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
   const isConnecting = state === 'connecting';
 
   // Profile data varies by channel type
-  const profile = channelType === 'discord'
-    ? connectionState?.channel_data || {}
-    : instance?.evolution_status || {};
+  const profile = channelType === 'discord' ? connectionState?.channel_data || {} : instance?.evolution_status || {};
 
   // Discord-specific data
   const discordData = channelType === 'discord' ? connectionState?.channel_data : null;
@@ -128,11 +112,7 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
       <SheetContent className="w-[400px] sm:w-[540px]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            {channelType === 'discord' ? (
-              <Bot className="h-5 w-5" />
-            ) : (
-              <Wifi className="h-5 w-5" />
-            )}
+            {channelType === 'discord' ? <Bot className="h-5 w-5" /> : <Wifi className="h-5 w-5" />}
             Connection - {instanceName}
           </SheetTitle>
           <SheetDescription>
@@ -152,13 +132,21 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
                 className={isConnected ? 'bg-green-500' : isConnecting ? 'bg-yellow-500' : 'bg-red-500'}
               >
                 {isLoadingState ? (
-                  <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking...</>
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking...
+                  </>
                 ) : isConnected ? (
-                  <><Wifi className="h-3 w-3 mr-1" /> Connected</>
+                  <>
+                    <Wifi className="h-3 w-3 mr-1" /> Connected
+                  </>
                 ) : isConnecting ? (
-                  <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Connecting</>
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Connecting
+                  </>
                 ) : (
-                  <><WifiOff className="h-3 w-3 mr-1" /> Disconnected</>
+                  <>
+                    <WifiOff className="h-3 w-3 mr-1" /> Disconnected
+                  </>
                 )}
               </Badge>
             </div>
@@ -201,11 +189,7 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Authentication</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowQR(!showQR)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
                     <QrCode className="h-4 w-4 mr-2" />
                     {showQR ? 'Hide QR' : 'Show QR Code'}
                   </Button>
@@ -217,11 +201,7 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
                       <Loader2 className="h-8 w-8 animate-spin" />
                     ) : qrData?.qr_code ? (
                       <>
-                        <img
-                          src={qrData.qr_code}
-                          alt="QR Code"
-                          className="w-48 h-48 rounded-lg border bg-white"
-                        />
+                        <img src={qrData.qr_code} alt="QR Code" className="w-48 h-48 rounded-lg border bg-white" />
                         <p className="text-sm text-muted-foreground text-center">
                           Open WhatsApp on your phone, go to Settings → Linked Devices → Link a Device
                         </p>
@@ -238,9 +218,7 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
                     ) : (
                       <div className="text-center py-4 space-y-3">
                         <p className="text-muted-foreground">No QR code available</p>
-                        <p className="text-sm text-muted-foreground">
-                          The WhatsApp service may not be running.
-                        </p>
+                        <p className="text-sm text-muted-foreground">The WhatsApp service may not be running.</p>
                         <div className="flex flex-col gap-2">
                           <Button
                             onClick={() => startEvolutionMutation.mutate()}
@@ -321,11 +299,7 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
             <div className="space-y-2">
               <span className="text-sm font-medium">Actions</span>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => restartMutation.mutate()}
-                  disabled={restartMutation.isPending}
-                >
+                <Button variant="outline" onClick={() => restartMutation.mutate()} disabled={restartMutation.isPending}>
                   {restartMutation.isPending ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (

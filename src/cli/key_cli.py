@@ -24,15 +24,9 @@ def mask_key(key: str) -> str:
 
 @app.command("show")
 def show_key(
-    no_mask: bool = typer.Option(
-        False, "--no-mask", help="Show full API key (unmasked)"
-    ),
-    regenerate: bool = typer.Option(
-        False, "--regenerate", help="Generate a new API key"
-    ),
-    format: str = typer.Option(
-        "text", "--format", "-f", help="Output format: text, json, env"
-    ),
+    no_mask: bool = typer.Option(False, "--no-mask", help="Show full API key (unmasked)"),
+    regenerate: bool = typer.Option(False, "--regenerate", help="Generate a new API key"),
+    format: str = typer.Option("text", "--format", "-f", help="Output format: text, json, env"),
 ):
     """
     Show or regenerate the API key.
@@ -54,10 +48,7 @@ def show_key(
             # Handle regeneration
             if regenerate:
                 console.print()
-                console.print(Panel.fit(
-                    "[bold yellow]API Key Regeneration[/bold yellow]",
-                    border_style="yellow"
-                ))
+                console.print(Panel.fit("[bold yellow]API Key Regeneration[/bold yellow]", border_style="yellow"))
                 console.print()
                 console.print("[yellow]Warning:[/yellow] This will invalidate your current API key.")
                 console.print("All existing browser sessions will be logged out.")
@@ -84,16 +75,13 @@ def show_key(
                         is_secret=True,
                         is_required=True,
                         db=db,
-                        created_by="cli_regenerate"
+                        created_by="cli_regenerate",
                     )
 
                 console.print()
                 console.print("[green]New API key generated:[/green]")
                 console.print()
-                console.print(Panel.fit(
-                    f"[bold green]{new_key}[/bold green]",
-                    border_style="green"
-                ))
+                console.print(Panel.fit(f"[bold green]{new_key}[/bold green]", border_style="green"))
                 console.print()
                 console.print("[yellow]Old key is now invalid.[/yellow]")
                 console.print()
@@ -127,26 +115,17 @@ def show_key(
 
             else:  # text format
                 console.print()
-                console.print(Panel.fit(
-                    "[bold]API Key Recovery[/bold]",
-                    border_style="blue"
-                ))
+                console.print(Panel.fit("[bold]API Key Recovery[/bold]", border_style="blue"))
                 console.print()
 
                 if no_mask:
                     console.print("Your API key [yellow](KEEP SECRET)[/yellow]:")
                     console.print()
-                    console.print(Panel.fit(
-                        f"[bold green]{api_key}[/bold green]",
-                        border_style="green"
-                    ))
+                    console.print(Panel.fit(f"[bold green]{api_key}[/bold green]", border_style="green"))
                 else:
                     console.print("Your current API key:")
                     console.print()
-                    console.print(Panel.fit(
-                        f"[bold]{mask_key(api_key)}[/bold]",
-                        border_style="blue"
-                    ))
+                    console.print(Panel.fit(f"[bold]{mask_key(api_key)}[/bold]", border_style="blue"))
                     console.print()
                     console.print("To see full key: [cyan]omni key show --no-mask[/cyan]")
 

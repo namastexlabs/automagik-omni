@@ -1,22 +1,8 @@
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Copy,
-  RefreshCw,
-  Terminal,
-  AlertTriangle,
-  Bot,
-} from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Copy, RefreshCw, Terminal, AlertTriangle, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Installation phases
@@ -54,23 +40,14 @@ const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
   <>
     {logs.map((log, i) => (
       <div key={`${log.timestamp}-${i}`} className="flex gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0">
-          [{new Date(log.timestamp).toLocaleTimeString()}]
-        </span>
-        <span className="break-all text-foreground">
-          {log.message}
-        </span>
+        <span className="text-muted-foreground/60 flex-shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+        <span className="break-all text-foreground">{log.message}</span>
       </div>
     ))}
   </>
 ));
 
-export function DiscordInstallModal({
-  open,
-  onOpenChange,
-  onSuccess,
-  onRetry,
-}: DiscordInstallModalProps) {
+export function DiscordInstallModal({ open, onOpenChange, onSuccess, onRetry }: DiscordInstallModalProps) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [copiedLogs, setCopiedLogs] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -97,7 +74,7 @@ export function DiscordInstallModal({
       eventSourceRef.current.close();
     }
 
-    setLogs(prev => [...prev, { timestamp: new Date().toISOString(), message: 'Starting Discord installation...' }]);
+    setLogs((prev) => [...prev, { timestamp: new Date().toISOString(), message: 'Starting Discord installation...' }]);
     setPhase('installing');
 
     // Create EventSource for SSE
@@ -112,19 +89,22 @@ export function DiscordInstallModal({
 
     eventSource.addEventListener('status', (event) => {
       const data = JSON.parse(event.data);
-      setLogs(prev => [...prev, { timestamp: new Date().toISOString(), message: `[STATUS] ${data.message}` }]);
+      setLogs((prev) => [...prev, { timestamp: new Date().toISOString(), message: `[STATUS] ${data.message}` }]);
 
       if (data.phase === 'complete') {
         setPhase('verifying');
         if (data.version) {
-          setLogs(prev => [...prev, { timestamp: new Date().toISOString(), message: `Discord.py version: ${data.version}` }]);
+          setLogs((prev) => [
+            ...prev,
+            { timestamp: new Date().toISOString(), message: `Discord.py version: ${data.version}` },
+          ]);
         }
       }
     });
 
     eventSource.addEventListener('log', (event) => {
       const data = JSON.parse(event.data);
-      setLogs(prev => [...prev, { timestamp: data.timestamp, message: data.message }]);
+      setLogs((prev) => [...prev, { timestamp: data.timestamp, message: data.message }]);
     });
 
     eventSource.addEventListener('error', (event) => {
@@ -163,7 +143,9 @@ export function DiscordInstallModal({
         setIsConnected(false);
         // Only set error if we haven't received a done event
         if (phase !== 'ready' && phase !== 'error') {
-          setError('Connection to installation service failed after multiple attempts. Please check if the gateway is running.');
+          setError(
+            'Connection to installation service failed after multiple attempts. Please check if the gateway is running.',
+          );
           setPhase('error');
         }
         return;
@@ -231,9 +213,7 @@ export function DiscordInstallModal({
 
   // Copy logs to clipboard
   const handleCopyLogs = async () => {
-    const logText = logs
-      .map(l => `[${l.timestamp}] ${l.message}`)
-      .join('\n');
+    const logText = logs.map((l) => `[${l.timestamp}] ${l.message}`).join('\n');
 
     try {
       await navigator.clipboard.writeText(logText);
@@ -279,52 +259,45 @@ export function DiscordInstallModal({
 
         {/* Phase Progress - only show after installation started */}
         {installationStarted && (
-        <div className="flex items-center justify-between px-2 py-3">
-          {PHASE_ORDER.map((p, index) => {
-            const isComplete = currentPhaseIndex > index;
-            const isCurrent = phase === p;
-            const isError = phase === 'error';
+          <div className="flex items-center justify-between px-2 py-3">
+            {PHASE_ORDER.map((p, index) => {
+              const isComplete = currentPhaseIndex > index;
+              const isCurrent = phase === p;
+              const isError = phase === 'error';
 
-            return (
-              <div key={p} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={cn(
-                      'h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
-                      isComplete
-                        ? 'bg-green-500 text-white'
-                        : isCurrent && !isError
-                          ? 'bg-[#5865F2] text-white'
-                          : isError && index <= 0
-                            ? 'bg-red-500 text-white'
-                            : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {isComplete ? (
-                      <CheckCircle2 className="h-4 w-4" />
-                    ) : isCurrent && !isError ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      index + 1
-                    )}
+              return (
+                <div key={p} className="flex items-center">
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={cn(
+                        'h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                        isComplete
+                          ? 'bg-green-500 text-white'
+                          : isCurrent && !isError
+                            ? 'bg-[#5865F2] text-white'
+                            : isError && index <= 0
+                              ? 'bg-red-500 text-white'
+                              : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {isComplete ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : isCurrent && !isError ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                    <span className="text-xs mt-1 text-muted-foreground">{PHASES[p].label}</span>
                   </div>
-                  <span className="text-xs mt-1 text-muted-foreground">
-                    {PHASES[p].label}
-                  </span>
-                </div>
 
-                {index < PHASE_ORDER.length - 1 && (
-                  <div
-                    className={cn(
-                      'h-0.5 w-8 mx-1 transition-colors',
-                      isComplete ? 'bg-green-500' : 'bg-muted'
-                    )}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  {index < PHASE_ORDER.length - 1 && (
+                    <div className={cn('h-0.5 w-8 mx-1 transition-colors', isComplete ? 'bg-green-500' : 'bg-muted')} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {/* Error message */}
@@ -372,10 +345,7 @@ export function DiscordInstallModal({
                 Discord support requires additional Python dependencies. Click the button below to install them.
               </p>
             </div>
-            <Button
-              onClick={startInstallation}
-              className="bg-[#5865F2] hover:bg-[#4752C4]"
-            >
+            <Button onClick={startInstallation} className="bg-[#5865F2] hover:bg-[#4752C4]">
               <Terminal className="h-4 w-4 mr-2" />
               Install Discord Dependencies
             </Button>
@@ -399,12 +369,7 @@ export function DiscordInstallModal({
         {/* Actions */}
         <div className="flex items-center justify-between pt-2">
           {installationStarted ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyLogs}
-              disabled={logs.length === 0}
-            >
+            <Button variant="outline" size="sm" onClick={handleCopyLogs} disabled={logs.length === 0}>
               <Copy className="h-4 w-4 mr-1" />
               {copiedLogs ? 'Copied!' : 'Copy Logs'}
             </Button>
@@ -414,21 +379,12 @@ export function DiscordInstallModal({
 
           <div className="flex gap-2">
             {phase === 'error' && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleRetry}
-                className="bg-[#5865F2] hover:bg-[#4752C4]"
-              >
+              <Button variant="default" size="sm" onClick={handleRetry} className="bg-[#5865F2] hover:bg-[#4752C4]">
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Retry
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               {phase === 'ready' ? 'Continue' : 'Cancel'}
             </Button>
           </div>
