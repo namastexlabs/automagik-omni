@@ -262,13 +262,7 @@ export function WhatsAppConfigModal({
   }, [phase, connectionState]);
   // Arm QR polling only after the instance status endpoint responds (prevents early 404s)
   useEffect(() => {
-    if (
-      open &&
-      instanceCreated &&
-      instanceReady &&
-      phase === 'qr' &&
-      gatewayStatus?.processes?.evolution?.healthy
-    ) {
+    if (open && instanceCreated && instanceReady && phase === 'qr' && gatewayStatus?.processes?.evolution?.healthy) {
       // Cancel any in-flight probe
       if (statusProbeCancelRef.current) {
         statusProbeCancelRef.current.cancelled = true;
@@ -309,14 +303,7 @@ export function WhatsAppConfigModal({
     if (statusProbeCancelRef.current) {
       statusProbeCancelRef.current.cancelled = true;
     }
-  }, [
-    open,
-    instanceCreated,
-    instanceReady,
-    phase,
-    gatewayStatus?.processes?.evolution?.healthy,
-    instanceName,
-  ]);
+  }, [open, instanceCreated, instanceReady, phase, gatewayStatus?.processes?.evolution?.healthy, instanceName]);
 
   // Detect phase from logs during startup
   useEffect(() => {
