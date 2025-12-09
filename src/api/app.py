@@ -70,7 +70,7 @@ from src.api.deps import get_database, get_instance_by_name
 from src.api.routes.instances import router as instances_router
 from src.api.routes.omni import router as omni_router
 from src.api.routes.access import router as access_router
-from src.db.database import create_tables, SessionLocal
+from src.db.database import SessionLocal
 from src.utils.datetime_utils import utcnow
 
 
@@ -189,8 +189,8 @@ class LazyDBInitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# Note: create_tables() has been moved to lifespan function to ensure proper test isolation
-# Database tables will be created during app startup in the lifespan function
+# Note: Database migrations now run in lifespan via _ensure_database_ready() to ensure
+# tables exist before bootstrap operations. This replaces the lazy init pattern.
 
 
 @asynccontextmanager
@@ -202,16 +202,14 @@ async def lifespan(app: FastAPI):
     environment = os.environ.get("ENVIRONMENT")
 
     if environment != "test":
-        # Database initialization moved to middleware (lazy init on first request)
-        # This saves ~2.5s on cold start - migrations run only when needed
-
-        # Still create tables structure for runtime checks (fast operation)
+        # Run migrations FIRST to ensure tables exist before any database operations
+        # This replaces the lazy init pattern which caused race conditions during wizard setup
         try:
-            create_tables()
-            logger.info("✅ Database tables structure created/verified (migrations deferred to first request)")
+            _ensure_database_ready()
         except Exception as e:
-            logger.error(f"❌ Failed to create database tables: {e}")
-            # Let the app continue - tables might already exist
+            logger.error(f"❌ Failed to run database migrations: {e}")
+            # Don't continue if migrations fail - database is not ready
+            raise
 
         # Load access control rules into cache
         try:
@@ -537,7 +535,16 @@ async def health_check():
     System health check endpoint.
 
     Returns status for API, database, Discord services, and runtime information.
+    Returns 503 Service Unavailable until database migrations complete.
     """
+    # Block health check until migrations are complete
+    # This prevents the gateway from marking Python as "healthy" before DB is ready
+    if not _MIGRATIONS_READY:
+        raise HTTPException(
+            status_code=503,
+            detail="Service initializing - database migrations in progress",
+        )
+
     import os
     import resource
     import subprocess

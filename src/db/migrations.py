@@ -36,11 +36,19 @@ def get_alembic_config() -> Config:
 
 
 def check_database_exists() -> bool:
-    """Check if the database has any tables."""
+    """Check if the database has omni_* tables (not just any tables).
+
+    This is important because Evolution API creates evo_* tables via Prisma,
+    but omni_* tables are created by Alembic. We need to check specifically
+    for omni_* tables to determine if Alembic migrations have run.
+    """
     try:
         inspector = inspect(get_engine())
         tables = inspector.get_table_names()
-        return len(tables) > 0
+        # Check for omni_* tables specifically, not just any tables
+        # This prevents false positives when only evo_* (Evolution/Prisma) tables exist
+        omni_tables = [t for t in tables if t.startswith("omni_")]
+        return len(omni_tables) > 0
     except Exception as e:
         logger.error(f"Error checking database existence: {e}")
         return False
