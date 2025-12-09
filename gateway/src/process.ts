@@ -3,7 +3,7 @@
  * Spawns and manages Python API, Evolution API, and Vite dev server as subprocesses
  */
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, cpSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -734,102 +734,72 @@ export class ProcessManager {
 
     // Auto-run Prisma migrations to create database schema with retry
     // This creates the Evolution tables (evo_Instance, evo_Message, etc.) in PostgreSQL
-    console.log(`[ProcessManager] Running Prisma migrations for Evolution...`);
+    console.log(`[ProcessManager] Running Prisma migrations for Evolution (safe deploy)...`);
+    const migrationsSourceDir = join(evolutionDir, 'prisma', 'postgresql-migrations');
+    const migrationsTargetDir = join(evolutionDir, 'prisma', 'migrations');
+
+    // Sync provider-specific migrations into prisma/migrations (Prisma expects this path)
+    try {
+      if (existsSync(migrationsTargetDir)) {
+        rmSync(migrationsTargetDir, { recursive: true, force: true });
+      }
+      cpSync(migrationsSourceDir, migrationsTargetDir, { recursive: true });
+    } catch (err) {
+      throw new Error(`Failed to prepare Prisma migrations directory: ${err}`);
+    }
+
+    const migrateCmd = usesPnpm
+      ? ['pnpm', 'exec', 'prisma', 'db', 'push', '--skip-generate', '--schema', './prisma/postgresql-schema.prisma']
+      : ['npx', 'prisma', 'db', 'push', '--skip-generate', '--schema', './prisma/postgresql-schema.prisma'];
+
     let migrateSuccess = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        // Use Bun.spawn (async) instead of spawnSync to avoid blocking the event loop
-        // This is critical because pgserve runs in the same process and needs the loop to handle DB connections
-        const migrateProc = Bun.spawn(
-          ['npx', 'prisma', 'db', 'push', '--schema', './prisma/postgresql-schema.prisma', '--skip-generate'],
-          {
-            cwd: evolutionDir,
-            env: {
-              ...process.env,
-              ...subprocessEnv,
-            },
-            stdout: 'pipe',
-            stderr: 'pipe',
+        const migrateProc = Bun.spawn(migrateCmd, {
+          cwd: evolutionDir,
+          env: {
+            ...process.env,
+            ...subprocessEnv,
           },
-        );
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
 
-        // Read streams asynchronously
         const stderrPromise = new Response(migrateProc.stderr).text();
         const stdoutPromise = new Response(migrateProc.stdout).text();
 
         const exitCode = await migrateProc.exited;
         const stderr = await stderrPromise;
-        await stdoutPromise; // Consume stdout to prevent buffering issues
+        await stdoutPromise;
 
         if (exitCode === 0) {
-          console.log(`[ProcessManager] Prisma migrations applied successfully`);
+          console.log(`[ProcessManager] Prisma migrations deployed successfully`);
           migrateSuccess = true;
           break;
         }
 
         if (stderr.includes('P1001')) {
-          // P1001 = Can't reach database server - retry after delay
           if (attempt < 3) {
             console.log(`[ProcessManager] Database not ready, retrying in 3s (attempt ${attempt}/3)...`);
-            await Bun.sleep(3000); // Increased from 2s to 3s
-          } else {
-            // All retries exhausted - FAIL, don't start Evolution without database
-            throw new Error(
-              'Cannot start Evolution: PostgreSQL database unreachable after 3 attempts. ' +
-                `Please ensure pgserve is running and healthy. URL: ${pgserveUrl}`,
-            );
+            await Bun.sleep(3000);
+            continue;
           }
-        } else if (stderr.includes('accept-data-loss') || stderr.includes('data loss')) {
-          // Data loss warning means schema needs --accept-data-loss flag
-          // This is a critical error - tables were NOT created without this flag
-          console.error(`[ProcessManager] Prisma migration requires data loss acceptance`);
-          console.log(`[ProcessManager] Retrying with --accept-data-loss flag...`);
-
-          // Re-run with --accept-data-loss flag
-          const forceProc = Bun.spawn(
-            [
-              'npx',
-              'prisma',
-              'db',
-              'push',
-              '--schema',
-              './prisma/postgresql-schema.prisma',
-              '--skip-generate',
-              '--accept-data-loss',
-            ],
-            {
-              cwd: evolutionDir,
-              env: { ...process.env, ...subprocessEnv },
-              stdout: 'pipe',
-              stderr: 'pipe',
-            },
+          throw new Error(
+            'Cannot start Evolution: PostgreSQL database unreachable after 3 attempts. ' +
+              `Please ensure pgserve is running and healthy. URL: ${pgserveUrl}`,
           );
-
-          const forceStderrPromise = new Response(forceProc.stderr).text();
-          const forceExit = await forceProc.exited;
-          const forceStderr = await forceStderrPromise;
-
-          if (forceExit === 0) {
-            console.log(`[ProcessManager] Prisma migrations applied with --accept-data-loss`);
-            migrateSuccess = true;
-          } else {
-            throw new Error(`Prisma db push failed even with --accept-data-loss: ${forceStderr}`);
-          }
-          break;
-        } else if (
-          stderr.includes('already exists') ||
-          stderr.includes('nothing to change') ||
-          stderr.includes('Your database is now in sync')
-        ) {
-          // Schema is up-to-date - this is OK
-          console.log(`[ProcessManager] Prisma schema already up-to-date`);
-          migrateSuccess = true;
-          break;
-        } else {
-          // Unknown error - fail hard to prevent silent failures
-          console.error(`[ProcessManager] Prisma db push failed with unexpected error: ${stderr}`);
-          throw new Error(`Prisma db push failed with unexpected error: ${stderr}`);
         }
+
+        if (stderr.includes('P3014') || stderr.includes('data loss') || stderr.includes('Reset')) {
+          // Prisma wants to drop tables not in its schema (e.g., omni_*). Disallow to protect Omni.
+          throw new Error(
+            'Prisma attempted a destructive change. Aborting to protect existing Omni tables. ' +
+              'Ensure Omni tables remain present; Evo tables will not be dropped.',
+          );
+        }
+
+        // Any other failure is unexpected; surface the message
+        throw new Error(`Prisma db push failed: ${stderr || 'unknown error'}`);
       } catch (err) {
         console.error(`[ProcessManager] Migration attempt ${attempt} failed:`, err);
         if (attempt >= 3) throw err;
@@ -838,7 +808,6 @@ export class ProcessManager {
     }
 
     if (!migrateSuccess) {
-      // This shouldn't happen (covered by throw above), but safety check
       throw new Error('Prisma migrations failed - cannot start Evolution without database schema');
     }
 
@@ -1417,5 +1386,19 @@ export class ProcessManager {
 
     console.log('[ProcessManager] All processes stopped');
     process.exit(0);
+  }
+}
+
+function ensureSchemaParam(dbUrl: string, schemaName: string): string {
+  try {
+    const url = new URL(dbUrl);
+    if (!url.searchParams.get('schema')) {
+      url.searchParams.set('schema', schemaName);
+    }
+    return url.toString();
+  } catch {
+    // If URL parsing fails, fall back to concatenation
+    const separator = dbUrl.includes('?') ? '&' : '?';
+    return `${dbUrl}${separator}schema=${schemaName}`;
   }
 }

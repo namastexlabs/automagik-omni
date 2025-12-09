@@ -118,6 +118,9 @@ export function WhatsAppConfigModal({
   const [isCreatingInstance, setIsCreatingInstance] = useState(false);
   const [instanceCreated, setInstanceCreated] = useState(false);
   const [qrCodeFromConfig, setQrCodeFromConfig] = useState<string | null>(null);
+  const [qrPollReady, setQrPollReady] = useState(false);
+  const [instanceReady, setInstanceReady] = useState(false);
+  const statusProbeCancelRef = useRef<{ cancelled: boolean } | null>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
@@ -144,17 +147,40 @@ export function WhatsAppConfigModal({
   // Check QR code when instance exists (only after instance is created)
   const { data: qrData, refetch: refetchQR } = useQuery({
     queryKey: ['qr-code-modal', instanceName],
-    queryFn: () => api.instances.getQR(instanceName),
-    enabled: open && instanceCreated && phase === 'qr',
+    queryFn: async () => {
+      try {
+        return await api.instances.getQR(instanceName);
+      } catch (err) {
+        // 404 during startup is expected; swallow to let retry/backoff continue
+        return null;
+      }
+    },
+    enabled:
+      open &&
+      instanceCreated &&
+      instanceReady &&
+      phase === 'qr' &&
+      qrPollReady &&
+      gatewayStatus?.processes?.evolution?.healthy,
     refetchInterval: phase === 'qr' ? 5000 : false,
+    retry: 5,
+    retryDelay: 1500,
   });
 
   // Check connection status (only after instance is created)
   const { data: connectionState } = useQuery({
     queryKey: ['connection-state-modal', instanceName],
     queryFn: () => api.instances.getStatus(instanceName),
-    enabled: open && instanceCreated && phase === 'qr',
+    enabled:
+      open &&
+      instanceCreated &&
+      instanceReady &&
+      phase === 'qr' &&
+      qrPollReady &&
+      gatewayStatus?.processes?.evolution?.healthy,
     refetchInterval: phase === 'qr' ? 3000 : false,
+    retry: 5,
+    retryDelay: 1500,
   });
 
   // Create instance after service is ready
@@ -172,11 +198,23 @@ export function WhatsAppConfigModal({
       if (result.whatsapp_qr_code) {
         setQrCodeFromConfig(result.whatsapp_qr_code);
         setInstanceCreated(true);
+        setInstanceReady(false);
+        setQrPollReady(false);
+        setTimeout(() => {
+          setInstanceReady(true);
+          setQrPollReady(true);
+        }, 3000);
         setPhase('qr');
         onInstanceCreated?.(instanceName);
       } else if (result.whatsapp_instance_name) {
         // Instance created but no QR (maybe already connected)
         setInstanceCreated(true);
+        setInstanceReady(false);
+        setQrPollReady(false);
+        setTimeout(() => {
+          setInstanceReady(true);
+          setQrPollReady(true);
+        }, 3000);
         setPhase('qr');
         onInstanceCreated?.(instanceName);
       } else {
@@ -222,6 +260,63 @@ export function WhatsAppConfigModal({
       setPhase('connected');
     }
   }, [phase, connectionState]);
+  // Arm QR polling only after the instance status endpoint responds (prevents early 404s)
+  useEffect(() => {
+    if (
+      open &&
+      instanceCreated &&
+      instanceReady &&
+      phase === 'qr' &&
+      gatewayStatus?.processes?.evolution?.healthy
+    ) {
+      // Cancel any in-flight probe
+      if (statusProbeCancelRef.current) {
+        statusProbeCancelRef.current.cancelled = true;
+      }
+
+      const cancelRef = { cancelled: false };
+      statusProbeCancelRef.current = cancelRef;
+      setQrPollReady(false);
+
+      const probe = async () => {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          if (cancelRef.cancelled) return;
+          try {
+            await api.instances.getStatus(instanceName);
+            if (!cancelRef.cancelled) {
+              setQrPollReady(true);
+            }
+            return;
+          } catch {
+            await new Promise((r) => setTimeout(r, 800));
+          }
+        }
+        // Fallback: allow polling even if status never responded, to avoid a stuck button
+        if (!cancelRef.cancelled) {
+          setQrPollReady(true);
+        }
+      };
+
+      probe();
+
+      return () => {
+        cancelRef.cancelled = true;
+      };
+    }
+
+    // If prerequisites are not satisfied, ensure polling stays disabled
+    setQrPollReady(false);
+    if (statusProbeCancelRef.current) {
+      statusProbeCancelRef.current.cancelled = true;
+    }
+  }, [
+    open,
+    instanceCreated,
+    instanceReady,
+    phase,
+    gatewayStatus?.processes?.evolution?.healthy,
+    instanceName,
+  ]);
 
   // Detect phase from logs during startup
   useEffect(() => {
@@ -267,6 +362,8 @@ export function WhatsAppConfigModal({
       setIsStarting(false);
       setIsCreatingInstance(false);
       setInstanceCreated(false);
+      setInstanceReady(false);
+      setQrPollReady(false);
       setQrCodeFromConfig(null);
       clearLogs();
       refetchStatus();
@@ -518,7 +615,27 @@ export function WhatsAppConfigModal({
               Open WhatsApp on your phone, go to <strong>Settings → Linked Devices → Link a Device</strong> and scan
               this QR code.
             </p>
-            <Button variant="outline" size="sm" onClick={() => refetchQR()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  // Force Evolution to restart instance to issue a fresh QR quickly
+                  await api.instances.restart(instanceName);
+                } catch (err) {
+                  // Ignore restart errors; still try to refetch QR
+                } finally {
+                  setQrCodeFromConfig(null);
+                  setQrPollReady(false);
+                  // Give Evolution a moment to re-emit a QR
+                  setTimeout(() => {
+                    refetchQR();
+                    setQrPollReady(true);
+                  }, 1500);
+                }
+              }}
+              disabled={!qrPollReady || !instanceReady}
+            >
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh QR Code
             </Button>

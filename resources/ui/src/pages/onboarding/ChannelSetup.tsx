@@ -36,7 +36,7 @@ export default function ChannelSetup() {
 
   // Form state - channels default to OFF, user must explicitly enable them
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
-  const [whatsappInstanceName, setWhatsappInstanceName] = useState('genie');
+  const [whatsappInstanceName, setWhatsappInstanceName] = useState('');
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [discordInstanceName, setDiscordInstanceName] = useState('discord-bot');
   const [discordClientId, setDiscordClientId] = useState('');
@@ -92,6 +92,10 @@ export default function ChannelSetup() {
     setEvolutionError(null);
 
     if (enabled) {
+      if (!whatsappInstanceName.trim()) {
+        setEvolutionError('Please enter a WhatsApp instance name before starting setup.');
+        return;
+      }
       // Open configuration modal (same pattern as Discord)
       setShowWhatsAppModal(true);
     }
@@ -442,66 +446,65 @@ export default function ChannelSetup() {
               </div>
             </div>
 
-            {/* WhatsApp Instance Configuration - always visible when enabled */}
-            {whatsappEnabled && (
-              <div className="px-4 pb-4 space-y-4 border-t border-green-200">
-                {/* Error display */}
-                {evolutionError && (
-                  <div className="mt-4 p-3 bg-red-100 rounded-lg flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-red-800 font-medium">Failed to start WhatsApp service</p>
-                      <p className="text-sm text-red-700">{evolutionError}</p>
-                    </div>
+            {/* WhatsApp Instance Configuration - always visible so the name can be entered before toggling */}
+            <div className="px-4 pb-4 space-y-4 border-t border-green-200">
+              {/* Error display */}
+              {evolutionError && (
+                <div className="mt-4 p-3 bg-red-100 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-red-800 font-medium">WhatsApp setup</p>
+                    <p className="text-sm text-red-700">{evolutionError}</p>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Starting indicator with View Logs button */}
-                {evolutionStarting && (
-                  <div className="mt-4 p-4 bg-green-100 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="h-6 w-6 text-green-600 animate-spin" />
-                        <div>
-                          <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
-                          <p className="text-xs text-green-700">This may take up to a minute</p>
-                        </div>
+              {/* Starting indicator with View Logs button */}
+              {evolutionStarting && (
+                <div className="mt-4 p-4 bg-green-100 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-6 w-6 text-green-600 animate-spin" />
+                      <div>
+                        <p className="text-sm text-green-800 font-medium">Starting WhatsApp service...</p>
+                        <p className="text-xs text-green-700">This may take up to a minute</p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowStartupModal(true)}
-                        className="border-green-600 text-green-700 hover:bg-green-50"
-                      >
-                        <Terminal className="h-4 w-4 mr-1" />
-                        View Logs
-                      </Button>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowStartupModal(true)}
+                      className="border-green-600 text-green-700 hover:bg-green-50"
+                    >
+                      <Terminal className="h-4 w-4 mr-1" />
+                      View Logs
+                    </Button>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Instance Name - always visible when enabled, not starting */}
-                {!evolutionStarting && (
-                  <div className="mt-4 space-y-2">
-                    <Label htmlFor="whatsappInstanceName" className="text-gray-700">
-                      Instance Name
-                    </Label>
-                    <Input
-                      id="whatsappInstanceName"
-                      type="text"
-                      value={whatsappInstanceName}
-                      onChange={(e) => setWhatsappInstanceName(e.target.value)}
-                      placeholder="genie"
-                    />
-                    <p className="text-xs text-gray-500">
-                      {evolutionReady
-                        ? "Click 'Complete Setup' to create this instance and scan QR code"
-                        : "Service will start automatically when you click 'Complete Setup'"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+              {/* Instance Name */}
+              {!evolutionStarting && (
+                <div className="mt-4 space-y-2">
+                  <Label htmlFor="whatsappInstanceName" className="text-gray-700">
+                    Instance Name
+                  </Label>
+                  <Input
+                    id="whatsappInstanceName"
+                    type="text"
+                    value={whatsappInstanceName}
+                    onChange={(e) => setWhatsappInstanceName(e.target.value)}
+                    placeholder="genie"
+                    disabled={evolutionStarting}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {whatsappEnabled
+                      ? "Toggle is on. Click 'Complete Setup' to create this instance and scan QR."
+                      : 'Enter the desired instance name, then enable WhatsApp to start setup.'}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Discord Channel */}

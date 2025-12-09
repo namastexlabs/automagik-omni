@@ -63,7 +63,8 @@ class EvolutionClient:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.instance_name = instance_name
-        self.headers = {"apikey": api_key, "Content-Type": "application/json"}
+        # Force identity encoding to avoid mis-labeled gzip/deflate responses from Evolution
+        self.headers = {"apikey": api_key, "Content-Type": "application/json", "Accept-Encoding": "identity"}
         self._retry_attempted = False  # Circuit breaker for bounded retry
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:

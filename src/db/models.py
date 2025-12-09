@@ -401,7 +401,7 @@ class UserPreference(Base):
     __tablename__ = "omni_user_preferences"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(255), nullable=False, index=True)  # User identifier from API key
+    session_id = Column(String(255), nullable=False, index=True)  # Identifier (stored session/API key)
     key = Column(String(100), nullable=False, index=True)  # Preference key (e.g., 'omni_theme')
     value = Column(String, nullable=True)  # Preference value
 
@@ -409,7 +409,7 @@ class UserPreference(Base):
     created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
 
-    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_user_preferences_user_key"),)
+    __table_args__ = (UniqueConstraint("session_id", "key", name="uq_user_preferences_session_key"),)
 
     def __repr__(self):
-        return f"<UserPreference(user='{self.user_id[:8]}...', key='{self.key}', value='{self.value}')>"
+        return f"<UserPreference(session='{self.session_id[:8]}...', key='{self.key}', value='{self.value}')>"

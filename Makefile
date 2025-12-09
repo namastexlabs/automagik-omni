@@ -40,6 +40,8 @@ help: ## Show available commands
 	@echo ""
 
 install: ## Install dependencies and deploy to PM2
+	@echo "$(FONT_CYAN)Initializing submodules...$(FONT_RESET)"
+	@git submodule update --init --recursive
 	@echo "$(FONT_CYAN)Installing Python dependencies...$(FONT_RESET)"
 	uv sync
 	@echo "$(FONT_CYAN)Installing Gateway dependencies...$(FONT_RESET)"
@@ -74,6 +76,8 @@ dev-frontend: ## Start UI only (hot reload)
 update: ## Pull updates, rebuild everything, restart
 	@echo "$(FONT_CYAN)Pulling latest changes...$(FONT_RESET)"
 	@git pull
+	@echo "$(FONT_CYAN)Updating submodules...$(FONT_RESET)"
+	@git submodule update --init --recursive
 	@echo "$(FONT_CYAN)Updating Python dependencies...$(FONT_RESET)"
 	@uv sync
 	@echo "$(FONT_CYAN)Updating Gateway dependencies...$(FONT_RESET)"

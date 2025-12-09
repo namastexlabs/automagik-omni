@@ -249,6 +249,16 @@ class WhatsAppChannelHandler(ChannelHandler):
                     # Don't fail the QR code request if restart fails
                     # The instance might still be able to provide a QR code
 
+            logger.debug(f"Calling Evolution API restart before connect to force fresh QR: {instance.name}")
+            try:
+                await evolution_client.restart_instance(instance.name)
+                # Small delay to let Evolution reissue QR
+                import asyncio
+
+                await asyncio.sleep(1)
+            except Exception as restart_error:
+                logger.warning(f"Failed to force restart before QR fetch: {restart_error}")
+
             logger.debug(f"Calling Evolution API connect for instance: {instance.name}")
             connect_response = await evolution_client.connect_instance(instance.name)
             logger.debug(f"Evolution connect response type: {type(connect_response)}")
