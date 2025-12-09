@@ -31,6 +31,8 @@ def _ensure_database_ready(*, force: bool = False) -> float:
 
     global _MIGRATIONS_READY
 
+    logger.info("_ensure_database_ready called (force=%s, already_ready=%s)", force, _MIGRATIONS_READY)
+
     if _MIGRATIONS_READY and not force:
         return 0.0
 
@@ -53,6 +55,7 @@ def _ensure_database_ready(*, force: bool = False) -> float:
     duration = time.perf_counter() - start_time
     logger.info(f"✅ Database migrations ready in {duration:.2f}s")
     _MIGRATIONS_READY = True
+    logger.info("_MIGRATIONS_READY set to True - health checks will now pass")
     return duration
 
 
@@ -540,10 +543,12 @@ async def health_check():
     # Block health check until migrations are complete
     # This prevents the gateway from marking Python as "healthy" before DB is ready
     if not _MIGRATIONS_READY:
+        logger.debug("Health check: 503 - migrations not ready yet")
         raise HTTPException(
             status_code=503,
             detail="Service initializing - database migrations in progress",
         )
+    logger.debug("Health check: migrations ready, proceeding with full check")
 
     import os
     import resource
