@@ -779,11 +779,56 @@ export class ProcessManager {
                 `Please ensure pgserve is running and healthy. URL: ${pgserveUrl}`,
             );
           }
-        } else {
-          // Other errors (e.g., tables already exist) - warn but continue
-          console.warn(`[ProcessManager] Prisma db push warning: ${stderr}`);
-          migrateSuccess = true; // Non-P1001 errors are OK (schema might be up-to-date)
+        } else if (stderr.includes('accept-data-loss') || stderr.includes('data loss')) {
+          // Data loss warning means schema needs --accept-data-loss flag
+          // This is a critical error - tables were NOT created without this flag
+          console.error(`[ProcessManager] Prisma migration requires data loss acceptance`);
+          console.log(`[ProcessManager] Retrying with --accept-data-loss flag...`);
+
+          // Re-run with --accept-data-loss flag
+          const forceProc = Bun.spawn(
+            [
+              'npx',
+              'prisma',
+              'db',
+              'push',
+              '--schema',
+              './prisma/postgresql-schema.prisma',
+              '--skip-generate',
+              '--accept-data-loss',
+            ],
+            {
+              cwd: evolutionDir,
+              env: { ...process.env, ...subprocessEnv },
+              stdout: 'pipe',
+              stderr: 'pipe',
+            },
+          );
+
+          const forceStderrPromise = new Response(forceProc.stderr).text();
+          const forceExit = await forceProc.exited;
+          const forceStderr = await forceStderrPromise;
+
+          if (forceExit === 0) {
+            console.log(`[ProcessManager] Prisma migrations applied with --accept-data-loss`);
+            migrateSuccess = true;
+          } else {
+            throw new Error(`Prisma db push failed even with --accept-data-loss: ${forceStderr}`);
+          }
           break;
+        } else if (
+          stderr.includes('already exists') ||
+          stderr.includes('nothing to change') ||
+          stderr.includes('Your database is now in sync')
+        ) {
+          // Schema is up-to-date - this is OK
+          console.log(`[ProcessManager] Prisma schema already up-to-date`);
+          migrateSuccess = true;
+          break;
+        } else {
+          // Unknown error - fail hard to prevent silent failures
+          console.error(`[ProcessManager] Prisma db push failed with unexpected error: ${stderr}`);
+          throw new Error(`Prisma db push failed with unexpected error: ${stderr}`);
         }
       } catch (err) {
         console.error(`[ProcessManager] Migration attempt ${attempt} failed:`, err);
