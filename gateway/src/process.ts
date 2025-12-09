@@ -3,7 +3,7 @@
  * Spawns and manages Python API, Evolution API, and Vite dev server as subprocesses
  */
 
-import { existsSync, readdirSync, createWriteStream, mkdirSync, appendFileSync } from 'node:fs';
+import { existsSync, readdirSync, createWriteStream, mkdirSync, appendFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -13,6 +13,38 @@ import { PgserveManager, type PgserveHealth } from './pgserve.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
+
+// Path to pgserve config file (written by Python setup wizard)
+const PGSERVE_CONFIG_PATH = join(ROOT_DIR, 'data', 'pgserve-config.json');
+
+/**
+ * Read pgserve config from file (written by setup wizard).
+ * Returns defaults if file doesn't exist (first run / bootstrap mode).
+ */
+function readPgserveConfig(): { memoryMode: boolean; dataDir: string | undefined; replicationUrl: string | undefined } {
+  try {
+    if (existsSync(PGSERVE_CONFIG_PATH)) {
+      const content = readFileSync(PGSERVE_CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(content);
+      console.log(`[ProcessManager] Read pgserve config: memory_mode=${config.memory_mode}, data_dir=${config.data_dir}`);
+      return {
+        memoryMode: config.memory_mode === true,
+        dataDir: config.data_dir || undefined,
+        replicationUrl: config.replication_url || undefined,
+      };
+    }
+  } catch (error) {
+    console.warn(`[ProcessManager] Failed to read pgserve config: ${error}`);
+  }
+
+  // Default: persistent mode (first run / bootstrap)
+  console.log('[ProcessManager] No pgserve config found, using defaults (persistent mode)');
+  return {
+    memoryMode: false,
+    dataDir: undefined,
+    replicationUrl: undefined,
+  };
+}
 
 /**
  * Detect Python runtime paths (development vs bundled)
@@ -52,6 +84,39 @@ export interface ManagedProcess {
   process: Bun.Subprocess | null;
   port: number;
   healthy: boolean;
+}
+
+type SubprocessConfig = {
+  database_connection_uri: string | null;
+  database_provider: 'postgresql';
+  authentication_api_key: string | null;
+};
+
+function parseSubprocessConfig(payload: unknown): SubprocessConfig {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid subprocess config payload (not an object)');
+  }
+
+  const record = payload as Record<string, unknown>;
+  const database_connection_uri =
+    record.database_connection_uri === null || typeof record.database_connection_uri === 'string'
+      ? record.database_connection_uri
+      : null;
+  const database_provider = record.database_provider === 'postgresql' ? 'postgresql' : null;
+  const authentication_api_key =
+    record.authentication_api_key === null || typeof record.authentication_api_key === 'string'
+      ? record.authentication_api_key
+      : null;
+
+  if (database_provider !== 'postgresql') {
+    throw new Error(`Unsupported database provider: ${String(record.database_provider)}`);
+  }
+
+  return {
+    database_connection_uri,
+    database_provider,
+    authentication_api_key,
+  };
 }
 
 export class ProcessManager {
@@ -101,7 +166,7 @@ export class ProcessManager {
       // Stream stdout using Bun's ReadableStream
       if (proc.stdout) {
         (async () => {
-          const reader = proc.stdout!.getReader();
+          const reader = (proc.stdout as ReadableStream).getReader();
           const decoder = new TextDecoder();
           while (true) {
             const { done, value } = await reader.read();
@@ -118,7 +183,7 @@ export class ProcessManager {
       // Stream stderr using Bun's ReadableStream
       if (proc.stderr) {
         (async () => {
-          const reader = proc.stderr!.getReader();
+          const reader = (proc.stderr as ReadableStream).getReader();
           const decoder = new TextDecoder();
           while (true) {
             const { done, value } = await reader.read();
@@ -236,14 +301,26 @@ export class ProcessManager {
     const allocation = await this.portRegistry.allocate('postgres');
     const pgPort = allocation.port;
 
+    // Read config from file (written by setup wizard) or use defaults
+    // Environment variables take precedence over file config
+    const fileConfig = readPgserveConfig();
+
+    const memoryMode = process.env.PGSERVE_MEMORY_MODE
+      ? process.env.PGSERVE_MEMORY_MODE === 'true'
+      : fileConfig.memoryMode;
+
+    const dataDir = process.env.PGSERVE_DATA_DIR || fileConfig.dataDir || undefined;
+    const replicationUrl = process.env.PGSERVE_REPLICATION_URL || fileConfig.replicationUrl;
+
+    console.log(`[ProcessManager] pgserve config: memoryMode=${memoryMode}, dataDir=${dataDir || '(default)'}`);
+
     // Create the pgserve manager with allocated port
     this.pgserveManager = new PgserveManager({
-      // Use default data directory (./data/postgres) unless env overrides
-      dataDir: process.env.PGSERVE_DATA_DIR || undefined,
+      dataDir,
       port: pgPort,
-      memoryMode: process.env.PGSERVE_MEMORY_MODE === 'true',
+      memoryMode,
       logLevel: this.config.devMode ? 'debug' : 'info',
-      replicationUrl: process.env.PGSERVE_REPLICATION_URL,
+      replicationUrl,
       replicationDatabases: process.env.PGSERVE_REPLICATION_DATABASES,
     });
 
@@ -253,7 +330,7 @@ export class ProcessManager {
       // Wait for PostgreSQL to be fully ready
       await this.waitForPgserveHealth();
 
-      console.log(`[ProcessManager] PostgreSQL ready at postgresql://127.0.0.1:${this.pgserveManager.getPort()}/omni`);
+      console.log(`[ProcessManager] PostgreSQL ready at postgresql://127.0.0.1:${this.pgserveManager.getPort()}/automagik_omni`);
     } catch (error) {
       console.error('[ProcessManager] Failed to start embedded PostgreSQL:', error);
       throw error;
@@ -300,7 +377,7 @@ export class ProcessManager {
   /**
    * Get PostgreSQL connection URL
    */
-  getPgserveConnectionUrl(database: string = 'omni'): string | null {
+  getPgserveConnectionUrl(database: string = 'automagik_omni'): string | null {
     if (!this.pgserveManager) {
       return null;
     }
@@ -350,7 +427,7 @@ export class ProcessManager {
         PYTHONPATH: runtime.backend,
         // Pass pgserve's database URL with dynamic port (8432+) to Python
         // This overrides the hardcoded 5432 default in src/config.py
-        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('omni') || '',
+        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || '',
       },
       stdin: 'ignore',
       stdout: 'pipe',
@@ -526,6 +603,8 @@ export class ProcessManager {
       throw new Error('Python API not running. Cannot start Evolution without database config.');
     }
 
+    let pgserveUrl: string | null = null;
+
     try {
       const configUrl = `http://127.0.0.1:${pythonPort}/api/v1/_internal/subprocess-config`;
       const response = await fetch(configUrl, { signal: AbortSignal.timeout(10000) }); // 10s timeout
@@ -534,23 +613,26 @@ export class ProcessManager {
         throw new Error(`Failed to fetch subprocess config: HTTP ${response.status}`);
       }
 
-      const config = await response.json();
+      const config = parseSubprocessConfig(await response.json());
       console.log('[ProcessManager] Loaded subprocess config from Python API');
 
-      // Validate required fields - Evolution CANNOT work without database config
-      if (!config.database_connection_uri) {
+      // Use live pgserve port directly (bypasses potential stale port in Python's env var)
+      // This fixes port mismatch when Gateway restarts but Python doesn't
+      const runtimePgUrl = this.getPgserveConnectionUrl('automagik_omni');
+      pgserveUrl = runtimePgUrl || config.database_connection_uri;
+      if (!pgserveUrl || config.database_provider !== 'postgresql') {
         throw new Error(
-          'Database not configured. Please complete the setup wizard first. ' +
-          'Evolution requires a PostgreSQL database to store WhatsApp sessions.'
+          'pgserve not running or missing database URI - cannot start Evolution without database. ' +
+          'Please ensure PostgreSQL is started before enabling WhatsApp.'
         );
       }
 
-      subprocessEnv.DATABASE_CONNECTION_URI = config.database_connection_uri;
-      subprocessEnv.DATABASE_PROVIDER = config.database_provider || 'postgresql';
+      subprocessEnv.DATABASE_CONNECTION_URI = pgserveUrl;
+      subprocessEnv.DATABASE_PROVIDER = config.database_provider;
       subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true';  // Enable Prisma auth state storage
-      console.log(`[ProcessManager] Evolution will use ${config.database_provider} database`);
+      console.log(`[ProcessManager] Evolution will use PostgreSQL at: ${pgserveUrl}`);
 
-      if (config.authentication_api_key) {
+      if (config.authentication_api_key && config.authentication_api_key.trim().length > 0) {
         subprocessEnv.AUTHENTICATION_API_KEY = config.authentication_api_key;
       }
     } catch (err) {
@@ -582,10 +664,15 @@ export class ProcessManager {
     }
 
     // Auto-generate Prisma client if missing
+    // CRITICAL: Must use postgresql-schema.prisma which has @@map("evo_*") directives
+    // Without this, client expects "Instance" but DB has "evo_Instance" → table not found
     const prismaClientPath = join(nodeModulesPath, '.prisma', 'client');
     if (!existsSync(prismaClientPath)) {
-      console.log(`[ProcessManager] Generating Prisma client...`);
-      const prismaProc = Bun.spawnSync(['npx', 'prisma', 'generate'], {
+      console.log(`[ProcessManager] Generating Prisma client with PostgreSQL schema...`);
+      const prismaProc = Bun.spawnSync([
+        'npx', 'prisma', 'generate',
+        '--schema', './prisma/postgresql-schema.prisma'
+      ], {
         cwd: evolutionDir,
         stdout: 'pipe',
         stderr: 'pipe',
@@ -597,24 +684,117 @@ export class ProcessManager {
       console.log(`[ProcessManager] Prisma client generated successfully`);
     }
 
-    // Auto-run Prisma migrations to create database schema
-    // This creates the Evolution tables (Instance, Message, etc.) in PostgreSQL
+    // Wait for pgserve to be accepting connections before running migrations
+    // This prevents P1001 errors when pgserve is still initializing
+    console.log(`[ProcessManager] Waiting for PostgreSQL to be ready...`);
+    const pgservePort = this.pgserveManager?.getPort();
+    if (!pgservePort) {
+      throw new Error('pgserve port not available - cannot run migrations');
+    }
+
+    let pgReady = false;
+    for (let waitAttempt = 1; waitAttempt <= 10; waitAttempt++) {
+      try {
+        // Try to connect to pgserve proxy port
+        const testConn = await fetch(`http://127.0.0.1:${pgservePort}/health`, {
+          signal: AbortSignal.timeout(2000),
+        }).catch(() => null);
+
+        // pgserve doesn't have /health, so just check if port is open via TCP
+        // Use a simple PostgreSQL protocol check instead
+        const socket = await Bun.connect({
+          hostname: '127.0.0.1',
+          port: pgservePort,
+          socket: {
+            data() {},
+            open() {},
+            close() {},
+            error() {},
+          },
+        });
+        socket.end();
+        pgReady = true;
+        console.log(`[ProcessManager] PostgreSQL is ready on port ${pgservePort}`);
+        break;
+      } catch {
+        if (waitAttempt < 10) {
+          console.log(`[ProcessManager] PostgreSQL not ready, waiting... (${waitAttempt}/10)`);
+          await Bun.sleep(1000);
+        }
+      }
+    }
+
+    if (!pgReady) {
+      throw new Error(
+        `PostgreSQL not reachable on port ${pgservePort} after 10 attempts. ` +
+        'Please check pgserve logs for errors.'
+      );
+    }
+
+    // Auto-run Prisma migrations to create database schema with retry
+    // This creates the Evolution tables (evo_Instance, evo_Message, etc.) in PostgreSQL
     console.log(`[ProcessManager] Running Prisma migrations for Evolution...`);
-    const migrateProc = Bun.spawnSync(['npx', 'prisma', 'db', 'push', '--skip-generate'], {
-      cwd: evolutionDir,
-      env: {
-        ...process.env,
-        ...subprocessEnv,
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    if (migrateProc.exitCode !== 0) {
-      const stderr = migrateProc.stderr.toString();
-      // Don't fail on migration errors - tables might already exist
-      console.warn(`[ProcessManager] Prisma db push warning: ${stderr}`);
-    } else {
-      console.log(`[ProcessManager] Prisma migrations applied successfully`);
+    let migrateSuccess = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        // Use Bun.spawn (async) instead of spawnSync to avoid blocking the event loop
+        // This is critical because pgserve runs in the same process and needs the loop to handle DB connections
+        const migrateProc = Bun.spawn([
+          'npx', 'prisma', 'db', 'push',
+          '--schema', './prisma/postgresql-schema.prisma',
+          '--skip-generate'
+        ], {
+          cwd: evolutionDir,
+          env: {
+            ...process.env,
+            ...subprocessEnv,
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+
+        // Read streams asynchronously
+        const stderrPromise = new Response(migrateProc.stderr).text();
+        const stdoutPromise = new Response(migrateProc.stdout).text();
+        
+        const exitCode = await migrateProc.exited;
+        const stderr = await stderrPromise;
+        await stdoutPromise; // Consume stdout to prevent buffering issues
+
+        if (exitCode === 0) {
+          console.log(`[ProcessManager] Prisma migrations applied successfully`);
+          migrateSuccess = true;
+          break;
+        }
+
+        if (stderr.includes('P1001')) {
+          // P1001 = Can't reach database server - retry after delay
+          if (attempt < 3) {
+            console.log(`[ProcessManager] Database not ready, retrying in 3s (attempt ${attempt}/3)...`);
+            await Bun.sleep(3000);  // Increased from 2s to 3s
+          } else {
+            // All retries exhausted - FAIL, don't start Evolution without database
+            throw new Error(
+              'Cannot start Evolution: PostgreSQL database unreachable after 3 attempts. ' +
+              `Please ensure pgserve is running and healthy. URL: ${pgserveUrl}`
+            );
+          }
+        } else {
+          // Other errors (e.g., tables already exist) - warn but continue
+          console.warn(`[ProcessManager] Prisma db push warning: ${stderr}`);
+          migrateSuccess = true;  // Non-P1001 errors are OK (schema might be up-to-date)
+          break;
+        }
+      } catch (err) {
+        console.error(`[ProcessManager] Migration attempt ${attempt} failed:`, err);
+        if (attempt >= 3) throw err;
+        await Bun.sleep(3000);
+      }
+    }
+
+    if (!migrateSuccess) {
+      // This shouldn't happen (covered by throw above), but safety check
+      throw new Error('Prisma migrations failed - cannot start Evolution without database schema');
     }
 
     const proc = Bun.spawn([packageManager, 'run', 'start'], {
@@ -1101,7 +1281,7 @@ export class ProcessManager {
         resolve();
       }, 5000);
 
-      managed.process?.on('exit', () => {
+      managed.process?.exited.then(() => {
         clearTimeout(timeout);
         resolve();
       });
@@ -1159,7 +1339,7 @@ export class ProcessManager {
             resolve();
           }, 5000);
 
-          managed.process?.on('exit', () => {
+          managed.process?.exited.then(() => {
             clearTimeout(timeout);
             resolve();
           });

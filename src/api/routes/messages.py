@@ -77,16 +77,13 @@ class SendMediaRequest(BaseModel):
     filename: Optional[str] = Field(None, description="File name for documents")
 
 
-class SendAudioRequest(BaseModel):
+class SendAudioRequest(BaseModel, populate_by_name=True):
     """Schema for sending WhatsApp audio messages."""
 
     user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
     phone: Optional[str] = Field(None, description="Phone number with country code or Discord channel ID", alias="phone_number")
     audio_url: Optional[str] = Field(None, description="URL to audio file")
     audio_base64: Optional[str] = Field(None, description="Base64 encoded audio data")
-
-    class Config:
-        populate_by_name = True  # Accept both phone and phone_number
 
 
 class SendStickerRequest(BaseModel):

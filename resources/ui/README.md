@@ -6,14 +6,14 @@ Web dashboard for managing Automagik Omni instances across multiple messaging ch
 
 ### Prerequisites
 
-- Node.js 20+ (npm or pnpm)
+- Bun 1.1+ (uses Node.js 20+ runtime)
 - Automagik Omni API running on http://localhost:8882
 
 ### Installation
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Copy environment file
 cp .env.example .env
@@ -27,17 +27,17 @@ cp .env.example .env
 
 ```bash
 # Start dev server (runs on http://localhost:9882)
-npm run dev
+bun run dev
 ```
 
 ### Build for Production
 
 ```bash
 # Build static files
-npm run build
+bun run build
 
 # Preview production build
-npm run preview
+bun run preview
 ```
 
 ## Features

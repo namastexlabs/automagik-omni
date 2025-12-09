@@ -303,7 +303,7 @@ export interface SettingCreateRequest {
   is_secret?: boolean;
   is_required?: boolean;
   default_value?: string;
-  validation_rules?: Record<string, any>;
+  validation_rules?: Record<string, unknown>;
 }
 
 export interface SettingUpdateRequest {
@@ -320,4 +320,106 @@ export interface SettingChangeHistory {
   changed_by?: string;
   changed_at: string;
   change_reason?: string;
+}
+
+export interface SettingEntry {
+  key: string;
+  value: string | number | boolean | null;
+  value_type?: SettingValueType;
+  category?: string;
+  description?: string;
+  is_secret?: boolean;
+  is_required?: boolean;
+  default_value?: string | null;
+  validation_rules?: Record<string, unknown> | string | null;
+  updated_at?: string;
+}
+
+export type ActionResponse = {
+  success?: boolean;
+  message?: string;
+  status?: string;
+};
+
+export interface InstanceStatusResponse {
+  status: 'connected' | 'disconnected' | 'pending' | 'unknown' | string;
+  message?: string;
+  evolution_status?: InstanceConfig['evolution_status'];
+}
+
+export interface GatewayProcessInfo {
+  port: number;
+  healthy: boolean;
+  pid?: number;
+}
+
+export interface GatewayStatus {
+  gateway: {
+    port: number;
+    mode: string;
+    proxyOnly: boolean;
+    lazyChannels: boolean;
+    uptime: number;
+  };
+  ports: Record<string, number>;
+  processes: Record<string, GatewayProcessInfo>;
+}
+
+export interface EvolutionGroup {
+  id: string;
+  subject?: string;
+  pictureUrl?: string;
+}
+
+export interface EvolutionMessage {
+  key?: {
+    id?: string;
+    remoteJid?: string;
+    fromMe?: boolean;
+  };
+  message?: {
+    conversation?: string;
+    extendedTextMessage?: { text?: string };
+    imageMessage?: { caption?: string; jpegThumbnail?: string };
+    videoMessage?: { caption?: string; jpegThumbnail?: string };
+    audioMessage?: { ptt?: boolean };
+    documentMessage?: { fileName?: string };
+    stickerMessage?: unknown;
+    contactMessage?: { displayName?: string };
+    locationMessage?: unknown;
+    reactionMessage?: { text?: string };
+  };
+  messageTimestamp?: number | string;
+}
+
+export interface EvolutionChat {
+  id?: string;
+  remoteJid: string;
+  name?: string;
+  pushName?: string;
+  isGroup?: boolean;
+  unreadCount?: number;
+  lastMessage?: EvolutionMessage;
+  lastMessageTimestamp?: number | string;
+  updatedAt?: number | string;
+  profilePicUrl?: string;
+  profilePictureUrl?: string;
+  pictureUrl?: string;
+}
+
+export interface EvolutionContact {
+  id?: string;
+  remoteJid?: string;
+  name?: string;
+  pushName?: string;
+  profilePicUrl?: string;
+  profilePictureUrl?: string;
+}
+
+export interface SettingHistoryEntry {
+  id?: number;
+  value: string | number | boolean | null;
+  updated_at?: string;
+  updated_by?: string;
+  change_reason?: string | null;
 }

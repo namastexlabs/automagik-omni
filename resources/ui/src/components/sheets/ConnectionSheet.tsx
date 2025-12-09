@@ -282,7 +282,7 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
                         <div>
                           <p className="text-xs text-muted-foreground mb-2">Connected Servers</p>
                           <div className="space-y-1">
-                            {discordData.guilds.slice(0, 5).map((guild: any) => (
+                            {discordData.guilds.slice(0, 5).map((guild) => (
                               <div key={guild.id} className="flex items-center gap-2 text-sm">
                                 <Server className="h-3 w-3 text-muted-foreground" />
                                 <span className="truncate">{guild.name}</span>

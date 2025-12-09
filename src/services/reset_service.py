@@ -11,16 +11,14 @@ PostgreSQL only - SQLite is NOT supported.
 
 import logging
 import shutil
-import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, TypedDict
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from src.db.database import get_db
-from src.db.models import InstanceConfig, User, AccessRule, GlobalSetting, SettingChangeHistory
+from src.db.models import InstanceConfig, User, AccessRule, GlobalSetting
 from src.config import config
 
 logger = logging.getLogger(__name__)
@@ -40,6 +38,14 @@ class ResetPreview:
     postgres_tables: List[str]
 
 
+class FactoryResetResult(TypedDict):
+    """Structured result of a factory reset."""
+
+    evolution_instances: Dict[str, str]
+    postgres_tables: List[str]
+    logs_deleted: int
+
+
 class ResetService:
     """Service for factory reset operations.
 
@@ -53,7 +59,7 @@ class ResetService:
         """Get a preview of what would be reset."""
         # Get counts
         instances = db.query(InstanceConfig).all()
-        instance_names = [i.name for i in instances]
+        instance_names = [i.name for i in instances if i.name]
 
         # Import trace models only if needed
         try:
@@ -89,7 +95,7 @@ class ResetService:
 
     async def delete_evolution_instances(self, db: Session) -> Dict[str, str]:
         """Delete all Evolution API instances."""
-        results = {}
+        results: Dict[str, str] = {}
         instances = db.query(InstanceConfig).filter(
             InstanceConfig.channel_type == "whatsapp"
         ).all()
@@ -101,6 +107,8 @@ class ResetService:
             from src.channels.whatsapp.evolution_client import EvolutionClient
 
             for instance in instances:
+                if not instance.name:
+                    continue
                 try:
                     client = EvolutionClient(
                         base_url=instance.evolution_url or config.get_env("EVOLUTION_URL", "http://localhost:18082"),
@@ -186,7 +194,7 @@ class ResetService:
         db: Session,
         keep_instances: bool = False,
         clear_postgres: bool = True,
-    ) -> Dict[str, any]:
+    ) -> FactoryResetResult:
         """
         Perform factory reset.
 
@@ -200,7 +208,7 @@ class ResetService:
 
         PostgreSQL only - SQLite is NOT supported.
         """
-        results = {
+        results: FactoryResetResult = {
             "evolution_instances": {},
             "postgres_tables": [],
             "logs_deleted": 0,

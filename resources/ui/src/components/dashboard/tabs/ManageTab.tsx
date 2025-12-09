@@ -278,15 +278,15 @@ function InstanceManageCard({
           <div className="flex items-center gap-2">
             <code className="flex-1 px-2 py-1 text-xs bg-muted rounded font-mono">
               {showApiKey
-                ? (instance as any).evolution_key || '••••••••••••••••••••••••••••••••'
+                ? instance.evolution_key || '••••••••••••••••••••••••••••••••'
                 : '••••••••••••••••••••••••••••••••'}
             </code>
-            {showApiKey && (instance as any).evolution_key && (
+            {showApiKey && instance.evolution_key && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  navigator.clipboard.writeText((instance as any).evolution_key);
+                  navigator.clipboard.writeText(instance.evolution_key);
                   toast.success('API key copied to clipboard');
                 }}
                 className="h-6 px-2"
@@ -458,8 +458,8 @@ export function ManageTab() {
   // Populate per-instance authentication keys when instances are loaded
   useEffect(() => {
     instances.forEach(instance => {
-      if (instance.name && (instance as any).evolution_key) {
-        setInstanceKey(instance.name, (instance as any).evolution_key);
+      if (instance.name && instance.evolution_key) {
+        setInstanceKey(instance.name, instance.evolution_key);
       }
     });
   }, [instances]);

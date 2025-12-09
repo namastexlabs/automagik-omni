@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn, api } from '@/lib';
+import type { EvolutionMessage } from '@/lib';
 
 interface MessageBubbleProps {
-  message: any;
+  message: EvolutionMessage;
   instanceName: string;
   showAvatar?: boolean;
 }
@@ -144,7 +145,7 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
 }
 
 // Image Message Component
-function ImageMessage({ message, instanceName, caption }: { message: any; instanceName: string; caption?: string }) {
+function ImageMessage({ message, instanceName, caption }: { message: EvolutionMessage; instanceName: string; caption?: string }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -199,7 +200,7 @@ function ImageMessage({ message, instanceName, caption }: { message: any; instan
 }
 
 // Video Message Component
-function VideoMessage({ message, instanceName, caption }: { message: any; instanceName: string; caption?: string }) {
+function VideoMessage({ message, instanceName, caption }: { message: EvolutionMessage; instanceName: string; caption?: string }) {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const thumbnail = message.message?.videoMessage?.jpegThumbnail;
@@ -254,7 +255,7 @@ function VideoMessage({ message, instanceName, caption }: { message: any; instan
 }
 
 // Audio Message Component (WhatsApp style waveform player)
-function AudioMessage({ message, instanceName, isPtt }: { message: any; instanceName: string; isPtt: boolean }) {
+function AudioMessage({ message, instanceName, isPtt }: { message: EvolutionMessage; instanceName: string; isPtt: boolean }) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -388,7 +389,7 @@ function AudioMessage({ message, instanceName, isPtt }: { message: any; instance
 }
 
 // Document Message Component
-function DocumentMessage({ message, instanceName, filename }: { message: any; instanceName: string; filename?: string }) {
+function DocumentMessage({ message, instanceName, filename }: { message: EvolutionMessage; instanceName: string; filename?: string }) {
   const [loading, setLoading] = useState(false);
 
   const handleDownload = async () => {
@@ -439,7 +440,7 @@ function DocumentMessage({ message, instanceName, filename }: { message: any; in
 }
 
 // Sticker Message Component
-function StickerMessage({ message, instanceName }: { message: any; instanceName: string }) {
+function StickerMessage({ message, instanceName }: { message: EvolutionMessage; instanceName: string }) {
   const [stickerSrc, setStickerSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -491,7 +492,7 @@ interface MessageContent {
   filename?: string;
 }
 
-function getMessageContent(message: any): MessageContent {
+function getMessageContent(message: EvolutionMessage): MessageContent {
   const msg = message.message || {};
   const messageType = message.messageType;
 

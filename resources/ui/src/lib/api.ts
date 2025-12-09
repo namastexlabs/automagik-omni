@@ -1,3 +1,28 @@
+import type {
+  ActionResponse,
+  EvolutionChat,
+  EvolutionConnectionState,
+  EvolutionContact,
+  EvolutionGroup,
+  EvolutionMessage,
+  EvolutionRabbitMQConfig,
+  EvolutionSettings,
+  EvolutionWebhookConfig,
+  EvolutionWebSocketConfig,
+  GatewayStatus,
+  HealthResponse,
+  InstanceConfig,
+  InstanceCreateRequest,
+  InstanceStatusResponse,
+  InstanceUpdateRequest,
+  OmniChat,
+  OmniContact,
+  PaginatedResponse,
+  SettingChangeHistory,
+  SettingHistoryEntry,
+  SettingEntry,
+} from './types';
+
 const API_KEY_STORAGE_KEY = 'omni_api_key';
 const API_BASE_URL = '/api/v1';
 
@@ -375,7 +400,7 @@ export const api = {
 
   // Instances API
   instances: {
-    async list(params?: { limit?: number; include_status?: boolean; include_live_status?: boolean }): Promise<any[]> {
+    async list(params?: { limit?: number; include_status?: boolean; include_live_status?: boolean }): Promise<InstanceConfig[]> {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.append('limit', params.limit.toString());
       if (params?.include_status) queryParams.append('include_status', params.include_status.toString());
@@ -385,18 +410,18 @@ export const api = {
       return apiRequest(`/instances${query ? `?${query}` : ''}`);
     },
 
-    async get(name: string): Promise<any> {
+    async get(name: string): Promise<InstanceConfig> {
       return apiRequest(`/instances/${name}`);
     },
 
-    async create(data: any): Promise<any> {
+    async create(data: InstanceCreateRequest): Promise<InstanceConfig> {
       return apiRequest('/instances', {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async update(name: string, data: any): Promise<any> {
+    async update(name: string, data: InstanceUpdateRequest): Promise<InstanceConfig> {
       return apiRequest(`/instances/${name}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -417,17 +442,17 @@ export const api = {
       return apiRequest(`/instances/${name}/qr`);
     },
 
-    async restart(name: string): Promise<any> {
+    async restart(name: string): Promise<ActionResponse> {
       return apiRequest(`/instances/${name}/restart`, {
         method: 'POST',
       });
     },
 
-    async getStatus(name: string): Promise<any> {
+    async getStatus(name: string): Promise<InstanceStatusResponse> {
       return apiRequest(`/instances/${name}/status`);
     },
 
-    async logout(name: string): Promise<any> {
+    async logout(name: string): Promise<ActionResponse> {
       return apiRequest(`/instances/${name}/logout`, {
         method: 'POST',
       });
@@ -455,7 +480,7 @@ export const api = {
       page_size?: number;
       search_query?: string;
       status_filter?: string;
-    }): Promise<any> {
+    }): Promise<PaginatedResponse<OmniContact>> {
       const queryParams = new URLSearchParams();
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
@@ -475,7 +500,7 @@ export const api = {
       search_query?: string;
       chat_type?: string;
       include_archived?: boolean;
-    }): Promise<any> {
+    }): Promise<PaginatedResponse<OmniChat>> {
       const queryParams = new URLSearchParams();
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
@@ -491,22 +516,22 @@ export const api = {
   },
 
   // Legacy flat methods for backward compatibility
-  async getInstances(): Promise<any[]> {
+  async getInstances(): Promise<InstanceConfig[]> {
     return apiRequest('/instances');
   },
 
-  async getInstance(instanceId: string): Promise<any> {
+  async getInstance(instanceId: string): Promise<InstanceConfig> {
     return apiRequest(`/instances/${instanceId}`);
   },
 
-  async createInstance(data: any): Promise<any> {
+  async createInstance(data: InstanceCreateRequest): Promise<InstanceConfig> {
     return apiRequest('/instances', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateInstance(instanceId: string, data: any): Promise<any> {
+  async updateInstance(instanceId: string, data: InstanceUpdateRequest): Promise<InstanceConfig> {
     return apiRequest(`/instances/${instanceId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -523,13 +548,13 @@ export const api = {
     return apiRequest(`/instances/${instanceId}/qr`);
   },
 
-  async restartInstance(instanceId: string): Promise<any> {
+  async restartInstance(instanceId: string): Promise<ActionResponse> {
     return apiRequest(`/instances/${instanceId}/restart`, {
       method: 'POST',
     });
   },
 
-  async getInstanceStatus(instanceId: string): Promise<any> {
+  async getInstanceStatus(instanceId: string): Promise<InstanceStatusResponse> {
     return apiRequest(`/instances/${instanceId}/status`);
   },
 
@@ -537,7 +562,7 @@ export const api = {
     page?: number;
     limit?: number;
     search?: string;
-  }): Promise<any> {
+  }): Promise<PaginatedResponse<OmniContact>> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
@@ -551,7 +576,7 @@ export const api = {
     page?: number;
     limit?: number;
     search?: string;
-  }): Promise<any> {
+  }): Promise<PaginatedResponse<OmniChat>> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
@@ -562,16 +587,32 @@ export const api = {
   },
 
   // Health check
-  async health(): Promise<any> {
+  async health(): Promise<HealthResponse> {
     try {
       const response = await fetch('/health');
       if (!response.ok) {
-        return { status: 'down' };
+        return {
+          status: 'down',
+          timestamp: new Date().toISOString(),
+          services: {
+            gateway: { status: 'down' },
+            python: { status: 'down' },
+            evolution: { status: 'down' },
+          },
+        };
       }
       return response.json();
     } catch (error) {
       console.error('[API] Health check failed:', error);
-      return { status: 'down' };
+      return {
+        status: 'down',
+        timestamp: new Date().toISOString(),
+        services: {
+          gateway: { status: 'down' },
+          python: { status: 'down' },
+          evolution: { status: 'down' },
+        },
+      };
     }
   },
 
@@ -702,11 +743,11 @@ export const api = {
   // WhatsApp Web API (direct access via gateway, uses Evolution protocol)
   whatsappWeb: {
     // Settings
-    async getSettings(instanceName: string): Promise<any> {
+    async getSettings(instanceName: string): Promise<EvolutionSettings> {
       return evolutionRequest(`/settings/find/${instanceName}`);
     },
 
-    async setSettings(instanceName: string, settings: any): Promise<any> {
+    async setSettings(instanceName: string, settings: EvolutionSettings): Promise<EvolutionSettings> {
       return evolutionRequest(`/settings/set/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(settings),
@@ -714,32 +755,32 @@ export const api = {
     },
 
     // Connection
-    async getConnectionState(instanceName: string): Promise<any> {
+    async getConnectionState(instanceName: string): Promise<EvolutionConnectionState> {
       return evolutionRequest(`/instance/connectionState/${instanceName}`, {}, instanceName);
     },
 
-    async restart(instanceName: string): Promise<any> {
+    async restart(instanceName: string): Promise<ActionResponse> {
       return evolutionRequest(`/instance/restart/${instanceName}`, {
         method: 'POST',
       }, instanceName);
     },
 
-    async logout(instanceName: string): Promise<any> {
+    async logout(instanceName: string): Promise<ActionResponse> {
       return evolutionRequest(`/instance/logout/${instanceName}`, {
         method: 'DELETE',
       }, instanceName);
     },
 
-    async connect(instanceName: string): Promise<any> {
+    async connect(instanceName: string): Promise<ActionResponse> {
       return evolutionRequest(`/instance/connect/${instanceName}`, {}, instanceName);
     },
 
     // Webhook
-    async getWebhook(instanceName: string): Promise<any> {
+    async getWebhook(instanceName: string): Promise<EvolutionWebhookConfig> {
       return evolutionRequest(`/webhook/find/${instanceName}`);
     },
 
-    async setWebhook(instanceName: string, config: any): Promise<any> {
+    async setWebhook(instanceName: string, config: EvolutionWebhookConfig): Promise<EvolutionWebhookConfig> {
       return evolutionRequest(`/webhook/set/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(config),
@@ -747,11 +788,11 @@ export const api = {
     },
 
     // WebSocket
-    async getWebSocket(instanceName: string): Promise<any> {
+    async getWebSocket(instanceName: string): Promise<EvolutionWebSocketConfig> {
       return evolutionRequest(`/websocket/find/${instanceName}`);
     },
 
-    async setWebSocket(instanceName: string, config: any): Promise<any> {
+    async setWebSocket(instanceName: string, config: EvolutionWebSocketConfig): Promise<EvolutionWebSocketConfig> {
       return evolutionRequest(`/websocket/set/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(config),
@@ -759,11 +800,11 @@ export const api = {
     },
 
     // RabbitMQ
-    async getRabbitMQ(instanceName: string): Promise<any> {
+    async getRabbitMQ(instanceName: string): Promise<EvolutionRabbitMQConfig> {
       return evolutionRequest(`/rabbitmq/find/${instanceName}`);
     },
 
-    async setRabbitMQ(instanceName: string, config: any): Promise<any> {
+    async setRabbitMQ(instanceName: string, config: EvolutionRabbitMQConfig): Promise<EvolutionRabbitMQConfig> {
       return evolutionRequest(`/rabbitmq/set/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(config),
@@ -771,55 +812,73 @@ export const api = {
     },
 
     // Chats
-    async findChats(instanceName: string, params?: any): Promise<any> {
-      return evolutionRequest(`/chat/findChats/${instanceName}`, {
+    async findChats(instanceName: string, params?: Record<string, unknown>): Promise<EvolutionChat[]> {
+      const data = await evolutionRequest<unknown>(`/chat/findChats/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(params || {}),
       }, instanceName);
+      if (Array.isArray(data)) {
+        return data as EvolutionChat[];
+      }
+      if (data && typeof data === 'object' && Array.isArray((data as { chats?: unknown }).chats)) {
+        return (data as { chats: EvolutionChat[] }).chats;
+      }
+      return [];
     },
 
-    async findMessages(instanceName: string, params: { where: { key: { remoteJid: string } }; limit?: number }): Promise<any> {
-      return evolutionRequest(`/chat/findMessages/${instanceName}`, {
+    async findMessages(instanceName: string, params: { where: { key: { remoteJid: string } }; limit?: number }): Promise<EvolutionMessage[]> {
+      const data = await evolutionRequest<unknown>(`/chat/findMessages/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(params),
       }, instanceName);
+      if (Array.isArray(data)) return data as EvolutionMessage[];
+      if (data && typeof data === 'object') {
+        const maybeMessages = (data as { messages?: unknown }).messages;
+        if (Array.isArray(maybeMessages)) return maybeMessages as EvolutionMessage[];
+        if (maybeMessages && typeof maybeMessages === 'object' && Array.isArray((maybeMessages as { records?: unknown }).records)) {
+          return (maybeMessages as { records: EvolutionMessage[] }).records;
+        }
+      }
+      return [];
     },
 
-    async findContacts(instanceName: string, params?: any): Promise<any> {
-      return evolutionRequest(`/chat/findContacts/${instanceName}`, {
+    async findContacts(instanceName: string, params?: Record<string, unknown>): Promise<EvolutionContact[]> {
+      const data = await evolutionRequest<unknown>(`/chat/findContacts/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(params || {}),
       }, instanceName);
+      if (Array.isArray(data)) return data as EvolutionContact[];
+      return [];
     },
 
     // Groups
-    async fetchAllGroups(instanceName: string): Promise<any[]> {
+    async fetchAllGroups(instanceName: string): Promise<EvolutionGroup[]> {
       return evolutionRequest(`/group/fetchAllGroups/${instanceName}?getParticipants=false`, {}, instanceName);
     },
 
     // Messages
-    async sendText(instanceName: string, data: { number: string; text: string }): Promise<any> {
+    async sendText(instanceName: string, data: { number: string; text: string }): Promise<ActionResponse> {
       return evolutionRequest(`/message/sendText/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async sendMedia(instanceName: string, data: any): Promise<any> {
+    async sendMedia(instanceName: string, data: Record<string, unknown>): Promise<ActionResponse> {
       return evolutionRequest(`/message/sendMedia/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async sendWhatsAppAudio(instanceName: string, data: { number: string; audio: string; encoding?: boolean }): Promise<any> {
+    async sendWhatsAppAudio(instanceName: string, data: { number: string; audio: string; encoding?: boolean }): Promise<ActionResponse> {
       return evolutionRequest(`/message/sendWhatsAppAudio/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async markAsRead(instanceName: string, data: { readMessages: Array<{ remoteJid: string; id: string }> }): Promise<any> {
+    async markAsRead(instanceName: string, data: { readMessages: Array<{ remoteJid: string; id: string }> }): Promise<ActionResponse> {
       return evolutionRequest(`/chat/markMessageAsRead/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -827,7 +886,7 @@ export const api = {
     },
 
     // Presence
-    async sendPresence(instanceName: string, data: { number: string; presence: string }): Promise<any> {
+    async sendPresence(instanceName: string, data: { number: string; presence: string }): Promise<ActionResponse> {
       return evolutionRequest(`/chat/sendPresence/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -851,23 +910,23 @@ export const api = {
 
   // Global Settings API
   settings: {
-    async list(category?: string): Promise<any[]> {
+    async list(category?: string): Promise<SettingEntry[]> {
       const queryParams = category ? `?category=${encodeURIComponent(category)}` : '';
       return apiRequest(`/settings${queryParams}`);
     },
 
-    async get(key: string): Promise<any> {
+    async get(key: string): Promise<SettingEntry> {
       return apiRequest(`/settings/${encodeURIComponent(key)}`);
     },
 
-    async create(data: any): Promise<any> {
+    async create(data: SettingEntry): Promise<SettingEntry> {
       return apiRequest('/settings', {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async update(key: string, data: any): Promise<any> {
+    async update(key: string, data: Partial<SettingEntry>): Promise<SettingEntry> {
       return apiRequest(`/settings/${encodeURIComponent(key)}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -880,7 +939,7 @@ export const api = {
       });
     },
 
-    async getHistory(key: string, limit: number = 50): Promise<any[]> {
+    async getHistory(key: string, limit: number = 50): Promise<SettingHistoryEntry[]> {
       return apiRequest(`/settings/${encodeURIComponent(key)}/history?limit=${limit}`);
     },
   },
@@ -959,7 +1018,15 @@ export const api = {
         // Handle Pydantic validation errors (detail is array)
         let message = 'Setup initialization failed';
         if (Array.isArray(error.detail)) {
-          message = error.detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
+          message = error.detail
+            .map((e) => {
+              if (e && typeof e === 'object' && 'msg' in e) {
+                const msgVal = (e as { msg?: string }).msg;
+                return msgVal || JSON.stringify(e);
+              }
+              return JSON.stringify(e);
+            })
+            .join(', ');
         } else if (typeof error.detail === 'string') {
           message = error.detail;
         }

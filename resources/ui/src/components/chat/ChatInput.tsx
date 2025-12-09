@@ -140,7 +140,7 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
     textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
   };
 
-  const handleEmojiSelect = (emoji: any) => {
+  const handleEmojiSelect = (emoji: { native: string }) => {
     setMessage(prev => prev + emoji.native);
     textareaRef.current?.focus();
   };

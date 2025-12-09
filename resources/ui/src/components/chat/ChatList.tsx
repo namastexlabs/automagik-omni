@@ -3,10 +3,11 @@ import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatListItem } from './ChatListItem';
+import type { EvolutionChat } from '@/lib';
 
 interface ChatListProps {
   instanceName: string;
-  chats: any[];
+  chats: EvolutionChat[];
   selectedChatId: string | null;
   onSelectChat: (chatId: string) => void;
 }
@@ -14,13 +15,13 @@ interface ChatListProps {
 export function ChatList({ chats, selectedChatId, onSelectChat }: ChatListProps) {
   const [search, setSearch] = useState('');
 
-  const filteredChats = chats.filter((chat: any) => {
+  const filteredChats = chats.filter((chat) => {
     const name = chat.name || chat.pushName || chat.remoteJid || '';
     return name.toLowerCase().includes(search.toLowerCase());
   });
 
   // Sort by last message timestamp (most recent first)
-  const sortedChats = [...filteredChats].sort((a: any, b: any) => {
+  const sortedChats = [...filteredChats].sort((a, b) => {
     const aTime = new Date(a.updatedAt || 0).getTime();
     const bTime = new Date(b.updatedAt || 0).getTime();
     return bTime - aTime;
@@ -53,7 +54,7 @@ export function ChatList({ chats, selectedChatId, onSelectChat }: ChatListProps)
             {search ? 'No chats found' : 'No chats yet'}
           </div>
         ) : (
-          sortedChats.map((chat: any) => (
+          sortedChats.map((chat) => (
             <ChatListItem
               key={chat.id || chat.remoteJid}
               chat={chat}

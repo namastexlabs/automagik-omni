@@ -1,9 +1,10 @@
 import { User, Users } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib';
+import type { EvolutionChat, EvolutionMessage } from '@/lib';
 
 interface ChatListItemProps {
-  chat: any;
+  chat: EvolutionChat;
   isSelected: boolean;
   onClick: () => void;
 }
@@ -80,8 +81,8 @@ function formatJid(jid: string | undefined): string {
   return id;
 }
 
-function getLastMessagePreview(chat: any): string {
-  const msg = chat.lastMessage;
+function getLastMessagePreview(chat: EvolutionChat): string {
+  const msg = chat.lastMessage as EvolutionMessage | undefined;
   if (!msg) return '';
 
   if (msg.message?.conversation) return msg.message.conversation;

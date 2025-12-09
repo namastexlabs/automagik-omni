@@ -384,7 +384,8 @@ def get_evolution_client() -> EvolutionClient:
         from src.services.settings_service import get_evolution_api_key_global
 
         evolution_url = replace_localhost_with_ipv4(config.get_env("EVOLUTION_API_URL", "http://localhost:8080"))
-        evolution_key = get_evolution_api_key_global()
+        # Prefer explicit env key; fallback to DB value to keep headless setups working
+        evolution_key = config.get_env("EVOLUTION_API_KEY", None) or get_evolution_api_key_global()
 
         logger.debug(f"Evolution API configuration - URL: {evolution_url}")
         logger.debug(f"Evolution API configuration - Key: {'*' * len(evolution_key) if evolution_key else 'NOT SET'}")

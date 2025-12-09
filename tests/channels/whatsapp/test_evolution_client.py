@@ -3,6 +3,7 @@ Tests for EvolutionClient - base Evolution API client.
 Tests the core Evolution API client methods introduced for v2.3.5+ compatibility.
 """
 
+import os
 import pytest
 from unittest.mock import AsyncMock, patch
 from src.channels.whatsapp.evolution_client import (
@@ -382,19 +383,21 @@ class TestGetEvolutionClient:
         # Mock at source location - function is imported inside get_evolution_client
         with patch("src.services.settings_service.get_evolution_api_key_global") as mock_get_key:
             mock_get_key.return_value = ""  # Empty key
+            # Ensure env override is cleared for this test
+            with patch.dict(os.environ, {"EVOLUTION_API_KEY": ""}):
 
-            # Reset the global singleton
-            import src.channels.whatsapp.evolution_client as client_module
+                # Reset the global singleton
+                import src.channels.whatsapp.evolution_client as client_module
 
-            client_module.evolution_client = None
+                client_module.evolution_client = None
 
-            with pytest.raises(Exception) as exc_info:
-                get_evolution_client()
+                with pytest.raises(Exception) as exc_info:
+                    get_evolution_client()
 
-            assert "Evolution API key not configured" in str(exc_info.value)
+                assert "Evolution API key not configured" in str(exc_info.value)
 
-            # Clean up
-            client_module.evolution_client = None
+                # Clean up
+                client_module.evolution_client = None
 
     def test_get_evolution_client_configuration(self):
         """Test that client is configured with correct URL and key."""

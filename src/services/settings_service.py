@@ -111,7 +111,7 @@ class SettingsService:
         description: Optional[str] = None,
         is_secret: bool = False,
         is_required: bool = False,
-        default_value: Optional[str] = None,
+        default_value: Any = None,
         validation_rules: Optional[Dict] = None,
         created_by: Optional[str] = None
     ) -> GlobalSetting:
@@ -127,7 +127,7 @@ class SettingsService:
             description: Human-readable description
             is_secret: Whether to mask in UI
             is_required: Whether required for app operation
-            default_value: Default fallback value
+            default_value: Default fallback value (will be converted to string)
             validation_rules: JSON validation rules
             created_by: User/API key identifier
 
@@ -139,6 +139,9 @@ class SettingsService:
         """
         # Convert value to string for storage
         value_str = self._serialize_value(value, value_type)
+
+        # Convert default_value to string if provided
+        default_val_str = self._serialize_value(default_value, value_type) if default_value is not None else None
 
         # Check if setting already exists
         existing = self.get_setting(key, db)
@@ -154,7 +157,7 @@ class SettingsService:
             description=description,
             is_secret=is_secret,
             is_required=is_required,
-            default_value=default_value,
+            default_value=default_val_str,
             validation_rules=json.dumps(validation_rules) if validation_rules else None,
             created_at=datetime_utcnow(),
             updated_at=datetime_utcnow(),
@@ -202,7 +205,8 @@ class SettingsService:
         old_value = setting.value
 
         # Convert new value to string
-        new_value_str = self._serialize_value(value, setting.value_type)
+        value_type = setting.value_type or SettingValueType.STRING
+        new_value_str = self._serialize_value(value, value_type)
 
         # Update setting
         setting.value = new_value_str
@@ -255,27 +259,37 @@ class SettingsService:
 
     # Helper methods
 
-    def _serialize_value(self, value: Any, value_type: str) -> str:
-        """Convert value to string for database storage.
+    def _serialize_value(self, value: Any, value_type: SettingValueType | str) -> str:
+        """Serialize value to string for storage."""
+        try:
+            value_type_enum = value_type if isinstance(value_type, SettingValueType) else SettingValueType(value_type)
+        except Exception:
+            value_type_enum = SettingValueType.STRING
 
-        Args:
-            value: Value to serialize
-            value_type: Target type
-
-        Returns:
-            String representation of value
-        """
         if value is None:
-            return None
+            return ""
 
-        if value_type == SettingValueType.JSON:
-            return json.dumps(value)
-        elif value_type == SettingValueType.BOOLEAN:
-            return str(bool(value)).lower()
-        elif value_type == SettingValueType.INTEGER:
-            return str(int(value))
-        else:  # STRING, SECRET
-            return str(value)
+        if value_type_enum == SettingValueType.BOOLEAN:
+            # Normalize boolean to "true"/"false"
+            if isinstance(value, bool):
+                return "true" if value else "false"
+            if isinstance(value, str):
+                return "true" if value.lower() in ("true", "1", "yes", "on") else "false"
+            return "false"
+
+        if value_type_enum == SettingValueType.INTEGER:
+            try:
+                return str(int(value))
+            except (TypeError, ValueError):
+                return "0"
+
+        if value_type_enum == SettingValueType.JSON:
+            try:
+                return json.dumps(value)
+            except TypeError:
+                return ""
+
+        return str(value)
 
     def validate_setting(self, setting: GlobalSetting, value: Any) -> bool:
         """
@@ -294,12 +308,15 @@ class SettingsService:
         if not setting.validation_rules:
             return True
 
-        rules = json.loads(setting.validation_rules)
+        try:
+            rules = json.loads(str(setting.validation_rules))
+        except Exception:
+            return True # Ignore invalid rules if we can't parse them
 
         # Type validation
         if setting.value_type == SettingValueType.INTEGER:
             if not isinstance(value, int):
-                raise ValueError(f"Value must be an integer")
+                raise ValueError("Value must be an integer")
             if 'min' in rules and value < rules['min']:
                 raise ValueError(f"Value must be >= {rules['min']}")
             if 'max' in rules and value > rules['max']:

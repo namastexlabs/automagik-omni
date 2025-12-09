@@ -28,12 +28,13 @@ export default function Instances() {
 
   const deleteMutation = useMutation({
     mutationFn: (name: string) => api.instances.delete(name),
-    onSuccess: (_, name) => {
+    onSuccess: (_: void, name) => {
       queryClient.invalidateQueries({ queryKey: ['instances'] });
       toast.success(`Instance "${name}" deleted successfully`);
     },
-    onError: (error: any, name) => {
-      toast.error(`Failed to delete instance "${name}": ${error.message || 'Unknown error'}`);
+    onError: (error: unknown, name) => {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to delete instance "${name}": ${message}`);
     },
   });
 

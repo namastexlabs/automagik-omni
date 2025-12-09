@@ -187,6 +187,7 @@ class TestAccessControlService:
         assert service.check_access("+1234567890") is False
 
         # Remove the rule
+        assert rule.id is not None
         removed = service.remove_rule(rule.id, db=test_db)
         assert removed is True
 
@@ -206,11 +207,16 @@ class TestAccessControlAPI:
 
     API_BASE = "http://localhost:28882/api/v1"
     API_HEADERS = {"x-api-key": "namastex888", "Content-Type": "application/json"}
+    API_TIMEOUT = 3
 
     def test_list_access_rules_empty(self):
         """Test listing access rules when none exist."""
         try:
-            response = requests.get(f"{self.API_BASE}/access/rules", headers=self.API_HEADERS)
+            response = requests.get(
+                f"{self.API_BASE}/access/rules",
+                headers=self.API_HEADERS,
+                timeout=self.API_TIMEOUT,
+            )
 
             if response.status_code == 404:
                 pytest.skip("Access API endpoints not available (route not found)")
@@ -229,7 +235,12 @@ class TestAccessControlAPI:
             # Create a rule
             rule_data = {"phone_number": "+1234567890", "rule_type": "block", "instance_name": None}
 
-            response = requests.post(f"{self.API_BASE}/access/rules", headers=self.API_HEADERS, json=rule_data)
+            response = requests.post(
+                f"{self.API_BASE}/access/rules",
+                headers=self.API_HEADERS,
+                json=rule_data,
+                timeout=self.API_TIMEOUT,
+            )
 
             if response.status_code == 404:
                 pytest.skip("Access API endpoints not available")
@@ -240,7 +251,11 @@ class TestAccessControlAPI:
             assert created_rule["rule_type"] == "block"
 
             # List rules to verify it's there
-            response = requests.get(f"{self.API_BASE}/access/rules", headers=self.API_HEADERS)
+            response = requests.get(
+                f"{self.API_BASE}/access/rules",
+                headers=self.API_HEADERS,
+                timeout=self.API_TIMEOUT,
+            )
             assert response.status_code == 200
             rules = response.json()
 
@@ -258,7 +273,12 @@ class TestAccessControlAPI:
             # First create a rule
             rule_data = {"phone_number": "+9999999999", "rule_type": "allow"}
 
-            response = requests.post(f"{self.API_BASE}/access/rules", headers=self.API_HEADERS, json=rule_data)
+            response = requests.post(
+                f"{self.API_BASE}/access/rules",
+                headers=self.API_HEADERS,
+                json=rule_data,
+                timeout=self.API_TIMEOUT,
+            )
 
             if response.status_code == 404:
                 pytest.skip("Access API endpoints not available")
@@ -268,11 +288,19 @@ class TestAccessControlAPI:
             rule_id = created_rule["id"]
 
             # Delete the rule
-            response = requests.delete(f"{self.API_BASE}/access/rules/{rule_id}", headers=self.API_HEADERS)
+            response = requests.delete(
+                f"{self.API_BASE}/access/rules/{rule_id}",
+                headers=self.API_HEADERS,
+                timeout=self.API_TIMEOUT,
+            )
             assert response.status_code == 204
 
             # Verify it's gone by listing rules
-            response = requests.get(f"{self.API_BASE}/access/rules", headers=self.API_HEADERS)
+            response = requests.get(
+                f"{self.API_BASE}/access/rules",
+                headers=self.API_HEADERS,
+                timeout=self.API_TIMEOUT,
+            )
             assert response.status_code == 200
             rules = response.json()
 
@@ -439,6 +467,7 @@ class TestAccessControlEdgeCases:
 
         # Remove first rule
         rules = test_db.query(AccessRule).filter(AccessRule.phone_number == "+1234567890").all()
+        assert rules and rules[0].id is not None
         service.remove_rule(rules[0].id, db=test_db)
 
         assert service.check_access("+1234567890") is True  # Now allowed

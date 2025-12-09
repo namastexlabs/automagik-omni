@@ -12,6 +12,17 @@ interface ProxyOptions {
   websocket?: boolean;
 }
 
+type ProxyBody =
+  | string
+  | ArrayBuffer
+  | Uint8Array
+  | Blob
+  | FormData
+  | URLSearchParams
+  | ReadableStream
+  | null
+  | undefined;
+
 /**
  * Register a proxy route that forwards requests to an upstream server
  * Uses Bun's native fetch() for HTTP proxying
@@ -40,15 +51,29 @@ export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions
         }
       }
 
-      // Build request body - re-serialize if Fastify parsed it to an object
-      let body: BodyInit | undefined;
-      if (!['GET', 'HEAD'].includes(request.method)) {
-        if (request.body !== undefined && request.body !== null) {
-          // Fastify parses JSON bodies to objects - re-serialize for fetch()
-          if (typeof request.body === 'object') {
-            body = JSON.stringify(request.body);
-          } else {
-            body = request.body as BodyInit;
+      // Handle body for non-GET/HEAD requests
+      let body: ProxyBody;
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+        const candidate = request.body as unknown;
+        if (
+          typeof candidate === 'string' ||
+          candidate instanceof ArrayBuffer ||
+          candidate instanceof Uint8Array ||
+          candidate instanceof Blob ||
+          candidate instanceof FormData ||
+          candidate instanceof URLSearchParams ||
+          candidate instanceof ReadableStream ||
+          candidate === null ||
+          candidate === undefined
+        ) {
+          body = candidate;
+        } else {
+          body = JSON.stringify(candidate);
+          const hasContentType = Object.keys(headers).some(
+            (key) => key.toLowerCase() === 'content-type'
+          );
+          if (!hasContentType) {
+            headers['content-type'] = 'application/json';
           }
         }
       }

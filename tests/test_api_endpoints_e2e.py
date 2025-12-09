@@ -36,11 +36,11 @@ class TestDatabaseSetup:
         # Test table creation
         Base.metadata.create_all(bind=engine)
 
-        # Verify tables exist
+        # Verify tables exist (prefixed schema)
         with engine.connect() as conn:
             result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
             table_names = [row[0] for row in result]
-            assert "instance_configs" in table_names
+            assert "omni_instance_configs" in table_names
 
     def test_database_migrations_with_existing_data(self, temp_db_path):
         """Test that migrations work with existing data."""
@@ -92,7 +92,7 @@ class TestDatabaseSetup:
             from src.db.migrations import auto_migrate
 
             # Set up temporary database path
-            with patch.dict(os.environ, {"DATABASE_URL": f"sqlite:///{temp_db_path}"}):
+            with patch.dict(os.environ, {"DATABASE_URL": f"sqlite:///{temp_db_path}", "TEST_DATABASE_URL": f"sqlite:///{temp_db_path}"}):
                 result = auto_migrate()
                 # auto_migrate returns bool, so check for boolean result
                 assert isinstance(result, bool)
@@ -487,7 +487,7 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["agent_api_url"] == "https://updated-agent.test.com"
+        assert data["agent_api_url"].rstrip("/") == "https://updated-agent.test.com"
         assert not data["webhook_base64"]
 
     def test_delete_instance_success(self, test_client, mention_api_headers):

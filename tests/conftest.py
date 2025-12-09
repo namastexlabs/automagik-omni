@@ -9,10 +9,11 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="discord.p
 
 import pytest
 import os
-from typing import Dict, Any, Generator
+from typing import Dict, Any, Generator, Callable, Optional
 from unittest.mock import patch, AsyncMock, Mock
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.engine import Engine
 from fastapi.testclient import TestClient
 
 # Set test environment variables BEFORE any imports
@@ -120,11 +121,12 @@ def test_db() -> Generator[Session, None, None]:
 
     Database selection priority:
     1. TEST_DATABASE_URL environment variable (explicit override)
-    2. PostgreSQL if POSTGRES_HOST is set and psycopg2 is available
-    3. Temporary file-based SQLite (fallback)
+    2. Embedded PostgreSQL (pgserve) if reachable
+    3. PostgreSQL if POSTGRES_HOST is set and psycopg2 is available
+    4. Temporary file-based SQLite (fallback)
     """
-    engine = None
-    cleanup_func = None
+    engine: Optional[Engine] = None
+    cleanup_func: Optional[Callable[[], None]] = None
 
     # Check for explicit test database URL override
     test_db_url = os.environ.get("TEST_DATABASE_URL")
@@ -137,10 +139,30 @@ def test_db() -> Generator[Session, None, None]:
             engine = create_engine(test_db_url)
         print(f"Using explicit test database: {test_db_url}")
 
+    # Try embedded pgserve (in-memory PostgreSQL bundled with gateway)
+    if engine is None:
+        embedded_pg_url = os.environ.get("EMBEDDED_PG_URL", "postgresql://postgres:postgres@127.0.0.1:8432/automagik_omni")
+        try:
+            import psycopg2  # type: ignore[import-untyped]  # noqa: F401
+
+            embedded_engine = create_engine(
+                embedded_pg_url,
+                connect_args={"connect_timeout": 5},
+                pool_pre_ping=True,
+            )
+            with embedded_engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            engine = embedded_engine
+            print(f"Using embedded PostgreSQL (pgserve) for tests: {embedded_pg_url}")
+        except Exception as e:
+            # Not fatal—fall back to next option
+            print(f"Embedded PostgreSQL not available ({e}), falling back...")
+            engine = None
+
     elif os.environ.get("POSTGRES_HOST"):
         # Try to use PostgreSQL if configured
         try:
-            import psycopg2  # noqa: F401 - Check if PostgreSQL driver is available
+            import psycopg2  # type: ignore[import-untyped]  # noqa: F401 - Check if PostgreSQL driver is available
 
             test_db_url, test_db_name, server_engine = _create_postgresql_test_database()
             engine = create_engine(test_db_url)
@@ -165,7 +187,7 @@ def test_db() -> Generator[Session, None, None]:
         temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         temp_db.close()
         engine = create_engine(f"sqlite:///{temp_db.name}", connect_args={"check_same_thread": False})
-        engine._test_temp_file = temp_db.name
+        setattr(engine, "_test_temp_file", temp_db.name)  # type: ignore[attr-defined]
         print(f"Using temporary SQLite database: {temp_db.name}")
 
     # Drop and recreate all tables to ensure fresh schema
@@ -190,7 +212,7 @@ def test_db() -> Generator[Session, None, None]:
             print(f"Warning: Failed to drop tables during cleanup: {e}")
 
         # Database-specific cleanup
-        if cleanup_func:
+        if cleanup_func is not None:
             # PostgreSQL: Drop the entire test database
             cleanup_func()
         elif hasattr(engine, "_test_temp_file"):

@@ -261,7 +261,7 @@ export default function GlobalSettings() {
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
-                                            {history.map((entry: any) => (
+                                            {history.map((entry) => (
                                               <TableRow key={entry.id}>
                                                 <TableCell className="text-xs">
                                                   {formatDateTime(entry.changed_at)}

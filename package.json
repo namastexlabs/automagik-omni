@@ -28,12 +28,12 @@
 	"scripts": {
 		"dev": "NODE_ENV=development tsx gateway/src/index.ts --dev",
 		"start": "node gateway/dist/index.js",
-		"build": "pnpm build:gateway && pnpm build:ui && pnpm bundle:python",
-		"build:gateway": "pnpm --filter gateway build",
-		"build:ui": "pnpm --filter resources/ui build",
+		"build": "bun run build:gateway && bun run build:ui && bun run bundle:python",
+		"build:gateway": "cd gateway && bun run build",
+		"build:ui": "cd resources/ui && bun run build",
 		"bundle:python": "./scripts/bundle-python.sh",
-		"gateway:dev": "pnpm --filter gateway dev",
-		"prepublishOnly": "pnpm build"
+		"gateway:dev": "cd gateway && bun run dev",
+		"prepublishOnly": "bun run build"
 	},
 	"engines": {
 		"node": ">=18.0.0"

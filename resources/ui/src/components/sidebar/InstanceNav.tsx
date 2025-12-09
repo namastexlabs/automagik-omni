@@ -9,6 +9,7 @@ import { WebSocketSheet } from '@/components/sheets/WebSocketSheet';
 import { RabbitMQSheet } from '@/components/sheets/RabbitMQSheet';
 import { DiscordBotSettingsSheet } from '@/components/sheets/DiscordBotSettingsSheet';
 import { DiscordIcon, WhatsAppIcon, SlackIcon } from '@/components/icons/BrandIcons';
+import type { InstanceConfig } from '@/lib';
 
 interface InstanceNavProps {
   isExpanded: boolean;
@@ -57,7 +58,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
     channelType: 'whatsapp' | 'discord' | 'slack';
   } | null>(null);
 
-  const { data: instances, isLoading } = useQuery({
+  const { data: instances, isLoading } = useQuery<InstanceConfig[]>({
     queryKey: ['instances'],
     queryFn: () => api.instances.list({ limit: 100, include_live_status: true }),
     refetchInterval: 30000, // Refresh every 30 seconds to keep status current
@@ -127,7 +128,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           ) : instances && instances.length > 0 ? (
-            instances.map((instance: any) => (
+            instances.map((instance) => (
               <div key={instance.name}>
                 {/* Instance Name */}
                 <button

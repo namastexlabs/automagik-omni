@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, HttpUrl, AnyUrl
 from typing import Any
 
 from src.api.deps import get_database, verify_api_key
@@ -55,7 +55,7 @@ class InstanceConfigCreate(BaseModel):
     channel_type: str = Field(default="whatsapp", description="Channel type: whatsapp, slack, discord")
 
     # WhatsApp Web API configuration (accepts both new and legacy field names)
-    whatsapp_web_url: Optional[str] = Field(None, description="WhatsApp Web API URL")
+    whatsapp_web_url: Optional[HttpUrl] = Field(None, description="WhatsApp Web API URL")
     whatsapp_web_key: Optional[str] = Field(None, description="WhatsApp Web API key")
     whatsapp_instance: Optional[str] = Field(None, description="WhatsApp instance name")
     session_id_prefix: Optional[str] = Field(None, description="Session ID prefix (WhatsApp)")
@@ -87,7 +87,7 @@ class InstanceConfigCreate(BaseModel):
     integration: Optional[str] = Field("WHATSAPP-BAILEYS", description="WhatsApp integration type")
 
     # Common agent configuration (optional for wizard flow - can be set later)
-    agent_api_url: Optional[str] = None
+    agent_api_url: Optional[HttpUrl] = None
     agent_api_key: Optional[str] = None
     default_agent: Optional[str] = None
     agent_timeout: int = 60
@@ -111,6 +111,18 @@ class InstanceConfigCreate(BaseModel):
         description="Enable automatic message splitting on \\n\\n (WhatsApp: full control, Discord: preference only)",
     )
 
+    @model_validator(mode="after")
+    def validate_channel_requirements(self) -> "InstanceConfigCreate":
+        """Enforce required fields and URL validation per channel."""
+        if self.channel_type == "whatsapp":
+            if not self.whatsapp_web_url:
+                raise ValueError("whatsapp_web_url is required for WhatsApp channel")
+            if not self.whatsapp_web_key:
+                raise ValueError("whatsapp_web_key is required for WhatsApp channel")
+            if not self.whatsapp_instance:
+                raise ValueError("whatsapp_instance is required for WhatsApp channel")
+        return self
+
 
 class InstanceConfigUpdate(BaseModel):
     """Schema for updating instance configuration."""
@@ -118,7 +130,7 @@ class InstanceConfigUpdate(BaseModel):
     channel_type: Optional[str] = None
 
     # WhatsApp Web API configuration (accepts both new and legacy field names)
-    whatsapp_web_url: Optional[str] = None
+    whatsapp_web_url: Optional[HttpUrl] = None
     whatsapp_web_key: Optional[str] = None
     whatsapp_instance: Optional[str] = None
     session_id_prefix: Optional[str] = None
@@ -143,7 +155,7 @@ class InstanceConfigUpdate(BaseModel):
     discord_voice_enabled: Optional[bool] = None
     discord_slash_commands_enabled: Optional[bool] = None
 
-    agent_api_url: Optional[str] = None
+    agent_api_url: Optional[HttpUrl] = None
     agent_api_key: Optional[str] = None
     default_agent: Optional[str] = None
     agent_timeout: Optional[int] = None
@@ -269,23 +281,15 @@ async def create_instance(
         )
 
     if instance_data.channel_type == "whatsapp":
-        if instance_data.whatsapp_web_url and instance_data.whatsapp_web_url.lower() in [
-            "string",
-            "null",
-            "undefined",
-            "",
-        ]:
+        url_value = str(instance_data.whatsapp_web_url) if instance_data.whatsapp_web_url else ""
+        if url_value.lower() in ["string", "null", "undefined", ""]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid whatsapp_web_url. Please provide a valid WhatsApp Web API URL (e.g., http://localhost:8080).",
             )
 
-        if instance_data.whatsapp_web_key and instance_data.whatsapp_web_key.lower() in [
-            "string",
-            "null",
-            "undefined",
-            "",
-        ]:
+        key_value = instance_data.whatsapp_web_key or ""
+        if key_value.lower() in ["string", "null", "undefined", ""]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid whatsapp_web_key. Please provide a valid WhatsApp Web API key.",
@@ -306,7 +310,7 @@ async def create_instance(
         # If the normalized name is significantly shorter or only contains basic chars after heavy modification
         if len(normalized_name) < len(original_name) * 0.5 or "!" in original_name:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Instance name '{original_name}' contains invalid characters. Use only letters, numbers, hyphens, and underscores.",
             )
 
@@ -330,6 +334,10 @@ async def create_instance(
 
     # Create database instance first (without creation parameters)
     db_instance_data = instance_data.model_dump(exclude={"phone_number", "auto_qr", "integration"}, exclude_unset=False)
+    # Coerce AnyUrl/HttpUrl to plain strings for DB compatibility
+    for key, value in list(db_instance_data.items()):
+        if isinstance(value, AnyUrl):
+            db_instance_data[key] = str(value)
 
     # Map WhatsApp Web API field names to database column names
     # (Schema uses whatsapp_web_*, DB uses evolution_* for backward compatibility)
@@ -383,7 +391,7 @@ async def create_instance(
         db.delete(db_instance)
         db.commit()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid configuration: {str(e)}",
         )
     except Exception as e:
@@ -679,6 +687,10 @@ async def update_instance(
 
     # Get only provided fields (exclude None values from update)
     update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
+    # Coerce AnyUrl/HttpUrl to plain strings for DB compatibility
+    for key, value in list(update_dict.items()):
+        if isinstance(value, AnyUrl):
+            update_dict[key] = str(value)
 
     # Map WhatsApp Web API field names to database column names
     # (Schema uses whatsapp_web_*, DB uses evolution_* for backward compatibility)

@@ -29,7 +29,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         delay: Optional[int] = None,
         mentioned: Optional[list] = None,
         mentions_every_one: bool = False,
-    
+
         ctx: Optional[Context] = None,) -> str:
         """Generate speech and send as WhatsApp voice message. Supports audio tags [happy], [laughs], etc. Shows "recording" presence automatically. Args: to, text (supports [tags]), voice_id, model_id (default: eleven_v3), stability (0-1, default 0.5), similarity_boost (0-1, default 0.75), instance_name, quoted_message_id, delay, mentioned, mentions_every_one. Returns: confirmation with delivery status."""
         config = get_config(ctx)
@@ -125,7 +125,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
 
                 # Convert MP3 to OGG/Opus for WhatsApp voice notes
                 try:
-                    from pydub import AudioSegment
+                    from pydub import AudioSegment  # type: ignore[import-not-found]
                 except ImportError:
                     return (
                         f"✅ Speech generated ({file_size:.2f} KB)\n"

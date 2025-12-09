@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ChatList } from './ChatList';
 import { ChatView } from './ChatView';
 import { api } from '@/lib';
+import type { EvolutionChat, EvolutionGroup } from '@/lib';
 
 interface ChatLayoutProps {
   instanceName: string;
@@ -59,7 +60,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
   });
 
   // Fetch chats
-  const { data: chatsResponse, isLoading: chatsLoading, isError: chatsError, error: chatsErrorData, refetch: refetchChats } = useQuery({
+  const { data: chatsResponse, isLoading: chatsLoading, isError: chatsError, error: chatsErrorData, refetch: refetchChats } = useQuery<EvolutionChat[]>({
     queryKey: ['chats', instanceName],
     queryFn: () => api.evolution.findChats(instanceName),
     refetchInterval: 30000,
@@ -67,7 +68,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
   });
 
   // Fetch groups to get proper group names
-  const { data: groupsResponse, isLoading: groupsLoading, isError: groupsError } = useQuery({
+  const { data: groupsResponse, isLoading: groupsLoading, isError: groupsError } = useQuery<EvolutionGroup[]>({
     queryKey: ['groups', instanceName],
     queryFn: () => api.evolution.fetchAllGroups(instanceName),
     refetchInterval: 60000,
@@ -76,10 +77,12 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
 
   // Create a map of group IDs to group info
   const groupsMap = useMemo(() => {
-    const map = new Map<string, any>();
+    const map = new Map<string, EvolutionGroup>();
     if (Array.isArray(groupsResponse)) {
-      groupsResponse.forEach((group: any) => {
-        map.set(group.id, group);
+      groupsResponse.forEach((group) => {
+        if (group.id) {
+          map.set(group.id, group);
+        }
       });
     }
     return map;
@@ -87,9 +90,9 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
 
   // Merge chats with group info and filter out empty metadata-only entries
   const chats = useMemo(() => {
-    const rawChats = Array.isArray(chatsResponse) ? chatsResponse : [];
+    const rawChats: EvolutionChat[] = Array.isArray(chatsResponse) ? chatsResponse : [];
     return rawChats
-      .map((chat: any) => {
+      .map((chat) => {
         const isGroup = chat.remoteJid?.includes('@g.us');
         if (isGroup) {
           const groupInfo = groupsMap.get(chat.remoteJid);
@@ -114,7 +117,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
           isGroup: false,
         };
       })
-      .filter((chat: any) => {
+      .filter((chat) => {
         // Filter out empty LID entries (no name and no messages)
         // These are WhatsApp metadata entries for contacts that haven't been messaged yet
         const isLID = chat.remoteJid?.includes('@lid');
@@ -127,7 +130,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
 
   const isLoading = chatsLoading || groupsLoading;
   const hasEvolutionError = chatsError || groupsError;
-  const selectedChat = chats.find((c: any) => c.id === selectedChatId || c.remoteJid === selectedChatId);
+  const selectedChat = chats.find((c) => c.id === selectedChatId || c.remoteJid === selectedChatId);
 
   // Handle Evolution service not running (500/503 errors)
   if (hasEvolutionError && !isLoading) {

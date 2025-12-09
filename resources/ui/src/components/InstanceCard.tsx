@@ -53,10 +53,9 @@ export function InstanceCard({
       const statusStr = instance.evolution_status?.status?.toLowerCase();
 
       // Also check if evolution_status has raw data indicating connection
-      const evolutionData: any = instance.evolution_status;
       const isOpen = state === 'open' ||
                      statusStr === 'connected' ||
-                     evolutionData?.instance?.state === 'open';
+                     instance.evolution_status?.instance?.state === 'open';
 
       if (isOpen) {
         return <Badge className="gradient-success border-0">Connected</Badge>;
@@ -83,12 +82,11 @@ export function InstanceCard({
 
   const isWhatsAppConnected = () => {
     const state = instance.evolution_status?.state?.toLowerCase();
-    const statusStr = (instance.evolution_status as any)?.status?.toLowerCase();
-    const evolutionData: any = instance.evolution_status;
+    const statusStr = instance.evolution_status?.status?.toLowerCase();
 
     return state === 'open' ||
            statusStr === 'connected' ||
-           evolutionData?.instance?.state === 'open';
+           instance.evolution_status?.instance?.state === 'open';
   };
 
   return (

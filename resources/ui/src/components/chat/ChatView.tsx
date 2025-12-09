@@ -7,10 +7,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { api } from '@/lib';
+import type { EvolutionChat, EvolutionMessage } from '@/lib';
 
 interface ChatViewProps {
   instanceName: string;
-  chat: any;
+  chat: EvolutionChat;
 }
 
 export function ChatView({ instanceName, chat }: ChatViewProps) {
@@ -20,7 +21,7 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
   const isGroup = remoteJid?.includes('@g.us') || chat.isGroup;
 
   // Fetch messages
-  const { data: messagesResponse, isLoading, refetch } = useQuery({
+  const { data: messagesResponse, isLoading, refetch } = useQuery<EvolutionMessage[]>({
     queryKey: ['messages', instanceName, remoteJid],
     queryFn: () => api.evolution.findMessages(instanceName, {
       where: { key: { remoteJid } },
@@ -30,18 +31,10 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
   });
 
   // API returns { messages: { records: [...] } } structure
-  const messages = Array.isArray(messagesResponse)
-    ? messagesResponse
-    : (messagesResponse?.messages?.records && Array.isArray(messagesResponse.messages.records))
-      ? messagesResponse.messages.records
-      : (messagesResponse?.messages && Array.isArray(messagesResponse.messages))
-        ? messagesResponse.messages
-        : [];
+  const messages: EvolutionMessage[] = Array.isArray(messagesResponse) ? messagesResponse : [];
 
   // Sort messages by timestamp
-  const sortedMessages = [...messages].sort((a: any, b: any) => {
-    return (a.messageTimestamp || 0) - (b.messageTimestamp || 0);
-  });
+  const sortedMessages = [...messages].sort((a, b) => (Number(a.messageTimestamp) || 0) - (Number(b.messageTimestamp) || 0));
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -91,7 +84,7 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
           </div>
         ) : (
           <div className="space-y-1">
-            {sortedMessages.map((message: any, index: number) => (
+            {sortedMessages.map((message, index) => (
               <MessageBubble
                 key={message.key?.id || index}
                 message={message}
