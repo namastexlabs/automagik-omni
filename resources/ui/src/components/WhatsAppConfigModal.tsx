@@ -161,7 +161,8 @@ export function WhatsAppConfigModal({
       instanceReady &&
       phase === 'qr' &&
       qrPollReady &&
-      gatewayStatus?.processes?.evolution?.healthy,
+      gatewayStatus?.processes?.evolution?.healthy &&
+      !(connectionState?.connected || connectionState?.status?.toLowerCase() === 'connected'),
     refetchInterval: phase === 'qr' ? 5000 : false,
     retry: 5,
     retryDelay: 1500,
@@ -256,7 +257,12 @@ export function WhatsAppConfigModal({
 
   // Check for connection success
   useEffect(() => {
+    const logIndicatesConnected = evolutionLogs.some((log) =>
+      /connected to whatsapp/i.test(log.message ?? ''),
+    );
+
     const isConnected =
+      logIndicatesConnected ||
       connectionState?.connected === true ||
       connectionState?.status?.toLowerCase() === 'connected' ||
       connectionState?.state?.toLowerCase() === 'open';
@@ -264,7 +270,7 @@ export function WhatsAppConfigModal({
     if (phase === 'qr' && isConnected) {
       setPhase('connected');
     }
-  }, [phase, connectionState]);
+  }, [phase, connectionState, evolutionLogs]);
   // Arm QR polling only after the instance status endpoint responds (prevents early 404s)
   useEffect(() => {
     if (open && instanceCreated && instanceReady && phase === 'qr' && gatewayStatus?.processes?.evolution?.healthy) {
