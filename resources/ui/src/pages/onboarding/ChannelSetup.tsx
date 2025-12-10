@@ -28,6 +28,7 @@ export default function ChannelSetup() {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingExisting, setIsCheckingExisting] = useState(true);
 
   // Evolution startup states
   const [evolutionStarting, setEvolutionStarting] = useState(false);
@@ -62,24 +63,71 @@ export default function ChannelSetup() {
   // Track if instance was created in modal (to skip duplicate creation in form submit)
   const [instanceCreatedInModal, setInstanceCreatedInModal] = useState(false);
 
-  // Check if Evolution is already running on mount
+  // Track if WhatsApp is actually connected (not just created)
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+
+  // Check if channels are already configured on mount (resume capability)
   useEffect(() => {
-    const checkEvolution = async () => {
+    const checkExistingSetup = async () => {
+      setIsCheckingExisting(true);
+
       try {
-        const gatewayStatus = await api.gateway.getStatus();
-        const evolutionProc = gatewayStatus.processes?.evolution;
-        if (evolutionProc?.healthy) {
-          setEvolutionReady(true);
+        // Check Evolution status
+        let evolutionHealthy = false;
+        try {
+          const gatewayStatus = await api.gateway.getStatus();
+          const evolutionProc = gatewayStatus.processes?.evolution;
+          if (evolutionProc?.healthy) {
+            evolutionHealthy = true;
+            setEvolutionReady(true);
+          }
+        } catch {
+          // Gateway not available yet
         }
-      } catch (e) {
-        // Gateway not available yet - that's OK
+
+        // Check for existing WhatsApp instances
+        try {
+          const instances = await api.instances.list();
+          const whatsappInstances = instances.filter(
+            (i: { channel_type: string }) => i.channel_type === 'whatsapp'
+          );
+
+          if (whatsappInstances.length > 0) {
+            // Check if any instance is connected
+            const connectedInstance = whatsappInstances.find(
+              (i: { evolution_status?: { state?: string } }) =>
+                i.evolution_status?.state === 'open' ||
+                i.evolution_status?.state === 'connected'
+            );
+
+            if (connectedInstance) {
+              // WhatsApp is configured and connected - skip to MCP step
+              console.log('[ChannelSetup] WhatsApp instance already connected, navigating to MCP setup');
+              navigate('/onboarding/mcp');
+              return;
+            }
+
+            // Instance exists but not connected - pre-fill the form
+            const firstInstance = whatsappInstances[0];
+            setWhatsappEnabled(true);
+            setWhatsappInstanceName(firstInstance.name || firstInstance.whatsapp_instance || '');
+            setInstanceCreatedInModal(true);
+            if (evolutionHealthy) {
+              setEvolutionReady(true);
+            }
+          }
+        } catch (err) {
+          console.log('[ChannelSetup] Error checking existing instances:', err);
+          // Continue with normal setup
+        }
       } finally {
+        setIsCheckingExisting(false);
         setIsLoading(false);
       }
     };
 
-    checkEvolution();
-  }, []);
+    checkExistingSetup();
+  }, [navigate]);
 
   // Auto-open startup modal on error
   useEffect(() => {
@@ -232,10 +280,10 @@ export default function ChannelSetup() {
         }
       }
 
-      // If WhatsApp instance was already created in the modal, skip configureChannels for WhatsApp
-      // Just configure Discord if needed
-      if (instanceCreatedInModal && whatsappEnabled) {
-        // WhatsApp already configured in modal - just handle Discord if enabled
+      // If WhatsApp instance was already created AND connected in the modal, skip configureChannels for WhatsApp
+      // Just configure Discord if needed, then navigate to MCP step
+      if (instanceCreatedInModal && whatsappEnabled && whatsappConnected) {
+        // WhatsApp already configured and connected in modal - just handle Discord if enabled
         if (discordEnabled && discordClientId && discordBotToken) {
           try {
             await api.instances.create({
@@ -250,10 +298,8 @@ export default function ChannelSetup() {
           }
         }
 
-        // Mark setup complete and navigate
-        await api.setup.complete();
-        await completeSetup();
-        navigate('/dashboard');
+        // Navigate to MCP step (setup completion happens there)
+        navigate('/onboarding/mcp');
         return;
       }
 
@@ -304,10 +350,8 @@ export default function ChannelSetup() {
         }
       }
 
-      // Mark setup complete and navigate
-      await api.setup.complete();
-      await completeSetup();
-      navigate('/dashboard');
+      // Navigate to MCP step (setup completion happens there)
+      navigate('/onboarding/mcp');
     } catch (err) {
       console.error('Channel configuration failed:', err);
       setError(err instanceof Error ? err.message : 'Configuration failed');
@@ -316,7 +360,7 @@ export default function ChannelSetup() {
     }
   };
 
-  // Handle QR modal close - create Discord instance if needed, complete setup and navigate
+  // Handle QR modal close - create Discord instance if needed and navigate to MCP step
   const handleQrModalClose = async () => {
     setShowQrModal(false);
     try {
@@ -335,55 +379,32 @@ export default function ChannelSetup() {
         }
       }
 
-      await api.setup.complete();
-      await completeSetup();
-      navigate('/dashboard');
+      // Navigate to MCP step (setup completion happens there)
+      navigate('/onboarding/mcp');
     } catch (err) {
-      console.error('Failed to complete setup:', err);
-      // Navigate anyway - the important part (instance creation) is done
-      navigate('/dashboard');
+      console.error('Failed to create Discord instance:', err);
+      // Navigate anyway - the important part (WhatsApp) is done
+      navigate('/onboarding/mcp');
     }
   };
 
-  // Skip channel setup (use defaults)
-  const handleSkip = async () => {
-    setIsSubmitting(true);
-    setError(null);
 
-    try {
-      // Configure with defaults (WhatsApp only)
-      await api.setup.configureChannels({
-        whatsapp_enabled: true,
-        discord_enabled: false,
-      });
-
-      // Mark setup complete
-      await api.setup.complete();
-      await completeSetup();
-
-      // Navigate to dashboard
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Skip failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to skip setup');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (isLoading) {
+  // Show loading while checking existing setup or initial load
+  if (isCheckingExisting || isLoading) {
     return (
-      <OnboardingLayout currentStep={3} totalSteps={3} title="Channel Setup">
+      <OnboardingLayout currentStep={3} totalSteps={4} title="Channel Setup">
         <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-4" />
-          <p className="text-gray-600">Checking channel availability...</p>
+          <p className="text-gray-600">
+            {isCheckingExisting ? 'Checking existing channels...' : 'Checking channel availability...'}
+          </p>
         </div>
       </OnboardingLayout>
     );
   }
 
   return (
-    <OnboardingLayout currentStep={3} totalSteps={3} title="Channel Setup">
+    <OnboardingLayout currentStep={3} totalSteps={4} title="Channel Setup">
       <div className="p-8">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Communication Channels</h2>
@@ -440,7 +461,7 @@ export default function ChannelSetup() {
                   <Switch
                     checked={whatsappEnabled}
                     onCheckedChange={handleWhatsAppToggle}
-                    disabled={evolutionStarting}
+                    disabled={evolutionStarting || !whatsappInstanceName.trim()}
                   />
                 </div>
               </div>
@@ -487,7 +508,7 @@ export default function ChannelSetup() {
               {!evolutionStarting && (
                 <div className="mt-4 space-y-2">
                   <Label htmlFor="whatsappInstanceName" className="text-gray-700">
-                    Instance Name
+                    Instance Name {!whatsappInstanceName.trim() && <span className="text-red-500">*</span>}
                   </Label>
                   <Input
                     id="whatsappInstanceName"
@@ -495,12 +516,14 @@ export default function ChannelSetup() {
                     value={whatsappInstanceName}
                     onChange={(e) => setWhatsappInstanceName(e.target.value)}
                     placeholder="genie"
-                    disabled={evolutionStarting}
+                    disabled={evolutionStarting || whatsappEnabled}
                   />
                   <p className="text-xs text-gray-500">
                     {whatsappEnabled
-                      ? "Toggle is on. Click 'Complete Setup' to create this instance and scan QR."
-                      : 'Enter the desired instance name, then enable WhatsApp to start setup.'}
+                      ? 'WhatsApp setup in progress. Complete the QR scan in the popup.'
+                      : !whatsappInstanceName.trim()
+                        ? 'Enter an instance name to enable the WhatsApp toggle.'
+                        : 'Click the toggle to start WhatsApp setup.'}
                   </p>
                 </div>
               )}
@@ -635,24 +658,17 @@ export default function ChannelSetup() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Completing Setup...
+                Saving Channels...
               </>
             ) : (
               <>
                 <CheckCircle2 className="mr-2 h-5 w-5" />
-                Complete Setup
+                Continue
               </>
             )}
           </Button>
         </form>
 
-        {/* Skip option */}
-        <div className="mt-6 pt-6 border-t">
-          <Button variant="outline" onClick={handleSkip} disabled={isSubmitting} className="w-full">
-            Skip - Use WhatsApp Only
-          </Button>
-          <p className="text-xs text-gray-500 text-center mt-2">You can add Discord later in the Instances settings.</p>
-        </div>
       </div>
 
       {/* QR Code Modal - uses QRCodeDialog which has status polling and auto-close on connection */}
@@ -762,6 +778,7 @@ export default function ChannelSetup() {
         instanceName={whatsappInstanceName}
         onSuccess={() => {
           setEvolutionReady(true);
+          setWhatsappConnected(true);
           setShowWhatsAppModal(false);
         }}
         onInstanceCreated={(name) => {

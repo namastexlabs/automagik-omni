@@ -20,8 +20,8 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 # MCP server configuration
-MCP_PORT = int(os.environ.get("MCP_PORT", "18880"))
-MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
+MCP_PORT = int(os.environ.get("MCP_PORT", "28882"))
+MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
 
 
 def main():

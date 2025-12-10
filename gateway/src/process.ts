@@ -3,6 +3,7 @@
  * Spawns and manages Python API, Evolution API, and Vite dev server as subprocesses
  */
 
+import { execSync } from 'node:child_process';
 import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
@@ -483,22 +484,76 @@ export class ProcessManager {
   }
 
   /**
+   * Kill any process using a specific port (port takeover)
+   */
+  private killProcessOnPort(port: number): void {
+    try {
+      const result = execSync(`lsof -ti:${port}`, { encoding: 'utf8' }).trim();
+      if (result) {
+        const pids = result.split('\n');
+        for (const pid of pids) {
+          if (pid) {
+            console.log(`[MCP] Killing process ${pid} on port ${port} (port takeover)`);
+            execSync(`kill -9 ${pid}`);
+          }
+        }
+      }
+    } catch {
+      // No process found on port - that's fine
+    }
+  }
+
+  /**
+   * Query network mode from Python API to determine bind host
+   */
+  private async getNetworkModeBindHost(): Promise<string> {
+    const pythonPort = this.portRegistry.getPort('python');
+    if (!pythonPort) {
+      console.warn('[ProcessManager] Python API not available, defaulting to localhost');
+      return '127.0.0.1';
+    }
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${pythonPort}/api/v1/setup/network-mode`, {
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[ProcessManager] Network mode: ${data.network_mode}, bind host: ${data.bind_host}`);
+        return data.bind_host || '127.0.0.1';
+      }
+    } catch (err) {
+      console.warn(`[ProcessManager] Failed to query network mode: ${err}`);
+    }
+
+    // Default to localhost for safety
+    return '127.0.0.1';
+  }
+
+  /**
    * Start the standalone MCP server
    */
   async startMCP(): Promise<void> {
     const name = 'mcp';
-    const MCP_PORT = 18880; // Dedicated MCP port
+    const MCP_PORT = 28882; // Dedicated MCP port
+
+    // Take over the port if it's already in use
+    this.killProcessOnPort(MCP_PORT);
+
+    // Query network mode to determine bind host
+    const bindHost = await this.getNetworkModeBindHost();
 
     // Detect runtime paths (development vs bundled)
     const runtime = detectPythonRuntime();
-    console.log(`[ProcessManager] Starting standalone MCP server on port ${MCP_PORT}...`);
+    console.log(`[ProcessManager] Starting standalone MCP server on ${bindHost}:${MCP_PORT}...`);
 
     const proc = Bun.spawn([runtime.python, 'src/mcp_server.py'], {
       cwd: runtime.backend,
       env: {
         ...process.env,
         MCP_PORT: String(MCP_PORT),
-        MCP_HOST: '127.0.0.1',
+        MCP_HOST: bindHost,
         PYTHONPATH: runtime.backend,
       },
       stdin: 'ignore',
@@ -829,6 +884,7 @@ export class ProcessManager {
         ...process.env,
         ...subprocessEnv,
         SERVER_PORT: String(port),
+        SERVER_HOST: '0.0.0.0', // Bind to all interfaces
         SERVER_URL: `http://localhost:${port}`,
         NODE_ENV: 'production',
       },

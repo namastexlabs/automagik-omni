@@ -42,7 +42,7 @@ interface DatabaseStartupModalProps {
   onSuccess?: () => void;
   onRetry?: () => void;
   externalError?: string | null;
-  currentPhase?: 'idle' | 'pgserve' | 'python' | 'saving' | 'done' | 'error';
+  currentPhase?: 'idle' | 'checking' | 'pgserve' | 'python' | 'saving' | 'done' | 'error';
 }
 
 // Detect current phase from log messages
@@ -53,10 +53,14 @@ function detectPhase(logs: LogEntry[], externalPhase?: string): Phase {
 
   if (logs.length === 0) {
     // Map external phase to internal if no logs yet
+    if (externalPhase === 'checking') return 'init';
     if (externalPhase === 'pgserve') return 'pgserve';
     if (externalPhase === 'python' || externalPhase === 'saving') return 'python';
     return 'init';
   }
+
+  // Only look for log-based errors when actually starting services (not during idle/checking)
+  const isInStartupPhase = externalPhase === 'pgserve' || externalPhase === 'python' || externalPhase === 'saving';
 
   // Check recent logs for phase indicators
   const recentLogs = logs.slice(-15);
@@ -65,8 +69,12 @@ function detectPhase(logs: LogEntry[], externalPhase?: string): Phase {
     const msg = recentLogs[i].message.toLowerCase();
     const level = recentLogs[i].level;
 
-    // Error detection
-    if (level === 'error' && (msg.includes('failed') || msg.includes('error') || msg.includes('crash'))) {
+    // Error detection - only when actually in startup phase, and ignore expected errors
+    if (isInStartupPhase && level === 'error' && (msg.includes('failed') || msg.includes('error') || msg.includes('crash'))) {
+      // Don't treat proxy/connection errors as failures - they're expected during health checks
+      if (msg.includes('proxy error') || msg.includes('connectionrefused') || msg.includes('unable to connect')) {
+        continue;
+      }
       return 'error';
     }
 

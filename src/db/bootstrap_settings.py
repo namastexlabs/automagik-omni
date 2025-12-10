@@ -120,6 +120,28 @@ def bootstrap_global_settings(db: Session) -> None:
             "is_required": False,
             "default_value": "false",
         },
+        # Public URL configuration for external access
+        {
+            "key": "omni_public_url",
+            "value": "",  # Empty = auto-detect network IP
+            "value_type": SettingValueType.STRING,
+            "category": "network",
+            "description": "Public URL or domain for external access (empty = auto-detect IP)",
+            "is_secret": False,
+            "is_required": False,
+            "default_value": "",
+        },
+        # Network mode configuration
+        {
+            "key": "omni_network_mode",
+            "value": "false",  # Default to localhost-only (more secure)
+            "value_type": SettingValueType.BOOLEAN,
+            "category": "network",
+            "description": "Enable network access (0.0.0.0 binding instead of localhost)",
+            "is_secret": False,
+            "is_required": False,
+            "default_value": "false",
+        },
     ]
 
     # Handle Omni API key FIRST (unified key architecture)

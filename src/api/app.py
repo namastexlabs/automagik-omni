@@ -426,7 +426,12 @@ from src.api.routes.sync import router as sync_router
 
 app.include_router(sync_router, prefix="/api/v1", tags=["Sync"])
 
-# Note: MCP server now runs as standalone service on port 18880
+# Include MCP configuration routes
+from src.api.routes.mcp import router as mcp_router
+
+app.include_router(mcp_router, prefix="/api/v1", tags=["MCP"])
+
+# Note: MCP server now runs as standalone service on port 28882
 # Gateway proxies /mcp requests directly to standalone MCP server
 
 # Add lazy DB initialization middleware (runs before other middleware)

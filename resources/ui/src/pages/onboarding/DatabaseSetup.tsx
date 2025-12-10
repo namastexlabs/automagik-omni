@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { DatabaseSetupWizard } from '@/components/DatabaseSetupWizard';
@@ -8,36 +8,78 @@ import { api, removeApiKey } from '@/lib/api';
 import { DatabaseConfig } from '@/types/onboarding';
 import { Loader2 } from 'lucide-react';
 
-type StartupPhase = 'idle' | 'pgserve' | 'python' | 'saving' | 'done' | 'error';
+type StartupPhase = 'idle' | 'checking' | 'pgserve' | 'python' | 'saving' | 'done' | 'error';
 
-// Helper to poll until a service is healthy
-async function pollUntilHealthy(endpoint: string, timeoutMs: number = 30000): Promise<void> {
+// Check if pgserve is healthy
+async function checkPgserveHealth(timeoutMs: number = 3000): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch('/health/pgserve', { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.status === 'healthy'; // pgserve returns { status: 'healthy' }
+    }
+  } catch {
+    // Not available
+  }
+  return false;
+}
+
+// Check if Python API is healthy via gateway
+// IMPORTANT: Only check services.python.status, NOT top-level status (which is gateway status)
+async function checkPythonHealth(timeoutMs: number = 3000): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch('/health', { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      // ONLY check Python-specific status - data.status is gateway status, not Python!
+      const pythonStatus = data.services?.python?.status;
+      const isUp = pythonStatus === 'up';
+      console.log('[DatabaseSetup] Python health check:', { pythonStatus, isUp });
+      return isUp;
+    }
+    console.log('[DatabaseSetup] Python health check: response not ok');
+  } catch (err) {
+    console.log('[DatabaseSetup] Python health check error:', err);
+  }
+  return false;
+}
+
+// Poll until pgserve is healthy
+async function pollUntilPgserveHealthy(timeoutMs: number = 30000): Promise<void> {
   const startTime = Date.now();
   const pollInterval = 1000;
 
   while (Date.now() - startTime < timeoutMs) {
-    try {
-      const response = await fetch(endpoint);
-      if (response.ok) {
-        const data = await response.json();
-        // Check for health indicators
-        // Accept 'degraded' too - means Python is up but optional services (Evolution) aren't
-        if (
-          data.status === 'healthy' ||
-          data.status === 'up' ||
-          data.status === 'degraded' ||
-          data.services?.python?.status === 'up' ||
-          data.services?.api?.status === 'up'
-        ) {
-          return;
-        }
-      }
-    } catch {
-      // Service not ready yet, continue polling
+    if (await checkPgserveHealth()) {
+      return;
     }
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
-  throw new Error(`Service at ${endpoint} did not become healthy within ${timeoutMs}ms`);
+  throw new Error('PostgreSQL did not become healthy within timeout');
+}
+
+// Poll until Python is healthy
+async function pollUntilPythonHealthy(timeoutMs: number = 30000): Promise<void> {
+  const startTime = Date.now();
+  const pollInterval = 1000;
+
+  while (Date.now() - startTime < timeoutMs) {
+    if (await checkPythonHealth()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+  throw new Error('Python API did not become healthy within timeout');
 }
 
 export default function DatabaseSetup() {
@@ -46,6 +88,36 @@ export default function DatabaseSetup() {
   const [startupPhase, setStartupPhase] = useState<StartupPhase>('idle');
   const [showStartupModal, setShowStartupModal] = useState(false);
   const [pendingConfig, setPendingConfig] = useState<DatabaseConfig | null>(null);
+  const [isCheckingServices, setIsCheckingServices] = useState(true);
+
+  // Check if services are already running on mount
+  useEffect(() => {
+    const checkExistingServices = async () => {
+      setIsCheckingServices(true);
+
+      try {
+        // Check if both pgserve and python API are already healthy
+        const [pgserveHealthy, pythonHealthy] = await Promise.all([
+          checkPgserveHealth(),
+          checkPythonHealth(),
+        ]);
+
+        if (pgserveHealthy && pythonHealthy) {
+          // Services already running - navigate directly to next step
+          console.log('[DatabaseSetup] Services already running, navigating to api-key');
+          navigate('/onboarding/api-key');
+          return;
+        }
+      } catch (err) {
+        console.log('[DatabaseSetup] Error checking services:', err);
+        // Continue with normal setup flow
+      }
+
+      setIsCheckingServices(false);
+    };
+
+    checkExistingServices();
+  }, [navigate]);
 
   // Clear any stale API key and setup state from previous installations
   // This ensures fresh installs don't retain old localStorage data
@@ -57,58 +129,83 @@ export default function DatabaseSetup() {
     clearStaleData();
   }, []);
 
-  const handleWizardComplete = async (wizardConfig: DatabaseConfig) => {
-    // Store config and open modal
-    setPendingConfig(wizardConfig);
-    setShowStartupModal(true);
-    setError(null);
-    setStartupPhase('idle');
-
-    // Start the actual services
-    await startServices(wizardConfig);
-  };
-
-  const startServices = async (config: DatabaseConfig) => {
+  const startServices = useCallback(async (config: DatabaseConfig) => {
     try {
       setError(null);
+      setStartupPhase('checking');
+      console.log('[DatabaseSetup] Starting services with config:', config);
 
-      // Phase 0: Write pgserve config BEFORE starting pgserve
-      // This ensures memory mode is respected on first start
-      setStartupPhase('pgserve');
-      const configResponse = await fetch('/api/internal/pgserve-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          memory_mode: config.memory_mode ?? false,
-          data_dir: config.data_dir,
-          replication_url: config.replication_enabled ? config.replication_url : null,
-        }),
-      });
-      if (!configResponse.ok) {
-        const errorData = await configResponse.json();
-        throw new Error(errorData.error || 'Failed to write PostgreSQL config');
+      // First, check what's already running
+      // NOTE: Use specific health check functions that check the correct status fields
+      const [pgserveHealthy, pythonHealthy] = await Promise.all([
+        checkPgserveHealth(),
+        checkPythonHealth(),
+      ]);
+      console.log('[DatabaseSetup] Initial health check:', { pgserveHealthy, pythonHealthy });
+
+      // If everything is already running, skip to done
+      if (pgserveHealthy && pythonHealthy) {
+        console.log('[DatabaseSetup] All services already healthy - skipping to done');
+        setStartupPhase('done');
+        return;
       }
 
-      // Phase 1: Start PostgreSQL (now config exists)
-      const pgserveResponse = await fetch('/api/internal/services/pgserve/start', { method: 'POST' });
-      if (!pgserveResponse.ok) {
-        const errorData = await pgserveResponse.json();
-        throw new Error(errorData.error || 'Failed to start PostgreSQL');
+      // Phase 1: Start PostgreSQL (if not already running)
+      if (!pgserveHealthy) {
+        console.log('[DatabaseSetup] Phase 1: Starting PostgreSQL...');
+        setStartupPhase('pgserve');
+
+        // Write pgserve config BEFORE starting pgserve
+        const configResponse = await fetch('/api/internal/pgserve-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            memory_mode: config.memory_mode ?? false,
+            data_dir: config.data_dir,
+            replication_url: config.replication_enabled ? config.replication_url : null,
+          }),
+        });
+        if (!configResponse.ok) {
+          const errorData = await configResponse.json();
+          throw new Error(errorData.error || 'Failed to write PostgreSQL config');
+        }
+        console.log('[DatabaseSetup] pgserve config written');
+
+        // Start PostgreSQL
+        const pgserveResponse = await fetch('/api/internal/services/pgserve/start', { method: 'POST' });
+        console.log('[DatabaseSetup] pgserve start response:', pgserveResponse.status);
+        if (!pgserveResponse.ok) {
+          const errorData = await pgserveResponse.json();
+          throw new Error(errorData.error || 'Failed to start PostgreSQL');
+        }
+
+        // Wait for PostgreSQL to become healthy
+        console.log('[DatabaseSetup] Waiting for pgserve to become healthy...');
+        await pollUntilPgserveHealthy(30000);
+        console.log('[DatabaseSetup] pgserve is now healthy');
+      } else {
+        console.log('[DatabaseSetup] pgserve already healthy, skipping');
       }
 
-      // Wait for PostgreSQL to become healthy
-      await pollUntilHealthy('/health/pgserve', 30000);
+      // Phase 2: Start Python API (if not already running)
+      if (!pythonHealthy) {
+        console.log('[DatabaseSetup] Phase 2: Starting Python API...');
+        setStartupPhase('python');
 
-      // Phase 2: Start Python API
-      setStartupPhase('python');
-      const pythonResponse = await fetch('/api/internal/services/python/start', { method: 'POST' });
-      if (!pythonResponse.ok) {
-        const errorData = await pythonResponse.json();
-        throw new Error(errorData.error || 'Failed to start API server');
+        const pythonResponse = await fetch('/api/internal/services/python/start', { method: 'POST' });
+        console.log('[DatabaseSetup] Python start response:', pythonResponse.status);
+        if (!pythonResponse.ok) {
+          const errorData = await pythonResponse.json();
+          throw new Error(errorData.error || 'Failed to start API server');
+        }
+
+        // Wait for Python to become healthy
+        console.log('[DatabaseSetup] Waiting for Python to become healthy...');
+        await pollUntilPythonHealthy(30000);
+        console.log('[DatabaseSetup] Python is now healthy');
+      } else {
+        console.log('[DatabaseSetup] python already healthy, skipping');
       }
-
-      // Wait for Python to become healthy
-      await pollUntilHealthy('/health', 30000);
 
       // Phase 3: Save configuration
       setStartupPhase('saving');
@@ -121,6 +218,17 @@ export default function DatabaseSetup() {
       setError(err instanceof Error ? err.message : 'Setup initialization failed');
       setStartupPhase('error');
     }
+  }, []);
+
+  const handleWizardComplete = async (wizardConfig: DatabaseConfig) => {
+    // Store config and open modal
+    setPendingConfig(wizardConfig);
+    setShowStartupModal(true);
+    setError(null);
+    setStartupPhase('idle');
+
+    // Start the actual services
+    await startServices(wizardConfig);
   };
 
   const handleRetry = () => {
@@ -146,8 +254,20 @@ export default function DatabaseSetup() {
     });
   };
 
+  // Show loading while checking services
+  if (isCheckingServices) {
+    return (
+      <OnboardingLayout currentStep={1} totalSteps={4} title="Welcome to Automagik Omni">
+        <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-4" />
+          <p className="text-gray-600">Checking services...</p>
+        </div>
+      </OnboardingLayout>
+    );
+  }
+
   return (
-    <OnboardingLayout currentStep={1} totalSteps={3} title="Welcome to Automagik Omni">
+    <OnboardingLayout currentStep={1} totalSteps={4} title="Welcome to Automagik Omni">
       <DatabaseStartupModal
         open={showStartupModal}
         onOpenChange={setShowStartupModal}

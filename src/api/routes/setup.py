@@ -58,6 +58,89 @@ def _write_pgserve_config(memory_mode: bool, data_dir: Optional[str], replicatio
 router = APIRouter(prefix="/setup", tags=["Setup"])
 
 
+def is_network_mode() -> bool:
+    """Check if network mode is enabled.
+
+    Network mode controls whether services bind to 0.0.0.0 (network accessible)
+    or 127.0.0.1 (localhost only).
+
+    Returns:
+        True if network mode is enabled, False for localhost-only mode
+    """
+    from src.db.database import SessionLocal
+
+    try:
+        with SessionLocal() as db:
+            network_mode = settings_service.get_setting_value(
+                "omni_network_mode", db, default="false"
+            )
+            return str(network_mode).lower() in ("true", "1", "yes")
+    except Exception as e:
+        logger.warning(f"Failed to get network mode setting: {e}")
+        return False  # Safe default: localhost only
+
+
+def get_bind_host() -> str:
+    """Get the host to bind services to based on network mode.
+
+    Returns:
+        "0.0.0.0" for network mode, "127.0.0.1" for local mode
+    """
+    return "0.0.0.0" if is_network_mode() else "127.0.0.1"
+
+
+def get_internal_host() -> str:
+    """Get host for internal service-to-service communication.
+
+    Always returns localhost since internal calls are on the same machine.
+    """
+    return "127.0.0.1"
+
+
+def get_public_base_url() -> str:
+    """Get the public base URL for external access.
+
+    Behavior depends on network mode:
+    - Local mode (default): Always returns http://localhost
+    - Network mode:
+      1. User-configured domain (omni_public_url setting)
+      2. Auto-detected network IP (via ip_utils.get_local_ipv4())
+      3. localhost (last resort)
+    """
+    from src.db.database import SessionLocal
+    from src.ip_utils import get_local_ipv4
+
+    # Check network mode first
+    if not is_network_mode():
+        # Local mode - always use localhost
+        return "http://localhost"
+
+    # Network mode - check for custom domain first
+    try:
+        with SessionLocal() as db:
+            public_url = settings_service.get_setting_value("omni_public_url", db, default="")
+            if public_url and public_url.strip():
+                # User configured a domain/URL
+                url = public_url.strip().rstrip("/")
+                # Add http:// if no protocol specified
+                if not url.startswith(("http://", "https://")):
+                    url = f"http://{url}"
+                return url
+    except Exception as e:
+        logger.warning(f"Failed to get public URL setting: {e}")
+
+    # Auto-detect network IP
+    try:
+        ip = get_local_ipv4()
+        if ip and ip != "127.0.0.1":
+            return f"http://{ip}"
+    except Exception as e:
+        logger.warning(f"Failed to auto-detect IP: {e}")
+
+    # Last resort fallback
+    return "http://localhost"
+
+
 # Pydantic schemas
 
 
@@ -632,6 +715,13 @@ async def configure_channels(config: ChannelConfigRequest, db: Session = Depends
 
         # Configure WhatsApp
         if config.whatsapp_enabled:
+            # Validate instance name is provided when WhatsApp is enabled
+            if not config.whatsapp_instance_name or not config.whatsapp_instance_name.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="WhatsApp instance name is required when WhatsApp is enabled",
+                )
+
             _set_or_update(
                 key="channel_whatsapp_enabled",
                 value="true",
@@ -642,7 +732,7 @@ async def configure_channels(config: ChannelConfigRequest, db: Session = Depends
             whatsapp_status = "enabled"
             logger.info("WhatsApp channel enabled")
 
-            # Create WhatsApp instance if name provided
+            # Create WhatsApp instance (name already validated above)
             if config.whatsapp_instance_name:
                 instance_name = normalize_instance_name(config.whatsapp_instance_name)
 
@@ -870,3 +960,135 @@ async def validate_discord_token(request: DiscordValidationRequest):
     except Exception as e:
         logger.error(f"Discord validation failed: {e}")
         return {"valid": False, "message": f"Validation error: {str(e)}"}
+
+
+# =============================================================================
+# Public URL Configuration Endpoints
+# =============================================================================
+
+
+@router.get("/public-url")
+async def get_public_url():
+    """
+    Get the configured public URL or auto-detected IP.
+
+    This endpoint is unauthenticated to allow the setup wizard to display
+    the correct URL for MCP and other external access configurations.
+
+    Returns:
+        dict: Public URL for external access
+    """
+    url = get_public_base_url()
+    return {"url": url}
+
+
+@router.get("/network-mode")
+async def get_network_mode(db: Session = Depends(get_db)):
+    """
+    Get the current network mode setting.
+
+    Used by gateway to determine bind host for services.
+
+    Returns:
+        dict: Network mode and bind host configuration
+    """
+    try:
+        network_mode = settings_service.get_setting_value("omni_network_mode", db, default="false")
+        is_enabled = str(network_mode).lower() in ("true", "1", "yes")
+
+        return {
+            "network_mode": is_enabled,
+            "bind_host": "0.0.0.0" if is_enabled else "127.0.0.1",
+        }
+    except Exception as e:
+        logger.warning(f"Failed to get network mode: {e}")
+        return {"network_mode": False, "bind_host": "127.0.0.1"}
+
+
+@router.post("/network-mode")
+async def set_network_mode(request: dict, db: Session = Depends(get_db)):
+    """
+    Set the network mode.
+
+    Args:
+        request: Dictionary with 'enabled' boolean field
+
+    Returns:
+        Success confirmation with new bind host
+    """
+    try:
+        enabled = request.get("enabled", False)
+        value = "true" if enabled else "false"
+
+        existing = settings_service.get_setting("omni_network_mode", db)
+        if existing:
+            settings_service.update_setting("omni_network_mode", value, db)
+        else:
+            settings_service.create_setting(
+                key="omni_network_mode",
+                value=value,
+                value_type=SettingValueType.BOOLEAN,
+                db=db,
+                category="network",
+                description="Enable network access (0.0.0.0 binding instead of localhost)",
+                is_secret=False,
+                created_by="setup_wizard",
+            )
+
+        logger.info(f"Network mode set to: {enabled}")
+
+        return {
+            "success": True,
+            "network_mode": enabled,
+            "bind_host": "0.0.0.0" if enabled else "127.0.0.1",
+            "message": f"Network mode {'enabled' if enabled else 'disabled'}",
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to set network mode: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set network mode: {str(e)}",
+        )
+
+
+@router.post("/public-url")
+async def set_public_url(request: dict, db: Session = Depends(get_db)):
+    """
+    Set the public URL for external access.
+
+    This endpoint is unauthenticated to allow configuration during setup.
+
+    Args:
+        request: Dictionary with 'url' field
+
+    Returns:
+        Success confirmation
+    """
+    try:
+        public_url = request.get("url", "").strip()
+
+        existing = settings_service.get_setting("omni_public_url", db)
+        if existing:
+            settings_service.update_setting("omni_public_url", public_url, db)
+            logger.info(f"Updated public URL setting: {public_url or '(auto-detect)'}")
+        else:
+            settings_service.create_setting(
+                key="omni_public_url",
+                value=public_url,
+                value_type=SettingValueType.STRING,
+                db=db,
+                category="network",
+                description="Public URL or domain for external access (empty = auto-detect IP)",
+                is_secret=False,
+                created_by="setup_wizard",
+            )
+            logger.info(f"Created public URL setting: {public_url or '(auto-detect)'}")
+
+        return {"success": True, "message": "Public URL saved", "url": get_public_base_url()}
+
+    except Exception as e:
+        logger.error(f"Failed to set public URL: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to save public URL: {str(e)}"
+        )

@@ -541,7 +541,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   // Route: /mcp - Proxy to standalone MCP server (eliminates double proxy layer)
   // ============================================================
   await registerProxy(fastify, {
-    upstream: 'http://127.0.0.1:18880', // Direct to standalone MCP server
+    upstream: 'http://127.0.0.1:28882', // Direct to standalone MCP server
     prefix: '/mcp',
     rewritePrefix: '/', // MCP server serves at root
   });

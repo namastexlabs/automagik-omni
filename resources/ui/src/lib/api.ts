@@ -1194,6 +1194,53 @@ export const api = {
       }
       return response.json();
     },
+
+    async getPublicUrl(): Promise<{ url: string }> {
+      const response = await fetch(`${API_BASE_URL}/setup/public-url`);
+      if (!response.ok) {
+        throw new Error('Failed to get public URL');
+      }
+      return response.json();
+    },
+
+    async setPublicUrl(url: string): Promise<{ success: boolean; message: string; url: string }> {
+      const response = await fetch(`${API_BASE_URL}/setup/public-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to save public URL' }));
+        throw new Error(error.detail || 'Failed to save public URL');
+      }
+      return response.json();
+    },
+
+    async getNetworkMode(): Promise<{ network_mode: boolean; bind_host: string }> {
+      const response = await fetch(`${API_BASE_URL}/setup/network-mode`);
+      if (!response.ok) {
+        throw new Error('Failed to get network mode');
+      }
+      return response.json();
+    },
+
+    async setNetworkMode(enabled: boolean): Promise<{
+      success: boolean;
+      network_mode: boolean;
+      bind_host: string;
+      message: string;
+    }> {
+      const response = await fetch(`${API_BASE_URL}/setup/network-mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Failed to set network mode' }));
+        throw new Error(error.detail || 'Failed to set network mode');
+      }
+      return response.json();
+    },
   },
 
   // Recovery API (localhost-only, no auth required)
@@ -1302,6 +1349,31 @@ export const api = {
   // Backward compatibility alias - use api.whatsappWeb for new code
   get evolution() {
     return this.whatsappWeb;
+  },
+
+  // MCP Server Configuration API
+  mcp: {
+    async startServer(): Promise<{ success: boolean; message: string; port?: number }> {
+      return apiRequest('/mcp/start', { method: 'POST', body: JSON.stringify({}) });
+    },
+
+    async stopServer(): Promise<{ success: boolean; message: string }> {
+      return apiRequest('/mcp/stop', { method: 'POST', body: JSON.stringify({}) });
+    },
+
+    async getStatus(): Promise<{ running: boolean; port?: number }> {
+      return apiRequest('/mcp/status');
+    },
+
+    async install(
+      client: string,
+      method: 'http' | 'stdio',
+    ): Promise<{ success: boolean; message?: string; error?: string; command?: string }> {
+      return apiRequest('/mcp/install', {
+        method: 'POST',
+        body: JSON.stringify({ client, method }),
+      });
+    },
   },
 };
 

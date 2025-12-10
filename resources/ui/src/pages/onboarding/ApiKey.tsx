@@ -77,7 +77,7 @@ export default function ApiKey() {
 
   if (isLoading) {
     return (
-      <OnboardingLayout currentStep={2} totalSteps={3} title="API Key">
+      <OnboardingLayout currentStep={2} totalSteps={4} title="API Key">
         <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-4" />
           <p className="text-gray-600">Generating your API key...</p>
@@ -87,7 +87,7 @@ export default function ApiKey() {
   }
 
   return (
-    <OnboardingLayout currentStep={2} totalSteps={3} title="API Key">
+    <OnboardingLayout currentStep={2} totalSteps={4} title="API Key">
       <div className="p-8">
         <div className="mb-6 text-center">
           <div className="flex justify-center mb-4">
