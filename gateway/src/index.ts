@@ -185,7 +185,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       // Start standalone MCP server only if enabled
       const mcpEnabled = process.env.MCP_ENABLED !== 'false'; // Enabled by default for existing installs
       if (mcpEnabled) {
-        await processManager.startMCP();
+        // Query network mode to determine bind host (Python is already running at this point)
+        const mcpBindHost = await processManager.getNetworkModeBindHost();
+        await processManager.startMCP(mcpBindHost);
       } else {
         console.log('[Gateway] MCP server disabled (MCP_ENABLED=false)');
       }
@@ -251,9 +253,12 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
   // ============================================================
   // Route: /health/pgserve - PostgreSQL health check
+  // FIX 10: Added debug logging to diagnose health check failures
   // ============================================================
   fastify.get('/health/pgserve', async () => {
     const health = await processManager.getPgserveHealth();
+    // FIX 10: Debug logging
+    console.log('[Gateway] /health/pgserve response:', health?.status ?? 'null (pgserveManager not set)');
     if (!health) {
       return {
         status: 'not_running',
@@ -731,9 +736,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           case 'python':
             await processManager.startPython();
             break;
-          case 'mcp':
-            await processManager.startMCP();
+          case 'mcp': {
+            // Extract bind_host from request body (sent by Python to avoid deadlock)
+            const body = request.body as { bind_host?: string } | null;
+            const bindHost = body?.bind_host;
+            await processManager.startMCP(bindHost);
             break;
+          }
           case 'evolution':
             await processManager.startEvolution();
             break;
