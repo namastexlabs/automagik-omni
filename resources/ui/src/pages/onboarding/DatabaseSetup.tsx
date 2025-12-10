@@ -97,10 +97,7 @@ export default function DatabaseSetup() {
 
       try {
         // Check if both pgserve and python API are already healthy
-        const [pgserveHealthy, pythonHealthy] = await Promise.all([
-          checkPgserveHealth(),
-          checkPythonHealth(),
-        ]);
+        const [pgserveHealthy, pythonHealthy] = await Promise.all([checkPgserveHealth(), checkPythonHealth()]);
 
         if (pgserveHealthy && pythonHealthy) {
           // Services already running - navigate directly to next step
@@ -137,10 +134,7 @@ export default function DatabaseSetup() {
 
       // First, check what's already running
       // NOTE: Use specific health check functions that check the correct status fields
-      const [pgserveHealthy, pythonHealthy] = await Promise.all([
-        checkPgserveHealth(),
-        checkPythonHealth(),
-      ]);
+      const [pgserveHealthy, pythonHealthy] = await Promise.all([checkPgserveHealth(), checkPythonHealth()]);
       console.log('[DatabaseSetup] Initial health check:', { pgserveHealthy, pythonHealthy });
 
       // If everything is already running, skip to done
@@ -171,8 +165,25 @@ export default function DatabaseSetup() {
         }
         console.log('[DatabaseSetup] pgserve config written');
 
-        // Start PostgreSQL
-        const pgserveResponse = await fetch('/api/internal/services/pgserve/start', { method: 'POST' });
+        // Start PostgreSQL (with 60s timeout to prevent indefinite waiting)
+        const pgserveController = new AbortController();
+        const pgserveTimeoutId = setTimeout(() => pgserveController.abort(), 60000);
+
+        let pgserveResponse: Response;
+        try {
+          pgserveResponse = await fetch('/api/internal/services/pgserve/start', {
+            method: 'POST',
+            signal: pgserveController.signal,
+          });
+          clearTimeout(pgserveTimeoutId);
+        } catch (fetchErr) {
+          clearTimeout(pgserveTimeoutId);
+          if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+            throw new Error('PostgreSQL start timed out after 60s. Please try again.');
+          }
+          throw fetchErr;
+        }
+
         console.log('[DatabaseSetup] pgserve start response:', pgserveResponse.status);
         if (!pgserveResponse.ok) {
           const errorData = await pgserveResponse.json();
@@ -192,7 +203,25 @@ export default function DatabaseSetup() {
         console.log('[DatabaseSetup] Phase 2: Starting Python API...');
         setStartupPhase('python');
 
-        const pythonResponse = await fetch('/api/internal/services/python/start', { method: 'POST' });
+        // Start Python API (with 60s timeout to prevent indefinite waiting)
+        const pythonController = new AbortController();
+        const pythonTimeoutId = setTimeout(() => pythonController.abort(), 60000);
+
+        let pythonResponse: Response;
+        try {
+          pythonResponse = await fetch('/api/internal/services/python/start', {
+            method: 'POST',
+            signal: pythonController.signal,
+          });
+          clearTimeout(pythonTimeoutId);
+        } catch (fetchErr) {
+          clearTimeout(pythonTimeoutId);
+          if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+            throw new Error('Python API start timed out after 60s. Please try again.');
+          }
+          throw fetchErr;
+        }
+
         console.log('[DatabaseSetup] Python start response:', pythonResponse.status);
         if (!pythonResponse.ok) {
           const errorData = await pythonResponse.json();

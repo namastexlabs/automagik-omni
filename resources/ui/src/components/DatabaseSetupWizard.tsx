@@ -6,7 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Database, CheckCircle2, AlertTriangle, HardDrive, ChevronDown, ChevronRight, FolderOpen, Globe, Network } from 'lucide-react';
+import {
+  Database,
+  CheckCircle2,
+  AlertTriangle,
+  HardDrive,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  Globe,
+  Network,
+} from 'lucide-react';
 import { DatabaseConfig } from '@/types/onboarding';
 import { api } from '@/lib/api';
 
@@ -36,51 +46,69 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   const [detectedIp, setDetectedIp] = useState<string>('');
   const [showNetworkOptions, setShowNetworkOptions] = useState(false);
 
-  // Load detected IP and network mode on mount
+  // Load detected IP and network mode on mount (only when NOT first run)
+  // During first run/bootstrap, Python API isn't available yet
   useEffect(() => {
-    // Get public URL / detected IP
-    api.setup.getPublicUrl().then(({ url }) => {
-      // Extract just the IP/host from the URL for display
-      try {
-        const parsed = new URL(url);
-        setDetectedIp(parsed.host);
-      } catch {
-        setDetectedIp(url.replace(/^https?:\/\//, ''));
-      }
-    }).catch(() => {
-      // Fallback if API not available yet
+    if (isFirstRun) {
+      // During bootstrap, use defaults - Python API not available yet
       setDetectedIp('auto-detect');
-    });
-
-    // Get current network mode
-    api.setup.getNetworkMode().then(({ network_mode }) => {
-      setNetworkMode(network_mode);
-      // Auto-expand if network mode is already enabled
-      if (network_mode) {
-        setShowNetworkOptions(true);
-      }
-    }).catch(() => {
-      // Default to local mode
       setNetworkMode(false);
-    });
-  }, []);
+      return;
+    }
+
+    // Not first run - load existing settings from API
+    api.setup
+      .getPublicUrl()
+      .then(({ url }) => {
+        // Extract just the IP/host from the URL for display
+        try {
+          const parsed = new URL(url);
+          setDetectedIp(parsed.host);
+        } catch {
+          setDetectedIp(url.replace(/^https?:\/\//, ''));
+        }
+      })
+      .catch(() => {
+        // Fallback if API not available
+        setDetectedIp('auto-detect');
+      });
+
+    api.setup
+      .getNetworkMode()
+      .then(({ network_mode }) => {
+        setNetworkMode(network_mode);
+        // Auto-expand if network mode is already enabled
+        if (network_mode) {
+          setShowNetworkOptions(true);
+        }
+      })
+      .catch(() => {
+        // Default to local mode
+        setNetworkMode(false);
+      });
+  }, [isFirstRun]);
 
   const handleComplete = async () => {
-    // Save network mode setting
-    try {
-      await api.setup.setNetworkMode(networkMode);
-    } catch (err) {
-      console.error('Failed to save network mode:', err);
-    }
-
-    // Save public URL setting if provided (only relevant when network mode is on)
-    if (networkMode && publicUrl.trim()) {
+    // During first run, Python API isn't available yet - skip saving settings
+    // Settings will be saved after Python starts via the initialization flow
+    if (!isFirstRun) {
+      // Save network mode setting
       try {
-        await api.setup.setPublicUrl(publicUrl.trim());
+        await api.setup.setNetworkMode(networkMode);
       } catch (err) {
-        console.error('Failed to save public URL:', err);
+        console.error('Failed to save network mode:', err);
+      }
+
+      // Save public URL setting if provided (only relevant when network mode is on)
+      if (networkMode && publicUrl.trim()) {
+        try {
+          await api.setup.setPublicUrl(publicUrl.trim());
+        } catch (err) {
+          console.error('Failed to save public URL:', err);
+        }
       }
     }
+
     const config: DatabaseConfig = {
       // PostgreSQL storage options (embedded pgserve)
       data_dir: storageMode === 'filesystem' ? dataDir : undefined,
@@ -272,16 +300,12 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
               {/* Network Mode Toggle */}
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
-                  <Label htmlFor="network-mode" className="font-medium">Enable Network Access</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Allow connections from other devices on your network
-                  </p>
+                  <Label htmlFor="network-mode" className="font-medium">
+                    Enable Network Access
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Allow connections from other devices on your network</p>
                 </div>
-                <Switch
-                  id="network-mode"
-                  checked={networkMode}
-                  onCheckedChange={setNetworkMode}
-                />
+                <Switch id="network-mode" checked={networkMode} onCheckedChange={setNetworkMode} />
               </div>
 
               {/* Domain field - only visible when network mode enabled */}

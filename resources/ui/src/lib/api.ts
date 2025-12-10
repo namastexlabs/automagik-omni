@@ -1081,7 +1081,6 @@ export const api = {
     async complete(): Promise<{ success: boolean; message: string }> {
       const response = await fetch(`${API_BASE_URL}/setup/complete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Failed to complete setup' }));

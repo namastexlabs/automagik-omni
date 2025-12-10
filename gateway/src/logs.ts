@@ -125,6 +125,8 @@ export class LogTailer extends EventEmitter {
 
   constructor(maxBufferSize = 500) {
     super();
+    // FIX 13: Increase max listeners to prevent warning during heavy SSE usage
+    this.setMaxListeners(50);
     this.maxBufferSize = maxBufferSize;
   }
 

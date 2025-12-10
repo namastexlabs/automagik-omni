@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { DiscordInstallModal } from '@/components/DiscordInstallModal';
 import { WhatsAppConfigModal } from '@/components/WhatsAppConfigModal';
 import { Loader2, MessageCircle, Bot, CheckCircle2, AlertCircle, Wifi, WifiOff, Terminal } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ChannelStatus {
   enabled: boolean;
@@ -47,6 +48,20 @@ export default function ChannelSetup() {
   const [discordInstalled, setDiscordInstalled] = useState<boolean | null>(null);
   const [showDiscordInstallModal, setShowDiscordInstallModal] = useState(false);
   const [discordCheckingInstall, setDiscordCheckingInstall] = useState(false);
+
+  // UX: Ref for instance name input focus when switch is clicked without name
+  const whatsappInstanceInputRef = useRef<HTMLInputElement>(null);
+  const [highlightInstanceName, setHighlightInstanceName] = useState(false);
+
+  // Handler for when user clicks disabled switch - focus input and highlight
+  const handleDisabledSwitchClick = () => {
+    if (!whatsappInstanceName.trim() && whatsappInstanceInputRef.current) {
+      whatsappInstanceInputRef.current.focus();
+      setHighlightInstanceName(true);
+      // Remove highlight after animation
+      setTimeout(() => setHighlightInstanceName(false), 2000);
+    }
+  };
 
   // QR Code modal state
   const [showQrModal, setShowQrModal] = useState(false);
@@ -88,16 +103,13 @@ export default function ChannelSetup() {
         // Check for existing WhatsApp instances
         try {
           const instances = await api.instances.list();
-          const whatsappInstances = instances.filter(
-            (i: { channel_type: string }) => i.channel_type === 'whatsapp'
-          );
+          const whatsappInstances = instances.filter((i: { channel_type: string }) => i.channel_type === 'whatsapp');
 
           if (whatsappInstances.length > 0) {
             // Check if any instance is connected
             const connectedInstance = whatsappInstances.find(
               (i: { evolution_status?: { state?: string } }) =>
-                i.evolution_status?.state === 'open' ||
-                i.evolution_status?.state === 'connected'
+                i.evolution_status?.state === 'open' || i.evolution_status?.state === 'connected',
             );
 
             if (connectedInstance) {
@@ -135,8 +147,7 @@ export default function ChannelSetup() {
   }, [evolutionError]);
 
   // Handle WhatsApp toggle - open configuration modal (like Discord does)
-  const handleWhatsAppToggle = (enabled: boolean) => {
-    setWhatsappEnabled(enabled);
+  const handleWhatsAppToggle = async (enabled: boolean) => {
     setEvolutionError(null);
 
     if (enabled) {
@@ -144,8 +155,38 @@ export default function ChannelSetup() {
         setEvolutionError('Please enter a WhatsApp instance name before starting setup.');
         return;
       }
+      setWhatsappEnabled(true);
       // Open configuration modal (same pattern as Discord)
       setShowWhatsAppModal(true);
+    } else {
+      // FIX 1: Stop Evolution service when toggle is turned OFF
+      if (evolutionReady) {
+        try {
+          setEvolutionStarting(true); // Use as loading indicator
+          await api.gateway.stopChannel('evolution');
+
+          // Verify stopped with polling (up to 10s)
+          for (let i = 0; i < 20; i++) {
+            const status = await api.gateway.getStatus();
+            if (!status.processes?.evolution?.healthy) {
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 500));
+          }
+
+          setEvolutionReady(false);
+          setWhatsappConnected(false);
+          setInstanceCreatedInModal(false);
+        } catch (err) {
+          console.error('Failed to stop Evolution:', err);
+          setEvolutionError('Failed to stop WhatsApp service. Try again.');
+          // Don't update toggle state on failure - service may still be running
+          return;
+        } finally {
+          setEvolutionStarting(false);
+        }
+      }
+      setWhatsappEnabled(false);
     }
   };
 
@@ -222,10 +263,13 @@ export default function ChannelSetup() {
         // Additional delay for SSE connection to establish
         await new Promise((r) => setTimeout(r, 150));
 
+        let startupFailed = false;
+
         try {
           await api.gateway.startChannel('evolution');
           const ready = await api.gateway.waitForChannel('evolution', 120000);
           if (!ready) {
+            startupFailed = true;
             // Don't throw - route to modal error state so user sees logs
             setEvolutionError('WhatsApp service failed to start. Check logs above.');
             setIsSubmitting(false);
@@ -264,6 +308,7 @@ export default function ChannelSetup() {
           }
 
           if (!apiReady) {
+            startupFailed = true;
             setEvolutionError('WhatsApp service started but API is not responding. Please check logs.');
             setIsSubmitting(false);
             return;
@@ -271,12 +316,23 @@ export default function ChannelSetup() {
 
           setEvolutionReady(true);
         } catch (err) {
+          startupFailed = true;
           // Route to modal error state, don't throw to main catch
           setEvolutionError(err instanceof Error ? err.message : 'Failed to start service');
           setIsSubmitting(false);
           return; // Modal stays open with logs visible
         } finally {
           setEvolutionStarting(false);
+
+          // FIX 2: Cleanup on failure - stop the half-started process to avoid zombies
+          if (startupFailed) {
+            try {
+              console.log('[ChannelSetup] Cleaning up failed Evolution startup...');
+              await api.gateway.stopChannel('evolution');
+            } catch (cleanupErr) {
+              console.warn('[ChannelSetup] Cleanup after failure failed:', cleanupErr);
+            }
+          }
         }
       }
 
@@ -388,7 +444,6 @@ export default function ChannelSetup() {
     }
   };
 
-
   // Show loading while checking existing setup or initial load
   if (isCheckingExisting || isLoading) {
     return (
@@ -458,11 +513,22 @@ export default function ChannelSetup() {
                       <span className="text-amber-600">Will start</span>
                     </div>
                   ) : null}
-                  <Switch
-                    checked={whatsappEnabled}
-                    onCheckedChange={handleWhatsAppToggle}
-                    disabled={evolutionStarting || !whatsappInstanceName.trim()}
-                  />
+                  {/* Wrap switch with overlay to capture clicks when disabled - UX improvement */}
+                  <div className="relative">
+                    <Switch
+                      checked={whatsappEnabled}
+                      onCheckedChange={handleWhatsAppToggle}
+                      disabled={evolutionStarting || !whatsappInstanceName.trim()}
+                    />
+                    {/* Invisible overlay to capture clicks when switch is disabled */}
+                    {!whatsappInstanceName.trim() && !evolutionStarting && (
+                      <div
+                        className="absolute inset-0 cursor-pointer"
+                        onClick={handleDisabledSwitchClick}
+                        title="Enter an instance name first"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -507,18 +573,38 @@ export default function ChannelSetup() {
               {/* Instance Name */}
               {!evolutionStarting && (
                 <div className="mt-4 space-y-2">
-                  <Label htmlFor="whatsappInstanceName" className="text-gray-700">
+                  <Label
+                    htmlFor="whatsappInstanceName"
+                    className={cn(
+                      'text-gray-700 transition-colors',
+                      highlightInstanceName && 'text-green-600 font-semibold',
+                    )}
+                  >
                     Instance Name {!whatsappInstanceName.trim() && <span className="text-red-500">*</span>}
                   </Label>
                   <Input
+                    ref={whatsappInstanceInputRef}
                     id="whatsappInstanceName"
                     type="text"
                     value={whatsappInstanceName}
-                    onChange={(e) => setWhatsappInstanceName(e.target.value)}
+                    onChange={(e) => {
+                      setWhatsappInstanceName(e.target.value);
+                      // Clear highlight when user starts typing
+                      if (highlightInstanceName) setHighlightInstanceName(false);
+                    }}
                     placeholder="genie"
                     disabled={evolutionStarting || whatsappEnabled}
+                    className={cn(
+                      'transition-all duration-300',
+                      highlightInstanceName && 'ring-2 ring-green-500 ring-offset-2 border-green-500',
+                    )}
                   />
-                  <p className="text-xs text-gray-500">
+                  <p
+                    className={cn(
+                      'text-xs transition-colors',
+                      highlightInstanceName ? 'text-green-600 font-medium' : 'text-gray-500',
+                    )}
+                  >
                     {whatsappEnabled
                       ? 'WhatsApp setup in progress. Complete the QR scan in the popup.'
                       : !whatsappInstanceName.trim()
@@ -668,7 +754,6 @@ export default function ChannelSetup() {
             )}
           </Button>
         </form>
-
       </div>
 
       {/* QR Code Modal - uses QRCodeDialog which has status polling and auto-close on connection */}
