@@ -39,6 +39,7 @@ export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions
       const url = `${upstream}${path}`;
 
       // Build headers - filter out undefined values and hop-by-hop headers
+      // Also filter content-encoding/length since Bun's fetch() auto-decompresses
       const hopByHopHeaders = new Set([
         'connection',
         'keep-alive',
@@ -49,6 +50,8 @@ export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions
         'transfer-encoding',
         'upgrade',
         'host',
+        'content-encoding', // Bun decompresses gzip, so strip this
+        'content-length', // Length changes after decompression
       ]);
 
       const headers: Record<string, string> = {};

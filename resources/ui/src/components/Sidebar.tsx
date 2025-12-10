@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib';
-import { LayoutDashboard, MessageSquare, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Users, Settings, LogOut, Shield } from 'lucide-react';
 import { InstanceNav } from './sidebar/InstanceNav';
 
 interface SidebarProps {
@@ -13,6 +13,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Chats', href: '/chats', icon: MessageSquare },
   { name: 'Contacts', href: '/contacts', icon: Users },
+  { name: 'Access Rules', href: '/access-rules', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

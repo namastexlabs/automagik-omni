@@ -1359,6 +1359,53 @@ export const api = {
     return this.whatsappWeb;
   },
 
+  // Access Rules API
+  accessRules: {
+    async list(params?: {
+      instance_name?: string;
+      rule_type?: 'allow' | 'block';
+    }): Promise<
+      Array<{
+        id: number;
+        instance_name: string | null;
+        phone_number: string;
+        rule_type: 'allow' | 'block';
+        created_at: string;
+        updated_at: string;
+      }>
+    > {
+      const queryParams = new URLSearchParams();
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.rule_type) queryParams.append('rule_type', params.rule_type);
+      const query = queryParams.toString();
+      return apiRequest(`/access/rules${query ? `?${query}` : ''}`);
+    },
+
+    async create(data: {
+      phone_number: string;
+      rule_type: 'allow' | 'block';
+      instance_name?: string;
+    }): Promise<{
+      id: number;
+      instance_name: string | null;
+      phone_number: string;
+      rule_type: 'allow' | 'block';
+      created_at: string;
+      updated_at: string;
+    }> {
+      return apiRequest('/access/rules', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async delete(ruleId: number): Promise<void> {
+      return apiRequest(`/access/rules/${ruleId}`, {
+        method: 'DELETE',
+      });
+    },
+  },
+
   // MCP Server Configuration API
   mcp: {
     async startServer(): Promise<{ success: boolean; message: string; port?: number }> {

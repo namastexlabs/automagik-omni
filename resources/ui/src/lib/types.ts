@@ -92,10 +92,15 @@ export interface InstanceUpdateRequest {
   discord_guild_id?: string;
   discord_bot_token?: string;
 
-  // Agent configuration
+  // Agent configuration (Hive)
   agent_api_url?: string;
   agent_api_key?: string;
   default_agent?: string;
+  agent_id?: string;
+  agent_type?: string;
+  agent_timeout?: number;
+  agent_stream_mode?: boolean;
+  enable_auto_split?: boolean;
 }
 
 // Contact Types
@@ -422,4 +427,22 @@ export interface SettingHistoryEntry {
   updated_at?: string;
   updated_by?: string;
   change_reason?: string | null;
+}
+
+// Access Rules Types
+export type AccessRuleType = 'allow' | 'block';
+
+export interface AccessRule {
+  id: number;
+  instance_name: string | null;
+  phone_number: string;
+  rule_type: AccessRuleType;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccessRuleCreate {
+  phone_number: string;
+  rule_type: AccessRuleType;
+  instance_name?: string;
 }

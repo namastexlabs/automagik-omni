@@ -8,7 +8,7 @@ import { api, getApiKey, formatDateTime } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Settings as SettingsIcon, Key, Info, Moon, Sun, Database, ArrowRight } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Info, Moon, Sun, Database, ArrowRight, FileText } from 'lucide-react';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -27,6 +27,14 @@ export default function Settings() {
           title="Settings"
           subtitle="Configure your Omni UI preferences"
           icon={<SettingsIcon className="h-6 w-6 text-primary" />}
+          actions={
+            <Button variant="outline" asChild>
+              <a href="/api/v1/docs" target="_blank" rel="noopener noreferrer">
+                <FileText className="h-4 w-4 mr-2" />
+                API Docs
+              </a>
+            </Button>
+          }
         />
 
         {/* Main Content */}
