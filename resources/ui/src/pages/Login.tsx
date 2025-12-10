@@ -20,9 +20,9 @@ export default function Login() {
     console.log('[Login] Starting login with key:', apiKey.substring(0, 8) + '...');
 
     try {
-      // Save API key first (now async - stored in PostgreSQL)
-      await setApiKey(apiKey);
-      console.log('[Login] API key saved to PostgreSQL');
+      // Save API key to localStorage (sync, immediate)
+      setApiKey(apiKey);
+      console.log('[Login] API key saved');
 
       // Now test authentication
       console.log('[Login] Testing authentication...');

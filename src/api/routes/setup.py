@@ -71,9 +71,7 @@ def is_network_mode() -> bool:
 
     try:
         with SessionLocal() as db:
-            network_mode = settings_service.get_setting_value(
-                "omni_network_mode", db, default="false"
-            )
+            network_mode = settings_service.get_setting_value("omni_network_mode", db, default="false")
             return str(network_mode).lower() in ("true", "1", "yes")
     except Exception as e:
         logger.warning(f"Failed to get network mode setting: {e}")

@@ -519,7 +519,7 @@ export class ProcessManager {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { network_mode?: boolean; bind_host?: string };
         console.log(`[ProcessManager] Network mode: ${data.network_mode}, bind host: ${data.bind_host}`);
         return data.bind_host || '127.0.0.1';
       }

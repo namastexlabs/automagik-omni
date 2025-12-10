@@ -309,24 +309,25 @@ async function restoreFromPostgreSQL(): Promise<void> {
 }
 
 // API Key management (localStorage + PostgreSQL sync pattern)
-export async function getApiKey(): Promise<string | null> {
+// Note: These are synchronous since localStorage is sync - keeps React routing simple
+export function getApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
 }
 
-export async function setApiKey(key: string): Promise<void> {
+export function setApiKey(key: string): void {
   // Fast write to localStorage
   localStorage.setItem(API_KEY_STORAGE_KEY, key);
 
-  // Async sync to PostgreSQL (non-blocking)
+  // Async sync to PostgreSQL (non-blocking, fire-and-forget)
   syncToPostgreSQL({ [API_KEY_STORAGE_KEY]: key });
 }
 
-export async function removeApiKey(): Promise<void> {
+export function removeApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-export async function isAuthenticated(): Promise<boolean> {
-  const key = await getApiKey();
+export function isAuthenticated(): boolean {
+  const key = getApiKey();
   return !!key;
 }
 
@@ -337,7 +338,7 @@ export async function restorePreferences(): Promise<void> {
 
 // API client helper
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const apiKey = await getApiKey();
+  const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error('No API key found. Please login.');
@@ -362,7 +363,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      await removeApiKey();
+      removeApiKey();
 
       if (authErrorHandler) {
         authErrorHandler();
@@ -1397,7 +1398,7 @@ export function setInstanceKey(instanceName: string, evolutionKey: string) {
 }
 
 async function evolutionRequest<T>(endpoint: string, options: RequestInit = {}, instanceName?: string): Promise<T> {
-  const apiKey = await getApiKey();
+  const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error('No API key found. Please login.');

@@ -97,10 +97,7 @@ export default function DatabaseSetup() {
 
       try {
         // Check if both pgserve and python API are already healthy
-        const [pgserveHealthy, pythonHealthy] = await Promise.all([
-          checkPgserveHealth(),
-          checkPythonHealth(),
-        ]);
+        const [pgserveHealthy, pythonHealthy] = await Promise.all([checkPgserveHealth(), checkPythonHealth()]);
 
         if (pgserveHealthy && pythonHealthy) {
           // Services already running - navigate directly to next step
@@ -122,11 +119,8 @@ export default function DatabaseSetup() {
   // Clear any stale API key and setup state from previous installations
   // This ensures fresh installs don't retain old localStorage data
   useEffect(() => {
-    const clearStaleData = async () => {
-      await removeApiKey();
-      localStorage.removeItem('omni_setup_complete');
-    };
-    clearStaleData();
+    removeApiKey();
+    localStorage.removeItem('omni_setup_complete');
   }, []);
 
   const startServices = useCallback(async (config: DatabaseConfig) => {
@@ -137,10 +131,7 @@ export default function DatabaseSetup() {
 
       // First, check what's already running
       // NOTE: Use specific health check functions that check the correct status fields
-      const [pgserveHealthy, pythonHealthy] = await Promise.all([
-        checkPgserveHealth(),
-        checkPythonHealth(),
-      ]);
+      const [pgserveHealthy, pythonHealthy] = await Promise.all([checkPgserveHealth(), checkPythonHealth()]);
       console.log('[DatabaseSetup] Initial health check:', { pgserveHealthy, pythonHealthy });
 
       // If everything is already running, skip to done

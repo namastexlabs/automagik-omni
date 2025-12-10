@@ -172,8 +172,7 @@ export function WhatsAppConfigModal({
   const { data: connectionState } = useQuery({
     queryKey: ['connection-state-modal', instanceName],
     queryFn: () => api.instances.getStatus(instanceName),
-    enabled:
-      open && instanceCreated && instanceReady && phase === 'qr' && gatewayStatus?.processes?.evolution?.healthy,
+    enabled: open && instanceCreated && instanceReady && phase === 'qr' && gatewayStatus?.processes?.evolution?.healthy,
     refetchInterval: phase === 'qr' ? 2000 : false,
     retry: 5,
     retryDelay: 1500,
@@ -252,9 +251,7 @@ export function WhatsAppConfigModal({
 
   // Check for connection success
   useEffect(() => {
-    const logIndicatesConnected = evolutionLogs.some((log) =>
-      /connected to whatsapp/i.test(log.message ?? ''),
-    );
+    const logIndicatesConnected = evolutionLogs.some((log) => /connected to whatsapp/i.test(log.message ?? ''));
 
     const isConnected =
       logIndicatesConnected ||

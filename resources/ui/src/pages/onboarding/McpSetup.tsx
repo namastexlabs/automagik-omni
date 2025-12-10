@@ -13,11 +13,14 @@ import { Loader2, CheckCircle2, Wifi, WifiOff } from 'lucide-react';
 
 const MCP_PORT = 28882;
 
-type ClientInstallState = Record<McpClientId, {
-  method: McpConnectionMethod;
-  status: McpInstallStatus;
-  errorMessage?: string;
-}>;
+type ClientInstallState = Record<
+  McpClientId,
+  {
+    method: McpConnectionMethod;
+    status: McpInstallStatus;
+    errorMessage?: string;
+  }
+>;
 
 export default function McpSetup() {
   const navigate = useNavigate();
@@ -31,12 +34,15 @@ export default function McpSetup() {
 
   // Fetch the public URL on mount
   useEffect(() => {
-    api.setup.getPublicUrl().then(({ url }) => {
-      setServerUrl(`${url}:${MCP_PORT}/mcp`);
-    }).catch(() => {
-      // Fallback if API not available
-      setServerUrl(`http://localhost:${MCP_PORT}/mcp`);
-    });
+    api.setup
+      .getPublicUrl()
+      .then(({ url }) => {
+        setServerUrl(`${url}:${MCP_PORT}/mcp`);
+      })
+      .catch(() => {
+        // Fallback if API not available
+        setServerUrl(`http://localhost:${MCP_PORT}/mcp`);
+      });
   }, []);
 
   // Initialize state for each client
@@ -169,8 +175,8 @@ export default function McpSetup() {
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect Your AI Tools</h2>
           <p className="text-gray-600">
-            Install Automagik Omni MCP server to your favorite AI coding assistants.
-            Select your preferred connection method and click Install.
+            Install Automagik Omni MCP server to your favorite AI coding assistants. Select your preferred connection
+            method and click Install.
           </p>
         </div>
 

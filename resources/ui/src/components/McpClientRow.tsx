@@ -40,11 +40,7 @@ export function McpClientRow({
   return (
     <div
       className={`rounded-lg border-2 p-4 transition-colors ${
-        isSuccess
-          ? 'border-green-500 bg-green-50'
-          : isError
-            ? 'border-red-500 bg-red-50'
-            : 'border-gray-200 bg-gray-50'
+        isSuccess ? 'border-green-500 bg-green-50' : isError ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-gray-50'
       }`}
     >
       <div className="flex items-center justify-between">

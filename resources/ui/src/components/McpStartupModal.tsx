@@ -4,16 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useLogStream } from '@/hooks/useLogStream';
 import { api } from '@/lib/api';
-import {
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Copy,
-  RefreshCw,
-  Terminal,
-  AlertTriangle,
-  Server,
-} from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Copy, RefreshCw, Terminal, AlertTriangle, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LogEntry } from '@/lib';
 
@@ -59,7 +50,7 @@ async function checkMcpHealth(timeoutMs: number = 3000): Promise<boolean> {
   try {
     const response = await fetch('/mcp', {
       method: 'GET',
-      signal: AbortSignal.timeout(timeoutMs)
+      signal: AbortSignal.timeout(timeoutMs),
     });
     return response.ok || response.status === 405; // 405 is fine - endpoint exists
   } catch {
@@ -67,11 +58,7 @@ async function checkMcpHealth(timeoutMs: number = 3000): Promise<boolean> {
   }
 }
 
-export function McpStartupModal({
-  open,
-  onOpenChange,
-  onSuccess,
-}: McpStartupModalProps) {
+export function McpStartupModal({ open, onOpenChange, onSuccess }: McpStartupModalProps) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [copiedLogs, setCopiedLogs] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -93,12 +80,10 @@ export function McpStartupModal({
   });
 
   // Filter to MCP-relevant logs
-  const relevantLogs = useMemo(() =>
-    logs.filter((l) =>
-      l.message.toLowerCase().includes('mcp') ||
-      l.message.toLowerCase().includes('processmanager')
-    ),
-    [logs]
+  const relevantLogs = useMemo(
+    () =>
+      logs.filter((l) => l.message.toLowerCase().includes('mcp') || l.message.toLowerCase().includes('processmanager')),
+    [logs],
   );
 
   // Start MCP server when modal opens
@@ -130,7 +115,7 @@ export function McpStartupModal({
             setPhase('ready');
             return;
           }
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, 1000));
         }
 
         // Timeout - but server might still be starting
@@ -224,7 +209,7 @@ export function McpStartupModal({
               setPhase('ready');
               return;
             }
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise((r) => setTimeout(r, 1000));
           }
 
           setPhase('error');
@@ -251,11 +236,7 @@ export function McpStartupModal({
             ) : (
               <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
             )}
-            {phase === 'ready'
-              ? 'MCP Server Ready!'
-              : phase === 'error'
-                ? 'Startup Failed'
-                : 'Starting MCP Server...'}
+            {phase === 'ready' ? 'MCP Server Ready!' : phase === 'error' ? 'Startup Failed' : 'Starting MCP Server...'}
           </DialogTitle>
           <DialogDescription>
             {phase === 'ready'
@@ -269,12 +250,16 @@ export function McpStartupModal({
         {/* Phase indicator */}
         <div className="flex items-center justify-center py-4">
           <div className="flex items-center gap-4">
-            <div className={cn(
-              'h-12 w-12 rounded-full flex items-center justify-center transition-colors',
-              phase === 'ready' ? 'bg-green-500 text-white' :
-              phase === 'error' ? 'bg-red-500 text-white' :
-              'bg-blue-500 text-white'
-            )}>
+            <div
+              className={cn(
+                'h-12 w-12 rounded-full flex items-center justify-center transition-colors',
+                phase === 'ready'
+                  ? 'bg-green-500 text-white'
+                  : phase === 'error'
+                    ? 'bg-red-500 text-white'
+                    : 'bg-blue-500 text-white',
+              )}
+            >
               {phase === 'ready' ? (
                 <CheckCircle2 className="h-6 w-6" />
               ) : phase === 'error' ? (
@@ -317,9 +302,7 @@ export function McpStartupModal({
             <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-green-500">MCP Server Running!</p>
-              <p className="text-sm text-muted-foreground">
-                Server is ready on port 28882. Closing this dialog...
-              </p>
+              <p className="text-sm text-muted-foreground">Server is ready on port 28882. Closing this dialog...</p>
             </div>
           </div>
         )}

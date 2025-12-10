@@ -88,16 +88,13 @@ export default function ChannelSetup() {
         // Check for existing WhatsApp instances
         try {
           const instances = await api.instances.list();
-          const whatsappInstances = instances.filter(
-            (i: { channel_type: string }) => i.channel_type === 'whatsapp'
-          );
+          const whatsappInstances = instances.filter((i: { channel_type: string }) => i.channel_type === 'whatsapp');
 
           if (whatsappInstances.length > 0) {
             // Check if any instance is connected
             const connectedInstance = whatsappInstances.find(
               (i: { evolution_status?: { state?: string } }) =>
-                i.evolution_status?.state === 'open' ||
-                i.evolution_status?.state === 'connected'
+                i.evolution_status?.state === 'open' || i.evolution_status?.state === 'connected',
             );
 
             if (connectedInstance) {
@@ -388,7 +385,6 @@ export default function ChannelSetup() {
     }
   };
 
-
   // Show loading while checking existing setup or initial load
   if (isCheckingExisting || isLoading) {
     return (
@@ -668,7 +664,6 @@ export default function ChannelSetup() {
             )}
           </Button>
         </form>
-
       </div>
 
       {/* QR Code Modal - uses QRCodeDialog which has status polling and auto-close on connection */}

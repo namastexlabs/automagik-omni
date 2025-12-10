@@ -70,7 +70,11 @@ function detectPhase(logs: LogEntry[], externalPhase?: string): Phase {
     const level = recentLogs[i].level;
 
     // Error detection - only when actually in startup phase, and ignore expected errors
-    if (isInStartupPhase && level === 'error' && (msg.includes('failed') || msg.includes('error') || msg.includes('crash'))) {
+    if (
+      isInStartupPhase &&
+      level === 'error' &&
+      (msg.includes('failed') || msg.includes('error') || msg.includes('crash'))
+    ) {
       // Don't treat proxy/connection errors as failures - they're expected during health checks
       if (msg.includes('proxy error') || msg.includes('connectionrefused') || msg.includes('unable to connect')) {
         continue;
