@@ -45,14 +45,19 @@ const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
   </>
 ));
 
-// Health check function
+// FIX 14: Health check function - use dedicated /mcp/health endpoint
+// FastMCP's protocol endpoint returns 406 for plain GET, creating transport sessions each poll
 async function checkMcpHealth(timeoutMs: number = 3000): Promise<boolean> {
   try {
-    const response = await fetch('/mcp', {
+    const response = await fetch('/mcp/health', {
       method: 'GET',
       signal: AbortSignal.timeout(timeoutMs),
     });
-    return response.ok || response.status === 405; // 405 is fine - endpoint exists
+    if (response.ok) {
+      const data = await response.json();
+      return data.status === 'healthy';
+    }
+    return false;
   } catch {
     return false;
   }
@@ -155,9 +160,17 @@ export function McpStartupModal({ open, onOpenChange, onSuccess }: McpStartupMod
     };
   }, [phase, onSuccess]);
 
-  // Reset when modal closes
+  // FIX 6: Cleanup on modal close - stop server if startup was in progress
   useEffect(() => {
     if (!open) {
+      // If we were starting but user closed modal, cleanup the half-started server
+      if (phase === 'starting' || phase === 'running') {
+        console.log('[McpStartupModal] Cleaning up - user cancelled during startup');
+        api.mcp.stopServer().catch((err) => {
+          console.warn('[McpStartupModal] Cleanup failed:', err);
+        });
+      }
+
       startedRef.current = false;
       setPhase('idle');
       setError(null);
@@ -165,7 +178,7 @@ export function McpStartupModal({ open, onOpenChange, onSuccess }: McpStartupMod
       clearLogs();
       connect();
     }
-  }, [open, connect, clearLogs]);
+  }, [open, connect, clearLogs, phase]);
 
   const handleCopyLogs = async () => {
     const logText = relevantLogs.map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`).join('\n');

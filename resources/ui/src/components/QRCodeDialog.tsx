@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib';
-import { AlertCircle, QrCode as QrCodeIcon, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, QrCode as QrCodeIcon, RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface QRCodeDialogProps {
@@ -18,7 +18,19 @@ export function QRCodeDialog({ open, onOpenChange, instanceName }: QRCodeDialogP
   const queryClient = useQueryClient();
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
 
+  // FIX 15: Check gateway status first to see if Evolution is healthy
+  // This prevents 404 errors from polling QR/status before Evolution is ready
+  const { data: gatewayStatus } = useQuery({
+    queryKey: ['gateway-status-qr'],
+    queryFn: () => api.gateway.getStatus(),
+    enabled: open,
+    refetchInterval: open ? 2000 : false,
+  });
+
+  const evolutionHealthy = gatewayStatus?.processes?.evolution?.healthy;
+
   // Fetch QR code with auto-refresh every 5 seconds
+  // FIX 15: Only enable when Evolution is healthy
   const {
     data: qrData,
     isLoading: qrLoading,
@@ -27,17 +39,18 @@ export function QRCodeDialog({ open, onOpenChange, instanceName }: QRCodeDialogP
   } = useQuery({
     queryKey: ['qr-code', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
-    enabled: open,
-    refetchInterval: open ? 5000 : false, // Auto-refresh every 5 seconds
+    enabled: open && evolutionHealthy,
+    refetchInterval: open && evolutionHealthy ? 5000 : false,
     retry: 1,
   });
 
   // Poll connection status every 3 seconds while dialog is open
+  // FIX 15: Only enable when Evolution is healthy
   const { data: statusData } = useQuery({
     queryKey: ['instance-status', instanceName],
     queryFn: () => api.instances.getStatus(instanceName),
-    enabled: open,
-    refetchInterval: open ? 3000 : false,
+    enabled: open && evolutionHealthy,
+    refetchInterval: open && evolutionHealthy ? 3000 : false,
   });
 
   // Update QR image only when QR data changes (prevents flickering)
@@ -102,16 +115,24 @@ export function QRCodeDialog({ open, onOpenChange, instanceName }: QRCodeDialogP
             </div>
           )}
 
+          {/* FIX 15: Waiting for Evolution service */}
+          {!isConnected && !evolutionHealthy && (
+            <div className="flex flex-col items-center space-y-4 py-8">
+              <Loader2 className="h-12 w-12 text-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Waiting for WhatsApp service...</p>
+            </div>
+          )}
+
           {/* Loading State */}
-          {!isConnected && qrLoading && !qrImageUrl && (
+          {!isConnected && evolutionHealthy && qrLoading && !qrImageUrl && (
             <div className="flex flex-col items-center space-y-4">
               <Skeleton className="h-64 w-64 rounded-lg" />
               <p className="text-sm text-muted-foreground">Loading QR code...</p>
             </div>
           )}
 
-          {/* Error State */}
-          {!isConnected && qrError && !qrImageUrl && (
+          {/* Error State - FIX 15: Only show when Evolution is healthy but QR failed */}
+          {!isConnected && evolutionHealthy && qrError && !qrImageUrl && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>

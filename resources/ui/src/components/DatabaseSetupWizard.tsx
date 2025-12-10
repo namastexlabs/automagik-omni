@@ -46,9 +46,17 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
   const [detectedIp, setDetectedIp] = useState<string>('');
   const [showNetworkOptions, setShowNetworkOptions] = useState(false);
 
-  // Load detected IP and network mode on mount
+  // Load detected IP and network mode on mount (only when NOT first run)
+  // During first run/bootstrap, Python API isn't available yet
   useEffect(() => {
-    // Get public URL / detected IP
+    if (isFirstRun) {
+      // During bootstrap, use defaults - Python API not available yet
+      setDetectedIp('auto-detect');
+      setNetworkMode(false);
+      return;
+    }
+
+    // Not first run - load existing settings from API
     api.setup
       .getPublicUrl()
       .then(({ url }) => {
@@ -61,11 +69,10 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
         }
       })
       .catch(() => {
-        // Fallback if API not available yet
+        // Fallback if API not available
         setDetectedIp('auto-detect');
       });
 
-    // Get current network mode
     api.setup
       .getNetworkMode()
       .then(({ network_mode }) => {
@@ -79,24 +86,29 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
         // Default to local mode
         setNetworkMode(false);
       });
-  }, []);
+  }, [isFirstRun]);
 
   const handleComplete = async () => {
-    // Save network mode setting
-    try {
-      await api.setup.setNetworkMode(networkMode);
-    } catch (err) {
-      console.error('Failed to save network mode:', err);
-    }
-
-    // Save public URL setting if provided (only relevant when network mode is on)
-    if (networkMode && publicUrl.trim()) {
+    // During first run, Python API isn't available yet - skip saving settings
+    // Settings will be saved after Python starts via the initialization flow
+    if (!isFirstRun) {
+      // Save network mode setting
       try {
-        await api.setup.setPublicUrl(publicUrl.trim());
+        await api.setup.setNetworkMode(networkMode);
       } catch (err) {
-        console.error('Failed to save public URL:', err);
+        console.error('Failed to save network mode:', err);
+      }
+
+      // Save public URL setting if provided (only relevant when network mode is on)
+      if (networkMode && publicUrl.trim()) {
+        try {
+          await api.setup.setPublicUrl(publicUrl.trim());
+        } catch (err) {
+          console.error('Failed to save public URL:', err);
+        }
       }
     }
+
     const config: DatabaseConfig = {
       // PostgreSQL storage options (embedded pgserve)
       data_dir: storageMode === 'filesystem' ? dataDir : undefined,

@@ -16,6 +16,8 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from src.api.routes.setup import get_bind_host
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/mcp", tags=["MCP"])
@@ -85,12 +87,18 @@ async def start_mcp_server() -> McpServerResponse:
 
     # The MCP server is managed by the gateway via subprocess
     # We signal the gateway to start it via the internal API
+    # IMPORTANT: We determine bind_host HERE (Python has direct DB access)
+    # to avoid deadlock - gateway used to call back to Python for this!
+    bind_host = get_bind_host()
+    logger.info(f"Starting MCP server with bind_host={bind_host}")
+
     try:
         import aiohttp
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"http://127.0.0.1:{_gateway_port}/api/internal/services/mcp/start",
+                json={"bind_host": bind_host},  # Pass bind_host to avoid deadlock
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
                 if response.status == 200:
@@ -131,6 +139,7 @@ async def stop_mcp_server() -> McpServerResponse:
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"http://127.0.0.1:{_gateway_port}/api/internal/services/mcp/stop",
+                json={},  # Must send JSON body for Fastify to accept the request
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
                 if response.status == 200:

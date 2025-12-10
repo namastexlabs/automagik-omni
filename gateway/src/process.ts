@@ -136,6 +136,8 @@ export class ProcessManager {
   private healthCheckIntervals: Map<string, NodeJS.Timeout> = new Map();
   // Embedded PostgreSQL manager
   private pgserveManager: PgserveManager | null = null;
+  // Guard to prevent concurrent pgserve starts (Fix 9)
+  private pgserveStartPromise: Promise<void> | null = null;
 
   constructor(portRegistry: PortRegistry, config: Partial<ProcessConfig> = {}) {
     this.portRegistry = portRegistry;
@@ -250,6 +252,7 @@ export class ProcessManager {
 
   /**
    * Check if a channel process is currently running.
+   * FIX 7: Verify process actually exists using signal 0, not just killed flag.
    *
    * @param channel - Channel name (e.g., 'evolution', 'discord')
    * @returns true if the channel process is running
@@ -259,8 +262,25 @@ export class ProcessManager {
     if (!managed || !managed.process) {
       return false;
     }
-    // Bun.Subprocess: check if process is still running via killed property
-    return !managed.process.killed;
+
+    // First check the killed flag (quick path)
+    if (managed.process.killed) {
+      return false;
+    }
+
+    // FIX 7: Verify process actually exists using signal 0
+    try {
+      if (managed.process.pid) {
+        process.kill(managed.process.pid, 0); // Signal 0 = check if process exists
+        return true;
+      }
+      return false;
+    } catch {
+      // Process doesn't exist - clean up stale entry
+      console.log(`[ProcessManager] ${channel} process ${managed.process.pid} no longer exists, cleaning up`);
+      this.processes.delete(channel);
+      return false;
+    }
   }
 
   /**
@@ -298,8 +318,33 @@ export class ProcessManager {
   /**
    * Start the embedded PostgreSQL server (pgserve)
    * This MUST be called before startPython() - database must be ready first
+   * FIX 9: Added guard to prevent concurrent starts
    */
   async startPgserve(): Promise<void> {
+    // FIX 9: Prevent concurrent starts - return existing promise if already starting
+    if (this.pgserveStartPromise) {
+      console.log('[ProcessManager] pgserve start already in progress, waiting...');
+      return this.pgserveStartPromise;
+    }
+
+    // Already running - skip
+    if (this.pgserveManager) {
+      console.log('[ProcessManager] pgserve already running, skipping');
+      return;
+    }
+
+    this.pgserveStartPromise = this._startPgserveImpl();
+    try {
+      await this.pgserveStartPromise;
+    } finally {
+      this.pgserveStartPromise = null;
+    }
+  }
+
+  /**
+   * Internal implementation of pgserve startup (called by startPgserve with guard)
+   */
+  private async _startPgserveImpl(): Promise<void> {
     console.log('[ProcessManager] Starting embedded PostgreSQL via pgserve...');
 
     // Allocate port dynamically from registry (8432-8449 range)
@@ -368,7 +413,8 @@ export class ProcessManager {
       await new Promise((r) => setTimeout(r, checkInterval));
     }
 
-    console.warn(`[ProcessManager] pgserve health check timed out after ${timeout}ms`);
+    // FIX 13: Throw error on timeout instead of silently returning
+    throw new Error(`pgserve health check timed out after ${timeout}ms`);
   }
 
   /**
@@ -506,7 +552,7 @@ export class ProcessManager {
   /**
    * Query network mode from Python API to determine bind host
    */
-  private async getNetworkModeBindHost(): Promise<string> {
+  async getNetworkModeBindHost(): Promise<string> {
     const pythonPort = this.portRegistry.getPort('python');
     if (!pythonPort) {
       console.warn('[ProcessManager] Python API not available, defaulting to localhost');
@@ -533,16 +579,20 @@ export class ProcessManager {
 
   /**
    * Start the standalone MCP server
+   * @param bindHostOverride - Optional bind host passed from Python (avoids deadlock by not querying Python)
    */
-  async startMCP(): Promise<void> {
+  async startMCP(bindHostOverride?: string): Promise<void> {
     const name = 'mcp';
     const MCP_PORT = 28882; // Dedicated MCP port
 
     // Take over the port if it's already in use
     this.killProcessOnPort(MCP_PORT);
 
-    // Query network mode to determine bind host
-    const bindHost = await this.getNetworkModeBindHost();
+    // Use provided bind host OR default to localhost
+    // NOTE: We no longer call getNetworkModeBindHost() here to avoid deadlock:
+    // Python calls us -> we call Python -> deadlock!
+    // Python now determines bind_host and passes it to us.
+    const bindHost = bindHostOverride || '127.0.0.1';
 
     // Detect runtime paths (development vs bundled)
     const runtime = detectPythonRuntime();
@@ -624,8 +674,9 @@ export class ProcessManager {
       }
     }, 30000);
 
-    // Wait for MCP to be ready (try root path)
-    await this.waitForHealth(`http://127.0.0.1:${MCP_PORT}/`, name);
+    // FIX 14: Wait for MCP to be ready via dedicated health endpoint
+    // FastMCP's protocol endpoint returns 406 for plain GET requests
+    await this.waitForHealth(`http://127.0.0.1:${MCP_PORT}/health`, name);
   }
 
   /**
@@ -1338,6 +1389,7 @@ export class ProcessManager {
 
   /**
    * Stop a specific channel process gracefully.
+   * FIX 8: Verify process actually died after SIGKILL.
    *
    * @param channel - Channel name (e.g., 'evolution', 'discord')
    * @returns true if stopped, false if not running
@@ -1349,7 +1401,8 @@ export class ProcessManager {
       return false;
     }
 
-    console.log(`[ProcessManager] Stopping ${channel}...`);
+    const pid = managed.process.pid;
+    console.log(`[ProcessManager] Stopping ${channel} (pid: ${pid})...`);
 
     // Clear health monitoring for this channel
     const interval = this.healthCheckIntervals.get(channel);
@@ -1376,6 +1429,26 @@ export class ProcessManager {
         resolve();
       });
     });
+
+    // FIX 8: Verify process actually died
+    if (pid) {
+      let verified = false;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          process.kill(pid, 0); // Signal 0 = check if process exists
+          // Process still exists, wait a bit
+          await new Promise((r) => setTimeout(r, 100));
+        } catch {
+          // Process doesn't exist - confirmed dead
+          verified = true;
+          break;
+        }
+      }
+
+      if (!verified) {
+        console.warn(`[ProcessManager] ${channel} (pid: ${pid}) may not have stopped properly`);
+      }
+    }
 
     // Clean up state
     this.processes.delete(channel);

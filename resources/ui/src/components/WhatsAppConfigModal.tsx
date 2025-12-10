@@ -122,6 +122,8 @@ export function WhatsAppConfigModal({
   const [instanceReady, setInstanceReady] = useState(false);
   const statusProbeCancelRef = useRef<{ cancelled: boolean } | null>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // FIX 11: Track previous open state to detect transitions
+  const prevOpenRef = useRef(false);
 
   const {
     logs,
@@ -228,16 +230,26 @@ export function WhatsAppConfigModal({
     if (!open) return;
 
     const evolutionProc = gatewayStatus?.processes?.evolution;
+    console.log('[WhatsAppConfigModal] Phase detection:', {
+      phase,
+      evolutionHealthy: evolutionProc?.healthy,
+      hasGatewayStatus: !!gatewayStatus,
+      processes: gatewayStatus?.processes ? Object.keys(gatewayStatus.processes) : 'none',
+    });
 
     if (phase === 'checking') {
       if (evolutionProc?.healthy) {
         // Service is ready, create instance
+        console.log('[WhatsAppConfigModal] Evolution healthy, transitioning to ready');
         setPhase('ready');
       } else {
+        // Evolution not running (or gatewayStatus not loaded yet)
+        console.log('[WhatsAppConfigModal] Evolution not healthy, transitioning to stopped');
         setPhase('stopped');
       }
     } else if (phase === 'starting' && evolutionProc?.healthy) {
       // Service started, create instance
+      console.log('[WhatsAppConfigModal] Evolution started, transitioning to ready');
       setPhase('ready');
     }
   }, [gatewayStatus, phase, open]);
@@ -344,9 +356,17 @@ export function WhatsAppConfigModal({
     }
   }, [evolutionLogs]);
 
-  // Reset state when modal opens
+  // FIX 6 + FIX 11: Handle modal open/close transitions
+  // FIX 11: Only reset state when modal OPENS (false → true), not on every phase change
+  // This prevents the race condition where phase changes trigger reset which sets phase back to 'checking'
   useEffect(() => {
-    if (open) {
+    const wasOpen = prevOpenRef.current;
+    const isOpening = open && !wasOpen;
+    const isClosing = !open && wasOpen;
+
+    if (isOpening) {
+      // Modal is opening - reset all state
+      console.log('[WhatsAppConfigModal] Modal opening, resetting state');
       setPhase('checking');
       setError(null);
       setIsStarting(false);
@@ -357,8 +377,18 @@ export function WhatsAppConfigModal({
       setQrCodeFromConfig(null);
       clearLogs();
       refetchStatus();
+    } else if (isClosing) {
+      // Modal is closing - cleanup if needed (FIX 6)
+      if (phase === 'starting' && isStarting) {
+        console.log('[WhatsAppConfigModal] Cleaning up - user cancelled during startup');
+        api.gateway.stopChannel('evolution').catch((err) => {
+          console.warn('[WhatsAppConfigModal] Cleanup failed:', err);
+        });
+      }
     }
-  }, [open, clearLogs, refetchStatus]);
+
+    prevOpenRef.current = open;
+  }, [open, clearLogs, refetchStatus, phase, isStarting]);
 
   // Start Evolution service
   const handleStartService = useCallback(async () => {
@@ -402,6 +432,27 @@ export function WhatsAppConfigModal({
 
       if (!apiReady) {
         throw new Error('Service started but API is not responding');
+      }
+
+      // FIX: Wait for gateway status to show Evolution as healthy before proceeding
+      // This prevents race condition where createInstance runs before Evolution is tracked
+      let evolutionHealthy = false;
+      for (let i = 0; i < 30; i++) {
+        try {
+          const status = await api.gateway.getStatus();
+          if (status?.processes?.evolution?.healthy) {
+            evolutionHealthy = true;
+            break;
+          }
+        } catch {
+          // ignore errors
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+
+      // FIX 17: BLOCK until Evolution is healthy - don't just warn and proceed
+      if (!evolutionHealthy) {
+        throw new Error('WhatsApp service did not become healthy within 15 seconds. Please try again.');
       }
 
       setPhase('ready');

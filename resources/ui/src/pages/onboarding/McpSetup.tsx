@@ -32,17 +32,44 @@ export default function McpSetup() {
   const [serverUrl, setServerUrl] = useState<string>('');
   const [showStartupModal, setShowStartupModal] = useState(false);
 
-  // Fetch the public URL on mount
+  // FIX 3 + FIX 14 + FIX 16: State recovery on page load - check if MCP is already running
+  // Use gateway status first to avoid 500 errors when MCP isn't started
   useEffect(() => {
-    api.setup
-      .getPublicUrl()
-      .then(({ url }) => {
+    const recoverState = async () => {
+      try {
+        // FIX 16: First check if MCP process is running via gateway status
+        const gatewayStatus = await api.gateway.getStatus();
+        const mcpProcess = gatewayStatus?.processes?.mcp;
+
+        // Only check health endpoint if MCP process exists and is marked healthy
+        if (mcpProcess?.healthy) {
+          const response = await fetch('/mcp/health', {
+            method: 'GET',
+            signal: AbortSignal.timeout(3000),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'healthy') {
+              console.log('[McpSetup] MCP server already running, recovering state');
+              setHttpServerRunning(true);
+            }
+          }
+        }
+      } catch {
+        // Server not running, which is fine
+      }
+
+      // Fetch the public URL
+      try {
+        const { url } = await api.setup.getPublicUrl();
         setServerUrl(`${url}:${MCP_PORT}/mcp`);
-      })
-      .catch(() => {
+      } catch {
         // Fallback if API not available
         setServerUrl(`http://localhost:${MCP_PORT}/mcp`);
-      });
+      }
+    };
+
+    recoverState();
   }, []);
 
   // Initialize state for each client
@@ -130,11 +157,43 @@ export default function McpSetup() {
     setError(null);
 
     if (httpServerRunning) {
-      // Stop server directly
+      // Stop server with verification (FIX 5)
       setHttpServerLoading(true);
       try {
         await api.mcp.stopServer();
-        setHttpServerRunning(false);
+
+        // FIX 14: Verify the server actually stopped using /mcp/health endpoint
+        let stopped = false;
+        for (let i = 0; i < 20; i++) {
+          try {
+            const response = await fetch('/mcp/health', {
+              method: 'GET',
+              signal: AbortSignal.timeout(1000),
+            });
+            // If health check fails (non-200), server stopped
+            if (!response.ok) {
+              stopped = true;
+              break;
+            }
+            // Check response content
+            const data = await response.json();
+            if (data.status !== 'healthy') {
+              stopped = true;
+              break;
+            }
+          } catch {
+            // Connection refused = server stopped
+            stopped = true;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+
+        if (stopped) {
+          setHttpServerRunning(false);
+        } else {
+          setError('MCP server did not stop after 10 seconds. Try again.');
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to stop HTTP server');
       } finally {

@@ -9,6 +9,8 @@ You ARE connected to WhatsApp. You CAN send and read messages.
 import logging
 from typing import Optional
 from fastmcp import FastMCP, Context
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 from .tools import identity, contacts, reading, messaging, discovery, admin, multimodal
 
 from .config import OmniConfig
@@ -18,6 +20,16 @@ logger = logging.getLogger(__name__)
 
 # Initialize MCP server (no auth - handled by Omni API layer)
 mcp = FastMCP("genie-omni")
+
+
+# FIX 14: Add health endpoint for proper health checks
+# FastMCP's streamable HTTP transport returns 406 for plain GET requests,
+# so we need a dedicated health endpoint that returns proper JSON response.
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> JSONResponse:
+    """Health check endpoint for monitoring."""
+    return JSONResponse({"status": "healthy", "service": "genie-omni-mcp"})
+
 
 # Global client and config (initialized on first use)
 _client: Optional[OmniClient] = None
