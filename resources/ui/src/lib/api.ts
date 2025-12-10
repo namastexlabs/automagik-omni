@@ -1361,10 +1361,7 @@ export const api = {
 
   // Access Rules API
   accessRules: {
-    async list(params?: {
-      instance_name?: string;
-      rule_type?: 'allow' | 'block';
-    }): Promise<
+    async list(params?: { instance_name?: string; rule_type?: 'allow' | 'block' }): Promise<
       Array<{
         id: number;
         instance_name: string | null;
@@ -1381,11 +1378,7 @@ export const api = {
       return apiRequest(`/access/rules${query ? `?${query}` : ''}`);
     },
 
-    async create(data: {
-      phone_number: string;
-      rule_type: 'allow' | 'block';
-      instance_name?: string;
-    }): Promise<{
+    async create(data: { phone_number: string; rule_type: 'allow' | 'block'; instance_name?: string }): Promise<{
       id: number;
       instance_name: string | null;
       phone_number: string;

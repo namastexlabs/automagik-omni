@@ -18,21 +18,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -149,9 +136,7 @@ export default function AccessRules() {
                 <form onSubmit={handleCreateRule}>
                   <DialogHeader>
                     <DialogTitle>Create Access Rule</DialogTitle>
-                    <DialogDescription>
-                      Add a new allow or block rule for a phone number
-                    </DialogDescription>
+                    <DialogDescription>Add a new allow or block rule for a phone number</DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-4 py-4">
@@ -173,9 +158,7 @@ export default function AccessRules() {
                       <Label htmlFor="rule_type">Rule Type</Label>
                       <Select
                         value={newRule.rule_type}
-                        onValueChange={(value: AccessRuleType) =>
-                          setNewRule({ ...newRule, rule_type: value })
-                        }
+                        onValueChange={(value: AccessRuleType) => setNewRule({ ...newRule, rule_type: value })}
                         disabled={createMutation.isPending}
                       >
                         <SelectTrigger>
@@ -342,9 +325,7 @@ export default function AccessRules() {
                           <TableCell>
                             <Badge
                               className={
-                                rule.rule_type === 'allow'
-                                  ? 'gradient-success border-0'
-                                  : 'bg-destructive border-0'
+                                rule.rule_type === 'allow' ? 'gradient-success border-0' : 'bg-destructive border-0'
                               }
                             >
                               {rule.rule_type}
@@ -360,9 +341,7 @@ export default function AccessRules() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {formatDate(rule.created_at)}
-                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{formatDate(rule.created_at)}</TableCell>
                           <TableCell>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -379,8 +358,8 @@ export default function AccessRules() {
                                   <AlertDialogTitle>Delete Access Rule</AlertDialogTitle>
                                   <AlertDialogDescription>
                                     Are you sure you want to delete the {rule.rule_type} rule for{' '}
-                                    <code className="bg-muted px-1 rounded">{rule.phone_number}</code>?
-                                    This action cannot be undone.
+                                    <code className="bg-muted px-1 rounded">{rule.phone_number}</code>? This action
+                                    cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
