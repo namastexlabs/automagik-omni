@@ -71,6 +71,10 @@ class EvolutionClient:
         """Make HTTP request to Evolution API with automatic 401 recovery."""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
 
+        # Ensure POST/PUT/PATCH requests have a body (Fastify rejects empty JSON body)
+        if method.upper() in ("POST", "PUT", "PATCH") and "json" not in kwargs and "data" not in kwargs:
+            kwargs["json"] = {}
+
         # DEBUG logging for request details
         logger.debug(f"Evolution API Request: {method} {url}")
         logger.debug(f"Request headers: {self.headers}")

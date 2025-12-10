@@ -345,8 +345,14 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Ensure POST/PUT/PATCH requests have a body (Fastify rejects empty JSON body)
+  const method = options.method?.toUpperCase();
+  const needsBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
+  const body = options.body ?? (needsBody ? JSON.stringify({}) : undefined);
+
   const response = await fetch(url, {
     ...options,
+    body,
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
@@ -1082,6 +1088,7 @@ export const api = {
       const response = await fetch(`${API_BASE_URL}/setup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Failed to complete setup' }));
@@ -1398,9 +1405,15 @@ async function evolutionRequest<T>(endpoint: string, options: RequestInit = {}, 
 
   const url = `${EVOLUTION_BASE_URL}${endpoint}`;
 
+  // Ensure POST/PUT/PATCH requests have a body (Fastify rejects empty JSON body)
+  const method = options.method?.toUpperCase();
+  const needsBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
+  const body = options.body ?? (needsBody ? JSON.stringify({}) : undefined);
+
   // Use unified API key (same key for Omni and Evolution)
   const response = await fetch(url, {
     ...options,
+    body,
     headers: {
       'Content-Type': 'application/json',
       apikey: apiKey,

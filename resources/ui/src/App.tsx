@@ -53,7 +53,8 @@ function RootRedirect() {
   }
 
   if (!authenticated) {
-    return <Navigate to="/onboarding/api-key" replace />;
+    // Setup is complete, go to login page (not onboarding)
+    return <Navigate to="/login" replace />;
   }
 
   return <Navigate to="/dashboard" replace />;

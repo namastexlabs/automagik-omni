@@ -769,7 +769,8 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
     try {
       markSetupComplete();
-      console.log('[Gateway] Setup marked as complete - bootstrap mode disabled for future restarts');
+      bootstrapMode = false; // Disable bootstrap mode in current session
+      console.log('[Gateway] Setup marked as complete - bootstrap mode disabled');
       return { success: true, message: 'Setup marked as complete' };
     } catch (error) {
       console.error('[Gateway] Failed to mark setup complete:', error);
