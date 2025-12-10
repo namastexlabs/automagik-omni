@@ -391,6 +391,7 @@ export class ProcessManager {
 
   /**
    * Wait for pgserve to become healthy
+   * FIX 15: Added TCP connection test to ensure PostgreSQL is actually accepting connections
    */
   private async waitForPgserveHealth(timeout = 30000): Promise<void> {
     if (!this.pgserveManager) {
@@ -399,13 +400,32 @@ export class ProcessManager {
 
     const start = Date.now();
     const checkInterval = 500;
+    const pgPort = this.pgserveManager.getPort();
 
     while (Date.now() - start < timeout) {
       try {
         const health = await this.pgserveManager.getHealth();
         if (health.status === 'healthy') {
-          console.log('[ProcessManager] pgserve is healthy');
-          return;
+          // FIX 15: Also verify PostgreSQL is accepting TCP connections
+          // pgserve can report healthy before PostgreSQL is actually ready
+          try {
+            const socket = await Bun.connect({
+              hostname: '127.0.0.1',
+              port: pgPort,
+              socket: {
+                data() {},
+                open() {},
+                close() {},
+                error() {},
+              },
+            });
+            socket.end();
+            console.log(`[ProcessManager] pgserve is healthy and accepting connections on port ${pgPort}`);
+            return;
+          } catch {
+            // PostgreSQL not accepting connections yet, continue waiting
+            console.log(`[ProcessManager] pgserve reports healthy but not accepting connections yet...`);
+          }
         }
       } catch {
         // Not ready yet
@@ -452,6 +472,42 @@ export class ProcessManager {
     const port = this.portRegistry.getPort('python');
     if (!port) {
       throw new Error('Python port not allocated in registry');
+    }
+
+    // FIX 15: Verify pgserve is ready before starting Python
+    // This prevents race conditions where Python starts before database is accepting connections
+    if (this.pgserveManager) {
+      const pgPort = this.pgserveManager.getPort();
+      console.log(`[ProcessManager] Verifying PostgreSQL connection on port ${pgPort} before starting Python...`);
+
+      let dbReady = false;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          const socket = await Bun.connect({
+            hostname: '127.0.0.1',
+            port: pgPort,
+            socket: {
+              data() {},
+              open() {},
+              close() {},
+              error() {},
+            },
+          });
+          socket.end();
+          dbReady = true;
+          console.log(`[ProcessManager] PostgreSQL connection verified on port ${pgPort}`);
+          break;
+        } catch {
+          if (attempt < 5) {
+            console.log(`[ProcessManager] PostgreSQL not ready, waiting 1s... (${attempt}/5)`);
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
+      }
+
+      if (!dbReady) {
+        throw new Error(`PostgreSQL not accepting connections on port ${pgPort} after 5 attempts`);
+      }
     }
 
     // Detect runtime paths (development vs bundled)

@@ -11,6 +11,7 @@ import {
   Server,
   Loader2,
   Bot,
+  Cpu,
   type LucideIcon,
 } from 'lucide-react';
 import { cn, api } from '@/lib';
@@ -20,6 +21,7 @@ import { WebhookSheet } from '@/components/sheets/WebhookSheet';
 import { WebSocketSheet } from '@/components/sheets/WebSocketSheet';
 import { RabbitMQSheet } from '@/components/sheets/RabbitMQSheet';
 import { DiscordBotSettingsSheet } from '@/components/sheets/DiscordBotSettingsSheet';
+import { AgentConfigSheet } from '@/components/sheets/AgentConfigSheet';
 import { DiscordIcon, WhatsAppIcon, SlackIcon } from '@/components/icons/BrandIcons';
 import type { InstanceConfig } from '@/lib';
 
@@ -29,7 +31,15 @@ interface InstanceNavProps {
   onNavigate?: () => void;
 }
 
-type SheetType = 'connection' | 'settings' | 'webhook' | 'websocket' | 'rabbitmq' | 'bot-settings' | null;
+type SheetType =
+  | 'connection'
+  | 'settings'
+  | 'webhook'
+  | 'websocket'
+  | 'rabbitmq'
+  | 'bot-settings'
+  | 'agent-config'
+  | null;
 
 // Channel-specific sub-items configuration
 interface SubItemConfig {
@@ -41,6 +51,7 @@ interface SubItemConfig {
 const CHANNEL_SUB_ITEMS: Record<'whatsapp' | 'discord' | 'slack', SubItemConfig[]> = {
   whatsapp: [
     { id: 'connection', label: 'Connection', icon: Wifi },
+    { id: 'agent-config', label: 'Agent Config', icon: Cpu },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'webhook', label: 'Webhook', icon: Webhook },
     { id: 'websocket', label: 'WebSocket', icon: Radio },
@@ -48,9 +59,13 @@ const CHANNEL_SUB_ITEMS: Record<'whatsapp' | 'discord' | 'slack', SubItemConfig[
   ],
   discord: [
     { id: 'connection', label: 'Connection', icon: Wifi },
+    { id: 'agent-config', label: 'Agent Config', icon: Cpu },
     { id: 'bot-settings', label: 'Bot Settings', icon: Bot },
   ],
-  slack: [{ id: 'connection', label: 'Connection', icon: Wifi }],
+  slack: [
+    { id: 'connection', label: 'Connection', icon: Wifi },
+    { id: 'agent-config', label: 'Agent Config', icon: Cpu },
+  ],
 };
 
 // Channel type icons and colors (using brand SVG icons)
@@ -236,6 +251,13 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
       )}
       {activeSheet?.type === 'bot-settings' && (
         <DiscordBotSettingsSheet
+          instanceName={activeSheet.instanceName}
+          open={true}
+          onOpenChange={(open) => !open && closeSheet()}
+        />
+      )}
+      {activeSheet?.type === 'agent-config' && (
+        <AgentConfigSheet
           instanceName={activeSheet.instanceName}
           open={true}
           onOpenChange={(open) => !open && closeSheet()}
