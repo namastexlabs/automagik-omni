@@ -529,9 +529,8 @@ jobs:
       - name: Start UI dev server
         working-directory: resources/ui
         run: |
-          # Start Next.js dev server in background on port 8882
-          # Using same port since tests expect UI+API on same port
-          nohup npm run dev -- -p 3000 > ui.log 2>&1 &
+          # Start Vite dev server in background on port 3000
+          nohup npm run dev > ui.log 2>&1 &
           echo $! > ui.pid
           # Wait for UI to be ready
           for i in {1..60}; do
@@ -549,7 +548,8 @@ jobs:
             exit 1
           fi
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:8882
+          UI_PORT: "3000"
+          VITE_API_URL: http://localhost:8882
 
       - name: Run Playwright tests (headless)
         working-directory: resources/ui
