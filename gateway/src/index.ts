@@ -354,13 +354,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   });
 
   // POST /api/logs/restart/:service - Restart a PM2 service
-  // Security: Only allow from localhost or configured domain
+  // Security: Only allow from localhost or configured domain (skip during bootstrap)
   fastify.post<{
     Params: { service: string };
   }>('/api/logs/restart/:service', async (request, reply) => {
-    // Only allow from localhost or configured domain
+    // Only allow from localhost or configured domain (allow during bootstrap - nothing to protect yet)
     const hostHeader = request.headers['host'] as string | undefined;
-    if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
+    if (!bootstrapMode && !(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
       return reply.status(403).send({
         success: false,
         message: 'Restart endpoint only accessible from localhost or configured domain',
@@ -679,9 +679,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   fastify.post<{ Body: { memory_mode: boolean; data_dir?: string; replication_url?: string | null } }>(
     '/api/internal/pgserve-config',
     async (request, reply) => {
-      // Security: Only allow from localhost or configured domain
+      // Security: Only allow from localhost or configured domain (allow during bootstrap - nothing to protect yet)
       const hostHeader = request.headers['host'] as string | undefined;
-      if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
+      if (!bootstrapMode && !(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
         return reply.status(403).send({
           error: 'Internal endpoints only accessible from localhost or configured domain',
         });
@@ -722,9 +722,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   fastify.post<{ Params: { name: string }; Body: Record<string, unknown> }>(
     '/api/internal/services/:name/start',
     async (request, reply) => {
-      // Security: Only allow from localhost or configured domain
+      // Security: Only allow from localhost or configured domain (allow during bootstrap - nothing to protect yet)
       const hostHeader = request.headers['host'] as string | undefined;
-      if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
+      if (!bootstrapMode && !(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
         return reply.status(403).send({
           error: 'Internal endpoints only accessible from localhost or configured domain',
         });
@@ -772,9 +772,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
   // POST /api/internal/setup/complete - Mark setup as complete (wizard use)
   fastify.post('/api/internal/setup/complete', async (request, reply) => {
-    // Security: Only allow from localhost or configured domain
+    // Security: Only allow from localhost or configured domain (allow during bootstrap - nothing to protect yet)
     const hostHeader = request.headers['host'] as string | undefined;
-    if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
+    if (!bootstrapMode && !(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
       return reply.status(403).send({
         error: 'Internal endpoints only accessible from localhost or configured domain',
       });
