@@ -107,10 +107,8 @@ jobs:
         working-directory: resources/ui
         run: |
           echo "Current directory: $(pwd)"
-          echo "Checking for package-lock.json..."
           ls -la package*.json || echo "No package files found"
-          echo "Running npm install with legacy peer deps..."
-          npm install --legacy-peer-deps
+          npm ci --legacy-peer-deps --ignore-scripts
 
       - name: Install Playwright browsers
         working-directory: resources/ui
