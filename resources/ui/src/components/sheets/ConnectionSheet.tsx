@@ -43,8 +43,8 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
   } = useQuery({
     queryKey: ['qr-code', instanceName],
     queryFn: () => api.instances.getQR(instanceName),
-    enabled: open && showQR && channelType === 'whatsapp' && connectionState?.state !== 'open',
-    refetchInterval: showQR && channelType === 'whatsapp' && connectionState?.state !== 'open' ? 5000 : false,
+    enabled: open && showQR && channelType === 'whatsapp' && connectionState?.status !== 'connected',
+    refetchInterval: showQR && channelType === 'whatsapp' && connectionState?.status !== 'connected' ? 5000 : false,
   });
 
   // Restart mutation - use channel-aware API
@@ -93,16 +93,18 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
       const discordStatus = connectionState?.channel_data?.status || connectionState?.status;
       return discordStatus === 'connected' || discordStatus === 'ready' ? 'open' : 'disconnected';
     }
-    // WhatsApp uses evolution status
-    return connectionState?.state || instance?.evolution_status?.state || 'unknown';
+    // WhatsApp: Backend already maps "open" -> "connected"
+    return connectionState?.status || 'unknown';
   };
 
   const state = getConnectionState();
-  const isConnected = state === 'open';
+  const isConnected = state === 'open' || state === 'connected';
   const isConnecting = state === 'connecting';
 
   // Profile data varies by channel type
-  const profile = channelType === 'discord' ? connectionState?.channel_data || {} : instance?.evolution_status || {};
+  // WhatsApp: Try live data from evolution_data[0] first, fall back to DB-stored evolution_status
+  const whatsappProfile = connectionState?.channel_data?.evolution_data?.[0] || instance?.evolution_status || {};
+  const profile = channelType === 'discord' ? connectionState?.channel_data || {} : whatsappProfile;
 
   // Discord-specific data
   const discordData = channelType === 'discord' ? connectionState?.channel_data : null;
@@ -163,7 +165,11 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
                   </>
                 ) : (
                   <>
-                    <AvatarImage src={profile.profile_picture_url || instance?.profile_pic_url || undefined} />
+                    <AvatarImage
+                      src={
+                        profile.profilePicUrl || profile.profile_picture_url || instance?.profile_pic_url || undefined
+                      }
+                    />
                     <AvatarFallback>
                       <User className="h-8 w-8" />
                     </AvatarFallback>
@@ -174,12 +180,12 @@ export function ConnectionSheet({ instanceName, channelType, open, onOpenChange 
                 <p className="font-medium truncate text-lg">
                   {channelType === 'discord'
                     ? discordData?.bot_name || instanceName
-                    : profile.profile_name || instance?.profile_name || instanceName}
+                    : profile.profileName || profile.profile_name || instance?.profile_name || instanceName}
                 </p>
                 <p className="text-sm text-muted-foreground truncate">
                   {channelType === 'discord'
                     ? discordData?.bot_id || 'Bot not connected'
-                    : profile.owner_jid || instance?.owner_jid || 'No number connected'}
+                    : profile.ownerJid || profile.owner_jid || instance?.owner_jid || 'No number connected'}
                 </p>
               </div>
             </div>
