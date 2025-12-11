@@ -105,7 +105,13 @@ jobs:
 
       - name: Install UI dependencies
         working-directory: resources/ui
-        run: npm ci --legacy-peer-deps
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --legacy-peer-deps
+          else
+            echo "package-lock.json not found, using npm install"
+            npm install --legacy-peer-deps
+          fi
 
       - name: Install Playwright browsers
         working-directory: resources/ui
