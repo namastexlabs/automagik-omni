@@ -105,7 +105,7 @@ jobs:
 
       - name: Install UI dependencies
         working-directory: resources/ui
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Install Playwright browsers
         working-directory: resources/ui
