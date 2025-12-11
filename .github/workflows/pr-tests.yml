@@ -525,6 +525,7 @@ jobs:
         env:
           CI: true
           TEST_API_KEY: test-api-key-for-playwright
+          E2E_BASE_URL: http://localhost:8882
 
       - name: Upload Playwright test results
         if: always()
