@@ -28,10 +28,14 @@ class TestMentionsIntegration:
         config.channel_type = "whatsapp"  # CRITICAL: Required for OmniChannelMessageSender routing
         config.evolution_url = "https://test-evolution.com"
         config.evolution_key = "test-evolution-key"
+        # Property aliases used by EvolutionApiSender
+        config.whatsapp_web_url = "https://test-evolution.com"
+        config.whatsapp_web_key = "test-evolution-key"
         config.whatsapp_instance = "test-whatsapp-instance"
         config.agent_api_url = "https://test-agent.com"
         config.agent_api_key = "test-agent-key"
         config.default_agent = "test-agent"
+        config.enable_auto_split = True
         return config
 
     @pytest.fixture

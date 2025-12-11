@@ -432,8 +432,10 @@ export class HealthChecker {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      if (this.evolutionApiKey) {
-        headers['apikey'] = this.evolutionApiKey;
+      // Use dynamically fetched omniApiKey, fall back to env EVOLUTION_API_KEY
+      const apiKey = this.omniApiKey || this.evolutionApiKey;
+      if (apiKey) {
+        headers['apikey'] = apiKey;
       }
 
       const response = await fetch(url, {
@@ -646,6 +648,9 @@ export class HealthChecker {
     const pythonUrl = this.getPythonUrl();
     const evolutionUrl = this.getEvolutionUrl();
     const viteUrl = this.getViteUrl();
+
+    // Fetch API key first so it's available for Evolution instance calls
+    await this.getApiKey();
 
     const [
       pythonHealth,

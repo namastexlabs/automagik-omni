@@ -30,13 +30,17 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    // Agent Integration (Hive)
     agent_api_url: '',
     agent_api_key: '',
     default_agent: '',
+    agent_id: '',
+    agent_type: '',
+    agent_timeout: 60,
+    agent_stream_mode: false,
+    enable_auto_split: true,
     automagik_instance_name: '',
     is_default: false,
-    // WhatsApp specific
-    phone_number: '',
     // Discord specific
     discord_client_id: '',
     discord_bot_token: '',
@@ -49,9 +53,13 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
         agent_api_url: instance.agent_api_url || '',
         agent_api_key: instance.agent_api_key || '',
         default_agent: instance.default_agent || '',
+        agent_id: instance.agent_id || '',
+        agent_type: instance.agent_type || '',
+        agent_timeout: instance.agent_timeout || 60,
+        agent_stream_mode: instance.agent_stream_mode || false,
+        enable_auto_split: instance.enable_auto_split ?? true,
         automagik_instance_name: instance.automagik_instance_name || '',
         is_default: instance.is_default || false,
-        phone_number: '',
         discord_client_id: instance.discord_client_id || '',
         discord_bot_token: '',
       });
@@ -89,6 +97,15 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
     if (formData.default_agent.trim()) {
       updateData.default_agent = formData.default_agent.trim();
     }
+    if (formData.agent_id.trim()) {
+      updateData.agent_id = formData.agent_id.trim();
+    }
+    if (formData.agent_type.trim()) {
+      updateData.agent_type = formData.agent_type.trim();
+    }
+    updateData.agent_timeout = formData.agent_timeout;
+    updateData.agent_stream_mode = formData.agent_stream_mode;
+    updateData.enable_auto_split = formData.enable_auto_split;
 
     // Discord-specific
     if (instance.channel_type === 'discord') {
@@ -125,29 +142,30 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
               </Alert>
             )}
 
-            {/* Agent Configuration Section */}
+            {/* Hive Agent Configuration Section */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-foreground">Agent Integration</h3>
+              <h3 className="text-sm font-medium text-foreground">Hive Agent Configuration</h3>
+              <p className="text-xs text-muted-foreground">Configure your Hive agent integration settings</p>
 
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="agent_api_url" className="text-sm">
-                    Agent API URL
+                    Hive API URL
                   </Label>
                   <Input
                     id="agent_api_url"
                     type="url"
                     value={formData.agent_api_url}
                     onChange={(e) => setFormData({ ...formData, agent_api_url: e.target.value })}
-                    placeholder="https://your-agent-api.com"
+                    placeholder="https://api.hive.example.com"
                     disabled={isPending}
                   />
-                  <p className="text-xs text-muted-foreground">The URL of your Automagik agent API</p>
+                  <p className="text-xs text-muted-foreground">The URL of your Hive agent API</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="agent_api_key" className="text-sm">
-                    Agent API Key
+                    Hive API Key
                   </Label>
                   <Input
                     id="agent_api_key"
@@ -159,29 +177,90 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
                   />
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="agent_id" className="text-sm">
+                      Agent ID
+                    </Label>
+                    <Input
+                      id="agent_id"
+                      value={formData.agent_id}
+                      onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
+                      placeholder="agent-uuid"
+                      disabled={isPending}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="agent_type" className="text-sm">
+                      Agent Type
+                    </Label>
+                    <Input
+                      id="agent_type"
+                      value={formData.agent_type}
+                      onChange={(e) => setFormData({ ...formData, agent_type: e.target.value })}
+                      placeholder="e.g., assistant"
+                      disabled={isPending}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="default_agent" className="text-sm">
-                    Default Agent
+                    Default Agent Name
                   </Label>
                   <Input
                     id="default_agent"
                     value={formData.default_agent}
                     onChange={(e) => setFormData({ ...formData, default_agent: e.target.value })}
-                    placeholder="agent-name"
+                    placeholder="my-agent"
                     disabled={isPending}
                   />
-                  <p className="text-xs text-muted-foreground">Agent to use for incoming messages</p>
+                  <p className="text-xs text-muted-foreground">Agent name to use for incoming messages</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="automagik_instance_name" className="text-sm">
-                    Automagik Instance
+                  <Label htmlFor="agent_timeout" className="text-sm">
+                    Response Timeout (seconds)
                   </Label>
                   <Input
-                    id="automagik_instance_name"
-                    value={formData.automagik_instance_name}
-                    onChange={(e) => setFormData({ ...formData, automagik_instance_name: e.target.value })}
-                    placeholder="my-automagik-instance"
+                    id="agent_timeout"
+                    type="number"
+                    min={10}
+                    max={300}
+                    value={formData.agent_timeout}
+                    onChange={(e) => setFormData({ ...formData, agent_timeout: parseInt(e.target.value) || 60 })}
+                    disabled={isPending}
+                  />
+                  <p className="text-xs text-muted-foreground">Max time to wait for agent response (10-300s)</p>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="agent_stream_mode" className="text-sm font-medium">
+                      Stream Mode
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Enable streaming responses from agent</p>
+                  </div>
+                  <Switch
+                    id="agent_stream_mode"
+                    checked={formData.agent_stream_mode}
+                    onCheckedChange={(checked) => setFormData({ ...formData, agent_stream_mode: checked })}
+                    disabled={isPending}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="enable_auto_split" className="text-sm font-medium">
+                      Auto-Split Messages
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Split long responses into multiple messages</p>
+                  </div>
+                  <Switch
+                    id="enable_auto_split"
+                    checked={formData.enable_auto_split}
+                    onCheckedChange={(checked) => setFormData({ ...formData, enable_auto_split: checked })}
                     disabled={isPending}
                   />
                 </div>

@@ -119,11 +119,8 @@ export default function DatabaseSetup() {
   // Clear any stale API key and setup state from previous installations
   // This ensures fresh installs don't retain old localStorage data
   useEffect(() => {
-    const clearStaleData = async () => {
-      await removeApiKey();
-      localStorage.removeItem('omni_setup_complete');
-    };
-    clearStaleData();
+    removeApiKey();
+    localStorage.removeItem('omni_setup_complete');
   }, []);
 
   const startServices = useCallback(async (config: DatabaseConfig) => {

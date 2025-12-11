@@ -141,7 +141,9 @@ def test_db() -> Generator[Session, None, None]:
 
     # Try embedded pgserve (in-memory PostgreSQL bundled with gateway)
     if engine is None:
-        embedded_pg_url = os.environ.get("EMBEDDED_PG_URL", "postgresql://postgres:postgres@127.0.0.1:8432/automagik_omni")
+        embedded_pg_url = os.environ.get(
+            "EMBEDDED_PG_URL", "postgresql://postgres:postgres@127.0.0.1:8432/automagik_omni"
+        )
         try:
             import psycopg2  # type: ignore[import-untyped]  # noqa: F401
 

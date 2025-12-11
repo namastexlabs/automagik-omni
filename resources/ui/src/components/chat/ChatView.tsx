@@ -16,8 +16,8 @@ interface ChatViewProps {
 
 export function ChatView({ instanceName, chat }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const remoteJid = chat.remoteJid || chat.id;
-  const name = chat.name || chat.pushName || remoteJid.split('@')[0];
+  const remoteJid = chat.remoteJid || chat.id || '';
+  const name = chat.name || chat.pushName || (remoteJid ? remoteJid.split('@')[0] : 'Unknown');
   const isGroup = remoteJid?.includes('@g.us') || chat.isGroup;
 
   // Fetch messages
@@ -67,7 +67,7 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
         <div className="flex-1 min-w-0">
           <h2 className="font-medium truncate text-foreground">{name}</h2>
           <p className="text-xs text-muted-foreground truncate">
-            {isGroup ? 'Group chat' : `+${remoteJid.split('@')[0]}`}
+            {isGroup ? 'Group chat' : remoteJid ? `+${remoteJid.split('@')[0]}` : 'Unknown'}
           </p>
         </div>
         <Button variant="ghost" size="icon" className="text-muted-foreground">

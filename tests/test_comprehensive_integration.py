@@ -100,15 +100,30 @@ class TestOmnichannelIntegration:
         assert schema.channel_type == "whatsapp"
         assert schema.phone_number == "+5511999999999"
 
-        # Invalid data (missing required fields)
-        invalid_data = {"name": "test"}
-        with pytest.raises(Exception):  # Pydantic validation error
-            InstanceConfigCreate(**invalid_data)
+        # The schema now has extensive defaults and auto-fill logic
+        # Minimal data with just name is valid for whatsapp channel
+        minimal_data = {"name": "test"}
+        schema_minimal = InstanceConfigCreate(**minimal_data)
+        assert schema_minimal.name == "test"
+        assert schema_minimal.channel_type == "whatsapp"  # Default
+
+        # Note: Empty string name is technically valid in pydantic (just validates type)
+        # The business logic in the API endpoint will reject it at creation time
+        empty_name_schema = InstanceConfigCreate(**{"name": ""})
+        assert empty_name_schema.name == ""  # Pydantic allows this
+
+        # Missing name entirely should fail with pydantic validation error
+        with pytest.raises(Exception):
+            InstanceConfigCreate(**{"channel_type": "whatsapp"})  # Missing required 'name' field
 
     @pytest.mark.asyncio
+    @patch("src.services.settings_service.get_evolution_api_key_global")
     @patch("src.channels.whatsapp.channel_handler.EvolutionClient")
-    async def test_whatsapp_handler_create_instance(self, mock_evolution_client, db_session):
+    async def test_whatsapp_handler_create_instance(self, mock_evolution_client, mock_get_api_key, db_session):
         """Test WhatsApp channel handler instance creation."""
+        # Mock the global API key retrieval (must patch at source module)
+        mock_get_api_key.return_value = "test-api-key"
+
         # Setup mock
         mock_client = Mock()
         mock_client.fetch_instances = AsyncMock(return_value=[])
@@ -118,6 +133,8 @@ class TestOmnichannelIntegration:
                 "hash": {"apikey": "test-key"},
             }
         )
+        mock_client.set_webhook = AsyncMock(return_value={"status": "success"})
+        mock_client.set_settings = AsyncMock(return_value={"status": "success"})
         mock_evolution_client.return_value = mock_client
 
         # Create instance config
@@ -150,19 +167,24 @@ class TestOmnichannelIntegration:
         mock_client.create_instance.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch("src.services.settings_service.get_evolution_api_key_global")
     @patch("src.channels.whatsapp.channel_handler.EvolutionClient")
-    async def test_whatsapp_handler_existing_instance(self, mock_evolution_client, db_session):
+    async def test_whatsapp_handler_existing_instance(self, mock_evolution_client, mock_get_api_key, db_session):
         """Test WhatsApp handler reusing existing Evolution instance."""
+        # Mock the global API key retrieval (must patch at source module)
+        mock_get_api_key.return_value = "test-api-key"
+
         # Setup mock with existing instance
         existing_instance = Mock()
         existing_instance.instanceName = "existing_whatsapp"  # Match the instance name we're testing
         existing_instance.instanceId = "existing-123"
         existing_instance.apikey = "existing-key"
-        existing_instance.dict.return_value = {"instanceId": "existing-123"}
+        existing_instance.model_dump.return_value = {"instanceId": "existing-123"}
 
         mock_client = Mock()
         mock_client.fetch_instances = AsyncMock(return_value=[existing_instance])
         mock_client.set_webhook = AsyncMock(return_value={"status": "success"})
+        mock_client.set_settings = AsyncMock(return_value={"status": "success"})
         mock_evolution_client.return_value = mock_client
 
         # Create instance config

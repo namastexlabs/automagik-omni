@@ -17,6 +17,7 @@ from src.channels.base import ChannelHandlerFactory, QRCodeResponse, ConnectionS
 from src.channels.whatsapp.channel_handler import ValidationError
 from src.ip_utils import ensure_ipv4_in_config
 from src.utils.instance_utils import normalize_instance_name
+from src.services.settings_service import settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +99,7 @@ class InstanceConfigCreate(BaseModel):
     automagik_instance_name: Optional[str] = Field(None, description="Automagik instance name")
 
     # Unified agent fields (optional for creation, use defaults if not provided)
-    agent_instance_type: Optional[str] = Field(
-        default="automagik", description="Agent instance type: automagik or hive"
-    )
+    agent_instance_type: Optional[str] = Field(default="hive", description="Agent instance type: automagik or hive")
     agent_id: Optional[str] = Field(default=None, description="Agent or team ID")
     agent_type: Optional[str] = Field(default="agent", description="Agent type: agent or team")
     agent_stream_mode: Optional[bool] = Field(default=False, description="Enable streaming mode")
@@ -111,17 +110,23 @@ class InstanceConfigCreate(BaseModel):
         description="Enable automatic message splitting on \\n\\n (WhatsApp: full control, Discord: preference only)",
     )
 
-    @model_validator(mode="after")
-    def validate_channel_requirements(self) -> "InstanceConfigCreate":
-        """Enforce required fields and URL validation per channel."""
-        if self.channel_type == "whatsapp":
-            if not self.whatsapp_web_url:
-                raise ValueError("whatsapp_web_url is required for WhatsApp channel")
-            if not self.whatsapp_web_key:
-                raise ValueError("whatsapp_web_key is required for WhatsApp channel")
-            if not self.whatsapp_instance:
-                raise ValueError("whatsapp_instance is required for WhatsApp channel")
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def auto_fill_whatsapp_defaults(cls, data: Any) -> Any:
+        """Auto-fill WhatsApp defaults before validation.
+
+        For WhatsApp: auto-fill whatsapp_web_url and whatsapp_instance
+        from defaults if not provided (allows UI to skip these fields).
+        """
+        if isinstance(data, dict) and data.get("channel_type") == "whatsapp":
+            # Auto-fill defaults for WhatsApp if not provided
+            if not data.get("whatsapp_web_url"):
+                # Use local Evolution API URL
+                data["whatsapp_web_url"] = "http://localhost:8882/evolution"
+            if not data.get("whatsapp_instance"):
+                # Use instance name as Evolution instance name
+                data["whatsapp_instance"] = data.get("name", "")
+        return data
 
 
 class InstanceConfigUpdate(BaseModel):
@@ -288,12 +293,20 @@ async def create_instance(
                 detail="Invalid whatsapp_web_url. Please provide a valid WhatsApp Web API URL (e.g., http://localhost:8080).",
             )
 
+        # Auto-fill whatsapp_web_key from global settings if not provided
         key_value = instance_data.whatsapp_web_key or ""
-        if key_value.lower() in ["string", "null", "undefined", ""]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid whatsapp_web_key. Please provide a valid WhatsApp Web API key.",
-            )
+        if not key_value or key_value.lower() in ["string", "null", "undefined", ""]:
+            # Try to get from global settings (omni_api_key)
+            omni_key = settings_service.get_setting_value("omni_api_key", db, default=None)
+            if omni_key:
+                instance_data.whatsapp_web_key = omni_key
+                key_value = omni_key
+                logger.info("Auto-filled whatsapp_web_key from omni_api_key global setting")
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid whatsapp_web_key. Please provide a valid WhatsApp Web API key or ensure omni_api_key is set.",
+                )
 
     # Normalize instance name for API compatibility
     original_name = instance_data.name
@@ -517,7 +530,10 @@ async def list_instances(
                 evolution_url = instance.evolution_url or settings_service.get_setting_value(
                     "evolution_api_url", db, default=f"http://localhost:{gateway_port}/evolution"
                 )
+                # Try evolution_api_key first, then unified omni_api_key (setup wizard creates this)
                 bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
+                if not bootstrap_key:
+                    bootstrap_key = settings_service.get_setting_value("omni_api_key", db, default=None)
                 if not bootstrap_key:
                     bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 
@@ -638,7 +654,10 @@ async def get_instance(
             from src.services.settings_service import settings_service
 
             # Get bootstrap key from database (with .env fallback)
+            # Try evolution_api_key first, then unified omni_api_key (setup wizard creates this)
             bootstrap_key = settings_service.get_setting_value("evolution_api_key", db, default=None)
+            if not bootstrap_key:
+                bootstrap_key = settings_service.get_setting_value("omni_api_key", db, default=None)
             if not bootstrap_key:
                 bootstrap_key = config.get_env("EVOLUTION_API_KEY", "")
 

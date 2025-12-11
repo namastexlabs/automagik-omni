@@ -309,24 +309,25 @@ async function restoreFromPostgreSQL(): Promise<void> {
 }
 
 // API Key management (localStorage + PostgreSQL sync pattern)
-export async function getApiKey(): Promise<string | null> {
+// Note: These are synchronous since localStorage is sync - keeps React routing simple
+export function getApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
 }
 
-export async function setApiKey(key: string): Promise<void> {
+export function setApiKey(key: string): void {
   // Fast write to localStorage
   localStorage.setItem(API_KEY_STORAGE_KEY, key);
 
-  // Async sync to PostgreSQL (non-blocking)
+  // Async sync to PostgreSQL (non-blocking, fire-and-forget)
   syncToPostgreSQL({ [API_KEY_STORAGE_KEY]: key });
 }
 
-export async function removeApiKey(): Promise<void> {
+export function removeApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-export async function isAuthenticated(): Promise<boolean> {
-  const key = await getApiKey();
+export function isAuthenticated(): boolean {
+  const key = getApiKey();
   return !!key;
 }
 
@@ -337,7 +338,7 @@ export async function restorePreferences(): Promise<void> {
 
 // API client helper
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const apiKey = await getApiKey();
+  const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error('No API key found. Please login.');
@@ -345,8 +346,14 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Ensure POST/PUT/PATCH requests have a body (Fastify rejects empty JSON body)
+  const method = options.method?.toUpperCase();
+  const needsBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
+  const body = options.body ?? (needsBody ? JSON.stringify({}) : undefined);
+
   const response = await fetch(url, {
     ...options,
+    body,
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
@@ -356,7 +363,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      await removeApiKey();
+      removeApiKey();
 
       if (authErrorHandler) {
         authErrorHandler();
@@ -1081,6 +1088,8 @@ export const api = {
     async complete(): Promise<{ success: boolean; message: string }> {
       const response = await fetch(`${API_BASE_URL}/setup/complete`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Failed to complete setup' }));
@@ -1350,6 +1359,46 @@ export const api = {
     return this.whatsappWeb;
   },
 
+  // Access Rules API
+  accessRules: {
+    async list(params?: { instance_name?: string; rule_type?: 'allow' | 'block' }): Promise<
+      Array<{
+        id: number;
+        instance_name: string | null;
+        phone_number: string;
+        rule_type: 'allow' | 'block';
+        created_at: string;
+        updated_at: string;
+      }>
+    > {
+      const queryParams = new URLSearchParams();
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.rule_type) queryParams.append('rule_type', params.rule_type);
+      const query = queryParams.toString();
+      return apiRequest(`/access/rules${query ? `?${query}` : ''}`);
+    },
+
+    async create(data: { phone_number: string; rule_type: 'allow' | 'block'; instance_name?: string }): Promise<{
+      id: number;
+      instance_name: string | null;
+      phone_number: string;
+      rule_type: 'allow' | 'block';
+      created_at: string;
+      updated_at: string;
+    }> {
+      return apiRequest('/access/rules', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async delete(ruleId: number): Promise<void> {
+      return apiRequest(`/access/rules/${ruleId}`, {
+        method: 'DELETE',
+      });
+    },
+  },
+
   // MCP Server Configuration API
   mcp: {
     async startServer(): Promise<{ success: boolean; message: string; port?: number }> {
@@ -1389,7 +1438,7 @@ export function setInstanceKey(instanceName: string, evolutionKey: string) {
 }
 
 async function evolutionRequest<T>(endpoint: string, options: RequestInit = {}, instanceName?: string): Promise<T> {
-  const apiKey = await getApiKey();
+  const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error('No API key found. Please login.');
@@ -1397,9 +1446,15 @@ async function evolutionRequest<T>(endpoint: string, options: RequestInit = {}, 
 
   const url = `${EVOLUTION_BASE_URL}${endpoint}`;
 
+  // Ensure POST/PUT/PATCH requests have a body (Fastify rejects empty JSON body)
+  const method = options.method?.toUpperCase();
+  const needsBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
+  const body = options.body ?? (needsBody ? JSON.stringify({}) : undefined);
+
   // Use unified API key (same key for Omni and Evolution)
   const response = await fetch(url, {
     ...options,
+    body,
     headers: {
       'Content-Type': 'application/json',
       apikey: apiKey,

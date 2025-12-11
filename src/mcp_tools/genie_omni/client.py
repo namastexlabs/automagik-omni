@@ -84,6 +84,10 @@ class OmniClient:
         """Make HTTP request with error handling"""
         url = f"{self.base_url}{endpoint}"
 
+        # Ensure POST/PUT/PATCH requests have a body (Fastify rejects empty JSON body)
+        if method.upper() in ("POST", "PUT", "PATCH") and json is None:
+            json = {}
+
         try:
             response = await self._client.request(
                 method=method,

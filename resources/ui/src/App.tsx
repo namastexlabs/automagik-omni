@@ -15,6 +15,7 @@ import Contacts from './pages/Contacts';
 import Chats from './pages/Chats';
 import Settings from './pages/Settings';
 import GlobalSettings from './pages/GlobalSettings';
+import AccessRules from './pages/AccessRules';
 import DatabaseSetup from './pages/onboarding/DatabaseSetup';
 import ApiKey from './pages/onboarding/ApiKey';
 import ChannelSetup from './pages/onboarding/ChannelSetup';
@@ -53,7 +54,8 @@ function RootRedirect() {
   }
 
   if (!authenticated) {
-    return <Navigate to="/onboarding/api-key" replace />;
+    // Setup is complete, go to login page (not onboarding)
+    return <Navigate to="/login" replace />;
   }
 
   return <Navigate to="/dashboard" replace />;
@@ -166,6 +168,16 @@ function App() {
                   <SetupGuard>
                     <ProtectedRoute>
                       <GlobalSettings />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/access-rules"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <AccessRules />
                     </ProtectedRoute>
                   </SetupGuard>
                 }

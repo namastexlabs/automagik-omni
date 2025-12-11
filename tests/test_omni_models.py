@@ -322,27 +322,34 @@ class TestInstanceConfigConstraints:
     """Test database constraints and validation."""
 
     def test_required_fields_constraints(self, test_db):
-        """Test that required fields are enforced."""
-        # Missing name
+        """Test that required fields are enforced.
+
+        Note: Only 'name' is required (NOT NULL constraint). Other fields like
+        agent_api_url and agent_api_key are now optional (nullable=True) to
+        support the wizard flow where they can be configured later.
+        """
+        # Missing name - should fail
         with pytest.raises(IntegrityError):
             instance = InstanceConfig(agent_api_url="https://api.com", agent_api_key="key")
             test_db.add(instance)
             test_db.commit()
         test_db.rollback()
 
-        # Missing agent_api_url
-        with pytest.raises(IntegrityError):
-            instance = InstanceConfig(name="no-url", agent_api_key="key")
-            test_db.add(instance)
-            test_db.commit()
-        test_db.rollback()
+        # Missing agent_api_url - should succeed (field is now optional)
+        instance = InstanceConfig(name="no-url-instance", agent_api_key="key")
+        test_db.add(instance)
+        test_db.commit()
+        assert instance.agent_api_url is None
+        test_db.delete(instance)
+        test_db.commit()
 
-        # Missing agent_api_key
-        with pytest.raises(IntegrityError):
-            instance = InstanceConfig(name="no-key", agent_api_url="https://api.com")
-            test_db.add(instance)
-            test_db.commit()
-        test_db.rollback()
+        # Missing agent_api_key - should succeed (field is now optional)
+        instance = InstanceConfig(name="no-key-instance", agent_api_url="https://api.com")
+        test_db.add(instance)
+        test_db.commit()
+        assert instance.agent_api_key is None
+        test_db.delete(instance)
+        test_db.commit()
 
     def test_unique_name_constraint(self, test_db):
         """Test that instance names must be unique."""
@@ -367,7 +374,17 @@ class TestUserModel:
     """Test User model for completeness."""
 
     def test_user_creation(self, test_db):
-        """Test basic user creation."""
+        """Test basic user creation.
+
+        Note: User.instance_name has a foreign key constraint to InstanceConfig.name,
+        so we must create the instance first.
+        """
+        # Create instance first (required by FK constraint)
+        instance = InstanceConfig(name="test-instance")
+        test_db.add(instance)
+        test_db.commit()
+
+        # Now create user
         user = User(
             phone_number="+1234567890",
             whatsapp_jid="1234567890@s.whatsapp.net",

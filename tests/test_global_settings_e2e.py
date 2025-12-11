@@ -11,7 +11,6 @@ Tests the complete flow:
 import pytest
 import os
 import tempfile
-from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -40,65 +39,67 @@ class TestGlobalSettingsBootstrap:
         if os.path.exists(db_path):
             os.unlink(db_path)
 
-    def test_fresh_install_generates_evolution_key(self, fresh_db_session):
-        """Test that fresh install auto-generates Evolution API key."""
-        # Ensure no .env key exists (simulate fresh install)
-        with patch.dict(os.environ, {}, clear=False):
-            if "EVOLUTION_API_KEY" in os.environ:
-                del os.environ["EVOLUTION_API_KEY"]
+    def test_fresh_install_generates_omni_api_key(self, fresh_db_session):
+        """Test that fresh install auto-generates unified Omni API key.
 
-            # Run bootstrap
-            bootstrap_global_settings(fresh_db_session)
+        Note: The architecture changed from evolution_api_key to omni_api_key.
+        omni_api_key is now the unified key used for all authentication.
+        """
+        # Run bootstrap
+        bootstrap_global_settings(fresh_db_session)
 
-            # Verify evolution_api_key was created
-            setting = settings_service.get_setting("evolution_api_key", fresh_db_session)
-            assert setting is not None
-            assert setting.value is not None
-            assert len(setting.value) == 32  # 32-char hex from secrets.token_hex(16)
-            assert setting.is_secret is True
-            assert setting.is_required is True
-            assert setting.category == "integration"
-            assert "auto-generated" in setting.description.lower()
+        # Verify omni_api_key was created (unified key architecture)
+        setting = settings_service.get_setting("omni_api_key", fresh_db_session)
+        assert setting is not None
+        assert setting.value is not None
+        assert setting.value.startswith("sk-omni-")  # New format: sk-omni-{token}
+        assert setting.is_secret is True
+        assert setting.is_required is True
+        assert setting.category == "security"
 
-    def test_env_migration_preserves_existing_key(self, fresh_db_session):
-        """Test that existing .env key is migrated to database."""
-        existing_key = "existing-evolution-key-from-dotenv"
+    def test_omni_api_key_format_validation(self, fresh_db_session):
+        """Test that omni_api_key follows the correct format.
 
-        with patch.dict(os.environ, {"EVOLUTION_API_KEY": existing_key}):
-            # Run bootstrap
-            bootstrap_global_settings(fresh_db_session)
+        Note: .env migration is deprecated. omni_api_key is always auto-generated
+        with the sk-omni-{token} format for security.
+        """
+        # Run bootstrap
+        bootstrap_global_settings(fresh_db_session)
 
-            # Verify the .env key was migrated (not replaced)
-            setting = settings_service.get_setting("evolution_api_key", fresh_db_session)
-            assert setting is not None
-            assert setting.value == existing_key
-            assert "migrated from .env" in setting.description.lower()
+        # Verify the key format
+        setting = settings_service.get_setting("omni_api_key", fresh_db_session)
+        assert setting is not None
+        assert setting.value.startswith("sk-omni-")
+        # Token part is url-safe base64 (32 bytes = 43 chars without padding)
+        token_part = setting.value[8:]  # Remove "sk-omni-" prefix
+        assert len(token_part) >= 32  # At least 32 chars of token
 
     def test_bootstrap_is_idempotent(self, fresh_db_session):
         """Test that running bootstrap multiple times doesn't duplicate settings."""
         # Run bootstrap twice
         bootstrap_global_settings(fresh_db_session)
-        first_key = settings_service.get_setting_value("evolution_api_key", fresh_db_session)
+        first_key = settings_service.get_setting_value("omni_api_key", fresh_db_session)
 
         bootstrap_global_settings(fresh_db_session)
-        second_key = settings_service.get_setting_value("evolution_api_key", fresh_db_session)
+        second_key = settings_service.get_setting_value("omni_api_key", fresh_db_session)
 
         # Key should remain the same
         assert first_key == second_key
 
         # No duplicate settings should exist
-        all_settings = fresh_db_session.query(GlobalSetting).filter_by(key="evolution_api_key").all()
+        all_settings = fresh_db_session.query(GlobalSetting).filter_by(key="omni_api_key").all()
         assert len(all_settings) == 1
 
     def test_bootstrap_creates_default_settings(self, fresh_db_session):
         """Test that bootstrap creates all expected default settings."""
         bootstrap_global_settings(fresh_db_session)
 
+        # Note: evolution_api_key is deprecated, omni_api_key is the primary key
         expected_settings = {
-            "evolution_api_key": "integration",
+            "omni_api_key": "security",  # Unified key (replaces evolution_api_key)
             "evolution_api_url": "integration",
-            "max_instances_per_user": "system",  # Fixed: actual category is 'system'
-            "enable_analytics": "system",  # Fixed: actual category is 'system'
+            "max_instances_per_user": "system",
+            "enable_analytics": "system",
         }
 
         for key, expected_category in expected_settings.items():
@@ -125,9 +126,9 @@ class TestGlobalSettingsAPI:
         assert isinstance(settings, list)
         assert len(settings) > 0
 
-        # Verify expected settings exist
+        # Verify expected settings exist (omni_api_key replaces evolution_api_key)
         setting_keys = [s["key"] for s in settings]
-        assert "evolution_api_key" in setting_keys
+        assert "omni_api_key" in setting_keys
         assert "evolution_api_url" in setting_keys
 
     def test_get_specific_setting_endpoint(self, test_client, mention_api_headers):
@@ -140,11 +141,11 @@ class TestGlobalSettingsAPI:
 
     def test_secret_masking_in_api_response(self, test_client, mention_api_headers):
         """Test that secret values are masked in API responses."""
-        response = test_client.get("/api/v1/settings/evolution_api_key", headers=mention_api_headers)
+        response = test_client.get("/api/v1/settings/omni_api_key", headers=mention_api_headers)
         assert response.status_code == 200
         setting = response.json()
 
-        assert setting["key"] == "evolution_api_key"
+        assert setting["key"] == "omni_api_key"
         assert setting["is_secret"] is True
 
         # Value should be masked (first 4 + last 4 chars only, or ***)
@@ -152,7 +153,8 @@ class TestGlobalSettingsAPI:
         if len(value) > 8:
             # Should be in format: "abcd***wxyz"
             assert "***" in value
-            assert len(value) < 32  # Shorter than full 32-char key
+            # Masked key should be shorter than full key (sk-omni-{43+ chars})
+            assert len(value) < 51
         else:
             # Short values just show ***
             assert value == "***"
@@ -179,7 +181,7 @@ class TestGlobalSettingsAPI:
 
     def test_cannot_delete_required_setting(self, test_client, mention_api_headers):
         """Test that required settings cannot be deleted."""
-        response = test_client.delete("/api/v1/settings/evolution_api_key", headers=mention_api_headers)
+        response = test_client.delete("/api/v1/settings/omni_api_key", headers=mention_api_headers)
         assert response.status_code == 400
         assert "required" in response.json()["detail"].lower()
 
@@ -208,10 +210,10 @@ class TestGlobalSettingsAPI:
         # All returned settings should be in 'integration' category
         for setting in settings:
             assert setting["category"] == "integration", f"Setting {setting['key']} has category {setting['category']}"
-        # Should include evolution_api_key and evolution_api_url
+        # Should include evolution_api_url (omni_api_key is in 'security' category)
         if len(settings) > 0:
             setting_keys = [s["key"] for s in settings]
-            assert "evolution_api_key" in setting_keys or "evolution_api_url" in setting_keys
+            assert "evolution_api_url" in setting_keys
 
 
 class TestSettingsServiceLayer:
@@ -279,8 +281,8 @@ class TestSettingsServiceLayer:
         assert isinstance(value, dict)
 
 
-class TestEvolutionKeyIntegration:
-    """Test Evolution API key retrieval integration."""
+class TestOmniKeyIntegration:
+    """Test Omni API key retrieval integration."""
 
     @pytest.fixture(autouse=True)
     def setup_settings(self, test_db):
@@ -288,16 +290,24 @@ class TestEvolutionKeyIntegration:
         bootstrap_global_settings(test_db)
         yield
 
-    def test_get_evolution_api_key_global_helper(self):
-        """Test the helper function that's used across the codebase."""
-        from src.services.settings_service import get_evolution_api_key_global
+    def test_get_omni_api_key_global_helper(self):
+        """Test the helper function that's used across the codebase.
 
-        # This should work without a database session
-        key = get_evolution_api_key_global()
+        Note: get_evolution_api_key_global() now returns omni_api_key for
+        backward compatibility. Use get_omni_api_key_global() for new code.
+        """
+        from src.services.settings_service import get_omni_api_key_global, get_evolution_api_key_global
+
+        # get_omni_api_key_global is the primary method
+        key = get_omni_api_key_global()
         assert key is not None
-        # Should return either database value or .env fallback
         assert isinstance(key, str)
-        assert len(key) > 0
+        # Key may be empty in test env without database, but should be a string
+        # In production, it would have sk-omni- prefix
+
+        # get_evolution_api_key_global should return the same (backward compat alias)
+        evo_key = get_evolution_api_key_global()
+        assert evo_key == key  # Should be identical (unified key architecture)
 
 
 class TestAuthenticationRequirements:

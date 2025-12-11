@@ -125,12 +125,27 @@ export function InstancesTab() {
     refetchInterval: 30000,
   });
 
+  interface EvolutionInstanceDetail {
+    name: string;
+    connectionStatus: 'open' | 'close' | 'connecting' | string;
+    profileName?: string;
+    profilePicUrl?: string;
+    ownerJid?: string;
+    integration?: string;
+    counts: {
+      messages: number;
+      contacts: number;
+      chats: number;
+    };
+  }
+
   const evolutionDetails = health?.services?.evolution?.details as
     | {
         version?: string;
         whatsappWebVersion?: string;
         instances?: { total: number; connected: number };
         totals?: { messages: number; contacts: number; chats: number };
+        instanceDetails?: EvolutionInstanceDetail[];
       }
     | undefined;
 
@@ -188,19 +203,22 @@ export function InstancesTab() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Skeleton className="h-48" />
           </div>
-        ) : evolutionDetails?.totals ? (
+        ) : evolutionDetails?.instanceDetails && evolutionDetails.instanceDetails.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <InstanceDetailCard
-              name="genie"
-              status={evolutionDetails.instances?.connected ? 'connected' : 'disconnected'}
-              version={evolutionDetails.version}
-              whatsappVersion={evolutionDetails.whatsappWebVersion}
-              messages={evolutionDetails.totals.messages}
-              contacts={evolutionDetails.totals.contacts}
-              chats={evolutionDetails.totals.chats}
-              tracedMessages={analytics?.instances?.['genie']}
-              successRate={analytics?.success_rate}
-            />
+            {evolutionDetails.instanceDetails.map((instance) => (
+              <InstanceDetailCard
+                key={instance.name}
+                name={instance.name}
+                status={instance.connectionStatus === 'open' ? 'connected' : 'disconnected'}
+                version={evolutionDetails.version}
+                whatsappVersion={evolutionDetails.whatsappWebVersion}
+                messages={instance.counts?.messages ?? 0}
+                contacts={instance.counts?.contacts ?? 0}
+                chats={instance.counts?.chats ?? 0}
+                tracedMessages={analytics?.instances?.[instance.name]}
+                successRate={analytics?.success_rate}
+              />
+            ))}
           </div>
         ) : (
           <p className="text-muted-foreground">No instance data available</p>

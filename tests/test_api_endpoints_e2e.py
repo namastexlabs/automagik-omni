@@ -73,32 +73,46 @@ class TestDatabaseSetup:
             assert instances[0].name == "migration-test"
 
     def test_alembic_migration_compatibility(self, temp_db_path):
-        """Test Alembic migration system (requires alembic package)."""
+        """Test Alembic migration system (requires alembic package and PostgreSQL).
+
+        Note: This test requires a real PostgreSQL connection because auto_migrate()
+        uses the application's database configuration, not environment variables.
+        Skip if PostgreSQL is not available.
+        """
         # First check if alembic is installed
         try:
             import alembic  # noqa: F401
         except ImportError:
             pytest.skip("Alembic package not installed - install with: pip install alembic")
 
+        # Check if PostgreSQL is available (embedded or external)
+        import os
+
+        embedded_pg_url = os.environ.get(
+            "EMBEDDED_PG_URL", "postgresql://postgres:postgres@127.0.0.1:8432/automagik_omni"
+        )
         try:
-            # Ensure proper import path resolution
-            import sys
-            import os
+            import psycopg2
 
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if project_root not in sys.path:
-                sys.path.insert(0, project_root)
+            # Try to connect to embedded PostgreSQL
+            conn = psycopg2.connect(embedded_pg_url, connect_timeout=3)
+            conn.close()
+        except Exception:
+            pytest.skip("PostgreSQL not available - auto_migrate requires a real database connection")
 
+        try:
             from src.db.migrations import auto_migrate
 
-            # Set up temporary database path
-            with patch.dict(os.environ, {"DATABASE_URL": f"sqlite:///{temp_db_path}", "TEST_DATABASE_URL": f"sqlite:///{temp_db_path}"}):
-                result = auto_migrate()
-                # auto_migrate returns bool, so check for boolean result
-                assert isinstance(result, bool)
+            # auto_migrate uses the app's database config, which should point to embedded PG
+            result = auto_migrate()
+            # auto_migrate returns bool, so check for boolean result
+            assert isinstance(result, bool)
 
         except ImportError as e:
             pytest.skip(f"Migration module import failed: {e}")
+        except SystemExit as e:
+            # auto_migrate raises SystemExit on database connection failures
+            pytest.skip(f"Migration test skipped - database connection issue: {e}")
         except Exception as e:
             # Don't skip on other exceptions - let them bubble up to show the real issue
             pytest.fail(f"Migration test failed with unexpected error: {e}")
@@ -900,13 +914,21 @@ class TestErrorHandling(TestAPIEndpoints):
         assert response.status_code == 422
 
     def test_missing_required_fields(self, test_client, mention_api_headers):
-        """Test missing required fields in request."""
-        incomplete_data = {
-            "name": "incomplete"
-            # Missing required fields
-        }
+        """Test missing required fields in request.
 
-        response = test_client.post("/api/v1/instances", json=incomplete_data, headers=mention_api_headers)
+        Note: The schema now has extensive defaults and auto-fill logic, so
+        only truly minimal data (just name) can still trigger creation.
+        An empty name should fail with 422.
+        """
+        # Empty name should fail with pydantic validation error
+        empty_name_data = {"name": ""}
+        response = test_client.post("/api/v1/instances", json=empty_name_data, headers=mention_api_headers)
+        # Empty name triggers validation error (422) or business error (400)
+        assert response.status_code in [400, 422]
+
+        # Missing name entirely should fail
+        no_name_data = {"channel_type": "whatsapp"}
+        response = test_client.post("/api/v1/instances", json=no_name_data, headers=mention_api_headers)
         assert response.status_code == 422
 
     def test_invalid_instance_name_format(self, test_client, mention_api_headers):

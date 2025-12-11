@@ -226,7 +226,8 @@ class TestRealWorldScenarios:
             )
             assert response.status_code == 200
             updated = response.json()
-            assert updated["agent_api_url"] == "https://agent-v2.prod.company.com"
+            # URL may have trailing slash added by pydantic HttpUrl validation
+            assert updated["agent_api_url"].rstrip("/") == "https://agent-v2.prod.company.com"
             assert not updated["webhook_base64"]
 
         # Step 7: Set as default instance (API endpoint not yet implemented)
@@ -599,8 +600,9 @@ class TestRealWorldScenarios:
 
         assert inst1["webhook_base64"]
         assert not inst2["webhook_base64"]
-        assert inst1["evolution_key"] == "persist-key-1"
-        assert inst2["evolution_key"] == "persist-key-2"
+        # Note: API uses whatsapp_web_key (property alias for evolution_key)
+        assert inst1["whatsapp_web_key"] == "persist-key-1"
+        assert inst2["whatsapp_web_key"] == "persist-key-2"
 
         # Test individual instance retrieval
         response = client.get("/api/v1/instances/persistence-test-1", headers=api_headers)
