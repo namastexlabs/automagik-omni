@@ -175,6 +175,31 @@ export class PortRegistry extends EventEmitter {
   }
 
   /**
+   * Register a fixed port for a service (no dynamic allocation).
+   * Used when a service needs a predictable port that survives restarts.
+   */
+  registerFixed(serviceId: ServiceId, port: number): PortAllocation {
+    // Check if already allocated
+    const existing = this.allocations.get(serviceId);
+    if (existing && existing.port === port) {
+      console.log(`[PortRegistry] Fixed port ${port} already registered for ${serviceId}`);
+      return existing;
+    }
+
+    // Register the fixed port
+    const allocation: PortAllocation = {
+      serviceId,
+      port,
+      allocatedAt: new Date(),
+    };
+
+    this.allocations.set(serviceId, allocation);
+    console.log(`[PortRegistry] Registered fixed port ${port} for ${serviceId}`);
+    this.emit('allocated', allocation);
+    return allocation;
+  }
+
+  /**
    * Release the port allocation for a service.
    */
   release(serviceId: ServiceId): boolean {

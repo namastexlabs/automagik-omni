@@ -31,12 +31,43 @@ logger = logging.getLogger(__name__)
 # Path for pgserve config file (read by gateway before DB is available)
 PGSERVE_CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "data" / "pgserve-config.json"
 
+# Path to .env file (root of project)
+ENV_FILE_PATH = Path(__file__).parent.parent.parent.parent / ".env"
+
+
+def _update_env_file(key: str, value: str) -> None:
+    """Update or add a key in .env file.
+
+    This ensures infrastructure config survives project updates/reinstalls.
+    """
+    lines = []
+    found = False
+
+    if ENV_FILE_PATH.exists():
+        lines = ENV_FILE_PATH.read_text().splitlines()
+        for i, line in enumerate(lines):
+            # Skip comments and empty lines when matching
+            if line.startswith(f"{key}="):
+                lines[i] = f"{key}={value}"
+                found = True
+                break
+
+    if not found:
+        lines.append(f"{key}={value}")
+
+    # Write back with newline at end
+    ENV_FILE_PATH.write_text("\n".join(lines) + "\n")
+    logger.info(f"Updated .env: {key}={value}")
+
 
 def _write_pgserve_config(memory_mode: bool, data_dir: Optional[str], replication_url: Optional[str] = None):
-    """Write pgserve config to file for gateway to read on startup.
+    """Write pgserve config to file AND .env for gateway to read on startup.
 
     This is necessary because the gateway needs to know memory mode BEFORE
     starting pgserve (and therefore before the database is available).
+
+    The .env file is also updated with OMNI_DATA_DIR so the config survives
+    project updates/reinstalls (the .env is not overwritten by git).
 
     When memory_mode is True, data_dir should be None (no disk storage).
     """
@@ -49,10 +80,22 @@ def _write_pgserve_config(memory_mode: bool, data_dir: Optional[str], replicatio
     # Ensure data directory exists
     PGSERVE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+    # Write internal config file (for backwards compatibility)
     with open(PGSERVE_CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=2)
 
     logger.info(f"Wrote pgserve config to {PGSERVE_CONFIG_PATH}")
+
+    # Write to .env (survives project updates/reinstalls!)
+    try:
+        if not memory_mode and data_dir:
+            _update_env_file("OMNI_DATA_DIR", data_dir)
+            _update_env_file("OMNI_MEMORY_MODE", "false")
+        elif memory_mode:
+            _update_env_file("OMNI_MEMORY_MODE", "true")
+            # Don't set OMNI_DATA_DIR for memory mode (it's ephemeral)
+    except Exception as e:
+        logger.warning(f"Could not update .env file: {e}")
 
 
 router = APIRouter(prefix="/setup", tags=["Setup"])
@@ -435,6 +478,13 @@ async def complete_setup(db: Session = Depends(get_db)):
                 created_by="setup_wizard",
             )
             logger.info("Marked setup as completed (created new flag)")
+
+        # Write Evolution API URL to .env (fixed port 18082 - survives restarts)
+        # This ensures Python knows the correct port for Evolution API
+        try:
+            _update_env_file("EVOLUTION_API_URL", "http://127.0.0.1:18082")
+        except Exception as env_err:
+            logger.warning(f"Could not write EVOLUTION_API_URL to .env: {env_err}")
 
         return SetupCompleteResponse(success=True, message="Setup marked as complete")
 

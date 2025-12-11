@@ -4,7 +4,16 @@
  */
 
 import { execSync } from 'node:child_process';
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -20,10 +29,43 @@ const ROOT_DIR = join(__dirname, '../..');
 const PGSERVE_CONFIG_PATH = join(ROOT_DIR, 'data', 'pgserve-config.json');
 
 /**
- * Read pgserve config from file (written by setup wizard).
- * Returns defaults if file doesn't exist (first run / bootstrap mode).
+ * Read pgserve config from environment or file.
+ *
+ * Priority order:
+ * 1. OMNI_DATA_DIR env var (survives project updates/reinstalls)
+ * 2. data/pgserve-config.json file (written by setup wizard)
+ * 3. Defaults (triggers bootstrap mode)
  */
 function readPgserveConfig(): { memoryMode: boolean; dataDir: string | undefined; replicationUrl: string | undefined } {
+  // 1. PRIORITY: Check OMNI_DATA_DIR env var (survives project updates)
+  const envDataDir = process.env.OMNI_DATA_DIR;
+  const envMemoryMode = process.env.OMNI_MEMORY_MODE === 'true';
+
+  if (envDataDir && existsSync(envDataDir)) {
+    console.log(`[ProcessManager] Using OMNI_DATA_DIR from .env: ${envDataDir}`);
+
+    // Restore internal config file (for consistency with rest of system)
+    const config = {
+      memory_mode: envMemoryMode,
+      data_dir: envDataDir,
+      replication_url: null,
+    };
+    try {
+      mkdirSync(dirname(PGSERVE_CONFIG_PATH), { recursive: true });
+      writeFileSync(PGSERVE_CONFIG_PATH, JSON.stringify(config, null, 2));
+      console.log(`[ProcessManager] Restored internal config from OMNI_DATA_DIR`);
+    } catch (err) {
+      console.warn(`[ProcessManager] Could not restore internal config: ${err}`);
+    }
+
+    return {
+      memoryMode: envMemoryMode,
+      dataDir: envDataDir,
+      replicationUrl: undefined,
+    };
+  }
+
+  // 2. FALLBACK: Read from internal config file
   try {
     if (existsSync(PGSERVE_CONFIG_PATH)) {
       const content = readFileSync(PGSERVE_CONFIG_PATH, 'utf-8');
@@ -41,8 +83,8 @@ function readPgserveConfig(): { memoryMode: boolean; dataDir: string | undefined
     console.warn(`[ProcessManager] Failed to read pgserve config: ${error}`);
   }
 
-  // Default: persistent mode (first run / bootstrap)
-  console.log('[ProcessManager] No pgserve config found, using defaults (persistent mode)');
+  // 3. No config found - return defaults (will trigger bootstrap mode)
+  console.log('[ProcessManager] No pgserve config found, using defaults (bootstrap mode)');
   return {
     memoryMode: false,
     dataDir: undefined,
@@ -347,9 +389,9 @@ export class ProcessManager {
   private async _startPgserveImpl(): Promise<void> {
     console.log('[ProcessManager] Starting embedded PostgreSQL via pgserve...');
 
-    // Allocate port dynamically from registry (8432-8449 range)
-    const allocation = await this.portRegistry.allocate('postgres');
-    const pgPort = allocation.port;
+    // Use fixed port 8432 for PostgreSQL - dynamic allocation caused restart failures
+    // because Python would remember the old port while pgserve got a new random port
+    const pgPort = 8432;
 
     // Read config from file (written by setup wizard) or use defaults
     // Environment variables take precedence over file config

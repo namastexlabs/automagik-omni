@@ -75,12 +75,33 @@ const PROXY_VITE_PORT = parsePort(process.env.VITE_PORT, '19882');
  * This is checked BEFORE starting any services to implement wizard-first architecture.
  * Returns true if setup is complete (normal startup), false if bootstrap mode needed.
  *
- * IMPORTANT: Only checks marker file - NOT directory existence.
- * This ensures fresh installs trigger bootstrap mode even if data/ exists from previous run.
+ * Priority order:
+ * 1. Marker file exists (data/.setup-complete)
+ * 2. OMNI_DATA_DIR env var points to valid PostgreSQL data directory
+ * 3. Otherwise, bootstrap mode (fresh install)
  */
 function isSetupComplete(): boolean {
   const setupMarkerPath = join(ROOT_DIR, 'data', '.setup-complete');
-  return existsSync(setupMarkerPath);
+
+  // Primary check: marker file exists
+  if (existsSync(setupMarkerPath)) {
+    return true;
+  }
+
+  // Secondary check: OMNI_DATA_DIR in env points to valid PostgreSQL data directory
+  // This enables recovery when marker file is lost but data survives
+  const envDataDir = process.env.OMNI_DATA_DIR;
+  if (envDataDir && existsSync(envDataDir)) {
+    // Check if it's a valid PostgreSQL data directory (has PG_VERSION file)
+    const pgVersionPath = join(envDataDir, 'PG_VERSION');
+    if (existsSync(pgVersionPath)) {
+      console.log('[Gateway] Recovering: Found existing data via OMNI_DATA_DIR, recreating setup marker');
+      markSetupComplete();
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -114,13 +135,9 @@ export async function main() {
     const pythonAllocation = await portRegistry.allocate('python');
     PYTHON_PORT = pythonAllocation.port;
 
-    try {
-      const evolutionAllocation = await portRegistry.allocate('evolution');
-      EVOLUTION_PORT = evolutionAllocation.port;
-    } catch (error) {
-      console.warn('[Gateway] Could not allocate Evolution port:', error);
-      EVOLUTION_PORT = undefined;
-    }
+    // Fixed Evolution port - survives restarts (same pattern as PostgreSQL fix)
+    EVOLUTION_PORT = 18082;
+    portRegistry.registerFixed('evolution', EVOLUTION_PORT);
 
     if (DEV_MODE) {
       const viteAllocation = await portRegistry.allocate('vite');

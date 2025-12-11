@@ -95,8 +95,7 @@ update: ## Pull updates, rebuild everything, restart
 uninstall: ## Stop services and cleanup (prompts for data wipe)
 	@echo ""
 	@echo "$(FONT_YELLOW)Stopping PM2 services...$(FONT_RESET)"
-	@pm2 stop all 2>/dev/null || true
-	@pm2 delete all 2>/dev/null || true
+	@pm2 delete ecosystem.config.cjs 2>/dev/null || true
 	@echo "$(FONT_YELLOW)Removing dependencies...$(FONT_RESET)"
 	@rm -rf .venv node_modules gateway/node_modules resources/ui/node_modules resources/omni-whatsapp-core/node_modules
 	@rm -rf gateway/dist resources/ui/dist dist build *.egg-info
