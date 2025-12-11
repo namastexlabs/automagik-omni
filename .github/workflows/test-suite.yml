@@ -108,7 +108,8 @@ jobs:
         run: |
           echo "Current directory: $(pwd)"
           ls -la package*.json || echo "No package files found"
-          npm ci --legacy-peer-deps --ignore-scripts
+          # Use npm install instead of npm ci because parent dir has package.json without lock file
+          npm install --legacy-peer-deps --ignore-scripts
 
       - name: Install Playwright browsers
         working-directory: resources/ui
