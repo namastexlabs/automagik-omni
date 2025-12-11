@@ -385,7 +385,6 @@ class TestGetEvolutionClient:
             mock_get_key.return_value = ""  # Empty key
             # Ensure env override is cleared for this test
             with patch.dict(os.environ, {"EVOLUTION_API_KEY": ""}):
-
                 # Reset the global singleton
                 import src.channels.whatsapp.evolution_client as client_module
 
@@ -407,9 +406,7 @@ class TestGetEvolutionClient:
             }.get(k, d)
 
             # Mock at source location - function is imported inside get_evolution_client
-            with patch(
-                "src.services.settings_service.get_evolution_api_key_global"
-            ) as mock_get_key:
+            with patch("src.services.settings_service.get_evolution_api_key_global") as mock_get_key:
                 mock_get_key.return_value = "custom-key-456"
 
                 # Reset the global singleton

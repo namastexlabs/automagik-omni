@@ -5,6 +5,7 @@ channel dependencies (like discord.py) are not installed.
 
 Tech Council requirement (oettam): Verify graceful degradation behavior.
 """
+
 import subprocess
 import sys
 import os
@@ -20,10 +21,7 @@ class TestDiscordOptionalDependency:
         when discord.py is not installed.
         """
         result = subprocess.run(
-            [
-                sys.executable, "-c",
-                "from src.api.app import app; print('SUCCESS: App imports without crash')"
-            ],
+            [sys.executable, "-c", "from src.api.app import app; print('SUCCESS: App imports without crash')"],
             capture_output=True,
             text=True,
             cwd=os.getcwd(),
@@ -36,8 +34,9 @@ class TestDiscordOptionalDependency:
         """Verify ChannelHandlerFactory is available."""
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                "from src.channels import ChannelHandlerFactory; channels = ChannelHandlerFactory.get_supported_channels(); print(f'Available channels: {channels}'); print('SUCCESS: Channel factory works')"
+                sys.executable,
+                "-c",
+                "from src.channels import ChannelHandlerFactory; channels = ChannelHandlerFactory.get_supported_channels(); print(f'Available channels: {channels}'); print('SUCCESS: Channel factory works')",
             ],
             capture_output=True,
             text=True,
@@ -51,8 +50,9 @@ class TestDiscordOptionalDependency:
         """Verify DISCORD_COMPONENTS_AVAILABLE flag is properly set."""
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                "from src.channels.discord import DISCORD_COMPONENTS_AVAILABLE; print(f'DISCORD_COMPONENTS_AVAILABLE: {DISCORD_COMPONENTS_AVAILABLE}'); assert isinstance(DISCORD_COMPONENTS_AVAILABLE, bool); print('SUCCESS: DISCORD_COMPONENTS_AVAILABLE flag works')"
+                sys.executable,
+                "-c",
+                "from src.channels.discord import DISCORD_COMPONENTS_AVAILABLE; print(f'DISCORD_COMPONENTS_AVAILABLE: {DISCORD_COMPONENTS_AVAILABLE}'); assert isinstance(DISCORD_COMPONENTS_AVAILABLE, bool); print('SUCCESS: DISCORD_COMPONENTS_AVAILABLE flag works')",
             ],
             capture_output=True,
             text=True,
@@ -70,8 +70,9 @@ class TestWhatsAppChannel:
         """Verify WhatsApp channel loads correctly."""
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                "from src.channels import ChannelHandlerFactory; channels = ChannelHandlerFactory.get_supported_channels(); assert 'whatsapp' in channels, f'WhatsApp should be available, got: {channels}'; print('SUCCESS: WhatsApp channel available')"
+                sys.executable,
+                "-c",
+                "from src.channels import ChannelHandlerFactory; channels = ChannelHandlerFactory.get_supported_channels(); assert 'whatsapp' in channels, f'WhatsApp should be available, got: {channels}'; print('SUCCESS: WhatsApp channel available')",
             ],
             capture_output=True,
             text=True,
@@ -89,8 +90,9 @@ class TestStartupGracefulDegradation:
         """Verify app logs which channels are unavailable at startup."""
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                "import logging; logging.basicConfig(level=logging.INFO); from src.channels import ChannelHandlerFactory; print('SUCCESS: Startup completed with graceful degradation')"
+                sys.executable,
+                "-c",
+                "import logging; logging.basicConfig(level=logging.INFO); from src.channels import ChannelHandlerFactory; print('SUCCESS: Startup completed with graceful degradation')",
             ],
             capture_output=True,
             text=True,
@@ -105,8 +107,9 @@ class TestStartupGracefulDegradation:
         """Verify API routes load even with missing optional deps."""
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                "from src.api.app import app; routes = [r.path for r in app.routes]; print(f'Loaded {len(routes)} routes'); assert len(routes) > 0, 'Should have loaded some routes'; print('SUCCESS: API routes loaded')"
+                sys.executable,
+                "-c",
+                "from src.api.app import app; routes = [r.path for r in app.routes]; print(f'Loaded {len(routes)} routes'); assert len(routes) > 0, 'Should have loaded some routes'; print('SUCCESS: API routes loaded')",
             ],
             capture_output=True,
             text=True,
@@ -120,8 +123,9 @@ class TestStartupGracefulDegradation:
         """Verify discord module exports None values when discord.py not installed."""
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                "from src.channels.discord import DISCORD_COMPONENTS_AVAILABLE, DiscordChannelHandler, DiscordBotManager; print(f'DISCORD_COMPONENTS_AVAILABLE: {DISCORD_COMPONENTS_AVAILABLE}'); print(f'DiscordChannelHandler: {DiscordChannelHandler}'); print(f'DiscordBotManager: {DiscordBotManager}'); print('SUCCESS: Discord module exports work')"
+                sys.executable,
+                "-c",
+                "from src.channels.discord import DISCORD_COMPONENTS_AVAILABLE, DiscordChannelHandler, DiscordBotManager; print(f'DISCORD_COMPONENTS_AVAILABLE: {DISCORD_COMPONENTS_AVAILABLE}'); print(f'DiscordChannelHandler: {DiscordChannelHandler}'); print(f'DiscordBotManager: {DiscordBotManager}'); print('SUCCESS: Discord module exports work')",
             ],
             capture_output=True,
             text=True,

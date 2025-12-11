@@ -51,8 +51,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install -e .
-          pip install -e ".[discord]"  # Install optional discord dependencies
+          pip install -e ".[test,discord]"  # Install test + discord dependencies
           pip install pytest-xdist  # For parallel test execution
 
       - name: Set up environment variables
