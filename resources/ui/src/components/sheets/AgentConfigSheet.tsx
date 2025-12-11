@@ -21,9 +21,7 @@ interface AgentConfigSheetProps {
 interface AgentConfigForm {
   agent_api_url: string;
   agent_api_key: string;
-  default_agent: string;
   agent_id: string;
-  agent_type: string;
   agent_timeout: number;
   agent_stream_mode: boolean;
   enable_auto_split: boolean;
@@ -32,9 +30,7 @@ interface AgentConfigForm {
 const defaultConfig: AgentConfigForm = {
   agent_api_url: '',
   agent_api_key: '',
-  default_agent: '',
   agent_id: '',
-  agent_type: '',
   agent_timeout: 60,
   agent_stream_mode: false,
   enable_auto_split: true,
@@ -60,9 +56,7 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
       setForm({
         agent_api_url: instance.agent_api_url || '',
         agent_api_key: '', // Don't show existing key
-        default_agent: instance.default_agent || '',
         agent_id: instance.agent_id || '',
-        agent_type: instance.agent_type || '',
         agent_timeout: instance.agent_timeout || 60,
         agent_stream_mode: instance.agent_stream_mode || false,
         enable_auto_split: instance.enable_auto_split ?? true,
@@ -95,6 +89,8 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
       agent_timeout: form.agent_timeout,
       agent_stream_mode: form.agent_stream_mode,
       enable_auto_split: form.enable_auto_split,
+      // Always use hive as the agent instance type
+      agent_instance_type: 'hive',
     };
 
     // Only include non-empty string fields
@@ -104,14 +100,8 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
     if (form.agent_api_key.trim()) {
       updateData.agent_api_key = form.agent_api_key.trim();
     }
-    if (form.default_agent.trim()) {
-      updateData.default_agent = form.default_agent.trim();
-    }
     if (form.agent_id.trim()) {
       updateData.agent_id = form.agent_id.trim();
-    }
-    if (form.agent_type.trim()) {
-      updateData.agent_type = form.agent_type.trim();
     }
 
     saveMutation.mutate(updateData);
@@ -183,45 +173,17 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
                   <h3 className="text-sm font-medium">Agent Identity</h3>
                   <div className="space-y-3 pl-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="default_agent" className="text-sm">
-                        Default Agent Name
+                      <Label htmlFor="agent_id" className="text-sm">
+                        Agent ID
                       </Label>
                       <Input
-                        id="default_agent"
-                        placeholder="my-agent"
-                        value={form.default_agent}
-                        onChange={(e) => updateForm('default_agent', e.target.value)}
+                        id="agent_id"
+                        placeholder="agent-uuid"
+                        value={form.agent_id}
+                        onChange={(e) => updateForm('agent_id', e.target.value)}
                         className="h-9"
                       />
-                      <p className="text-xs text-muted-foreground">Agent name to use for incoming messages</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="agent_id" className="text-sm">
-                          Agent ID
-                        </Label>
-                        <Input
-                          id="agent_id"
-                          placeholder="agent-uuid"
-                          value={form.agent_id}
-                          onChange={(e) => updateForm('agent_id', e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="agent_type" className="text-sm">
-                          Agent Type
-                        </Label>
-                        <Input
-                          id="agent_type"
-                          placeholder="e.g., assistant"
-                          value={form.agent_type}
-                          onChange={(e) => updateForm('agent_type', e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
+                      <p className="text-xs text-muted-foreground">The Hive agent ID to use for incoming messages</p>
                     </div>
                   </div>
                 </div>

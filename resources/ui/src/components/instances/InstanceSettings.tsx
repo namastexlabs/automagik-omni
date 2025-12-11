@@ -33,13 +33,10 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
     // Agent Integration (Hive)
     agent_api_url: '',
     agent_api_key: '',
-    default_agent: '',
     agent_id: '',
-    agent_type: '',
     agent_timeout: 60,
     agent_stream_mode: false,
     enable_auto_split: true,
-    automagik_instance_name: '',
     is_default: false,
     // Discord specific
     discord_client_id: '',
@@ -52,13 +49,10 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
       setFormData({
         agent_api_url: instance.agent_api_url || '',
         agent_api_key: instance.agent_api_key || '',
-        default_agent: instance.default_agent || '',
         agent_id: instance.agent_id || '',
-        agent_type: instance.agent_type || '',
         agent_timeout: instance.agent_timeout || 60,
         agent_stream_mode: instance.agent_stream_mode || false,
         enable_auto_split: instance.enable_auto_split ?? true,
-        automagik_instance_name: instance.automagik_instance_name || '',
         is_default: instance.is_default || false,
         discord_client_id: instance.discord_client_id || '',
         discord_bot_token: '',
@@ -85,6 +79,8 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
 
     const updateData: InstanceUpdateRequest = {
       is_default: formData.is_default,
+      // Always use hive as the agent instance type
+      agent_instance_type: 'hive',
     };
 
     // Only include non-empty optional fields
@@ -94,14 +90,8 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
     if (formData.agent_api_key.trim()) {
       updateData.agent_api_key = formData.agent_api_key.trim();
     }
-    if (formData.default_agent.trim()) {
-      updateData.default_agent = formData.default_agent.trim();
-    }
     if (formData.agent_id.trim()) {
       updateData.agent_id = formData.agent_id.trim();
-    }
-    if (formData.agent_type.trim()) {
-      updateData.agent_type = formData.agent_type.trim();
     }
     updateData.agent_timeout = formData.agent_timeout;
     updateData.agent_stream_mode = formData.agent_stream_mode;
@@ -177,46 +167,18 @@ export function InstanceSettings({ open, onOpenChange, instance }: InstanceSetti
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="agent_id" className="text-sm">
-                      Agent ID
-                    </Label>
-                    <Input
-                      id="agent_id"
-                      value={formData.agent_id}
-                      onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
-                      placeholder="agent-uuid"
-                      disabled={isPending}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="agent_type" className="text-sm">
-                      Agent Type
-                    </Label>
-                    <Input
-                      id="agent_type"
-                      value={formData.agent_type}
-                      onChange={(e) => setFormData({ ...formData, agent_type: e.target.value })}
-                      placeholder="e.g., assistant"
-                      disabled={isPending}
-                    />
-                  </div>
-                </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="default_agent" className="text-sm">
-                    Default Agent Name
+                  <Label htmlFor="agent_id" className="text-sm">
+                    Agent ID
                   </Label>
                   <Input
-                    id="default_agent"
-                    value={formData.default_agent}
-                    onChange={(e) => setFormData({ ...formData, default_agent: e.target.value })}
-                    placeholder="my-agent"
+                    id="agent_id"
+                    value={formData.agent_id}
+                    onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
+                    placeholder="agent-uuid"
                     disabled={isPending}
                   />
-                  <p className="text-xs text-muted-foreground">Agent name to use for incoming messages</p>
+                  <p className="text-xs text-muted-foreground">The Hive agent ID to use for incoming messages</p>
                 </div>
 
                 <div className="space-y-2">

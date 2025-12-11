@@ -54,10 +54,9 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     // REQUIRED Agent fields
     agent_api_url: '',
     agent_api_key: '',
+    agent_id: '',
     // Optional fields
-    default_agent: '',
     is_default: false,
-    automagik_instance_name: '',
     // WhatsApp
     phone_number: '',
     // Discord
@@ -77,9 +76,8 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
           channel_type: instance.channel_type,
           agent_api_url: instance.agent_api_url || '',
           agent_api_key: instance.agent_api_key || '',
-          default_agent: instance.default_agent || '',
+          agent_id: instance.agent_id || '',
           is_default: instance.is_default,
-          automagik_instance_name: instance.automagik_instance_name || '',
           phone_number: instance.phone_number || '',
           discord_bot_token: '', // Never populate token for security
           discord_client_id: instance.discord_client_id || '',
@@ -90,9 +88,8 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
           channel_type: 'whatsapp',
           agent_api_url: '',
           agent_api_key: '',
-          default_agent: '',
+          agent_id: '',
           is_default: false,
-          automagik_instance_name: '',
           phone_number: '',
           discord_bot_token: '',
           discord_client_id: '',
@@ -162,8 +159,9 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
         is_default: formData.is_default,
         agent_api_url: formData.agent_api_url || undefined,
         agent_api_key: formData.agent_api_key || undefined,
-        default_agent: formData.default_agent || null,
-        automagik_instance_name: formData.automagik_instance_name || null,
+        agent_id: formData.agent_id || undefined,
+        // Always use hive as the agent instance type
+        agent_instance_type: 'hive',
       };
 
       if (formData.channel_type === 'whatsapp') {
@@ -183,9 +181,10 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
         channel_type: formData.channel_type,
         agent_api_url: formData.agent_api_url,
         agent_api_key: formData.agent_api_key,
-        default_agent: formData.default_agent || null,
+        agent_id: formData.agent_id || undefined,
         is_default: formData.is_default,
-        automagik_instance_name: formData.automagik_instance_name || null,
+        // Always use hive as the agent instance type
+        agent_instance_type: 'hive',
       };
 
       if (formData.channel_type === 'whatsapp') {
@@ -297,29 +296,17 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
               />
             </div>
 
-            {/* Default Agent */}
+            {/* Agent ID */}
             <div className="grid gap-2">
-              <Label htmlFor="default_agent">Default Agent (Optional)</Label>
+              <Label htmlFor="agent_id">Agent ID</Label>
               <Input
-                id="default_agent"
-                value={formData.default_agent}
-                onChange={(e) => setFormData({ ...formData, default_agent: e.target.value })}
-                placeholder="agent-name"
+                id="agent_id"
+                value={formData.agent_id}
+                onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
+                placeholder="agent-uuid"
                 disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">Default agent to use for this instance</p>
-            </div>
-
-            {/* Automagik Instance Name */}
-            <div className="grid gap-2">
-              <Label htmlFor="automagik_instance_name">Automagik Instance Name (Optional)</Label>
-              <Input
-                id="automagik_instance_name"
-                value={formData.automagik_instance_name}
-                onChange={(e) => setFormData({ ...formData, automagik_instance_name: e.target.value })}
-                placeholder="my-agent-instance"
-                disabled={isPending}
-              />
+              <p className="text-xs text-muted-foreground">The Hive agent ID to use for incoming messages</p>
             </div>
 
             {/* WhatsApp Fields */}

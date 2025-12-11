@@ -729,9 +729,12 @@ async def _handle_evolution_webhook(instance_config, request: Request, db: Sessi
             # This sets the runtime configuration from the webhook payload
             evolution_api_sender.update_from_webhook(data)
 
-            # Override instance name with the correct one from our database config
-            # to prevent URL conversion issues like "FlashinhoProTestonho" -> "flashinho-pro-testonho"
+            # Override with database config values - webhook payloads don't always include
+            # server_url and apikey, but we have them stored in instance_config
+            evolution_api_sender.server_url = instance_config.evolution_url
+            evolution_api_sender.api_key = instance_config.evolution_key
             evolution_api_sender.instance_name = instance_config.whatsapp_instance
+            evolution_api_sender.config = instance_config  # For enable_auto_split access
 
             # Capture real media messages for testing purposes
             try:

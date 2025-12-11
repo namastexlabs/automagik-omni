@@ -74,7 +74,8 @@ export interface InstanceCreateRequest {
   // Agent configuration
   agent_api_url?: string;
   agent_api_key?: string;
-  default_agent?: string;
+  agent_id?: string;
+  agent_instance_type?: string;
 }
 
 export interface InstanceUpdateRequest {
@@ -98,6 +99,7 @@ export interface InstanceUpdateRequest {
   default_agent?: string;
   agent_id?: string;
   agent_type?: string;
+  agent_instance_type?: string;
   agent_timeout?: number;
   agent_stream_mode?: boolean;
   enable_auto_split?: boolean;
