@@ -499,6 +499,7 @@ jobs:
           export DATABASE_URL=sqlite:///data/test.db
           export AUTOMAGIK_OMNI_API_KEY=test-api-key-for-playwright
           export TEST_API_KEY=test-api-key-for-playwright
+          export ENVIRONMENT=test
           python -c "
           from sqlalchemy import create_engine
           from src.db.models import Base
@@ -506,7 +507,7 @@ jobs:
           engine = create_engine(os.environ['DATABASE_URL'])
           Base.metadata.create_all(engine)
           "
-          # Start backend in background
+          # Start backend in background on port 8882
           nohup python -m uvicorn src.api.app:app --host 0.0.0.0 --port 8882 > backend.log 2>&1 &
           echo $! > backend.pid
           # Wait for backend to be ready
@@ -518,6 +519,37 @@ jobs:
             echo "Waiting for backend... ($i/30)"
             sleep 2
           done
+          # Check if backend started, show logs if it failed
+          if ! curl -s http://localhost:8882/health > /dev/null; then
+            echo "Backend failed to start. Logs:"
+            cat backend.log || true
+            exit 1
+          fi
+
+      - name: Start UI dev server
+        working-directory: resources/ui
+        run: |
+          # Start Next.js dev server in background on port 8882
+          # Using same port since tests expect UI+API on same port
+          nohup npm run dev -- -p 3000 > ui.log 2>&1 &
+          echo $! > ui.pid
+          # Wait for UI to be ready
+          for i in {1..60}; do
+            if curl -s http://localhost:3000 > /dev/null 2>&1; then
+              echo "UI is ready"
+              break
+            fi
+            echo "Waiting for UI... ($i/60)"
+            sleep 2
+          done
+          # Check if UI started
+          if ! curl -s http://localhost:3000 > /dev/null 2>&1; then
+            echo "UI failed to start. Logs:"
+            cat ui.log || true
+            exit 1
+          fi
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8882
 
       - name: Run Playwright tests (headless)
         working-directory: resources/ui
@@ -525,7 +557,8 @@ jobs:
         env:
           CI: true
           TEST_API_KEY: test-api-key-for-playwright
-          E2E_BASE_URL: http://localhost:8882
+          E2E_BASE_URL: http://localhost:3000
+          NEXT_PUBLIC_API_URL: http://localhost:8882
 
       - name: Upload Playwright test results
         if: always()
@@ -543,9 +576,15 @@ jobs:
           path: resources/ui/test-results/
           retention-days: 7
 
-      - name: Stop backend services
+      - name: Stop services
         if: always()
         run: |
+          # Stop UI server
+          if [ -f resources/ui/ui.pid ]; then
+            kill $(cat resources/ui/ui.pid) || true
+            rm resources/ui/ui.pid
+          fi
+          # Stop backend server
           if [ -f backend.pid ]; then
             kill $(cat backend.pid) || true
             rm backend.pid
