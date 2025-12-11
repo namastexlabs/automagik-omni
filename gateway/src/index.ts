@@ -24,6 +24,7 @@ import {
 import { PortRegistry } from './port-registry.js';
 import { ProcessManager } from './process.js';
 import { registerProxy } from './proxy.js';
+import { TrustedOriginsValidator } from './trusted-origins.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '../..');
@@ -146,6 +147,9 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
   // Initialize health checker with port registry
   const healthChecker = new HealthChecker(portRegistry, ROOT_DIR);
+
+  // Initialize trusted origins validator for internal endpoint security
+  const trustedOrigins = new TrustedOriginsValidator(PYTHON_PORT);
 
   // Track bootstrap mode state
   let bootstrapMode = false;
@@ -350,16 +354,16 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   });
 
   // POST /api/logs/restart/:service - Restart a PM2 service
-  // Security: Only allow from localhost to prevent unauthorized service restarts
+  // Security: Only allow from localhost or configured domain
   fastify.post<{
     Params: { service: string };
   }>('/api/logs/restart/:service', async (request, reply) => {
-    // Only allow from localhost
-    const clientIp = request.ip;
-    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+    // Only allow from localhost or configured domain
+    const hostHeader = request.headers['host'] as string | undefined;
+    if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
       return reply.status(403).send({
         success: false,
-        message: 'Restart endpoint only accessible from localhost',
+        message: 'Restart endpoint only accessible from localhost or configured domain',
       });
     }
 
@@ -675,11 +679,11 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   fastify.post<{ Body: { memory_mode: boolean; data_dir?: string; replication_url?: string | null } }>(
     '/api/internal/pgserve-config',
     async (request, reply) => {
-      // Security: Only allow from localhost
-      const clientIp = request.ip;
-      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+      // Security: Only allow from localhost or configured domain
+      const hostHeader = request.headers['host'] as string | undefined;
+      if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
         return reply.status(403).send({
-          error: 'Internal endpoints only accessible from localhost',
+          error: 'Internal endpoints only accessible from localhost or configured domain',
         });
       }
 
@@ -718,11 +722,11 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
   fastify.post<{ Params: { name: string }; Body: Record<string, unknown> }>(
     '/api/internal/services/:name/start',
     async (request, reply) => {
-      // Security: Only allow from localhost (wizard runs locally)
-      const clientIp = request.ip;
-      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+      // Security: Only allow from localhost or configured domain
+      const hostHeader = request.headers['host'] as string | undefined;
+      if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
         return reply.status(403).send({
-          error: 'Internal endpoints only accessible from localhost',
+          error: 'Internal endpoints only accessible from localhost or configured domain',
         });
       }
 
@@ -768,11 +772,11 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
   // POST /api/internal/setup/complete - Mark setup as complete (wizard use)
   fastify.post('/api/internal/setup/complete', async (request, reply) => {
-    // Security: Only allow from localhost
-    const clientIp = request.ip;
-    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+    // Security: Only allow from localhost or configured domain
+    const hostHeader = request.headers['host'] as string | undefined;
+    if (!(await trustedOrigins.isTrustedRequest(request.ip, hostHeader))) {
       return reply.status(403).send({
-        error: 'Internal endpoints only accessible from localhost',
+        error: 'Internal endpoints only accessible from localhost or configured domain',
       });
     }
 
@@ -795,6 +799,22 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       bootstrapMode,
       setupComplete: isSetupComplete(),
     };
+  });
+
+  // POST /api/internal/invalidate-public-url-cache - Invalidate trusted origins cache
+  // Called by Python API when omni_public_url is changed
+  fastify.post('/api/internal/invalidate-public-url-cache', async (request, reply) => {
+    // Only allow from localhost (Python API runs locally)
+    const clientIp = request.ip;
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+      return reply.status(403).send({
+        error: 'Only accessible from localhost',
+      });
+    }
+
+    await trustedOrigins.invalidateCache();
+    console.log('[Gateway] Public URL cache invalidated');
+    return { success: true, message: 'Public URL cache invalidated' };
   });
 
   // ============================================================

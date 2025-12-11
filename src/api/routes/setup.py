@@ -1083,6 +1083,20 @@ async def set_public_url(request: dict, db: Session = Depends(get_db)):
             )
             logger.info(f"Created public URL setting: {public_url or '(auto-detect)'}")
 
+        # Notify gateway to invalidate public URL cache
+        try:
+            import httpx
+
+            gateway_port = os.getenv("OMNI_PORT", "8882")
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"http://127.0.0.1:{gateway_port}/api/internal/invalidate-public-url-cache",
+                    timeout=5.0,
+                )
+                logger.info("Notified gateway to invalidate public URL cache")
+        except Exception as notify_err:
+            logger.warning(f"Failed to notify gateway of public URL change: {notify_err}")
+
         return {"success": True, "message": "Public URL saved", "url": get_public_base_url()}
 
     except Exception as e:
