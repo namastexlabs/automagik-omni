@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   ChevronDown,
@@ -12,9 +13,11 @@ import {
   Loader2,
   Bot,
   Cpu,
+  Plus,
   type LucideIcon,
 } from 'lucide-react';
 import { cn, api } from '@/lib';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ConnectionSheet } from '@/components/sheets/ConnectionSheet';
 import { SettingsSheet } from '@/components/sheets/SettingsSheet';
 import { WebhookSheet } from '@/components/sheets/WebhookSheet';
@@ -82,6 +85,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
     instanceName: string;
     channelType: 'whatsapp' | 'discord' | 'slack';
   } | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const { data: instances, isLoading } = useQuery<InstanceConfig[]>({
     queryKey: ['instances'],
@@ -129,21 +133,33 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
   return (
     <>
       {/* Instances Header */}
-      <button
-        onClick={onToggle}
-        className={cn(
-          'group flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200',
-          'text-foreground hover:bg-accent hover:text-accent-foreground',
-        )}
-      >
-        <Activity className="h-5 w-5 text-muted-foreground group-hover:text-accent-foreground" />
-        <span className="flex-1 text-left">Instances</span>
-        {isExpanded ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        )}
-      </button>
+      <div className="flex items-center">
+        <button
+          onClick={onToggle}
+          className={cn(
+            'group flex flex-1 items-center space-x-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200',
+            'text-foreground hover:bg-accent hover:text-accent-foreground',
+          )}
+        >
+          <Activity className="h-5 w-5 text-muted-foreground group-hover:text-accent-foreground" />
+          <span className="flex-1 text-left">Instances</span>
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowCreateDialog(true);
+          }}
+          className="p-2 mr-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+          title="Create instance"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
 
       {/* Instances List */}
       {isExpanded && (
@@ -263,6 +279,40 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
           onOpenChange={(open) => !open && closeSheet()}
         />
       )}
+
+      {/* Create Instance Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Instance</DialogTitle>
+            <DialogDescription>Choose the channel type for your new instance</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <Link
+              to="/services/whatsapp"
+              onClick={() => {
+                setShowCreateDialog(false);
+                onNavigate?.();
+              }}
+              className="flex flex-col items-center gap-3 p-6 rounded-lg border border-border hover:border-[#25D366] hover:bg-[#25D366]/5 transition-all"
+            >
+              <WhatsAppIcon className="h-10 w-10 text-[#25D366]" />
+              <span className="font-medium">WhatsApp Web</span>
+            </Link>
+            <Link
+              to="/services/discord"
+              onClick={() => {
+                setShowCreateDialog(false);
+                onNavigate?.();
+              }}
+              className="flex flex-col items-center gap-3 p-6 rounded-lg border border-border hover:border-[#5865F2] hover:bg-[#5865F2]/5 transition-all"
+            >
+              <DiscordIcon className="h-10 w-10 text-[#5865F2]" />
+              <span className="font-medium">Discord</span>
+            </Link>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

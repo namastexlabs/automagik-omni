@@ -42,7 +42,7 @@ export interface InstanceConfig {
   profile_pic_url?: string | null;
   owner_jid?: string | null;
 
-  // Evolution status (runtime data)
+  // Evolution status (runtime data) - legacy field name
   evolution_status?: {
     state?: string;
     owner_jid?: string | null;
@@ -50,6 +50,26 @@ export interface InstanceConfig {
     profile_picture_url?: string | null;
     last_updated?: string;
     error?: string | null;
+    status?: string;
+    instance?: { state?: string };
+  };
+
+  // WhatsApp Web status (current field name from backend)
+  whatsapp_web_status?: {
+    state?: string;
+    owner_jid?: string | null;
+    profile_name?: string | null;
+    profile_picture_url?: string | null;
+    last_updated?: string;
+    error?: string | null;
+    status?: string;
+    instance?: { state?: string };
+  };
+
+  // WhatsApp status for ConnectionSheet (different structure)
+  whatsapp_status?: {
+    connected?: boolean;
+    phone_number?: string;
   };
 
   // Additional features

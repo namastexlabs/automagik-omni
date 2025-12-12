@@ -20,6 +20,10 @@ import DatabaseSetup from './pages/onboarding/DatabaseSetup';
 import ApiKey from './pages/onboarding/ApiKey';
 import ChannelSetup from './pages/onboarding/ChannelSetup';
 import McpSetup from './pages/onboarding/McpSetup';
+import Services from './pages/Services';
+import WhatsAppService from './pages/services/WhatsAppService';
+import DiscordService from './pages/services/DiscordService';
+import Mcp from './pages/Mcp';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -178,6 +182,46 @@ function App() {
                   <SetupGuard>
                     <ProtectedRoute>
                       <AccessRules />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/services"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Services />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/services/whatsapp"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <WhatsAppService />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/services/discord"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <DiscordService />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/mcp"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Mcp />
                     </ProtectedRoute>
                   </SetupGuard>
                 }

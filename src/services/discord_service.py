@@ -112,6 +112,11 @@ class DiscordService:
         """Start a Discord bot for the given instance."""
         logger.info(f"Starting Discord bot for instance: {instance_name}")
 
+        # Check if discord.py is installed
+        if self.bot_manager is None:
+            logger.error("❌ Cannot start Discord bot: discord.py not installed. Install with: uv sync --extra discord")
+            return False
+
         # Wait for API to be healthy before proceeding
         api_host = os.getenv("AUTOMAGIK_OMNI_API_HOST", "localhost")
         api_port = int(os.getenv("AUTOMAGIK_OMNI_API_PORT", "8882"))

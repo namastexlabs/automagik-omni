@@ -512,7 +512,8 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
       await proc.exited;
 
-      // Verify installation
+      // Verify installation - ONLY report success if discord.py is actually importable
+      let installSuccess = false;
       try {
         const verify = Bun.spawnSync(['uv', 'run', 'python', '-c', 'import discord; print(discord.__version__)'], {
           cwd: ROOT_DIR,
@@ -520,21 +521,25 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
           stderr: 'pipe',
         });
         if (verify.exitCode === 0) {
+          const version = new TextDecoder().decode(verify.stdout).trim();
           reply.raw.write(
-            `event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Discord installed successfully', version: verify.stdout.toString().trim() })}\n\n`,
+            `event: status\ndata: ${JSON.stringify({ phase: 'complete', message: `✅ Discord.py ${version} installed successfully`, version })}\n\n`,
           );
+          installSuccess = true;
         } else {
+          const stderr = new TextDecoder().decode(verify.stderr).trim();
           reply.raw.write(
-            `event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`,
+            `event: status\ndata: ${JSON.stringify({ phase: 'error', message: `❌ Verification failed: discord.py not importable. ${stderr}` })}\n\n`,
           );
         }
-      } catch {
+      } catch (verifyErr) {
+        const errMsg = verifyErr instanceof Error ? verifyErr.message : 'Unknown error';
         reply.raw.write(
-          `event: status\ndata: ${JSON.stringify({ phase: 'complete', message: 'Installation completed' })}\n\n`,
+          `event: status\ndata: ${JSON.stringify({ phase: 'error', message: `❌ Verification error: ${errMsg}` })}\n\n`,
         );
       }
 
-      reply.raw.write(`event: done\ndata: ${JSON.stringify({ success: true })}\n\n`);
+      reply.raw.write(`event: done\ndata: ${JSON.stringify({ success: installSuccess })}\n\n`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Installation failed';
       reply.raw.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);

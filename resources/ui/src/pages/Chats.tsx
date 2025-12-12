@@ -11,13 +11,16 @@ export default function Chats() {
   const [selectedInstance, setSelectedInstance] = useState<string>('');
 
   // Fetch available instances
-  const { data: instances } = useQuery({
+  const { data: allInstances } = useQuery({
     queryKey: ['instances'],
     queryFn: () => api.instances.list({ limit: 100 }),
   });
 
-  // Auto-select first instance if none selected
-  if (!selectedInstance && instances && instances.length > 0) {
+  // Filter to only WhatsApp instances (Chats page uses Evolution API which is WhatsApp-only)
+  const instances = allInstances?.filter((i) => i.channel_type === 'whatsapp') || [];
+
+  // Auto-select first WhatsApp instance if none selected
+  if (!selectedInstance && instances.length > 0) {
     setSelectedInstance(instances[0].name);
   }
 
@@ -51,7 +54,7 @@ export default function Chats() {
 
         {/* Main Content */}
         <div className="flex-1 overflow-hidden">
-          {!selectedInstance && instances && instances.length > 0 && (
+          {!selectedInstance && instances.length > 0 && (
             <div className="p-8">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
@@ -60,11 +63,13 @@ export default function Chats() {
             </div>
           )}
 
-          {instances && instances.length === 0 && (
+          {instances.length === 0 && (
             <div className="p-8">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>No instances available. Please create an instance first.</AlertDescription>
+                <AlertDescription>
+                  No WhatsApp instances available. Please create a WhatsApp instance first.
+                </AlertDescription>
               </Alert>
             </div>
           )}

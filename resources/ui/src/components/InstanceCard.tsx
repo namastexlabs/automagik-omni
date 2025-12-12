@@ -39,16 +39,17 @@ export function InstanceCard({ instance, onShowQR, onSettings, onDelete, isDelet
   };
 
   const getStatusBadge = () => {
-    // For WhatsApp, check evolution_status
+    // For WhatsApp, check whatsapp_web_status (with fallback to legacy evolution_status)
     if (instance.channel_type === 'whatsapp') {
-      const state = instance.evolution_status?.state?.toLowerCase();
+      // Use whatsapp_web_status (current backend field) with fallback to evolution_status (legacy)
+      const evolutionStatus = instance.whatsapp_web_status || instance.evolution_status;
+      const state = evolutionStatus?.state?.toLowerCase();
 
-      // Check evolution_status.state or evolution_status.status
-      const statusStr = instance.evolution_status?.status?.toLowerCase();
+      // Check state or status field
+      const statusStr = evolutionStatus?.status?.toLowerCase();
 
-      // Also check if evolution_status has raw data indicating connection
-      const isOpen =
-        state === 'open' || statusStr === 'connected' || instance.evolution_status?.instance?.state === 'open';
+      // Also check if status has raw data indicating connection
+      const isOpen = state === 'open' || statusStr === 'connected' || evolutionStatus?.instance?.state === 'open';
 
       if (isOpen) {
         return <Badge className="gradient-success border-0">Connected</Badge>;
@@ -56,7 +57,7 @@ export function InstanceCard({ instance, onShowQR, onSettings, onDelete, isDelet
         return <Badge className="gradient-danger border-0">Disconnected</Badge>;
       } else if (state === 'connecting' || statusStr === 'connecting') {
         return <Badge className="gradient-warning border-0">Connecting</Badge>;
-      } else if (instance.is_active && !instance.evolution_status) {
+      } else if (instance.is_active && !evolutionStatus) {
         // Active but status not fetched yet - show as pending
         return <Badge className="gradient-warning border-0">Checking...</Badge>;
       } else {
@@ -74,10 +75,12 @@ export function InstanceCard({ instance, onShowQR, onSettings, onDelete, isDelet
   };
 
   const isWhatsAppConnected = () => {
-    const state = instance.evolution_status?.state?.toLowerCase();
-    const statusStr = instance.evolution_status?.status?.toLowerCase();
+    // Use whatsapp_web_status (current backend field) with fallback to evolution_status (legacy)
+    const evolutionStatus = instance.whatsapp_web_status || instance.evolution_status;
+    const state = evolutionStatus?.state?.toLowerCase();
+    const statusStr = evolutionStatus?.status?.toLowerCase();
 
-    return state === 'open' || statusStr === 'connected' || instance.evolution_status?.instance?.state === 'open';
+    return state === 'open' || statusStr === 'connected' || evolutionStatus?.instance?.state === 'open';
   };
 
   return (

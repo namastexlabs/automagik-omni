@@ -1294,6 +1294,34 @@ export const api = {
       return response.json();
     },
 
+    async stopChannel(channel: string): Promise<{
+      status: 'stopped' | 'not_running';
+      channel: string;
+    }> {
+      const response = await fetch(`/gateway/channels/${channel}/stop`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to stop channel' }));
+        throw new Error(error.error || 'Failed to stop channel');
+      }
+      return response.json();
+    },
+
+    async restartChannel(channel: string): Promise<{
+      status: 'restarted';
+      channel: string;
+    }> {
+      const response = await fetch(`/gateway/channels/${channel}/restart`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to restart channel' }));
+        throw new Error(error.error || 'Failed to restart channel');
+      }
+      return response.json();
+    },
+
     async getStatus(): Promise<{
       gateway: {
         port: number;

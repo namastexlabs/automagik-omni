@@ -1112,6 +1112,8 @@ export class ProcessManager {
         AUTOMAGIK_OMNI_API_HOST: '127.0.0.1',
         AUTOMAGIK_OMNI_API_PORT: String(this.portRegistry.getPort('python') || 8882),
         DISCORD_HEALTH_CHECK_TIMEOUT: '10', // Reduced from 60s - Discord starts quickly
+        // Pass pgserve's database URL with dynamic port (same as Python API)
+        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || '',
       },
       stdin: 'ignore',
       stdout: 'pipe',
