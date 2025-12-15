@@ -248,7 +248,7 @@ def _test_auth(url: str) -> TestResult:
     """Test database authentication."""
     start = time.time()
     try:
-        engine = create_engine(url, connect_args={"connect_timeout": 10})
+        engine = create_engine(url, connect_args={"connect_timeout": 10, "client_encoding": "utf8"})
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         engine.dispose()
@@ -272,7 +272,7 @@ def _test_permissions(url: str) -> TestResult:
     """Test database permissions (CREATE TABLE capability)."""
     start = time.time()
     try:
-        engine = create_engine(url)
+        engine = create_engine(url, connect_args={"client_encoding": "utf8"})
         with engine.connect() as conn:
             # Try to create a temporary test table
             conn.execute(text("CREATE TABLE IF NOT EXISTS _omni_permission_test (id INT)"))
@@ -293,7 +293,7 @@ def _test_write_read(url: str) -> TestResult:
     """Test write/read operations."""
     start = time.time()
     try:
-        engine = create_engine(url)
+        engine = create_engine(url, connect_args={"client_encoding": "utf8"})
         with engine.connect() as conn:
             # Create, write, read, cleanup
             conn.execute(text("CREATE TABLE IF NOT EXISTS _omni_rw_test (id INT, val VARCHAR(50))"))
@@ -335,7 +335,7 @@ def _ensure_database_exists(url: str) -> TestResult:
         admin_url = urlunparse(admin_parsed)
 
         # Connect to postgres admin database
-        engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+        engine = create_engine(admin_url, isolation_level="AUTOCOMMIT", connect_args={"client_encoding": "utf8"})
 
         with engine.connect() as conn:
             # Check if database exists
