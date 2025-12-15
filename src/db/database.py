@@ -62,6 +62,7 @@ def _initialize_engine() -> None:
         max_overflow=config.database.pool_max_overflow,
         pool_pre_ping=True,
         pool_recycle=config.database.pool_recycle,
+        connect_args={"client_encoding": "utf8"},
     )
 
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)

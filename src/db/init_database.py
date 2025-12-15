@@ -35,7 +35,7 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
 
     try:
         # Try to connect to the target database first
-        engine = create_engine(database_url)
+        engine = create_engine(database_url, connect_args={"client_encoding": "utf8"})
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         logger.info(f"Database '{database_name}' already exists")
@@ -47,7 +47,7 @@ def create_postgres_database_if_needed(database_url: str) -> bool:
 
         try:
             # Connect to postgres database to create the target database
-            engine = create_engine(postgres_url, isolation_level="AUTOCOMMIT")
+            engine = create_engine(postgres_url, isolation_level="AUTOCOMMIT", connect_args={"client_encoding": "utf8"})
             with engine.connect() as conn:
                 # Check if database exists
                 result = conn.execute(
