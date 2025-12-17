@@ -51,8 +51,8 @@ install: ## Install dependencies and deploy to PM2
 	@echo "$(FONT_CYAN)Building UI...$(FONT_RESET)"
 	cd resources/ui && bun run build
 	@echo "$(FONT_CYAN)Starting PM2 service...$(FONT_RESET)"
-	pm2 start ecosystem.config.cjs 2>/dev/null || pm2 restart ecosystem.config.cjs
-	pm2 save
+	bunx pm2 start ecosystem.config.cjs 2>/dev/null || bunx pm2 restart ecosystem.config.cjs
+	bunx pm2 save
 	@echo ""
 	@echo "$(FONT_GREEN)Done!$(FONT_RESET) Access at http://localhost:8882"
 
@@ -60,7 +60,7 @@ reload: ## Restart services (after code changes)
 	@echo "$(FONT_CYAN)Rebuilding UI...$(FONT_RESET)"
 	@cd resources/ui && bun run build
 	@echo "$(FONT_CYAN)Restarting PM2 service...$(FONT_RESET)"
-	@pm2 restart ecosystem.config.cjs
+	@bunx pm2 restart ecosystem.config.cjs
 	@echo ""
 	@echo "$(FONT_GREEN)Reload complete!$(FONT_RESET)"
 
@@ -87,15 +87,15 @@ update: ## Pull updates, rebuild everything, restart
 	@echo "$(FONT_CYAN)Rebuilding UI...$(FONT_RESET)"
 	@cd resources/ui && bun install && bun run build
 	@echo "$(FONT_CYAN)Restarting services...$(FONT_RESET)"
-	@pm2 restart ecosystem.config.cjs 2>/dev/null || pm2 start ecosystem.config.cjs
-	@pm2 save
+	@bunx pm2 restart ecosystem.config.cjs 2>/dev/null || bunx pm2 start ecosystem.config.cjs
+	@bunx pm2 save
 	@echo ""
 	@echo "$(FONT_GREEN)Update complete!$(FONT_RESET)"
 
 uninstall: ## Stop services and cleanup (prompts for data wipe)
 	@echo ""
 	@echo "$(FONT_YELLOW)Stopping PM2 services...$(FONT_RESET)"
-	@pm2 delete ecosystem.config.cjs 2>/dev/null || true
+	@bunx pm2 delete ecosystem.config.cjs 2>/dev/null || true
 	@echo "$(FONT_YELLOW)Removing dependencies...$(FONT_RESET)"
 	@rm -rf .venv node_modules gateway/node_modules resources/ui/node_modules resources/omni-whatsapp-core/node_modules
 	@rm -rf gateway/dist resources/ui/dist dist build *.egg-info
