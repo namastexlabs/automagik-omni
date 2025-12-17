@@ -51,7 +51,7 @@ install: ## Install dependencies and deploy to PM2
 	@echo "$(FONT_CYAN)Building UI...$(FONT_RESET)"
 	cd resources/ui && bun run build
 	@echo "$(FONT_CYAN)Starting PM2 service...$(FONT_RESET)"
-	bunx pm2 start ecosystem.config.cjs 2>/dev/null || bunx pm2 restart ecosystem.config.cjs
+	bunx pm2 startOrRestart ecosystem.config.cjs
 	bunx pm2 save
 	@echo ""
 	@echo "$(FONT_GREEN)Done!$(FONT_RESET) Access at http://localhost:8882"
@@ -87,7 +87,7 @@ update: ## Pull updates, rebuild everything, restart
 	@echo "$(FONT_CYAN)Rebuilding UI...$(FONT_RESET)"
 	@cd resources/ui && bun install && bun run build
 	@echo "$(FONT_CYAN)Restarting services...$(FONT_RESET)"
-	@bunx pm2 restart ecosystem.config.cjs 2>/dev/null || bunx pm2 start ecosystem.config.cjs
+	@bunx pm2 startOrRestart ecosystem.config.cjs
 	@bunx pm2 save
 	@echo ""
 	@echo "$(FONT_GREEN)Update complete!$(FONT_RESET)"
