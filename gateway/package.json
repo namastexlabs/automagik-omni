@@ -23,7 +23,7 @@
     "@fastify/websocket": "^10.0.1",
     "bun": "^1.1.0",
     "fastify": "^4.28.0",
-    "pgserve": "^1.1.2"
+    "pgserve": "^1.1.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

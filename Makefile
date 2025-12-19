@@ -48,6 +48,8 @@ install: ## Install dependencies and deploy to PM2
 	cd gateway && bun install
 	@echo "$(FONT_CYAN)Installing UI dependencies...$(FONT_RESET)"
 	cd resources/ui && bun install
+	@echo "$(FONT_CYAN)Installing Evolution (WhatsApp) dependencies...$(FONT_RESET)"
+	cd resources/omni-whatsapp-core && pnpm install --ignore-workspace && npx prisma generate
 	@echo "$(FONT_CYAN)Building UI...$(FONT_RESET)"
 	cd resources/ui && bun run build
 	@echo "$(FONT_CYAN)Starting PM2 service...$(FONT_RESET)"
