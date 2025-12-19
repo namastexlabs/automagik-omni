@@ -389,9 +389,9 @@ export class ProcessManager {
   private async _startPgserveImpl(): Promise<void> {
     console.log('[ProcessManager] Starting embedded PostgreSQL via pgserve...');
 
-    // Use fixed port 8432 for PostgreSQL - dynamic allocation caused restart failures
-    // because Python would remember the old port while pgserve got a new random port
-    const pgPort = 8432;
+    // Use OMNI_POSTGRES_PORT env var or default to 8432
+    // Fixed port avoids restart failures from dynamic allocation
+    const pgPort = parseInt(process.env.OMNI_POSTGRES_PORT || '8432', 10);
 
     // Read config from file (written by setup wizard) or use defaults
     // Environment variables take precedence over file config
