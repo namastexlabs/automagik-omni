@@ -1511,26 +1511,22 @@ export class ProcessManager {
       this.healthCheckIntervals.delete(channel);
     }
 
-    // Send SIGTERM for graceful shutdown
+    // Step 1: Send SIGTERM and wait up to 10s for graceful shutdown
     managed.process.kill('SIGTERM');
 
-    // Wait for exit with 5s timeout
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        if (managed.process && managed.process.exitCode === null) {
-          console.log(`[ProcessManager] Force killing ${channel}...`);
-          managed.process.kill('SIGKILL');
-        }
-        resolve();
-      }, 5000);
+    const terminated = await Promise.race([
+      managed.process.exited,
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 10000))
+    ]);
 
-      managed.process?.exited.then(() => {
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
+    // Step 2: If still alive after 10s, send SIGKILL and wait for death
+    if (!terminated && managed.process.exitCode === null) {
+      console.log(`[ProcessManager] ${channel} didn't exit gracefully, force killing...`);
+      managed.process.kill('SIGKILL');
+      await managed.process.exited; // Wait for process to actually die
+    }
 
-    // FIX 8: Verify process actually died
+    // Step 3: Verify death via process.kill(pid, 0)
     if (pid) {
       let verified = false;
       for (let attempt = 0; attempt < 10; attempt++) {
@@ -1543,19 +1539,94 @@ export class ProcessManager {
           verified = true;
           break;
         }
+
+        if (attempt === 9) {
+          console.error(`[ProcessManager] Failed to kill ${channel} (pid: ${pid}) after 10 attempts - zombie process!`);
+          return false; // Don't clean up state if zombie persists
+        }
       }
 
       if (!verified) {
-        console.warn(`[ProcessManager] ${channel} (pid: ${pid}) may not have stopped properly`);
+        console.error(`[ProcessManager] ${channel} (pid: ${pid}) verification failed - may be zombie`);
+        return false;
       }
     }
 
-    // Clean up state
+    // Step 4: Only clean up state after confirming process death
     this.processes.delete(channel);
     this.restartCount.delete(channel);
     this.lastRestartTime.delete(channel);
 
-    console.log(`[ProcessManager] ${channel} stopped`);
+    console.log(`[ProcessManager] ${channel} stopped successfully`);
+    return true;
+  }
+
+  /**
+   * Wait for a port to be released (not in use).
+   * Attempts to bind to the port to verify it's free.
+   *
+   * @param port - Port number to check
+   * @param maxAttempts - Maximum number of attempts (default 20 = 4 seconds)
+   * @returns true if port is free, false if still in use after timeout
+   */
+  private async waitForPortRelease(port: number, maxAttempts = 20): Promise<boolean> {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        // Try to bind to the port
+        const testServer = Bun.serve({
+          port,
+          fetch() {
+            return new Response('test');
+          }
+        });
+        testServer.stop();
+        console.log(`[ProcessManager] Port ${port} is free`);
+        return true; // Port is free
+      } catch (err) {
+        if (i < maxAttempts - 1) {
+          await new Promise((r) => setTimeout(r, 200)); // Wait 200ms
+        }
+      }
+    }
+    console.error(`[ProcessManager] Port ${port} still in use after ${maxAttempts * 200}ms`);
+    return false; // Port still bound after timeout
+  }
+
+  /**
+   * Restart an agent channel with proper cleanup and verification.
+   * Ensures old process is fully terminated and port is released before starting new one.
+   *
+   * @param channel - Channel name (e.g., 'agent')
+   * @returns true if restart succeeded, false if failed
+   */
+  async restartAgent(channel: string): Promise<boolean> {
+    console.log(`[ProcessManager] Restarting ${channel}...`);
+
+    // Step 1: Stop old process
+    const stopped = await this.stopChannel(channel);
+    if (!stopped) {
+      console.error(`[ProcessManager] Failed to stop ${channel}, aborting restart`);
+      return false;
+    }
+
+    // Step 2: Wait for port 8081 to be released
+    const portFree = await this.waitForPortRelease(8081);
+    if (!portFree) {
+      console.error(`[ProcessManager] Port 8081 still in use after stopping ${channel}`);
+      return false;
+    }
+
+    // Step 3: Start new process
+    await this.ensureChannelRunning(channel);
+
+    // Step 4: Verify new process started successfully
+    const managed = this.processes.get(channel);
+    if (!managed?.process || managed.process.exitCode !== null) {
+      console.error(`[ProcessManager] Failed to start ${channel} after restart`);
+      return false;
+    }
+
+    console.log(`[ProcessManager] Successfully restarted ${channel} (new pid: ${managed.process.pid})`);
     return true;
   }
 

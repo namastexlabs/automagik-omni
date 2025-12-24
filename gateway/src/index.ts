@@ -914,9 +914,11 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     }
 
     try {
-      await processManager.stopChannel(channel);
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Cleanup delay
-      await processManager.ensureChannelRunning(channel);
+      const success = await processManager.restartAgent(channel);
+      if (!success) {
+        reply.status(500);
+        return { error: `Failed to restart ${channel} - check logs for details` };
+      }
       return { status: 'restarted', channel };
     } catch (error) {
       reply.status(500);
