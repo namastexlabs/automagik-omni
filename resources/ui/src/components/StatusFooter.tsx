@@ -99,11 +99,21 @@ export function StatusFooter() {
   const { data: health, isLoading } = useQuery<HealthResponse>({
     queryKey: ['health'],
     queryFn: () => api.health(),
-    refetchInterval: 30000,
+    refetchInterval: 15000,
     retry: 1,
   });
 
+  // Gateway channels for Discord running status
+  // Discord runs in a separate process, so the Python health endpoint can't detect it
+  const { data: channelsData } = useQuery({
+    queryKey: ['gateway-channels'],
+    queryFn: () => api.gateway.getChannels(),
+    refetchInterval: 15000,
+  });
+
   const services = health?.services;
+  const discordChannel = channelsData?.channels?.find((c: { name: string }) => c.name === 'discord');
+  const isDiscordRunning = discordChannel?.running || false;
 
   // Gateway stats
   const gatewayDetails = services?.gateway?.details as
@@ -352,7 +362,7 @@ export function StatusFooter() {
 
           {/* Discord */}
           <StatusIndicator
-            status={pythonDetails?.services?.discord?.status === 'running' ? 'up' : 'down'}
+            status={isDiscordRunning ? 'up' : 'down'}
             label="Discord"
             isLoading={isLoading}
             icon={DiscordIcon}
@@ -361,19 +371,9 @@ export function StatusFooter() {
                 <p className="font-semibold text-sm">Discord</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                   <span className="text-muted-foreground">Status:</span>
-                  <span
-                    className={
-                      pythonDetails?.services?.discord?.status === 'running' ? 'text-success' : 'text-destructive'
-                    }
-                  >
-                    {pythonDetails?.services?.discord?.status || 'not_running'}
+                  <span className={isDiscordRunning ? 'text-success' : 'text-destructive'}>
+                    {isDiscordRunning ? 'running' : 'not_running'}
                   </span>
-                  {pythonDetails?.services?.discord?.message && (
-                    <>
-                      <span className="text-muted-foreground">Message:</span>
-                      <span className="truncate max-w-[150px]">{pythonDetails.services.discord.message}</span>
-                    </>
-                  )}
                 </div>
               </div>
             }

@@ -24,6 +24,54 @@ interface InstanceCardProps {
   isDeleting?: boolean;
 }
 
+// Normalized connection status type
+type NormalizedStatus = 'connected' | 'disconnected' | 'connecting' | 'unknown';
+
+/**
+ * Normalizes the various status field formats into a single consistent status.
+ * Priority order:
+ *   1. whatsapp_web_status (current backend field)
+ *   2. evolution_status (legacy field)
+ *   3. whatsapp_status (ConnectionSheet format with boolean)
+ *
+ * Normalizes values:
+ *   - 'open' -> 'connected'
+ *   - 'close' -> 'disconnected'
+ *   - 'refused' -> 'disconnected'
+ */
+function getNormalizedStatus(instance: InstanceConfig): NormalizedStatus {
+  // Priority 1: whatsapp_web_status (current backend field)
+  // Priority 2: evolution_status (legacy field)
+  const statusObj = instance.whatsapp_web_status || instance.evolution_status;
+
+  if (statusObj) {
+    // Check all possible state locations in the status object
+    const state =
+      statusObj.state?.toLowerCase() || statusObj.status?.toLowerCase() || statusObj.instance?.state?.toLowerCase();
+
+    if (state) {
+      // Normalize the state value
+      if (state === 'open' || state === 'connected') {
+        return 'connected';
+      }
+      if (state === 'close' || state === 'disconnected' || state === 'refused') {
+        return 'disconnected';
+      }
+      if (state === 'connecting') {
+        return 'connecting';
+      }
+    }
+  }
+
+  // Priority 3: whatsapp_status (ConnectionSheet format with boolean)
+  if (instance.whatsapp_status?.connected !== undefined) {
+    return instance.whatsapp_status.connected ? 'connected' : 'disconnected';
+  }
+
+  // No status information available
+  return 'unknown';
+}
+
 export function InstanceCard({ instance, onShowQR, onSettings, onDelete, isDeleting }: InstanceCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -39,30 +87,23 @@ export function InstanceCard({ instance, onShowQR, onSettings, onDelete, isDelet
   };
 
   const getStatusBadge = () => {
-    // For WhatsApp, check whatsapp_web_status (with fallback to legacy evolution_status)
+    // For WhatsApp, use normalized status
     if (instance.channel_type === 'whatsapp') {
-      // Use whatsapp_web_status (current backend field) with fallback to evolution_status (legacy)
-      const evolutionStatus = instance.whatsapp_web_status || instance.evolution_status;
-      const state = evolutionStatus?.state?.toLowerCase();
+      const status = getNormalizedStatus(instance);
 
-      // Check state or status field
-      const statusStr = evolutionStatus?.status?.toLowerCase();
-
-      // Also check if status has raw data indicating connection
-      const isOpen = state === 'open' || statusStr === 'connected' || evolutionStatus?.instance?.state === 'open';
-
-      if (isOpen) {
-        return <Badge className="gradient-success border-0">Connected</Badge>;
-      } else if (state === 'close' || state === 'disconnected' || statusStr === 'disconnected') {
-        return <Badge className="gradient-danger border-0">Disconnected</Badge>;
-      } else if (state === 'connecting' || statusStr === 'connecting') {
-        return <Badge className="gradient-warning border-0">Connecting</Badge>;
-      } else if (instance.is_active && !evolutionStatus) {
-        // Active but status not fetched yet - show as pending
-        return <Badge className="gradient-warning border-0">Checking...</Badge>;
-      } else {
-        // New instance or not connected yet
-        return <Badge className="gradient-warning border-0">Not Connected</Badge>;
+      switch (status) {
+        case 'connected':
+          return <Badge className="gradient-success border-0">Connected</Badge>;
+        case 'disconnected':
+          return <Badge className="gradient-danger border-0">Disconnected</Badge>;
+        case 'connecting':
+          return <Badge className="gradient-warning border-0">Connecting</Badge>;
+        case 'unknown':
+          // Check if instance is active but status not fetched yet
+          if (instance.is_active && !instance.whatsapp_web_status && !instance.evolution_status) {
+            return <Badge className="gradient-warning border-0">Checking...</Badge>;
+          }
+          return <Badge className="gradient-warning border-0">Not Connected</Badge>;
       }
     }
 
@@ -74,13 +115,8 @@ export function InstanceCard({ instance, onShowQR, onSettings, onDelete, isDelet
     }
   };
 
-  const isWhatsAppConnected = () => {
-    // Use whatsapp_web_status (current backend field) with fallback to evolution_status (legacy)
-    const evolutionStatus = instance.whatsapp_web_status || instance.evolution_status;
-    const state = evolutionStatus?.state?.toLowerCase();
-    const statusStr = evolutionStatus?.status?.toLowerCase();
-
-    return state === 'open' || statusStr === 'connected' || evolutionStatus?.instance?.state === 'open';
+  const isWhatsAppConnected = (): boolean => {
+    return getNormalizedStatus(instance) === 'connected';
   };
 
   return (

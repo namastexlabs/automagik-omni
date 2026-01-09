@@ -16,7 +16,7 @@ const DiscordIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-type ServiceStatus = 'up' | 'down' | 'degraded' | 'unknown';
+type ServiceStatus = 'up' | 'down' | 'degraded' | 'unknown' | 'not_installed';
 
 function getStatusBadge(status: ServiceStatus) {
   switch (status) {
@@ -39,6 +39,13 @@ function getStatusBadge(status: ServiceStatus) {
         <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
           <AlertCircle className="h-3 w-3 mr-1" />
           Degraded
+        </Badge>
+      );
+    case 'not_installed':
+      return (
+        <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Not Installed
         </Badge>
       );
     default:
@@ -65,11 +72,29 @@ export default function Services() {
     queryFn: () => api.instances.list({ limit: 100 }),
   });
 
+  // Fetch gateway channels for Discord running status
+  // Discord runs in a separate process, so the Python health endpoint can't detect it
+  // The gateway tracks process-level running state accurately
+  const { data: channelsData, isLoading: channelsLoading } = useQuery({
+    queryKey: ['gateway-channels'],
+    queryFn: () => api.gateway.getChannels(),
+    refetchInterval: 10000,
+  });
+
   const evolutionStatus: ServiceStatus = healthData?.services?.evolution?.status || 'unknown';
   const whatsappInstances = instances?.filter((i) => i.channel_type === 'whatsapp') || [];
   const discordInstances = instances?.filter((i) => i.channel_type === 'discord') || [];
 
-  const isLoading = healthLoading || instancesLoading;
+  // Discord status from gateway channels (process-level running state)
+  const discordChannel = channelsData?.channels?.find((c) => c.name === 'discord');
+  const isDiscordRunning = discordChannel?.running || false;
+
+  const getDiscordStatus = (): ServiceStatus => {
+    if (isDiscordRunning) return 'up';
+    return 'down';
+  };
+
+  const isLoading = healthLoading || instancesLoading || channelsLoading;
 
   return (
     <DashboardLayout>
@@ -129,7 +154,7 @@ export default function Services() {
                       <div className="h-12 w-12 rounded-xl bg-[#5865F2] flex items-center justify-center">
                         <DiscordIcon className="h-6 w-6 text-white" />
                       </div>
-                      {discordInstances.length > 0 ? getStatusBadge('up') : getStatusBadge('down')}
+                      {getStatusBadge(getDiscordStatus())}
                     </div>
                     <CardTitle className="mt-4">Discord</CardTitle>
                     <CardDescription>Connect Discord bots to your server</CardDescription>

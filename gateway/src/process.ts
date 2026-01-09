@@ -1516,7 +1516,7 @@ export class ProcessManager {
 
     const terminated = await Promise.race([
       managed.process.exited,
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 10000))
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 10000)),
     ]);
 
     // Step 2: If still alive after 10s, send SIGKILL and wait for death
@@ -1577,7 +1577,7 @@ export class ProcessManager {
           port,
           fetch() {
             return new Response('test');
-          }
+          },
         });
         testServer.stop();
         console.log(`[ProcessManager] Port ${port} is free`);

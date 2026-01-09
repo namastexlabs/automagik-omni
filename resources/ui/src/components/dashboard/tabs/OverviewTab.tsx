@@ -108,10 +108,22 @@ export function OverviewTab() {
     console.error('[OverviewTab] Health error:', healthError);
   }
 
+  interface EvolutionInstanceDetail {
+    name: string;
+    connectionStatus: 'open' | 'close' | 'connecting' | string;
+    profileName?: string;
+    counts: {
+      messages: number;
+      contacts: number;
+      chats: number;
+    };
+  }
+
   const evolutionDetails = health?.services?.evolution?.details as
     | {
         instances?: { total: number; connected: number };
         totals?: { messages: number; contacts: number; chats: number };
+        instanceDetails?: EvolutionInstanceDetail[];
       }
     | undefined;
 
@@ -195,16 +207,18 @@ export function OverviewTab() {
         <h3 className="text-lg font-medium mb-4">WhatsApp Instances</h3>
         {healthLoading ? (
           <Skeleton className="h-20 w-full" />
-        ) : evolutionDetails?.totals ? (
+        ) : evolutionDetails?.instanceDetails && evolutionDetails.instanceDetails.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* For now we have one instance from health data */}
-            <InstanceCard
-              name="genie"
-              status={evolutionDetails.instances?.connected ? 'connected' : 'disconnected'}
-              messages={evolutionDetails.totals.messages}
-              contacts={evolutionDetails.totals.contacts}
-              chats={evolutionDetails.totals.chats}
-            />
+            {evolutionDetails.instanceDetails.map((instance) => (
+              <InstanceCard
+                key={instance.name}
+                name={instance.name}
+                status={instance.connectionStatus === 'open' ? 'connected' : 'disconnected'}
+                messages={instance.counts?.messages ?? 0}
+                contacts={instance.counts?.contacts ?? 0}
+                chats={instance.counts?.chats ?? 0}
+              />
+            ))}
           </div>
         ) : (
           <p className="text-muted-foreground">No instance data available</p>

@@ -28,6 +28,78 @@ import { AgentConfigSheet } from '@/components/sheets/AgentConfigSheet';
 import { DiscordIcon, WhatsAppIcon, SlackIcon } from '@/components/icons/BrandIcons';
 import type { InstanceConfig } from '@/lib';
 
+type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'error' | 'unknown';
+
+/**
+ * Normalize the connection status from various fields in InstanceConfig
+ * Priority: connection_status field > channel-specific status fields
+ */
+function getInstanceConnectionStatus(instance: InstanceConfig): ConnectionStatus {
+  // First, check the connection_status field from the API (most authoritative)
+  if (instance.connection_status) {
+    const status = instance.connection_status.toLowerCase();
+    switch (status) {
+      case 'connected':
+      case 'open':
+        return 'connected';
+      case 'connecting':
+        return 'connecting';
+      case 'disconnected':
+      case 'close':
+      case 'closed':
+        return 'disconnected';
+      case 'error':
+        return 'error';
+      case 'unknown':
+      default:
+        // Fall through to channel-specific checks
+        break;
+    }
+  }
+
+  const channelType = instance.channel_type || 'whatsapp';
+
+  if (channelType === 'discord') {
+    // For Discord: token configured = "configured but not connected" (gray)
+    // We can't know if it's actually connected without the service status
+    // So show gray/unknown - user should check Discord service page
+    return instance.has_discord_bot_token ? 'unknown' : 'disconnected';
+  }
+
+  // WhatsApp/Slack - check whatsapp_web_status, then fall back to evolution_status
+  const state =
+    instance.whatsapp_web_status?.state ||
+    instance.whatsapp_web_status?.instance?.state ||
+    instance.evolution_status?.state ||
+    instance.evolution_status?.instance?.state;
+
+  if (!state) {
+    // Check for error in whatsapp_web_status
+    if (instance.whatsapp_web_status?.error) {
+      return 'error';
+    }
+    return 'unknown';
+  }
+
+  // Normalize state values
+  switch (state.toLowerCase()) {
+    case 'open':
+    case 'connected':
+      return 'connected';
+    case 'connecting':
+      return 'connecting';
+    case 'close':
+    case 'closed':
+    case 'disconnected':
+    case 'refused':
+      return 'disconnected';
+    case 'error':
+      return 'error';
+    default:
+      return 'unknown';
+  }
+}
+
 interface InstanceNavProps {
   isExpanded: boolean;
   onToggle: () => void;
@@ -90,7 +162,7 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
   const { data: instances, isLoading } = useQuery<InstanceConfig[]>({
     queryKey: ['instances'],
     queryFn: () => api.instances.list({ limit: 100, include_live_status: true }),
-    refetchInterval: 30000, // Refresh every 30 seconds to keep status current
+    refetchInterval: 15000, // Refresh every 15 seconds to keep status current
   });
 
   const toggleInstance = (instanceName: string) => {
@@ -187,16 +259,14 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
                   {getChannelIcon(instance.channel_type || 'whatsapp')}
                   <span className="flex-1 text-left truncate">{instance.name}</span>
                   <span
-                    className={cn(
-                      'h-2 w-2 rounded-full',
-                      instance.connection_status === 'connected'
-                        ? 'bg-green-500'
-                        : instance.connection_status === 'connecting'
-                          ? 'bg-yellow-500 animate-pulse'
-                          : instance.connection_status === 'disconnected' || instance.connection_status === 'error'
-                            ? 'bg-red-500'
-                            : 'bg-gray-400',
-                    )}
+                    className={cn('h-2 w-2 rounded-full', {
+                      'bg-green-500': getInstanceConnectionStatus(instance) === 'connected',
+                      'bg-yellow-500 animate-pulse': getInstanceConnectionStatus(instance) === 'connecting',
+                      'bg-red-500':
+                        getInstanceConnectionStatus(instance) === 'disconnected' ||
+                        getInstanceConnectionStatus(instance) === 'error',
+                      'bg-gray-400': getInstanceConnectionStatus(instance) === 'unknown',
+                    })}
                   />
                 </button>
 

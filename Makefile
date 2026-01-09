@@ -14,7 +14,7 @@ FONT_YELLOW := $(shell tput setaf 3)
 FONT_RED := $(shell tput setaf 1)
 FONT_RESET := $(shell tput sgr0)
 
-.PHONY: help install dev dev-backend dev-frontend update reload uninstall lint lint-fix format format-check typecheck test quality
+.PHONY: help install dev dev-backend dev-frontend update reload uninstall start stop restart status logs lint lint-fix format format-check typecheck test quality
 
 help: ## Show available commands
 	@echo ""
@@ -27,6 +27,14 @@ help: ## Show available commands
 	@echo "  $(FONT_CYAN)reload$(FONT_RESET)        Restart services (after code changes)"
 	@echo "  $(FONT_CYAN)update$(FONT_RESET)        Pull updates, rebuild, and restart"
 	@echo "  $(FONT_RED)uninstall$(FONT_RESET)     Stop services and cleanup"
+	@echo ""
+	@echo "$(FONT_PURPLE)Service Commands$(FONT_RESET)"
+	@echo ""
+	@echo "  $(FONT_CYAN)start$(FONT_RESET)         Start PM2 services (no rebuild)"
+	@echo "  $(FONT_CYAN)stop$(FONT_RESET)          Stop PM2 services"
+	@echo "  $(FONT_CYAN)restart$(FONT_RESET)       Restart PM2 services (no rebuild)"
+	@echo "  $(FONT_CYAN)status$(FONT_RESET)        Show PM2 status"
+	@echo "  $(FONT_CYAN)logs$(FONT_RESET)          Show combined logs (tail -f style)"
 	@echo ""
 	@echo "$(FONT_PURPLE)Quality Commands$(FONT_RESET)"
 	@echo ""
@@ -116,6 +124,34 @@ uninstall: ## Stop services and cleanup (prompts for data wipe)
 	esac
 	@echo ""
 	@echo "$(FONT_GREEN)Uninstall complete.$(FONT_RESET)"
+
+# ===========================================
+# Service Commands
+# ===========================================
+
+start: ## Start PM2 services (no rebuild)
+	@echo "$(FONT_CYAN)Starting PM2 services...$(FONT_RESET)"
+	@bunx pm2 startOrRestart ecosystem.config.cjs
+	@echo ""
+	@echo "$(FONT_GREEN)Services started!$(FONT_RESET) Access at http://localhost:8882"
+
+stop: ## Stop PM2 services
+	@echo "$(FONT_CYAN)Stopping PM2 services...$(FONT_RESET)"
+	@bunx pm2 stop ecosystem.config.cjs
+	@echo ""
+	@echo "$(FONT_GREEN)Services stopped.$(FONT_RESET)"
+
+restart: ## Restart PM2 services (no rebuild)
+	@echo "$(FONT_CYAN)Restarting PM2 services...$(FONT_RESET)"
+	@bunx pm2 restart ecosystem.config.cjs
+	@echo ""
+	@echo "$(FONT_GREEN)Services restarted!$(FONT_RESET)"
+
+status: ## Show PM2 status
+	@bunx pm2 status
+
+logs: ## Show combined logs (tail -f style)
+	@bunx pm2 logs
 
 # ===========================================
 # Quality Commands
