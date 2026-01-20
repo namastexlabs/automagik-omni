@@ -839,7 +839,12 @@ export class ProcessManager {
 
       subprocessEnv.DATABASE_CONNECTION_URI = pgserveUrl;
       subprocessEnv.DATABASE_PROVIDER = config.database_provider;
-      subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true'; // Enable Prisma auth state storage
+      // Enable all data persistence for Evolution API
+      subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true'; // Auth state storage
+      subprocessEnv.DATABASE_SAVE_DATA_HISTORIC = 'true'; // Save synced history messages
+      subprocessEnv.DATABASE_SAVE_DATA_NEW_MESSAGE = 'true'; // Save new messages
+      subprocessEnv.DATABASE_SAVE_DATA_CHATS = 'true'; // Save chat list
+      subprocessEnv.DATABASE_SAVE_DATA_CONTACTS = 'true'; // Save contacts
       console.log(`[ProcessManager] Evolution will use PostgreSQL at: ${pgserveUrl}`);
 
       if (config.authentication_api_key && config.authentication_api_key.trim().length > 0) {

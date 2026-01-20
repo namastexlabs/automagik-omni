@@ -197,10 +197,20 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       // NORMAL MODE: Setup complete, start all enabled services
       console.log('\n[Gateway] Starting backend services...\n');
 
-      // Start embedded PostgreSQL first (database must be ready before Python)
-      await processManager.startPgserve();
+      // Check if external PostgreSQL is configured via environment variable
+      const externalDatabaseUrl = process.env.AUTOMAGIK_OMNI_DATABASE_URL;
+      const useExternalPostgres = externalDatabaseUrl && externalDatabaseUrl.startsWith('postgresql://');
 
-      // Start Python API (connects to PostgreSQL)
+      if (useExternalPostgres) {
+        // Skip embedded pgserve when external PostgreSQL is configured
+        console.log('[Gateway] Using external PostgreSQL (AUTOMAGIK_OMNI_DATABASE_URL configured)');
+        console.log(`[Gateway] Database URL: ${externalDatabaseUrl.replace(/:([^@]+)@/, ':****@')}`);
+      } else {
+        // Start embedded PostgreSQL first (database must be ready before Python)
+        await processManager.startPgserve();
+      }
+
+      // Start Python API (connects to PostgreSQL - uses external or embedded based on config)
       await processManager.startPython();
 
       // Start standalone MCP server only if enabled
