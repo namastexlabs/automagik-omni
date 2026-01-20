@@ -573,7 +573,7 @@ export class ProcessManager {
         PYTHONPATH: runtime.backend,
         // Pass pgserve's database URL with dynamic port (8432+) to Python
         // This overrides the hardcoded 5432 default in src/config.py
-        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || '',
+        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || process.env.AUTOMAGIK_OMNI_DATABASE_URL || '',
       },
       stdin: 'ignore',
       stdout: 'pipe',
@@ -827,12 +827,13 @@ export class ProcessManager {
 
       // Use live pgserve port directly (bypasses potential stale port in Python's env var)
       // This fixes port mismatch when Gateway restarts but Python doesn't
+      // Fall back to external PostgreSQL from environment if pgserve isn't running
       const runtimePgUrl = this.getPgserveConnectionUrl('automagik_omni');
-      pgserveUrl = runtimePgUrl || config.database_connection_uri;
+      pgserveUrl = runtimePgUrl || config.database_connection_uri || process.env.AUTOMAGIK_OMNI_DATABASE_URL || null;
       if (!pgserveUrl || config.database_provider !== 'postgresql') {
         throw new Error(
-          'pgserve not running or missing database URI - cannot start Evolution without database. ' +
-            'Please ensure PostgreSQL is started before enabling WhatsApp.',
+          'PostgreSQL not available - cannot start Evolution without database. ' +
+            'Please ensure PostgreSQL (embedded or external) is configured before enabling WhatsApp.',
         );
       }
 
@@ -890,27 +891,41 @@ export class ProcessManager {
       console.log(`[ProcessManager] Prisma client generated successfully`);
     }
 
-    // Wait for pgserve to be accepting connections before running migrations
-    // This prevents P1001 errors when pgserve is still initializing
+    // Wait for PostgreSQL to be accepting connections before running migrations
+    // This prevents P1001 errors when PostgreSQL is still initializing
+    // Supports both embedded pgserve and external PostgreSQL
     console.log(`[ProcessManager] Waiting for PostgreSQL to be ready...`);
+
+    // Parse PostgreSQL connection URL to get host and port
+    let pgHost = '127.0.0.1';
+    let pgPort = 5432;
     const pgservePort = this.pgserveManager?.getPort();
-    if (!pgservePort) {
-      throw new Error('pgserve port not available - cannot run migrations');
+
+    if (pgservePort) {
+      // Using embedded pgserve
+      pgPort = pgservePort;
+      console.log(`[ProcessManager] Using embedded pgserve on port ${pgPort}`);
+    } else if (pgserveUrl) {
+      // Using external PostgreSQL - parse the connection URL
+      try {
+        const url = new URL(pgserveUrl);
+        pgHost = url.hostname || '127.0.0.1';
+        pgPort = parseInt(url.port, 10) || 5432;
+        console.log(`[ProcessManager] Using external PostgreSQL at ${pgHost}:${pgPort}`);
+      } catch {
+        console.log(`[ProcessManager] Could not parse PostgreSQL URL, using defaults (127.0.0.1:5432)`);
+      }
+    } else {
+      throw new Error('No PostgreSQL connection available - cannot run migrations');
     }
 
     let pgReady = false;
     for (let waitAttempt = 1; waitAttempt <= 10; waitAttempt++) {
       try {
-        // Try to connect to pgserve proxy port
-        const testConn = await fetch(`http://127.0.0.1:${pgservePort}/health`, {
-          signal: AbortSignal.timeout(2000),
-        }).catch(() => null);
-
-        // pgserve doesn't have /health, so just check if port is open via TCP
-        // Use a simple PostgreSQL protocol check instead
+        // Check if PostgreSQL port is open via TCP
         const socket = await Bun.connect({
-          hostname: '127.0.0.1',
-          port: pgservePort,
+          hostname: pgHost,
+          port: pgPort,
           socket: {
             data() {},
             open() {},
@@ -920,7 +935,7 @@ export class ProcessManager {
         });
         socket.end();
         pgReady = true;
-        console.log(`[ProcessManager] PostgreSQL is ready on port ${pgservePort}`);
+        console.log(`[ProcessManager] PostgreSQL is ready at ${pgHost}:${pgPort}`);
         break;
       } catch {
         if (waitAttempt < 10) {
@@ -932,7 +947,8 @@ export class ProcessManager {
 
     if (!pgReady) {
       throw new Error(
-        `PostgreSQL not reachable on port ${pgservePort} after 10 attempts. ` + 'Please check pgserve logs for errors.',
+        `PostgreSQL not reachable at ${pgHost}:${pgPort} after 10 attempts. ` +
+        'Please check PostgreSQL is running and accessible.',
       );
     }
 
@@ -1113,7 +1129,7 @@ export class ProcessManager {
         AUTOMAGIK_OMNI_API_PORT: String(this.portRegistry.getPort('python') || 8882),
         DISCORD_HEALTH_CHECK_TIMEOUT: '10', // Reduced from 60s - Discord starts quickly
         // Pass pgserve's database URL with dynamic port (same as Python API)
-        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || '',
+        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || process.env.AUTOMAGIK_OMNI_DATABASE_URL || '',
       },
       stdin: 'ignore',
       stdout: 'pipe',

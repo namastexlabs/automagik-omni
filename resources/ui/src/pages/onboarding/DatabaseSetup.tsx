@@ -129,21 +129,27 @@ export default function DatabaseSetup() {
       setStartupPhase('checking');
       console.log('[DatabaseSetup] Starting services with config:', config);
 
+      // Check if using external PostgreSQL (skip pgserve entirely)
+      const isExternalMode = config.storage_mode === 'external';
+
       // First, check what's already running
       // NOTE: Use specific health check functions that check the correct status fields
-      const [pgserveHealthy, pythonHealthy] = await Promise.all([checkPgserveHealth(), checkPythonHealth()]);
-      console.log('[DatabaseSetup] Initial health check:', { pgserveHealthy, pythonHealthy });
+      const [pgserveHealthy, pythonHealthy] = await Promise.all([
+        isExternalMode ? Promise.resolve(true) : checkPgserveHealth(), // Skip pgserve check in external mode
+        checkPythonHealth(),
+      ]);
+      console.log('[DatabaseSetup] Initial health check:', { pgserveHealthy, pythonHealthy, isExternalMode });
 
       // If everything is already running, skip to done
-      if (pgserveHealthy && pythonHealthy) {
+      if ((isExternalMode || pgserveHealthy) && pythonHealthy) {
         console.log('[DatabaseSetup] All services already healthy - skipping to done');
         setStartupPhase('done');
         return;
       }
 
-      // Phase 1: Start PostgreSQL (if not already running)
-      if (!pgserveHealthy) {
-        console.log('[DatabaseSetup] Phase 1: Starting PostgreSQL...');
+      // Phase 1: Start PostgreSQL (if not already running and not using external)
+      if (!isExternalMode && !pgserveHealthy) {
+        console.log('[DatabaseSetup] Phase 1: Starting embedded PostgreSQL...');
         setStartupPhase('pgserve');
 
         // Write pgserve config BEFORE starting pgserve
@@ -191,8 +197,22 @@ export default function DatabaseSetup() {
         console.log('[DatabaseSetup] Waiting for pgserve to become healthy...');
         await pollUntilPgserveHealthy(30000);
         console.log('[DatabaseSetup] pgserve is now healthy');
+      } else if (isExternalMode) {
+        console.log('[DatabaseSetup] Using external PostgreSQL, skipping pgserve');
       } else {
         console.log('[DatabaseSetup] pgserve already healthy, skipping');
+      }
+
+      // Check if gateway is in PROXY_ONLY mode (services are external)
+      let isProxyOnlyMode = false;
+      try {
+        const envConfigResponse = await fetch('/api/internal/env-config');
+        if (envConfigResponse.ok) {
+          const envConfig = await envConfigResponse.json();
+          isProxyOnlyMode = envConfig.proxy_only === true;
+        }
+      } catch {
+        // Ignore - assume not proxy-only mode
       }
 
       // Phase 2: Start Python API (if not already running)
@@ -200,35 +220,52 @@ export default function DatabaseSetup() {
         console.log('[DatabaseSetup] Phase 2: Starting Python API...');
         setStartupPhase('python');
 
-        // Start Python API (with 60s timeout to prevent indefinite waiting)
-        const pythonController = new AbortController();
-        const pythonTimeoutId = setTimeout(() => pythonController.abort(), 60000);
+        if (isProxyOnlyMode) {
+          // In PROXY_ONLY mode, services are external - we can't start them
+          // Just wait and check if Python becomes available
+          console.log('[DatabaseSetup] PROXY_ONLY mode - waiting for external Python API...');
+          console.log('[DatabaseSetup] Please start Python manually: uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000');
 
-        let pythonResponse: Response;
-        try {
-          pythonResponse = await fetch('/api/internal/services/python/start', {
-            method: 'POST',
-            signal: pythonController.signal,
-          });
-          clearTimeout(pythonTimeoutId);
-        } catch (fetchErr) {
-          clearTimeout(pythonTimeoutId);
-          if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
-            throw new Error('Python API start timed out after 60s. Please try again.');
+          try {
+            await pollUntilPythonHealthy(60000); // Give more time for manual start
+            console.log('[DatabaseSetup] External Python API is now healthy');
+          } catch {
+            throw new Error(
+              'Python API not running. In PROXY_ONLY mode, start it manually:\n' +
+                'uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000'
+            );
           }
-          throw fetchErr;
-        }
+        } else {
+          // Normal mode - start Python via gateway
+          const pythonController = new AbortController();
+          const pythonTimeoutId = setTimeout(() => pythonController.abort(), 60000);
 
-        console.log('[DatabaseSetup] Python start response:', pythonResponse.status);
-        if (!pythonResponse.ok) {
-          const errorData = await pythonResponse.json();
-          throw new Error(errorData.error || 'Failed to start API server');
-        }
+          let pythonResponse: Response;
+          try {
+            pythonResponse = await fetch('/api/internal/services/python/start', {
+              method: 'POST',
+              signal: pythonController.signal,
+            });
+            clearTimeout(pythonTimeoutId);
+          } catch (fetchErr) {
+            clearTimeout(pythonTimeoutId);
+            if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+              throw new Error('Python API start timed out after 60s. Please try again.');
+            }
+            throw fetchErr;
+          }
 
-        // Wait for Python to become healthy
-        console.log('[DatabaseSetup] Waiting for Python to become healthy...');
-        await pollUntilPythonHealthy(30000);
-        console.log('[DatabaseSetup] Python is now healthy');
+          console.log('[DatabaseSetup] Python start response:', pythonResponse.status);
+          if (!pythonResponse.ok) {
+            const errorData = await pythonResponse.json();
+            throw new Error(errorData.error || 'Failed to start API server');
+          }
+
+          // Wait for Python to become healthy
+          console.log('[DatabaseSetup] Waiting for Python to become healthy...');
+          await pollUntilPythonHealthy(30000);
+          console.log('[DatabaseSetup] Python is now healthy');
+        }
       } else {
         console.log('[DatabaseSetup] python already healthy, skipping');
       }

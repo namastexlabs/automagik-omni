@@ -823,6 +823,27 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
     };
   });
 
+  // GET /api/internal/env-config - Detect database configuration from environment
+  // Used by onboarding wizard to detect existing external PostgreSQL setup
+  fastify.get('/api/internal/env-config', async () => {
+    const proxyOnly = process.env.PROXY_ONLY === 'true';
+    const databaseUrl = process.env.AUTOMAGIK_OMNI_DATABASE_URL || '';
+
+    // Detect if external PostgreSQL is configured
+    // Consider it external if DATABASE_URL is set (regardless of PROXY_ONLY mode)
+    const hasExternalPostgres = databaseUrl.startsWith('postgresql://');
+
+    return {
+      proxy_only: proxyOnly,
+      database_url: databaseUrl,
+      has_external_postgres: hasExternalPostgres,
+      // Mask password in URL for display
+      database_url_display: databaseUrl
+        ? databaseUrl.replace(/:([^@]+)@/, ':****@')
+        : '',
+    };
+  });
+
   // POST /api/internal/invalidate-public-url-cache - Invalidate trusted origins cache
   // Called by Python API when omni_public_url is changed
   fastify.post('/api/internal/invalidate-public-url-cache', async (request, reply) => {

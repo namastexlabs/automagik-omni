@@ -16,6 +16,7 @@ import {
   FolderOpen,
   Globe,
   Network,
+  Server,
 } from 'lucide-react';
 import { DatabaseConfig } from '@/types/onboarding';
 import { api } from '@/lib/api';
@@ -25,9 +26,21 @@ interface DatabaseSetupWizardProps {
   isFirstRun?: boolean;
 }
 
+interface EnvConfig {
+  proxy_only: boolean;
+  database_url: string;
+  has_external_postgres: boolean;
+  database_url_display: string;
+}
+
 export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: DatabaseSetupWizardProps) {
-  // Storage mode: 'filesystem' or 'memory' (embedded pgserve only)
-  const [storageMode, setStorageMode] = useState<'filesystem' | 'memory'>('filesystem');
+  // Storage mode: 'filesystem', 'memory' (embedded pgserve), or 'external' (existing PostgreSQL)
+  const [storageMode, setStorageMode] = useState<'filesystem' | 'memory' | 'external'>('filesystem');
+
+  // External PostgreSQL options
+  const [externalDatabaseUrl, setExternalDatabaseUrl] = useState('');
+  const [detectedEnvConfig, setDetectedEnvConfig] = useState<EnvConfig | null>(null);
+  const [isLoadingEnvConfig, setIsLoadingEnvConfig] = useState(true);
 
   // Filesystem mode options
   const [dataDir, setDataDir] = useState('./data/postgres');
@@ -88,6 +101,32 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
       });
   }, [isFirstRun]);
 
+  // Load environment config to detect existing external PostgreSQL
+  useEffect(() => {
+    const fetchEnvConfig = async () => {
+      setIsLoadingEnvConfig(true);
+      try {
+        const response = await fetch('/api/internal/env-config');
+        if (response.ok) {
+          const config: EnvConfig = await response.json();
+          setDetectedEnvConfig(config);
+
+          // Auto-select external mode if external PostgreSQL is detected
+          if (config.has_external_postgres) {
+            setStorageMode('external');
+            setExternalDatabaseUrl(config.database_url);
+          }
+        }
+      } catch (err) {
+        console.log('[DatabaseSetupWizard] Failed to fetch env config:', err);
+      } finally {
+        setIsLoadingEnvConfig(false);
+      }
+    };
+
+    fetchEnvConfig();
+  }, []);
+
   const handleComplete = async () => {
     // During first run, Python API isn't available yet - skip saving settings
     // Settings will be saved after Python starts via the initialization flow
@@ -110,10 +149,16 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
     }
 
     const config: DatabaseConfig = {
-      // PostgreSQL storage options (embedded pgserve)
+      // Storage mode
+      storage_mode: storageMode === 'external' ? 'external' : 'embedded',
+
+      // Embedded PostgreSQL options (pgserve)
       data_dir: storageMode === 'filesystem' ? dataDir : undefined,
       memory_mode: storageMode === 'memory',
       replication_enabled: false,
+
+      // External PostgreSQL options
+      external_database_url: storageMode === 'external' ? externalDatabaseUrl : undefined,
 
       // Redis cache (optional)
       redis_enabled: redisEnabled,
@@ -126,7 +171,13 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
     onComplete?.(config);
   };
 
-  const isValid = storageMode === 'filesystem' ? dataDir.trim().length > 0 : true; // memory mode always valid
+  // Validation: filesystem needs data_dir, external needs database URL
+  const isValid =
+    storageMode === 'filesystem'
+      ? dataDir.trim().length > 0
+      : storageMode === 'external'
+        ? externalDatabaseUrl.trim().length > 0 && externalDatabaseUrl.startsWith('postgresql://')
+        : true; // memory mode always valid
 
   return (
     <Card className="border-border elevation-md">
@@ -135,7 +186,10 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
           <Database className="h-5 w-5" />
           PostgreSQL Storage Configuration
         </CardTitle>
-        <CardDescription>Configure embedded PostgreSQL storage. Data is stored locally using pgserve.</CardDescription>
+        <CardDescription>
+          Configure PostgreSQL storage. Use embedded pgserve for local storage or connect to an existing PostgreSQL
+          server.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* PostgreSQL Storage Mode */}
@@ -200,6 +254,67 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>Data will be lost on restart (memory only, no persistence)</AlertDescription>
             </Alert>
+          )}
+
+          {/* Option 3: External PostgreSQL */}
+          <label
+            className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:bg-accent transition-colors ${
+              detectedEnvConfig?.has_external_postgres ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : ''
+            }`}
+          >
+            <input
+              type="radio"
+              value="external"
+              checked={storageMode === 'external'}
+              onChange={() => setStorageMode('external')}
+              className="mt-1"
+            />
+            <div className="flex-1">
+              <div className="font-medium flex items-center gap-2">
+                <Server className="h-4 w-4" />
+                External PostgreSQL
+                {detectedEnvConfig?.has_external_postgres && (
+                  <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded">
+                    Detected from .env
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">Connect to an existing PostgreSQL server</p>
+            </div>
+          </label>
+
+          {storageMode === 'external' && (
+            <div className="space-y-2 pl-7">
+              <Label htmlFor="external-db-url" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                PostgreSQL Connection URL
+              </Label>
+              <Input
+                id="external-db-url"
+                type="text"
+                placeholder="postgresql://user:password@localhost:5432/database"
+                value={externalDatabaseUrl}
+                onChange={(e) => setExternalDatabaseUrl(e.target.value)}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Full PostgreSQL connection URL. Format: postgresql://user:password@host:port/database
+              </p>
+              {detectedEnvConfig?.has_external_postgres && detectedEnvConfig.database_url_display && (
+                <Alert className="mt-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription>
+                    Detected from .env: <code className="font-mono text-xs">{detectedEnvConfig.database_url_display}</code>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {!externalDatabaseUrl.startsWith('postgresql://') && externalDatabaseUrl.length > 0 && (
+                <Alert variant="destructive" className="mt-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>URL must start with postgresql://</AlertDescription>
+                </Alert>
+              )}
+            </div>
           )}
         </div>
 
@@ -353,6 +468,7 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                 <strong>
                   {storageMode === 'filesystem' && `Embedded (Filesystem: ${dataDir})`}
                   {storageMode === 'memory' && 'Embedded (Memory Only)'}
+                  {storageMode === 'external' && `External (${externalDatabaseUrl.replace(/:([^@]+)@/, ':****@') || 'Not configured'})`}
                 </strong>
               </li>
               <li>
