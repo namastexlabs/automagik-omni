@@ -15,7 +15,9 @@ export function ChatListItem({ chat, isSelected, onClick }: ChatListItemProps) {
   const isGroup = chat.isGroup || chat.remoteJid?.includes('@g.us');
   const unreadCount = chat.unreadCount || 0;
   const lastMessage = getLastMessagePreview(chat);
-  const timestamp = formatTimestamp(chat.lastMessageTimestamp || chat.updatedAt);
+  // Use lastMessage.messageTimestamp if available, fallback to lastMessageTimestamp or updatedAt
+  const lastMsgTimestamp = chat.lastMessage?.messageTimestamp;
+  const timestamp = formatTimestamp(lastMsgTimestamp || chat.lastMessageTimestamp || chat.updatedAt);
   const avatarUrl = chat.profilePicUrl || chat.profilePictureUrl || chat.pictureUrl;
 
   return (
@@ -76,6 +78,13 @@ function formatJid(jid: string | undefined): string {
     return `+${id}`;
   }
 
+  // For LID format (WhatsApp multi-device linked ID), show as "Contact #XXX"
+  if (jid.includes('@lid')) {
+    // Use last 4-6 digits as identifier
+    const shortId = id.slice(-6);
+    return `Contact #${shortId}`;
+  }
+
   return id;
 }
 
@@ -98,9 +107,17 @@ function getLastMessagePreview(chat: EvolutionChat): string {
 }
 
 function formatTimestamp(timestamp: number | string | undefined): string {
-  if (!timestamp) return '';
+  if (!timestamp || timestamp === 0 || timestamp === '0') return '';
 
-  const date = new Date(typeof timestamp === 'number' ? timestamp * 1000 : timestamp);
+  // Convert to milliseconds if it looks like a Unix timestamp in seconds
+  const numericTs = typeof timestamp === 'number' ? timestamp : Number(timestamp);
+  const ms = numericTs > 1e12 ? numericTs : numericTs * 1000;
+
+  const date = new Date(ms);
+
+  // Check for invalid date
+  if (isNaN(date.getTime())) return '';
+
   const now = new Date();
   const diff = now.getTime() - date.getTime();
 

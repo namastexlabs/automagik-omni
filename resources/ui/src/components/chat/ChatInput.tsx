@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send, Paperclip, Smile, Loader2, Mic, Image, FileText, Play, Pause, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
@@ -14,10 +14,12 @@ import { cn, api } from '@/lib';
 interface ChatInputProps {
   instanceName: string;
   remoteJid: string;
+  resolvedPhoneNumber?: string | null; // Phone number resolved from LID
   onMessageSent?: () => void;
 }
 
-export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputProps) {
+export function ChatInput({ instanceName, remoteJid, resolvedPhoneNumber, onMessageSent }: ChatInputProps) {
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -48,11 +50,15 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
   // Send text message mutation
   const sendTextMutation = useMutation({
     mutationFn: (text: string) => {
-      const number = remoteJid.split('@')[0];
+      // Use resolvedPhoneNumber if available (for LID chats), otherwise extract from remoteJid
+      const number = resolvedPhoneNumber || remoteJid.split('@')[0];
       return api.evolution.sendText(instanceName, { number, text });
     },
     onSuccess: () => {
       setMessage('');
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['chats', instanceName] });
+      queryClient.invalidateQueries({ queryKey: ['messages', instanceName] });
       onMessageSent?.();
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -66,7 +72,8 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
   // Send media mutation
   const sendMediaMutation = useMutation({
     mutationFn: async (file: File) => {
-      const number = remoteJid.split('@')[0];
+      // Use resolvedPhoneNumber if available (for LID chats), otherwise extract from remoteJid
+      const number = resolvedPhoneNumber || remoteJid.split('@')[0];
       const base64 = await fileToBase64(file);
       const mediaType = file.type.startsWith('image/')
         ? 'image'
@@ -85,6 +92,9 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
       });
     },
     onSuccess: () => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['chats', instanceName] });
+      queryClient.invalidateQueries({ queryKey: ['messages', instanceName] });
       onMessageSent?.();
       toast.success('Media sent');
     },
@@ -96,7 +106,8 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
   // Send audio mutation
   const sendAudioMutation = useMutation({
     mutationFn: async (blob: Blob) => {
-      const number = remoteJid.split('@')[0];
+      // Use resolvedPhoneNumber if available (for LID chats), otherwise extract from remoteJid
+      const number = resolvedPhoneNumber || remoteJid.split('@')[0];
       const base64 = await blobToBase64(blob);
       return api.evolution.sendWhatsAppAudio(instanceName, {
         number,
@@ -107,6 +118,9 @@ export function ChatInput({ instanceName, remoteJid, onMessageSent }: ChatInputP
     onSuccess: () => {
       setAudioBlob(null);
       setRecordingTime(0);
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['chats', instanceName] });
+      queryClient.invalidateQueries({ queryKey: ['messages', instanceName] });
       onMessageSent?.();
       toast.success('Audio sent');
     },

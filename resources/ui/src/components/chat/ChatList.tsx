@@ -21,10 +21,21 @@ export function ChatList({ chats, selectedChatId, onSelectChat }: ChatListProps)
   });
 
   // Sort by last message timestamp (most recent first)
+  // Chats without messages go to the bottom, sorted by updatedAt as tiebreaker
   const sortedChats = [...filteredChats].sort((a, b) => {
-    const aTime = new Date(a.updatedAt || 0).getTime();
-    const bTime = new Date(b.updatedAt || 0).getTime();
-    return bTime - aTime;
+    // Use lastMessage.messageTimestamp if available (Unix timestamp in seconds)
+    const aLastMsgTime = a.lastMessage?.messageTimestamp ? Number(a.lastMessage.messageTimestamp) * 1000 : 0;
+    const bLastMsgTime = b.lastMessage?.messageTimestamp ? Number(b.lastMessage.messageTimestamp) * 1000 : 0;
+
+    // If both have no messages, sort by updatedAt as tiebreaker (keeps them grouped at bottom)
+    if (aLastMsgTime === 0 && bLastMsgTime === 0) {
+      const aUpdated = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bUpdated = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return bUpdated - aUpdated;
+    }
+
+    // Chats without messages go to bottom (use 0 instead of falling back to updatedAt)
+    return bLastMsgTime - aLastMsgTime;
   });
 
   return (

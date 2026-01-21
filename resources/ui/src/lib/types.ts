@@ -422,6 +422,7 @@ export interface EvolutionMessage {
 export interface EvolutionChat {
   id?: string;
   remoteJid: string;
+  resolvedPhoneNumber?: string | null; // Phone number resolved from LID format
   name?: string;
   pushName?: string;
   isGroup?: boolean;

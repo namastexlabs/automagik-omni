@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useRef, useEffect, useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { Loader2, User, Users, MoreVertical } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -20,23 +20,48 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
   const name = chat.name || chat.pushName || (remoteJid ? remoteJid.split('@')[0] : 'Unknown');
   const isGroup = remoteJid?.includes('@g.us') || chat.isGroup;
 
-  // Fetch messages
-  const {
-    data: messagesResponse,
-    isLoading,
-    refetch,
-  } = useQuery<EvolutionMessage[]>({
-    queryKey: ['messages', instanceName, remoteJid],
-    queryFn: () =>
-      api.evolution.findMessages(instanceName, {
-        where: { key: { remoteJid } },
-        limit: 100,
-      }),
-    refetchInterval: 5000,
+  // For LID chats, we need to fetch messages by both LID and resolved phone JID
+  // because sent messages are stored with the phone JID, not the LID
+  const phoneJid = chat.resolvedPhoneNumber ? `${chat.resolvedPhoneNumber}@s.whatsapp.net` : null;
+  const jidsToQuery = phoneJid && phoneJid !== remoteJid ? [remoteJid, phoneJid] : [remoteJid];
+
+  // Fetch messages for all relevant JIDs
+  const messageQueries = useQueries({
+    queries: jidsToQuery.map((jid) => ({
+      queryKey: ['messages', instanceName, jid],
+      queryFn: () =>
+        api.evolution.findMessages(instanceName, {
+          where: { key: { remoteJid: jid } },
+          limit: 100,
+        }),
+      refetchInterval: 5000,
+    })),
   });
 
-  // API returns { messages: { records: [...] } } structure
-  const messages: EvolutionMessage[] = Array.isArray(messagesResponse) ? messagesResponse : [];
+  const isLoading = messageQueries.some((q) => q.isLoading);
+  const refetch = () => messageQueries.forEach((q) => q.refetch());
+
+  // Merge messages from all queries and deduplicate by message ID
+  const messages: EvolutionMessage[] = useMemo(() => {
+    const allMessages: EvolutionMessage[] = [];
+    const seenIds = new Set<string>();
+
+    for (const query of messageQueries) {
+      const data = query.data;
+      const msgs: EvolutionMessage[] = Array.isArray(data) ? data : [];
+      for (const msg of msgs) {
+        const id = msg.key?.id;
+        if (id && !seenIds.has(id)) {
+          seenIds.add(id);
+          allMessages.push(msg);
+        } else if (!id) {
+          allMessages.push(msg);
+        }
+      }
+    }
+
+    return allMessages;
+  }, [messageQueries]);
 
   // Sort messages by timestamp
   const sortedMessages = [...messages].sort(
@@ -67,7 +92,13 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
         <div className="flex-1 min-w-0">
           <h2 className="font-medium truncate text-foreground">{name}</h2>
           <p className="text-xs text-muted-foreground truncate">
-            {isGroup ? 'Group chat' : remoteJid ? `+${remoteJid.split('@')[0]}` : 'Unknown'}
+            {isGroup
+              ? 'Group chat'
+              : chat.resolvedPhoneNumber
+                ? `+${chat.resolvedPhoneNumber}`
+                : remoteJid
+                  ? `+${remoteJid.split('@')[0]}`
+                  : 'Unknown'}
           </p>
         </div>
         <Button variant="ghost" size="icon" className="text-muted-foreground">
@@ -100,7 +131,12 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
       </ScrollArea>
 
       {/* Input */}
-      <ChatInput instanceName={instanceName} remoteJid={remoteJid} onMessageSent={handleMessageSent} />
+      <ChatInput
+        instanceName={instanceName}
+        remoteJid={remoteJid}
+        resolvedPhoneNumber={chat.resolvedPhoneNumber}
+        onMessageSent={handleMessageSent}
+      />
     </div>
   );
 }
