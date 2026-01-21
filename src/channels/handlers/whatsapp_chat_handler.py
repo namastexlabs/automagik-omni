@@ -344,6 +344,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
     ) -> Tuple[List[OmniMessage], int]:
         """
         Get messages from a WhatsApp chat in omni format.
+
+        For LID format chats, this also queries by the resolved phone JID
+        and merges the results to ensure all messages are found.
         """
         try:
             logger.debug(
@@ -352,32 +355,60 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
 
             evolution_client = self._get_omni_evolution_client(instance)
 
-            # Fetch messages from Evolution API
-            messages_response = await evolution_client.fetch_messages(
-                instance_name=instance.name, chat_id=chat_id, page=page, page_size=page_size, limit=200
-            )
+            # Collect all JIDs to query
+            jids_to_query = [chat_id]
 
-            logger.debug(f"Evolution API messages response: {messages_response}")
+            # If chat_id is a LID, also query by resolved phone number
+            if "@lid" in chat_id:
+                # Try to get resolved phone from chat data
+                resolved_phone = await self._get_resolved_phone_for_lid(instance, chat_id)
+                if resolved_phone:
+                    phone_jid = f"{resolved_phone}@s.whatsapp.net"
+                    if phone_jid != chat_id:
+                        jids_to_query.append(phone_jid)
+                        logger.debug(f"LID chat {chat_id} resolved to phone JID {phone_jid}")
 
-            # Parse response and transform to omni format
-            messages = []
-            total_count = 0
+            # Fetch messages for all JIDs
+            all_messages: List[dict] = []
+            for jid in jids_to_query:
+                messages_response = await evolution_client.fetch_messages(
+                    instance_name=instance.name, chat_id=jid, page=1, page_size=10000, limit=200
+                )
 
-            if isinstance(messages_response, dict):
-                # Get paginated message list from response
-                message_list = messages_response.get("messages", messages_response.get("data", []))
-                total_count = messages_response.get("total", 0)
-            elif isinstance(messages_response, list):
-                # Fallback for direct list response
-                message_list = messages_response
-                total_count = len(message_list)
-                logger.warning("Received unpaginated list response from Evolution client")
-            else:
-                message_list = []
-                total_count = 0
+                # Parse response
+                if isinstance(messages_response, dict):
+                    message_list = messages_response.get("messages", messages_response.get("data", []))
+                elif isinstance(messages_response, list):
+                    message_list = messages_response
+                else:
+                    message_list = []
+
+                all_messages.extend(message_list)
+
+            # Deduplicate by message ID
+            seen_ids: set = set()
+            unique_messages: List[dict] = []
+            for msg in all_messages:
+                msg_id = msg.get("key", {}).get("id") if isinstance(msg, dict) else None
+                if msg_id and msg_id not in seen_ids:
+                    seen_ids.add(msg_id)
+                    unique_messages.append(msg)
+                elif not msg_id:
+                    unique_messages.append(msg)
+
+            # Sort by timestamp descending (newest first)
+            unique_messages.sort(key=lambda m: int(m.get("messageTimestamp", 0)), reverse=True)
+
+            total_count = len(unique_messages)
+
+            # Apply pagination
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_messages = unique_messages[start_idx:end_idx]
 
             # Transform each message to omni format
-            for msg in message_list:
+            messages = []
+            for msg in paginated_messages:
                 try:
                     omni_message = WhatsAppTransformer.message_to_omni(msg, instance.name)
                     messages.append(omni_message)
@@ -394,3 +425,17 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         except Exception as e:
             logger.error(f"Failed to fetch WhatsApp messages for chat {chat_id} in instance {instance.name}: {e}")
             return [], 0
+
+    async def _get_resolved_phone_for_lid(self, instance: InstanceConfig, lid_chat_id: str) -> Optional[str]:
+        """
+        Get the resolved phone number for a LID chat by looking up the chat data.
+        """
+        try:
+            chat = await self.get_chat_by_id(instance, lid_chat_id)
+            if chat and chat.channel_data:
+                raw_data = chat.channel_data.get("raw_data", {})
+                return raw_data.get("resolvedPhoneNumber")
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to resolve phone for LID {lid_chat_id}: {e}")
+            return None

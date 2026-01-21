@@ -66,7 +66,7 @@ class OmniEvolutionClient(EvolutionClient):
 
         Args:
             instance_name: Name of the instance
-            chat_id: Chat/conversation identifier
+            chat_id: Chat/conversation identifier (can be LID or phone JID format)
             page: Page number (1-based)
             page_size: Number of items per page
             limit: Maximum number of messages to fetch from API (default: 100)
@@ -74,15 +74,40 @@ class OmniEvolutionClient(EvolutionClient):
         Returns:
             Dictionary with paginated messages and metadata
         """
-        # Fetch messages from Evolution API
-        # Evolution API: GET /chat/findMessages/{instance}/{chat_id}?limit=X
+        # Fetch messages from Evolution API using POST with body
+        # Evolution API: POST /chat/findMessages/{instance}
+        # Body: {"where": {"key": {"remoteJid": "..."}}, "limit": N}
+        payload = {"where": {"key": {"remoteJid": chat_id}}, "limit": limit}
         response = await self._request(
-            "GET",
-            f"/chat/findMessages/{quote(instance_name, safe='')}/{quote(chat_id, safe='')}",
-            params={"limit": limit},
+            "POST",
+            f"/chat/findMessages/{quote(instance_name, safe='')}",
+            json=payload,
         )
 
-        # Apply client-side pagination
+        # Handle nested Evolution API response format
+        # Evolution returns: {"messages": {"total": N, "pages": P, "records": [...]}}
+        if isinstance(response, dict) and "messages" in response:
+            messages_data = response["messages"]
+            if isinstance(messages_data, dict):
+                all_items = messages_data.get("records", [])
+                total_from_api = messages_data.get("total", len(all_items))
+            else:
+                all_items = messages_data if isinstance(messages_data, list) else []
+                total_from_api = len(all_items)
+
+            # Apply client-side pagination
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_items = all_items[start_idx:end_idx]
+
+            return {
+                "data": paginated_items,
+                "total": total_from_api,
+                "page": page,
+                "page_size": page_size,
+            }
+
+        # Fallback for other response formats
         return self._apply_pagination(response, page, page_size)
 
     def _apply_pagination(self, response: Any, page: int, page_size: int) -> Dict[str, Any]:
