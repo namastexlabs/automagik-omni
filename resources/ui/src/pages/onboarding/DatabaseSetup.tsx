@@ -224,7 +224,9 @@ export default function DatabaseSetup() {
           // In PROXY_ONLY mode, services are external - we can't start them
           // Just wait and check if Python becomes available
           console.log('[DatabaseSetup] PROXY_ONLY mode - waiting for external Python API...');
-          console.log('[DatabaseSetup] Please start Python manually: uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000');
+          console.log(
+            '[DatabaseSetup] Please start Python manually: uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000',
+          );
 
           try {
             await pollUntilPythonHealthy(60000); // Give more time for manual start
@@ -232,7 +234,7 @@ export default function DatabaseSetup() {
           } catch {
             throw new Error(
               'Python API not running. In PROXY_ONLY mode, start it manually:\n' +
-                'uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000'
+                'uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000',
             );
           }
         } else {

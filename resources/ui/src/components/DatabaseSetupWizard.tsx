@@ -304,7 +304,8 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                 <Alert className="mt-2">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                   <AlertDescription>
-                    Detected from .env: <code className="font-mono text-xs">{detectedEnvConfig.database_url_display}</code>
+                    Detected from .env:{' '}
+                    <code className="font-mono text-xs">{detectedEnvConfig.database_url_display}</code>
                   </AlertDescription>
                 </Alert>
               )}
@@ -468,7 +469,8 @@ export function DatabaseSetupWizard({ onComplete, isFirstRun = false }: Database
                 <strong>
                   {storageMode === 'filesystem' && `Embedded (Filesystem: ${dataDir})`}
                   {storageMode === 'memory' && 'Embedded (Memory Only)'}
-                  {storageMode === 'external' && `External (${externalDatabaseUrl.replace(/:([^@]+)@/, ':****@') || 'Not configured'})`}
+                  {storageMode === 'external' &&
+                    `External (${externalDatabaseUrl.replace(/:([^@]+)@/, ':****@') || 'Not configured'})`}
                 </strong>
               </li>
               <li>
