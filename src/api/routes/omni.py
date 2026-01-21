@@ -17,6 +17,10 @@ from src.api.schemas.omni import (
     OmniContact,
     OmniChat,
     ChannelType,
+    ValidateRecipientRequest,
+    ValidateRecipientResponse,
+    RecipientValidationResult,
+    RecipientProfile,
 )
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory
@@ -430,4 +434,93 @@ async def get_omni_chat_messages(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch messages: {str(e)}",
+        )
+
+
+@router.post("/{instance_name}/validate-recipient", response_model=ValidateRecipientResponse)
+async def validate_recipients(
+    instance_name: str,
+    request: ValidateRecipientRequest,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Validate recipients to check if they are valid and reachable on the channel.
+
+    For WhatsApp: Checks if phone numbers are registered on WhatsApp.
+    For Discord: Checks if user IDs exist in the guild.
+
+    This endpoint is useful for:
+    - Pre-validating numbers before adding them to cadences/campaigns
+    - Checking if a contact is still active on the platform
+    - Avoiding message delivery failures
+
+    Args:
+        instance_name: Instance to validate against
+        request: List of recipient identifiers (phone numbers for WhatsApp)
+
+    Returns:
+        Validation results including validity status and profile info if available
+    """
+    try:
+        logger.info(f"Validating {len(request.recipients)} recipients for instance '{instance_name}'")
+
+        # Get instance configuration
+        instance = get_instance_by_name(instance_name, db)
+
+        # Get omni handler for instance channel type
+        handler = get_omni_handler(instance.channel_type)
+
+        # Validate recipients
+        validation_results = await handler.validate_recipients(
+            instance=instance,
+            recipients=request.recipients,
+        )
+
+        # Transform results to response format
+        results = []
+        for result in validation_results:
+            profile = None
+            if result.get("profile"):
+                profile = RecipientProfile(
+                    jid=result["profile"].get("jid"),
+                    name=result["profile"].get("name"),
+                    lid=result["profile"].get("lid"),
+                    avatar_url=result["profile"].get("avatar_url"),
+                )
+
+            results.append(
+                RecipientValidationResult(
+                    recipient=result["recipient"],
+                    valid=result["valid"],
+                    reason=result.get("reason"),
+                    profile=profile,
+                )
+            )
+
+        valid_count = sum(1 for r in results if r.valid)
+        invalid_count = len(results) - valid_count
+
+        logger.info(
+            f"Validated {len(results)} recipients for instance '{instance_name}': "
+            f"{valid_count} valid, {invalid_count} invalid"
+        )
+
+        return ValidateRecipientResponse(
+            results=results,
+            total_count=len(results),
+            valid_count=valid_count,
+            invalid_count=invalid_count,
+            instance_name=instance_name,
+            channel_type=ChannelType(instance.channel_type),
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (like instance not found)
+        raise
+    except Exception as e:
+        logger.error(f"Failed to validate recipients for instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to validate recipients: {str(e)}",
         )

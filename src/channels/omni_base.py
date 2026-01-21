@@ -1,6 +1,6 @@
 # src/channels/omni_base.py
 from abc import abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from src.channels.base import ChannelHandler
 from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, OmniMessage
 from src.db.models import InstanceConfig
@@ -122,6 +122,33 @@ class OmniChannelHandler(ChannelHandler):
         """
         # Default implementation returns empty list - handlers must override
         return [], 0
+
+    async def validate_recipients(
+        self,
+        instance: InstanceConfig,
+        recipients: List[str],
+    ) -> List[Dict[str, Any]]:
+        """
+        Validate recipients to check if they are valid for this channel.
+
+        For WhatsApp: Checks if phone numbers are registered on WhatsApp.
+        For Discord: Checks if user IDs exist in the guild.
+
+        Args:
+            instance: The instance configuration
+            recipients: List of recipient identifiers (phone numbers for WhatsApp, user IDs for Discord)
+
+        Returns:
+            List of validation results with structure:
+            {
+                "recipient": "identifier",
+                "valid": bool,
+                "reason": "optional reason if invalid",
+                "profile": { optional profile data }
+            }
+        """
+        # Default implementation - must be overridden by channel handlers
+        raise NotImplementedError(f"validate_recipients not implemented for {instance.channel_type}")
 
 
 # Type alias for backward compatibility and clarity

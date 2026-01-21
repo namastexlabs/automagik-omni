@@ -256,3 +256,50 @@ class OmniErrorResponse(BaseModel):
     error: str = Field(..., description="Primary error message")
     details: List[OmniErrorDetail] = Field(default_factory=list, description="Detailed error information")
     timestamp: datetime = Field(default_factory=datetime.now, description="Error occurrence timestamp")
+
+
+# Recipient validation models
+class ValidateRecipientRequest(BaseModel):
+    """Request model for recipient validation endpoint."""
+
+    recipients: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="List of recipient identifiers to validate (phone numbers for WhatsApp, user IDs for Discord)",
+        examples=[["5511999999999", "5511888888888"]],
+    )
+
+
+class RecipientProfile(BaseModel):
+    """Profile information for a valid recipient."""
+
+    jid: Optional[str] = Field(None, description="WhatsApp JID (e.g., 5511999999999@s.whatsapp.net)")
+    name: Optional[str] = Field(None, description="Contact name if available")
+    lid: Optional[str] = Field(None, description="WhatsApp LID if using LID format")
+    avatar_url: Optional[str] = Field(None, description="Profile picture URL if available")
+
+
+class RecipientValidationResult(BaseModel):
+    """Validation result for a single recipient."""
+
+    recipient: str = Field(..., description="The recipient identifier that was validated")
+    valid: bool = Field(..., description="Whether the recipient is valid and reachable")
+    reason: Optional[str] = Field(
+        None,
+        description="Reason why validation failed (e.g., 'not_on_whatsapp', 'invalid_format', 'validation_error')",
+    )
+    profile: Optional[RecipientProfile] = Field(None, description="Profile information if recipient is valid")
+
+
+class ValidateRecipientResponse(BaseModel):
+    """Response model for recipient validation endpoint."""
+
+    results: List[RecipientValidationResult] = Field(..., description="Validation results for each recipient")
+    total_count: int = Field(..., description="Total number of recipients validated")
+    valid_count: int = Field(..., description="Number of valid recipients")
+    invalid_count: int = Field(..., description="Number of invalid recipients")
+
+    # Instance information
+    instance_name: str = Field(..., description="Instance used for validation")
+    channel_type: ChannelType = Field(..., description="Channel type")

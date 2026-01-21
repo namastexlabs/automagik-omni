@@ -4,7 +4,7 @@ WhatsApp unified channel handler implementation.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from src.channels.omni_base import OmniChannelHandler
 from src.channels.whatsapp.channel_handler import WhatsAppChannelHandler
 from src.channels.whatsapp.omni_evolution_client import OmniEvolutionClient
@@ -439,3 +439,85 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         except Exception as e:
             logger.warning(f"Failed to resolve phone for LID {lid_chat_id}: {e}")
             return None
+
+    async def validate_recipients(
+        self,
+        instance: InstanceConfig,
+        recipients: List[str],
+    ) -> List[Dict[str, Any]]:
+        """
+        Validate WhatsApp numbers to check if they are registered.
+
+        Uses Evolution API's onWhatsApp check which queries WhatsApp servers directly.
+
+        Args:
+            instance: The instance configuration
+            recipients: List of phone numbers (E.164 format recommended, e.g., "5511999999999")
+
+        Returns:
+            List of validation results with structure:
+            {
+                "recipient": "5511999999999",
+                "valid": true/false,
+                "reason": "not_on_whatsapp" (if invalid),
+                "profile": { "name": "...", "jid": "..." } (if valid)
+            }
+        """
+        try:
+            logger.debug(f"Validating {len(recipients)} WhatsApp recipients for instance {instance.name}")
+
+            evolution_client = self._get_omni_evolution_client(instance)
+
+            # Call Evolution API to validate numbers
+            validation_results = await evolution_client.validate_recipients(
+                instance_name=instance.name,
+                numbers=recipients,
+            )
+
+            # Transform Evolution API response to unified format
+            results = []
+            for result in validation_results:
+                number = result.get("number", "")
+                exists = result.get("exists", False)
+                jid = result.get("jid", "")
+                name = result.get("name")
+                lid = result.get("lid")
+
+                validation = {
+                    "recipient": number,
+                    "valid": exists,
+                }
+
+                if exists:
+                    # Include profile data for valid numbers
+                    profile = {"jid": jid}
+                    if name:
+                        profile["name"] = name
+                    if lid:
+                        profile["lid"] = lid
+                    validation["profile"] = profile
+                else:
+                    # Include reason for invalid numbers
+                    validation["reason"] = "not_on_whatsapp"
+
+                results.append(validation)
+
+            logger.info(
+                f"Validated {len(recipients)} recipients for instance {instance.name}: "
+                f"{sum(1 for r in results if r['valid'])} valid, "
+                f"{sum(1 for r in results if not r['valid'])} invalid"
+            )
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to validate WhatsApp recipients for instance {instance.name}: {e}")
+            # Return all as invalid with error reason
+            return [
+                {
+                    "recipient": r,
+                    "valid": False,
+                    "reason": f"validation_error: {str(e)}",
+                }
+                for r in recipients
+            ]

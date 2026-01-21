@@ -172,3 +172,39 @@ class OmniEvolutionClient(EvolutionClient):
             result["page"] = page
             result["page_size"] = page_size
             return result
+
+    async def validate_recipients(self, instance_name: str, numbers: List[str]) -> List[Dict[str, Any]]:
+        """
+        Validate WhatsApp numbers to check if they're registered on WhatsApp.
+
+        Uses Evolution API's onWhatsApp check which queries WhatsApp servers directly.
+
+        Args:
+            instance_name: Name of the instance
+            numbers: List of phone numbers to validate (E.164 format recommended, e.g., "5511999999999")
+
+        Returns:
+            List of validation results with structure:
+            {
+                "jid": "5511999999999@s.whatsapp.net",
+                "exists": true,
+                "number": "5511999999999",
+                "name": "Contact Name" (if available),
+                "lid": "lid_value" (if using LID format)
+            }
+        """
+        payload = {"numbers": numbers}
+        response = await self._request(
+            "POST",
+            f"/chat/whatsappNumbers/{quote(instance_name, safe='')}",
+            json=payload,
+        )
+
+        # Evolution API returns array of OnWhatsAppDto objects
+        if isinstance(response, list):
+            return response
+        elif isinstance(response, dict) and "data" in response:
+            return response.get("data", [])
+        else:
+            logger.warning(f"Unexpected response format from whatsappNumbers: {type(response)}")
+            return []
