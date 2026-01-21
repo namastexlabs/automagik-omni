@@ -848,9 +848,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       database_url: databaseUrl,
       has_external_postgres: hasExternalPostgres,
       // Mask password in URL for display
-      database_url_display: databaseUrl
-        ? databaseUrl.replace(/:([^@]+)@/, ':****@')
-        : '',
+      database_url_display: databaseUrl ? databaseUrl.replace(/:([^@]+)@/, ':****@') : '',
     };
   });
 

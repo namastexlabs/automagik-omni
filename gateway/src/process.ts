@@ -573,7 +573,8 @@ export class ProcessManager {
         PYTHONPATH: runtime.backend,
         // Pass pgserve's database URL with dynamic port (8432+) to Python
         // This overrides the hardcoded 5432 default in src/config.py
-        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || process.env.AUTOMAGIK_OMNI_DATABASE_URL || '',
+        AUTOMAGIK_OMNI_DATABASE_URL:
+          this.getPgserveConnectionUrl('automagik_omni') || process.env.AUTOMAGIK_OMNI_DATABASE_URL || '',
       },
       stdin: 'ignore',
       stdout: 'pipe',
@@ -953,7 +954,7 @@ export class ProcessManager {
     if (!pgReady) {
       throw new Error(
         `PostgreSQL not reachable at ${pgHost}:${pgPort} after 10 attempts. ` +
-        'Please check PostgreSQL is running and accessible.',
+          'Please check PostgreSQL is running and accessible.',
       );
     }
 
@@ -1134,7 +1135,8 @@ export class ProcessManager {
         AUTOMAGIK_OMNI_API_PORT: String(this.portRegistry.getPort('python') || 8882),
         DISCORD_HEALTH_CHECK_TIMEOUT: '10', // Reduced from 60s - Discord starts quickly
         // Pass pgserve's database URL with dynamic port (same as Python API)
-        AUTOMAGIK_OMNI_DATABASE_URL: this.getPgserveConnectionUrl('automagik_omni') || process.env.AUTOMAGIK_OMNI_DATABASE_URL || '',
+        AUTOMAGIK_OMNI_DATABASE_URL:
+          this.getPgserveConnectionUrl('automagik_omni') || process.env.AUTOMAGIK_OMNI_DATABASE_URL || '',
       },
       stdin: 'ignore',
       stdout: 'pipe',
