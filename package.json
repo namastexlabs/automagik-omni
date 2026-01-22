@@ -1,6 +1,6 @@
 {
 	"name": "@automagik/omni",
-	"version": "0.6.0",
+	"version": "0.7.0",
 	"description": "Multi-channel messaging hub with WhatsApp, Discord support. Single-port gateway with embedded Python backend.",
 	"type": "module",
 	"workspaces": [
