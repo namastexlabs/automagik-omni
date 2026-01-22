@@ -7,6 +7,7 @@ from src.api.schemas.omni import (
     OmniChannelInfo,
     OmniMessage,
     OmniMessageType,
+    MessageDeliveryStatus,
     ChannelType,
     OmniContactStatus,
     OmniChatType,
@@ -119,6 +120,25 @@ class WhatsAppTransformer:
         )
 
     @staticmethod
+    def _map_whatsapp_status(status: Optional[str]) -> MessageDeliveryStatus:
+        """Map WhatsApp message status to unified delivery status."""
+        if not status:
+            return MessageDeliveryStatus.UNKNOWN
+
+        status_lower = status.lower()
+        status_map = {
+            "pending": MessageDeliveryStatus.PENDING,
+            "error": MessageDeliveryStatus.FAILED,
+            "sent": MessageDeliveryStatus.SENT,
+            "server_ack": MessageDeliveryStatus.SENT,
+            "delivery_ack": MessageDeliveryStatus.DELIVERED,
+            "delivered": MessageDeliveryStatus.DELIVERED,
+            "read": MessageDeliveryStatus.READ,
+            "played": MessageDeliveryStatus.READ,  # For voice messages
+        }
+        return status_map.get(status_lower, MessageDeliveryStatus.UNKNOWN)
+
+    @staticmethod
     def message_to_omni(whatsapp_message: Dict[str, Any], instance_name: str) -> OmniMessage:
         """Transform WhatsApp message to omni format."""
         # Determine message type
@@ -187,6 +207,20 @@ class WhatsAppTransformer:
         sender_id = whatsapp_message.get("key", {}).get("remoteJid") or whatsapp_message.get("from", "")
         is_from_me = whatsapp_message.get("key", {}).get("fromMe", False)
 
+        # Extract delivery status from message or MessageUpdate
+        raw_status = whatsapp_message.get("status")
+        # Also check MessageUpdate array for the latest status
+        message_updates = whatsapp_message.get("MessageUpdate", [])
+        if message_updates and isinstance(message_updates, list):
+            # Get the latest status from updates
+            for update in reversed(message_updates):
+                if update.get("status"):
+                    raw_status = update.get("status")
+                    break
+
+        delivery_status = WhatsAppTransformer._map_whatsapp_status(raw_status)
+        is_read = delivery_status == MessageDeliveryStatus.READ
+
         return OmniMessage(
             id=whatsapp_message.get("key", {}).get("id") or whatsapp_message.get("id", ""),
             chat_id=whatsapp_message.get("key", {}).get("remoteJid") or whatsapp_message.get("chatId", ""),
@@ -214,6 +248,8 @@ class WhatsAppTransformer:
             .get("extendedTextMessage", {})
             .get("contextInfo", {})
             .get("stanzaId"),
+            delivery_status=delivery_status,
+            is_read=is_read,
             timestamp=WhatsAppTransformer._parse_datetime(
                 whatsapp_message.get("messageTimestamp") or whatsapp_message.get("timestamp")
             )
@@ -417,6 +453,8 @@ class DiscordTransformer:
             is_forwarded=False,  # Discord doesn't have native forwarding
             is_reply=is_reply,
             reply_to_message_id=str(reply_to_message_id) if reply_to_message_id else None,
+            delivery_status=MessageDeliveryStatus.DELIVERED,  # Discord messages are always delivered
+            is_read=False,  # Discord doesn't track read status
             timestamp=DiscordTransformer._parse_datetime(discord_message.get("timestamp")) or datetime.now(),
             edited_at=DiscordTransformer._parse_datetime(discord_message.get("edited_timestamp")),
             channel_type=ChannelType.DISCORD,

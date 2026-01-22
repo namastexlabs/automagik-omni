@@ -149,6 +149,7 @@ async def get_omni_chats(
     page_size: int = Query(50, ge=1, le=500, description="Items per page"),
     chat_type_filter: Optional[str] = Query(None, description="Filter by chat type (direct, group, channel, thread)"),
     archived: Optional[bool] = Query(None, description="Filter by archived status"),
+    has_unread: Optional[bool] = Query(None, description="Filter by unread status (true=has unread, false=no unread)"),
     channel_type: Optional[ChannelType] = Query(None, description="Filter by specific channel type"),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
@@ -158,6 +159,11 @@ async def get_omni_chats(
 
     Supports pagination and filtering across all channel types.
     Returns chats in a consistent format regardless of the underlying channel.
+
+    Filters:
+    - chat_type_filter: Filter by chat type (direct, group, channel, thread)
+    - archived: Filter by archived status
+    - has_unread: Filter by unread status (true=only chats with unread messages, false=only fully read chats)
     """
     try:
         logger.info(f"Fetching omni chats for instance '{instance_name}' - page: {page}, size: {page_size}")
@@ -196,6 +202,16 @@ async def get_omni_chats(
             chat_type_filter=chat_type_filter,
             archived=archived,
         )
+
+        # Apply has_unread filter (post-fetch filtering)
+        if has_unread is not None:
+            if has_unread:
+                # Only chats with unread messages
+                chats = [c for c in chats if (c.unread_count or 0) > 0]
+            else:
+                # Only chats with no unread messages
+                chats = [c for c in chats if (c.unread_count or 0) == 0]
+            total_count = len(chats)
 
         # Calculate pagination info
         has_more = (page * page_size) < total_count

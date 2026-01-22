@@ -477,3 +477,89 @@ export interface AccessRuleCreate {
   rule_type: AccessRuleType;
   instance_name?: string;
 }
+
+// ===== Omni API Types =====
+
+// Message delivery status enum
+export type MessageDeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'unknown';
+
+// Unified message type for Omni API
+export interface OmniMessage {
+  id: string;
+  chat_id: string;
+  sender_id: string;
+  sender_name?: string | null;
+  message_type:
+    | 'text'
+    | 'image'
+    | 'video'
+    | 'audio'
+    | 'document'
+    | 'sticker'
+    | 'contact'
+    | 'location'
+    | 'reaction'
+    | 'system'
+    | 'unknown';
+  text?: string | null;
+  media_url?: string | null;
+  media_mime_type?: string | null;
+  media_size?: number | null;
+  caption?: string | null;
+  thumbnail_url?: string | null;
+  is_from_me: boolean;
+  is_forwarded: boolean;
+  is_reply: boolean;
+  reply_to_message_id?: string | null;
+  delivery_status: MessageDeliveryStatus;
+  is_read: boolean;
+  timestamp: string;
+  edited_at?: string | null;
+  read_at?: string | null;
+  channel_type: 'whatsapp' | 'discord';
+  instance_name: string;
+  channel_data?: Record<string, unknown>;
+}
+
+// Unified chat type for Omni API
+export interface OmniChat {
+  id: string;
+  name: string;
+  chat_type: 'direct' | 'group' | 'channel' | 'thread';
+  channel_type: 'whatsapp' | 'discord';
+  instance_name: string;
+  participant_count?: number | null;
+  is_muted: boolean;
+  is_archived: boolean;
+  is_pinned: boolean;
+  description?: string | null;
+  avatar_url?: string | null;
+  unread_count?: number | null;
+  channel_data?: Record<string, unknown>;
+  created_at?: string | null;
+  last_message_at?: string | null;
+}
+
+// Omni API response types
+export interface OmniMessagesResponse {
+  messages: OmniMessage[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+  instance_name: string;
+  chat_id: string;
+  channel_type: 'whatsapp' | 'discord';
+  partial_errors: Array<{ instance_name?: string; error_code?: string; message?: string }>;
+}
+
+export interface OmniChatsResponse {
+  chats: OmniChat[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+  instance_name: string;
+  channel_type?: 'whatsapp' | 'discord' | null;
+  partial_errors: Array<{ instance_name?: string; error_code?: string; message?: string }>;
+}

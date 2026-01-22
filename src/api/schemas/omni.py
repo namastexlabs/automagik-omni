@@ -103,6 +103,17 @@ class OmniMessageType(str, Enum):
     UNKNOWN = "unknown"
 
 
+class MessageDeliveryStatus(str, Enum):
+    """Message delivery status across channels."""
+
+    PENDING = "pending"  # Message queued, not yet sent
+    SENT = "sent"  # Message sent to server
+    DELIVERED = "delivered"  # Message delivered to recipient's device
+    READ = "read"  # Message read by recipient
+    FAILED = "failed"  # Message delivery failed
+    UNKNOWN = "unknown"  # Status unknown
+
+
 class OmniMessage(BaseModel):
     """Omni message representation across all channels."""
 
@@ -129,9 +140,16 @@ class OmniMessage(BaseModel):
     is_reply: bool = Field(False, description="Whether message is a reply")
     reply_to_message_id: Optional[str] = Field(None, description="ID of message being replied to")
 
+    # Delivery and read status
+    delivery_status: MessageDeliveryStatus = Field(
+        MessageDeliveryStatus.UNKNOWN, description="Message delivery status (pending/sent/delivered/read/failed)"
+    )
+    is_read: bool = Field(False, description="Whether message has been read by recipient")
+
     # Timestamps
     timestamp: datetime = Field(..., description="Message timestamp")
     edited_at: Optional[datetime] = Field(None, description="Edit timestamp if edited")
+    read_at: Optional[datetime] = Field(None, description="Timestamp when message was read")
 
     # Channel-specific data
     channel_type: ChannelType = Field(..., description="Source channel type")
