@@ -50,13 +50,25 @@ def column_exists(table_name: str, column_name: str) -> bool:
     return column_name in columns
 
 
+def index_exists(index_name: str) -> bool:
+    """Check if an index exists in the database."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    # Check all tables for this index
+    for table_name in inspector.get_table_names():
+        indexes = inspector.get_indexes(table_name)
+        if any(idx["name"] == index_name for idx in indexes):
+            return True
+    return False
+
+
 def upgrade() -> None:
     # Create omni_agent_providers table if it doesn't exist
     if not table_exists("omni_agent_providers"):
         op.create_table(
             "omni_agent_providers",
             sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-            sa.Column("name", sa.String(255), nullable=False, unique=True, index=True),
+            sa.Column("name", sa.String(255), nullable=False),
             sa.Column("api_url", sa.Text(), nullable=False),
             sa.Column("api_key", sa.Text(), nullable=False),
             sa.Column("description", sa.Text(), nullable=True),
@@ -67,8 +79,10 @@ def upgrade() -> None:
             sa.Column("updated_at", sa.DateTime(), nullable=True, server_default=sa.text("now()")),
         )
 
-        # Create indexes
+    # Create indexes if they don't exist
+    if not index_exists("ix_omni_agent_providers_name"):
         op.create_index("ix_omni_agent_providers_name", "omni_agent_providers", ["name"], unique=True)
+    if not index_exists("ix_omni_agent_providers_is_active"):
         op.create_index("ix_omni_agent_providers_is_active", "omni_agent_providers", ["is_active"])
 
     # Add agent_provider_id column to omni_instance_configs if it doesn't exist
@@ -77,32 +91,45 @@ def upgrade() -> None:
             "omni_instance_configs",
             sa.Column("agent_provider_id", sa.Integer(), nullable=True),
         )
-        # Create foreign key
-        op.create_foreign_key(
-            "fk_instance_configs_agent_provider",
-            "omni_instance_configs",
-            "omni_agent_providers",
-            ["agent_provider_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
-        # Create index
-        op.create_index(
-            "ix_omni_instance_configs_agent_provider_id",
-            "omni_instance_configs",
-            ["agent_provider_id"],
-        )
+
+    # Create foreign key if column exists but FK doesn't
+    if column_exists("omni_instance_configs", "agent_provider_id"):
+        try:
+            op.create_foreign_key(
+                "fk_instance_configs_agent_provider",
+                "omni_instance_configs",
+                "omni_agent_providers",
+                ["agent_provider_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
+        except Exception:
+            pass  # FK may already exist
+
+        # Create index if it doesn't exist
+        if not index_exists("ix_omni_instance_configs_agent_provider_id"):
+            op.create_index(
+                "ix_omni_instance_configs_agent_provider_id",
+                "omni_instance_configs",
+                ["agent_provider_id"],
+            )
 
 
 def downgrade() -> None:
     # Remove the foreign key and column from omni_instance_configs
     if column_exists("omni_instance_configs", "agent_provider_id"):
-        op.drop_constraint("fk_instance_configs_agent_provider", "omni_instance_configs", type_="foreignkey")
-        op.drop_index("ix_omni_instance_configs_agent_provider_id", table_name="omni_instance_configs")
+        try:
+            op.drop_constraint("fk_instance_configs_agent_provider", "omni_instance_configs", type_="foreignkey")
+        except Exception:
+            pass  # Constraint may not exist
+        if index_exists("ix_omni_instance_configs_agent_provider_id"):
+            op.drop_index("ix_omni_instance_configs_agent_provider_id", table_name="omni_instance_configs")
         op.drop_column("omni_instance_configs", "agent_provider_id")
 
     # Drop the omni_agent_providers table
     if table_exists("omni_agent_providers"):
-        op.drop_index("ix_omni_agent_providers_is_active", table_name="omni_agent_providers")
-        op.drop_index("ix_omni_agent_providers_name", table_name="omni_agent_providers")
+        if index_exists("ix_omni_agent_providers_is_active"):
+            op.drop_index("ix_omni_agent_providers_is_active", table_name="omni_agent_providers")
+        if index_exists("ix_omni_agent_providers_name"):
+            op.drop_index("ix_omni_agent_providers_name", table_name="omni_agent_providers")
         op.drop_table("omni_agent_providers")
