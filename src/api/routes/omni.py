@@ -378,7 +378,7 @@ async def get_omni_chat_messages(
     instance_name: str,
     chat_id: str,
     page: int = Query(1, ge=1, description="Page number (1-based)"),
-    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
+    page_size: int = Query(50, ge=1, le=1000, description="Items per page (max 1000)"),
     before_message_id: Optional[str] = Query(
         None, description="Message ID to fetch messages before (cursor pagination)"
     ),
