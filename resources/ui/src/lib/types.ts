@@ -23,6 +23,9 @@ export interface InstanceConfig {
   discord_voice_enabled?: boolean;
   discord_slash_commands_enabled?: boolean;
 
+  // Agent provider (optional - for shared credentials)
+  agent_provider_id?: number | null;
+
   // Agent configuration
   agent_api_url?: string;
   agent_api_key?: string;
@@ -118,6 +121,9 @@ export interface InstanceUpdateRequest {
   discord_client_id?: string;
   discord_guild_id?: string;
   discord_bot_token?: string;
+
+  // Agent provider (optional - for shared credentials)
+  agent_provider_id?: number | null;
 
   // Agent configuration (Hive)
   agent_api_url?: string;
@@ -562,4 +568,56 @@ export interface OmniChatsResponse {
   instance_name: string;
   channel_type?: 'whatsapp' | 'discord' | null;
   partial_errors: Array<{ instance_name?: string; error_code?: string; message?: string }>;
+}
+
+// ===== Agent Provider Types =====
+
+export type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
+
+export interface AgentProvider {
+  id: number;
+  name: string;
+  api_url: string;
+  has_api_key: boolean;
+  description?: string | null;
+  is_active: boolean;
+  last_health_check?: string | null;
+  last_health_status?: HealthStatus | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentProviderCreate {
+  name: string;
+  api_url: string;
+  api_key: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface AgentProviderUpdate {
+  name?: string;
+  api_url?: string;
+  api_key?: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface ProviderHealthCheckResponse {
+  status: HealthStatus;
+  http_status?: number;
+  message?: string;
+  checked_at: string;
+}
+
+export interface ProviderAgent {
+  id: string;
+  name?: string | null;
+  description?: string | null;
+}
+
+export interface ProviderTeam {
+  id: string;
+  name?: string | null;
+  description?: string | null;
 }

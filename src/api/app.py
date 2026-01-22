@@ -280,6 +280,21 @@ async def lifespan(app: FastAPI):
                 logger.debug(f"Auto-discovery error details: {str(e)}")
                 logger.info("Continuing without auto-discovery - instances can be created manually")
 
+            # Auto-discover agent providers from existing instance configurations
+            # This creates reusable provider configs from instances that already have credentials
+            try:
+                from src.services.provider_service import provider_service
+
+                with SessionLocal() as db:
+                    created_providers = provider_service.auto_discover_providers(db)
+                    if created_providers:
+                        logger.info(
+                            f"✅ Auto-discovered {len(created_providers)} agent provider(s) from existing instances"
+                        )
+            except Exception as e:
+                logger.warning(f"Agent provider auto-discovery failed: {e}")
+                # Continue - providers can be created manually
+
             # Schedule delayed re-discovery to catch Evolution after it starts
             # This ensures webhook URLs are synced even if initial discovery failed
             async def delayed_discovery_and_webhook_sync():
@@ -298,6 +313,14 @@ async def lifespan(app: FastAPI):
                             logger.info(f"Delayed discovery found {len(discovered)} instances - webhooks synced")
                         else:
                             logger.debug("Delayed discovery found no instances")
+
+                    # Also re-run provider auto-discovery after delayed Evolution discovery
+                    from src.services.provider_service import provider_service
+
+                    with SessionLocal() as db:
+                        created_providers = provider_service.auto_discover_providers(db)
+                        if created_providers:
+                            logger.info(f"Delayed provider discovery created {len(created_providers)} provider(s)")
                 except Exception as e:
                     logger.warning(f"Delayed discovery failed: {e}")
 
@@ -430,6 +453,11 @@ app.include_router(sync_router, prefix="/api/v1", tags=["Sync"])
 from src.api.routes.mcp import router as mcp_router
 
 app.include_router(mcp_router, prefix="/api/v1", tags=["MCP"])
+
+# Include agent providers management routes
+from src.api.routes.providers import router as providers_router
+
+app.include_router(providers_router, prefix="/api/v1", tags=["providers"])
 
 # Note: MCP server now runs as standalone service on port 28882
 # Gateway proxies /mcp requests directly to standalone MCP server

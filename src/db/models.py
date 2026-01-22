@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Boolean,
     DateTime,
+    Text,
     ForeignKey,
     UniqueConstraint,
     CheckConstraint,
@@ -17,6 +18,36 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from .database import Base
 from src.utils.datetime_utils import datetime_utcnow
+
+
+class AgentProvider(Base):
+    """
+    Reusable Agent Provider configuration.
+    Stores API credentials that can be shared across multiple instances.
+    """
+
+    __tablename__ = "omni_agent_providers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False, index=True)  # Display name
+    api_url = Column(Text, nullable=False)  # Base API URL
+    api_key = Column(Text, nullable=False)  # API authentication key
+    description = Column(Text, nullable=True)  # Optional description
+    is_active = Column(Boolean, default=True, nullable=False)  # Enable/disable
+
+    # Health check tracking
+    last_health_check = Column(DateTime, nullable=True)
+    last_health_status = Column(String(20), nullable=True)  # 'healthy', 'unhealthy', 'unknown'
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
+
+    # Relationships
+    instances = relationship("InstanceConfig", back_populates="agent_provider")
+
+    def __repr__(self):
+        return f"<AgentProvider(name='{self.name}', is_active={self.is_active})>"
 
 
 class InstanceConfig(Base):
@@ -58,8 +89,15 @@ class InstanceConfig(Base):
     # slack_bot_token = Column(String, nullable=True)
     # slack_workspace = Column(String, nullable=True)
 
+    # Agent Provider relationship (optional - allows sharing credentials across instances)
+    agent_provider_id = Column(
+        Integer, ForeignKey("omni_agent_providers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    agent_provider = relationship("AgentProvider", back_populates="instances")
+
     # Agno Agent API configuration
     # Made optional for wizard flow - can be configured later via settings
+    # When agent_provider_id is set, these values are overridden by the provider
     agent_api_url = Column(String, nullable=True)  # Optional - configure later
     agent_api_key = Column(String, nullable=True)  # Optional - configure later
     agent_id = Column(
@@ -141,12 +179,24 @@ class InstanceConfig(Base):
         self.evolution_key = value
 
     def get_agent_config(self) -> dict:
-        """Get agent configuration as dictionary."""
+        """Get agent configuration as dictionary.
+
+        If an agent_provider is linked, its credentials take precedence over
+        the instance-level agent_api_url and agent_api_key.
+        """
         agent_identifier = self.agent_id or "default"
 
+        # Use provider credentials if available
+        if self.agent_provider and self.agent_provider.is_active:
+            api_url = self.agent_provider.api_url
+            api_key = self.agent_provider.api_key
+        else:
+            api_url = self.agent_api_url
+            api_key = self.agent_api_key
+
         config = {
-            "api_url": self.agent_api_url,
-            "api_key": self.agent_api_key,
+            "api_url": api_url,
+            "api_key": api_key,
             "agent_id": agent_identifier,
             "name": agent_identifier,
             "agent_type": self.agent_type or "agent",

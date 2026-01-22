@@ -10,6 +10,7 @@ import { api, GlobalSetting, formatDateTime } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { DatabaseConfigSection } from '@/components/database';
+import { ProviderList } from '@/components/providers';
 import { Settings as SettingsIcon, Save, Eye, EyeOff, History, RefreshCw } from 'lucide-react';
 import {
   Dialog,
@@ -154,6 +155,9 @@ export default function GlobalSettings() {
           <div className="p-8 space-y-6 animate-fade-in max-w-6xl">
             {/* Database Configuration Section */}
             <DatabaseConfigSection />
+
+            {/* Agent Providers Section */}
+            <ProviderList />
 
             {isLoading ? (
               <div className="flex items-center justify-center p-12">

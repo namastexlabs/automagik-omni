@@ -166,6 +166,9 @@ class InstanceConfigUpdate(BaseModel):
     discord_voice_enabled: Optional[bool] = None
     discord_slash_commands_enabled: Optional[bool] = None
 
+    # Agent provider (for shared credentials)
+    agent_provider_id: Optional[int] = Field(default=None, description="ID of agent provider to use (null to clear)")
+
     agent_api_url: Optional[HttpUrl] = None
     agent_api_key: Optional[str] = None
     agent_id: Optional[str] = None
@@ -220,6 +223,9 @@ class InstanceConfigResponse(BaseModel):
     discord_default_channel_id: Optional[str] = None
     discord_voice_enabled: Optional[bool] = None
     discord_slash_commands_enabled: Optional[bool] = None
+
+    # Agent provider (for shared credentials)
+    agent_provider_id: Optional[int] = None
 
     agent_api_url: Optional[str] = None
     agent_api_key: Optional[str] = None
@@ -488,6 +494,7 @@ async def list_instances(
             "whatsapp_instance": instance.whatsapp_instance,
             "session_id_prefix": instance.session_id_prefix,
             "webhook_base64": instance.webhook_base64,
+            "agent_provider_id": getattr(instance, "agent_provider_id", None),
             "agent_api_url": instance.agent_api_url,
             "agent_api_key": instance.agent_api_key,
             "agent_id": getattr(instance, "agent_id", None),
@@ -603,6 +610,7 @@ async def get_instance(
         "whatsapp_instance": instance.whatsapp_instance,
         "session_id_prefix": instance.session_id_prefix,
         "webhook_base64": instance.webhook_base64,
+        "agent_provider_id": getattr(instance, "agent_provider_id", None),
         "agent_api_url": instance.agent_api_url,
         "agent_api_key": instance.agent_api_key,
         "agent_id": getattr(instance, "agent_id", None),
@@ -712,7 +720,15 @@ async def update_instance(
         )
 
     # Get only provided fields (exclude None values from update)
+    # But allow agent_provider_id to be explicitly set to None (to clear it)
     update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
+
+    # Special handling: if agent_provider_id was explicitly provided (even if None),
+    # include it in the update to allow clearing the provider reference
+    raw_data = update_data.model_dump(exclude_unset=True)
+    if "agent_provider_id" in raw_data and raw_data["agent_provider_id"] is None:
+        update_dict["agent_provider_id"] = None
+
     # Coerce AnyUrl/HttpUrl to plain strings for DB compatibility
     for key, value in list(update_dict.items()):
         if isinstance(value, AnyUrl):

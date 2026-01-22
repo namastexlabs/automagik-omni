@@ -1452,6 +1452,130 @@ export const api = {
       });
     },
   },
+
+  // Agent Providers API
+  providers: {
+    async list(includeInactive?: boolean): Promise<
+      Array<{
+        id: number;
+        name: string;
+        api_url: string;
+        has_api_key: boolean;
+        description: string | null;
+        is_active: boolean;
+        last_health_check: string | null;
+        last_health_status: string | null;
+        created_at: string;
+        updated_at: string;
+      }>
+    > {
+      const params = includeInactive ? '?include_inactive=true' : '';
+      return apiRequest(`/providers${params}`);
+    },
+
+    async get(id: number): Promise<{
+      id: number;
+      name: string;
+      api_url: string;
+      has_api_key: boolean;
+      description: string | null;
+      is_active: boolean;
+      last_health_check: string | null;
+      last_health_status: string | null;
+      created_at: string;
+      updated_at: string;
+    }> {
+      return apiRequest(`/providers/${id}`);
+    },
+
+    async create(data: {
+      name: string;
+      api_url: string;
+      api_key: string;
+      description?: string;
+      is_active?: boolean;
+    }): Promise<{
+      id: number;
+      name: string;
+      api_url: string;
+      has_api_key: boolean;
+      description: string | null;
+      is_active: boolean;
+      last_health_check: string | null;
+      last_health_status: string | null;
+      created_at: string;
+      updated_at: string;
+    }> {
+      return apiRequest('/providers', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async update(
+      id: number,
+      data: {
+        name?: string;
+        api_url?: string;
+        api_key?: string;
+        description?: string;
+        is_active?: boolean;
+      },
+    ): Promise<{
+      id: number;
+      name: string;
+      api_url: string;
+      has_api_key: boolean;
+      description: string | null;
+      is_active: boolean;
+      last_health_check: string | null;
+      last_health_status: string | null;
+      created_at: string;
+      updated_at: string;
+    }> {
+      return apiRequest(`/providers/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async delete(id: number): Promise<{ message: string }> {
+      return apiRequest(`/providers/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    async checkHealth(id: number): Promise<{
+      status: 'healthy' | 'unhealthy' | 'unknown';
+      http_status?: number;
+      message?: string;
+      checked_at: string;
+    }> {
+      return apiRequest(`/providers/${id}/health`, {
+        method: 'POST',
+      });
+    },
+
+    async fetchAgents(id: number): Promise<
+      Array<{
+        id: string;
+        name: string | null;
+        description: string | null;
+      }>
+    > {
+      return apiRequest(`/providers/${id}/agents`);
+    },
+
+    async fetchTeams(id: number): Promise<
+      Array<{
+        id: string;
+        name: string | null;
+        description: string | null;
+      }>
+    > {
+      return apiRequest(`/providers/${id}/teams`);
+    },
+  },
 };
 
 // WhatsApp Web API helper (uses Evolution protocol under the hood)
