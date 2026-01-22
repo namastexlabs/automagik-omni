@@ -719,11 +719,7 @@ class DiscordBotManager:
             agent_config = None
             if instance_config:
                 # Get agent_id properly from instance config
-                agent_id = (
-                    instance_config.agent_id
-                    if instance_config.agent_id and instance_config.agent_id != "default"
-                    else instance_config.default_agent
-                )
+                agent_id = instance_config.agent_id if instance_config.agent_id else "default"
                 if not agent_id:
                     agent_id = "default"
 

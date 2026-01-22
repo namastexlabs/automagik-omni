@@ -295,20 +295,20 @@ class MessageRouter:
                         name,
                         agent_api_url,
                         agent_api_key,
-                        default_agent,
+                        agent_id,
                         agent_timeout,
                     ):
                         self.name = name
                         self.agent_api_url = agent_api_url
                         self.agent_api_key = agent_api_key
-                        self.default_agent = default_agent
+                        self.agent_id = agent_id
                         self.agent_timeout = agent_timeout
 
                 instance_override = InstanceConfig(
                     name=agent_config.get("name", "unknown"),
                     agent_api_url=agent_config.get("api_url"),
                     agent_api_key=agent_config.get("api_key"),
-                    default_agent=agent_config.get("name"),
+                    agent_id=agent_config.get("name"),
                     agent_timeout=agent_config.get("timeout", 60),
                 )
                 instance_agent_client = AgentApiClient(config_override=instance_override)

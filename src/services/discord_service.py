@@ -318,7 +318,7 @@ class DiscordService:
                             "has_token": bool(instance.discord_bot_token),
                             "is_running": instance.name in self._running_instances,
                             "agent_api_url": instance.agent_api_url,
-                            "default_agent": instance.default_agent,
+                            "agent_id": instance.agent_id,
                         }
                     )
 

@@ -67,7 +67,7 @@ class InstanceConfig(BaseModel):
     integration: Optional[str] = None
     agent_api_url: Optional[str] = None
     agent_api_key: Optional[str] = None
-    default_agent: Optional[str] = None
+    agent_id: Optional[str] = None
     agent_timeout: Optional[int] = 60
     is_default: Optional[bool] = False
     is_active: Optional[bool] = True
