@@ -34,7 +34,7 @@ class TestMentionsIntegration:
         config.whatsapp_instance = "test-whatsapp-instance"
         config.agent_api_url = "https://test-agent.com"
         config.agent_api_key = "test-agent-key"
-        config.default_agent = "test-agent"
+        config.agent_id = "test-agent"
         config.enable_auto_split = True
         return config
 
