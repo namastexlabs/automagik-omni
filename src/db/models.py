@@ -91,6 +91,12 @@ class InstanceConfig(Base):
     # Message splitting control
     enable_auto_split = Column(Boolean, default=True, nullable=False)  # Auto-split messages on \n\n
 
+    # Message debounce configuration
+    message_debounce_seconds = Column(Integer, default=0, nullable=False)  # 0 = disabled
+
+    # Disable username prefix on messages to agent
+    disable_username_prefix = Column(Boolean, default=False, nullable=False)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)

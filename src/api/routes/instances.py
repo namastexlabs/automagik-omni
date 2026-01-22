@@ -110,6 +110,20 @@ class InstanceConfigCreate(BaseModel):
         description="Enable automatic message splitting on \\n\\n (WhatsApp: full control, Discord: preference only)",
     )
 
+    # Message debounce configuration
+    message_debounce_seconds: Optional[int] = Field(
+        default=0,
+        ge=0,
+        le=300,
+        description="Buffer incoming messages for this duration before sending to agent (0 = disabled)",
+    )
+
+    # Disable username prefix on messages to agent
+    disable_username_prefix: Optional[bool] = Field(
+        default=False,
+        description="Don't prepend [username]: to messages sent to agent",
+    )
+
     @model_validator(mode="before")
     @classmethod
     def auto_fill_whatsapp_defaults(cls, data: Any) -> Any:
@@ -177,6 +191,12 @@ class InstanceConfigUpdate(BaseModel):
     # Message splitting control
     enable_auto_split: Optional[bool] = None
 
+    # Message debounce configuration
+    message_debounce_seconds: Optional[int] = Field(default=None, ge=0, le=300)
+
+    # Disable username prefix on messages to agent
+    disable_username_prefix: Optional[bool] = None
+
 
 class WhatsAppWebStatusInfo(BaseModel):
     """Schema for WhatsApp Web API connection status information."""
@@ -242,6 +262,12 @@ class InstanceConfigResponse(BaseModel):
 
     # Message splitting control
     enable_auto_split: Optional[bool] = None
+
+    # Message debounce configuration
+    message_debounce_seconds: Optional[int] = None
+
+    # Disable username prefix on messages to agent
+    disable_username_prefix: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -502,6 +528,8 @@ async def list_instances(
             "agent_type": getattr(instance, "agent_type", None),
             "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
             "enable_auto_split": instance.enable_auto_split,
+            "message_debounce_seconds": getattr(instance, "message_debounce_seconds", 0),
+            "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
             # SECURITY FIX: Use boolean indicator instead of exposing token
             "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
             "discord_client_id": getattr(instance, "discord_client_id", None),
@@ -619,6 +647,8 @@ async def get_instance(
         "agent_type": getattr(instance, "agent_type", None),
         "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
         "enable_auto_split": instance.enable_auto_split,
+        "message_debounce_seconds": getattr(instance, "message_debounce_seconds", 0),
+        "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
         # SECURITY FIX: Use boolean indicator instead of exposing token
         "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
         "discord_client_id": getattr(instance, "discord_client_id", None),

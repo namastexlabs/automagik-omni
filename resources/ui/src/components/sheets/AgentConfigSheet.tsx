@@ -25,6 +25,8 @@ interface AgentConfigForm {
   agent_timeout: number;
   agent_stream_mode: boolean;
   enable_auto_split: boolean;
+  message_debounce_seconds: number;
+  disable_username_prefix: boolean;
 }
 
 const defaultConfig: AgentConfigForm = {
@@ -34,6 +36,8 @@ const defaultConfig: AgentConfigForm = {
   agent_timeout: 60,
   agent_stream_mode: false,
   enable_auto_split: true,
+  message_debounce_seconds: 0,
+  disable_username_prefix: false,
 };
 
 export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConfigSheetProps) {
@@ -60,6 +64,8 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
         agent_timeout: instance.agent_timeout || 60,
         agent_stream_mode: instance.agent_stream_mode || false,
         enable_auto_split: instance.enable_auto_split ?? true,
+        message_debounce_seconds: instance.message_debounce_seconds ?? 0,
+        disable_username_prefix: instance.disable_username_prefix ?? false,
       });
       setHasChanges(false);
       setError(null);
@@ -89,6 +95,8 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
       agent_timeout: form.agent_timeout,
       agent_stream_mode: form.agent_stream_mode,
       enable_auto_split: form.enable_auto_split,
+      message_debounce_seconds: form.message_debounce_seconds,
+      disable_username_prefix: form.disable_username_prefix,
       // Always use hive as the agent instance type
       agent_instance_type: 'hive',
     };
@@ -227,6 +235,42 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
                         id="enable_auto_split"
                         checked={form.enable_auto_split}
                         onCheckedChange={(checked) => updateForm('enable_auto_split', checked)}
+                      />
+                    </div>
+
+                    {/* Message Debounce Timer */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="message_debounce_seconds" className="text-sm">
+                        Message Debounce (seconds)
+                      </Label>
+                      <Input
+                        id="message_debounce_seconds"
+                        type="number"
+                        min={0}
+                        max={300}
+                        value={form.message_debounce_seconds}
+                        onChange={(e) => updateForm('message_debounce_seconds', parseInt(e.target.value) || 0)}
+                        className="h-9 w-32"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Buffer messages for this duration before sending to agent. 0 = disabled.
+                      </p>
+                    </div>
+
+                    {/* Disable Username Prefix */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="disable_username_prefix" className="text-sm">
+                          Disable username prefix
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Don't prepend [username]: to messages
+                        </p>
+                      </div>
+                      <Switch
+                        id="disable_username_prefix"
+                        checked={form.disable_username_prefix}
+                        onCheckedChange={(checked) => updateForm('disable_username_prefix', checked)}
                       />
                     </div>
                   </div>

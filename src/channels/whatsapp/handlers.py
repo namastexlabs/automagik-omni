@@ -9,6 +9,7 @@ import logging
 import threading
 import time
 from typing import Dict, Any, Optional, List
+from collections import defaultdict
 import queue
 import requests
 import json
@@ -42,6 +43,14 @@ class WhatsAppMessageHandler:
         self.send_response_callback = send_response_callback
         self.audio_transcriber = AudioTranscriptionService()
 
+        # Debounce management (per-instance, per-user)
+        # Structure: {instance_name: {user_key: [messages]}}
+        self._debounce_buffers: Dict[str, Dict[str, List[Dict]]] = defaultdict(lambda: defaultdict(list))
+        # Structure: {instance_name: {user_key: Timer}}
+        self._debounce_timers: Dict[str, Dict[str, threading.Timer]] = defaultdict(dict)
+        # Structure: {instance_name: Lock}
+        self._debounce_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+
     def start(self):
         """Start the message processing thread."""
         if self.processing_thread is None or not self.processing_thread.is_alive():
@@ -56,16 +65,166 @@ class WhatsAppMessageHandler:
         if self.processing_thread and self.processing_thread.is_alive():
             self.processing_thread.join(timeout=5.0)
 
-    def handle_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
-        """Queue a message for processing."""
-        # Add instance config and trace context to the message for processing
-        message_with_config = {
-            "message": message,
-            "instance_config": instance_config,
-            "trace_context": trace_context,
+        # Cancel all pending debounce timers
+        for instance_timers in self._debounce_timers.values():
+            for timer in instance_timers.values():
+                timer.cancel()
+
+    def _get_user_key(self, message: Dict[str, Any]) -> str:
+        """Extract user key (remoteJid) from message for per-user debounce buffering."""
+        data = message.get("data", {})
+        if "key" in data and "remoteJid" in data["key"]:
+            return data["key"]["remoteJid"]
+        return message.get("sender", "unknown")
+
+    def _buffer_message(self, message: Dict[str, Any], instance_config, trace_context, debounce_seconds: int):
+        """Buffer a message and start/restart the debounce timer.
+
+        Args:
+            message: The WhatsApp message data
+            instance_config: Instance configuration
+            trace_context: TraceContext for message lifecycle tracking
+            debounce_seconds: Number of seconds to wait before flushing
+        """
+        instance_name = instance_config.name if instance_config else "default"
+        user_key = self._get_user_key(message)
+
+        with self._debounce_locks[instance_name]:
+            # Add message to buffer
+            self._debounce_buffers[instance_name][user_key].append(
+                {
+                    "message": message,
+                    "instance_config": instance_config,
+                    "trace_context": trace_context,
+                }
+            )
+
+            # Cancel existing timer if any
+            if user_key in self._debounce_timers[instance_name]:
+                self._debounce_timers[instance_name][user_key].cancel()
+
+            # Start new timer
+            timer = threading.Timer(debounce_seconds, self._flush_user_buffer, args=(instance_name, user_key))
+            timer.daemon = True
+            timer.start()
+            self._debounce_timers[instance_name][user_key] = timer
+
+            buffer_count = len(self._debounce_buffers[instance_name][user_key])
+            logger.debug(
+                f"Buffered message for {user_key} (instance: {instance_name}), "
+                f"buffer size: {buffer_count}, timer: {debounce_seconds}s"
+            )
+
+    def _flush_user_buffer(self, instance_name: str, user_key: str):
+        """Flush the debounce buffer for a user and queue aggregated message.
+
+        This is called when the debounce timer expires.
+        """
+        with self._debounce_locks[instance_name]:
+            # Get and clear the buffer
+            buffered_messages = self._debounce_buffers[instance_name].pop(user_key, [])
+
+            # Clean up timer reference
+            self._debounce_timers[instance_name].pop(user_key, None)
+
+        if not buffered_messages:
+            return
+
+        logger.info(f"Flushing {len(buffered_messages)} buffered messages for {user_key}")
+
+        # Aggregate messages
+        aggregated = self._aggregate_messages(buffered_messages)
+
+        # Queue the aggregated message for processing
+        self.message_queue.put(aggregated)
+
+    def _aggregate_messages(self, buffered_messages: List[Dict]) -> Dict:
+        """Aggregate multiple buffered messages into a single message.
+
+        Args:
+            buffered_messages: List of message dicts with message, instance_config, trace_context
+
+        Returns:
+            Single aggregated message dict ready for processing
+        """
+        if len(buffered_messages) == 1:
+            return buffered_messages[0]
+
+        # Use the first message as the base
+        first = buffered_messages[0]
+        last = buffered_messages[-1]
+
+        # Create aggregated message based on first message structure
+        aggregated_message = first["message"].copy()
+        aggregated_data = aggregated_message.get("data", {}).copy()
+
+        # Extract text content from all messages
+        text_parts = []
+        for buf_msg in buffered_messages:
+            msg = buf_msg["message"]
+            msg_data = msg.get("data", {})
+            msg_obj = msg_data.get("message", {})
+
+            text = ""
+            if isinstance(msg_obj, dict):
+                if "conversation" in msg_obj:
+                    text = msg_obj["conversation"]
+                elif "extendedTextMessage" in msg_obj:
+                    text = msg_obj["extendedTextMessage"].get("text", "")
+                elif "imageMessage" in msg_obj:
+                    text = msg_obj["imageMessage"].get("caption", "")
+                elif "videoMessage" in msg_obj:
+                    text = msg_obj["videoMessage"].get("caption", "")
+                elif "documentMessage" in msg_obj:
+                    text = msg_obj["documentMessage"].get("caption", "")
+
+            if text:
+                text_parts.append(text)
+
+        # Combine text with separator
+        aggregated_text = "\n---\n".join(text_parts)
+
+        # Update the message object with aggregated text
+        if "message" in aggregated_data:
+            msg_obj = aggregated_data["message"].copy() if isinstance(aggregated_data.get("message"), dict) else {}
+            # Set as conversation type for simplicity
+            msg_obj["conversation"] = aggregated_text
+            # Remove other text fields to avoid confusion
+            msg_obj.pop("extendedTextMessage", None)
+            aggregated_data["message"] = msg_obj
+        else:
+            aggregated_data["message"] = {"conversation": aggregated_text}
+
+        aggregated_message["data"] = aggregated_data
+
+        logger.info(f"Aggregated {len(buffered_messages)} messages into single message")
+
+        # Use last message's trace context (most recent)
+        return {
+            "message": aggregated_message,
+            "instance_config": first["instance_config"],
+            "trace_context": last["trace_context"],
         }
-        self.message_queue.put(message_with_config)
-        logger.debug(f"Message queued for processing: {message.get('event')}")
+
+    def handle_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
+        """Queue a message for processing, with optional debounce buffering."""
+        # Check if debounce is enabled for this instance
+        debounce_seconds = getattr(instance_config, "message_debounce_seconds", 0) if instance_config else 0
+
+        if debounce_seconds > 0:
+            # Buffer the message with debounce
+            self._buffer_message(message, instance_config, trace_context, debounce_seconds)
+            logger.debug(f"Message buffered for debounce ({debounce_seconds}s): {message.get('event')}")
+        else:
+            # No debounce - queue directly
+            message_with_config = {
+                "message": message,
+                "instance_config": instance_config,
+                "trace_context": trace_context,
+            }
+            self.message_queue.put(message_with_config)
+            logger.debug(f"Message queued for processing: {message.get('event')}")
+
         if instance_config:
             logger.debug(f"Using instance config: {instance_config.name} -> Agent: {instance_config.default_agent}")
         if trace_context:
@@ -296,14 +455,21 @@ class WhatsAppMessageHandler:
                     message_content = f"{quoted_context}\n\n{message_content}"
                     logger.info("Added quoted message context to message content")
 
-                # Prepend user name to message content if available
-                if user_name and message_content:
-                    message_content = f"[{user_name}]: {message_content}"
-                    logger.info("Appended user name to message content")
-                elif user_name and not message_content:
-                    # For media messages without text content
-                    message_content = f"[{user_name}]: "
-                    logger.info("Added user name prefix for media message")
+                # Prepend user name to message content if available (unless disabled)
+                disable_prefix = (
+                    getattr(instance_config, "disable_username_prefix", False) if instance_config else False
+                )
+
+                if not disable_prefix:
+                    if user_name and message_content:
+                        message_content = f"[{user_name}]: {message_content}"
+                        logger.info("Appended user name to message content")
+                    elif user_name and not message_content:
+                        # For media messages without text content
+                        message_content = f"[{user_name}]: "
+                        logger.info("Added user name prefix for media message")
+                else:
+                    logger.debug("Username prefix disabled for this instance")
 
                 # ================= Media Handling (Images, Videos, Documents) =================
                 media_contents_to_send: Optional[List[Dict[str, Any]]] = None

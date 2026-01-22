@@ -74,6 +74,12 @@ export interface InstanceConfig {
 
   // Additional features
   enable_auto_split?: boolean;
+
+  // Message debounce configuration
+  message_debounce_seconds?: number;
+
+  // Disable username prefix on messages to agent
+  disable_username_prefix?: boolean;
 }
 
 export interface InstanceCreateRequest {
@@ -123,6 +129,8 @@ export interface InstanceUpdateRequest {
   agent_timeout?: number;
   agent_stream_mode?: boolean;
   enable_auto_split?: boolean;
+  message_debounce_seconds?: number;
+  disable_username_prefix?: boolean;
 }
 
 // Contact Types
