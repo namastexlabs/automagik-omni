@@ -40,6 +40,8 @@ class OmniEvolutionClient(EvolutionClient):
         """
         Fetch chats/conversations for an instance with client-side pagination.
 
+        DEPRECATED: Use fetch_chats_paginated() for proper server-side pagination.
+
         Evolution API pagination may not work reliably, so we fetch all chats
         and implement client-side pagination for consistent behavior.
 
@@ -57,6 +59,69 @@ class OmniEvolutionClient(EvolutionClient):
 
         # Apply client-side pagination
         return self._apply_pagination(response, page, page_size)
+
+    async def fetch_chats_paginated(self, instance_name: str, page: int = 1, page_size: int = 50) -> Dict[str, Any]:
+        """
+        Fetch chats for an instance using Evolution API's native server-side pagination.
+
+        This is more efficient than fetch_chats() as it only fetches the requested page
+        from the database, rather than fetching all chats and paginating client-side.
+
+        Args:
+            instance_name: Name of the instance
+            page: Page number (1-based)
+            page_size: Number of items per page
+
+        Returns:
+            Dictionary with chats, pagination metadata, and total count
+        """
+        # Evolution API uses Prisma-style pagination: take (limit) and skip (offset)
+        # POST /chat/findChats/{instance}
+        # Body: {"take": N, "skip": M}
+        skip = (page - 1) * page_size
+        payload = {
+            "take": page_size,
+            "skip": skip,
+        }
+        response = await self._request(
+            "POST",
+            f"/chat/findChats/{quote(instance_name, safe='')}",
+            json=payload,
+        )
+
+        # Evolution returns a plain array - wrap with pagination metadata
+        # We need to get total count separately
+        total = await self._get_chats_count(instance_name)
+
+        if isinstance(response, list):
+            return {
+                "records": response,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            }
+        return response
+
+    async def _get_chats_count(self, instance_name: str) -> int:
+        """Get total count of chats for an instance by querying the database directly."""
+        try:
+            # Query database directly for accurate count
+            from src.db.database import get_db
+            from sqlalchemy import text
+
+            db = next(get_db())
+            query = text("""
+                SELECT COUNT(*) as count
+                FROM "evo_Contact" c
+                JOIN "evo_Instance" i ON c."instanceId" = i.id
+                WHERE i.name = :instance_name
+            """)
+            result = db.execute(query, {"instance_name": instance_name})
+            row = result.fetchone()
+            return row.count if row else 0
+        except Exception as e:
+            logger.warning(f"Failed to get chats count for {instance_name}: {e}")
+            return 0
 
     async def fetch_messages(
         self, instance_name: str, chat_id: str, page: int = 1, page_size: int = 50, limit: int = 100

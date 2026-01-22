@@ -231,18 +231,35 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
 
             evolution_client = self._get_omni_evolution_client(instance)
 
-            # Fetch ALL chats from Evolution API (pagination will be applied after filtering)
-            chats_response = await evolution_client.fetch_chats(instance_name=instance.name, page=1, page_size=10000)
+            # Use server-side pagination for proper totals
+            # Note: When filters are applied, we need to fetch more data and filter client-side
+            if chat_type_filter or archived is not None:
+                # Filters require client-side processing - fetch more chats
+                chats_response = await evolution_client.fetch_chats(
+                    instance_name=instance.name, page=1, page_size=10000
+                )
+            else:
+                # No filters - use efficient server-side pagination
+                chats_response = await evolution_client.fetch_chats_paginated(
+                    instance_name=instance.name, page=page, page_size=page_size
+                )
 
-            logger.debug(f"Evolution API chats response: {chats_response}")
+            logger.debug(
+                f"Evolution API chats response type: {type(chats_response)}, keys: {chats_response.keys() if isinstance(chats_response, dict) else 'N/A'}"
+            )
 
-            # Parse response and collect all chats for filtering
+            # Parse response and collect chats
             all_chats = []
+            api_total = None  # Total from API for server-side pagination
 
             # Evolution client returns dict with pagination metadata
             if isinstance(chats_response, dict):
-                # Get chat list from response
-                chat_list = chats_response.get("chats", chats_response.get("data", []))
+                # Get chat list from response - server-side pagination uses 'records'
+                chat_list = chats_response.get("records", chats_response.get("chats", chats_response.get("data", [])))
+                # Get total from API response if available (server-side pagination)
+                api_total = chats_response.get("total")
+                if api_total:
+                    logger.debug(f"Evolution API reports total: {api_total} chats")
             elif isinstance(chats_response, list):
                 # Fallback for direct list response
                 chat_list = chats_response
@@ -250,7 +267,8 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
             else:
                 chat_list = []
 
-            # Transform and filter chats
+            # Transform and optionally filter chats
+            using_client_side_pagination = chat_type_filter or archived is not None
             if isinstance(chat_list, list):
                 for chat_data in chat_list:
                     try:
@@ -264,7 +282,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                         if not chat_data.get("id"):
                             chat_data["id"] = ""
 
-                        # Apply chat type filter if provided (pre-pagination filtering)
+                        # Apply chat type filter if provided (only for client-side pagination)
                         # CRITICAL: Filter logic must match transformer logic in omni_transformers.py
                         # - @g.us = group
                         # - @broadcast = channel
@@ -282,7 +300,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                             elif chat_type_filter == "channel" and not is_channel:
                                 continue
 
-                        # Apply archived filter if provided (pre-pagination filtering)
+                        # Apply archived filter if provided (only for client-side pagination)
                         if archived is not None and chat_data.get("isArchived", False) != archived:
                             continue
 
@@ -292,11 +310,17 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                         logger.warning(f"Failed to transform chat data: {e}")
                         continue
 
-            # Apply pagination to filtered results
-            total_count = len(all_chats)
-            start_idx = (page - 1) * page_size
-            end_idx = start_idx + page_size
-            chats = all_chats[start_idx:end_idx]
+            # Determine final results based on pagination method
+            if using_client_side_pagination:
+                # Client-side pagination: apply pagination to filtered results
+                total_count = len(all_chats)
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                chats = all_chats[start_idx:end_idx]
+            else:
+                # Server-side pagination: use API total, data is already paginated
+                chats = all_chats
+                total_count = api_total if api_total is not None else len(all_chats)
 
             logger.info(
                 f"Successfully fetched {len(chats)} WhatsApp chats (total: {total_count}) for instance {instance.name}"
