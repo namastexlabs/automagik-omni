@@ -10,7 +10,18 @@ import { api, getApiKey, formatDateTime } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Settings as SettingsIcon, Key, Info, Moon, Sun, Database, ArrowRight, FileText, Copy, Check } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  Key,
+  Info,
+  Moon,
+  Sun,
+  Database,
+  ArrowRight,
+  FileText,
+  Copy,
+  Check,
+} from 'lucide-react';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -84,11 +95,7 @@ export default function Settings() {
                         onClick={handleCopyApiKey}
                         title="Copy API key"
                       >
-                        {copied ? (
-                          <Check className="h-3.5 w-3.5 text-green-500" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
+                        {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
                       </Button>
                     )}
                   </div>
@@ -202,9 +209,7 @@ export default function Settings() {
             {/* Footer */}
             <div className="pt-6 pb-4">
               <Separator className="mb-4" />
-              <p className="text-xs text-center text-muted-foreground">
-                Omni - Unified Multi-Channel Messaging Hub
-              </p>
+              <p className="text-xs text-center text-muted-foreground">Omni - Unified Multi-Channel Messaging Hub</p>
             </div>
           </div>
         </div>

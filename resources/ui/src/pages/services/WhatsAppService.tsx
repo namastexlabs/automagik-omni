@@ -353,13 +353,9 @@ export default function WhatsAppService() {
       <Dialog open={wizardOpen} onOpenChange={handleWizardClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {wizardStep === 'name' ? 'Name Your Connection' : 'Connect WhatsApp'}
-            </DialogTitle>
+            <DialogTitle>{wizardStep === 'name' ? 'Name Your Connection' : 'Connect WhatsApp'}</DialogTitle>
             <DialogDescription>
-              {wizardStep === 'name'
-                ? 'Give your WhatsApp connection a unique name'
-                : 'Scan the QR code to connect'}
+              {wizardStep === 'name' ? 'Give your WhatsApp connection a unique name' : 'Scan the QR code to connect'}
             </DialogDescription>
           </DialogHeader>
 
@@ -383,21 +379,13 @@ export default function WhatsAppService() {
                   normalizeInstanceName(wizardNameInput) && (
                     <p className="text-xs text-muted-foreground text-center">
                       Will be saved as:{' '}
-                      <span className="font-mono font-medium">
-                        {normalizeInstanceName(wizardNameInput)}
-                      </span>
+                      <span className="font-mono font-medium">{normalizeInstanceName(wizardNameInput)}</span>
                     </p>
                   )}
-                {wizardNameError && (
-                  <p className="text-xs text-destructive text-center">{wizardNameError}</p>
-                )}
+                {wizardNameError && <p className="text-xs text-destructive text-center">{wizardNameError}</p>}
               </div>
               <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => handleWizardClose(false)}
-                  className="flex-1"
-                >
+                <Button variant="outline" onClick={() => handleWizardClose(false)} className="flex-1">
                   Cancel
                 </Button>
                 <Button onClick={handleWizardNameNext} className="flex-1">

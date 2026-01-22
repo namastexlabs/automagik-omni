@@ -227,10 +227,7 @@ export default function Mcp() {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
-        <PageHeader
-          title="MCP Configuration"
-          subtitle="Connect AI tools to Omni via Model Context Protocol"
-        />
+        <PageHeader title="MCP Configuration" subtitle="Connect AI tools to Omni via Model Context Protocol" />
 
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-background">

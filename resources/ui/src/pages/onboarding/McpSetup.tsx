@@ -234,8 +234,8 @@ export default function McpSetup() {
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect Your AI Tools</h2>
           <p className="text-gray-600">
-            Install Omni MCP server to your favorite AI coding assistants. Select your preferred connection
-            method and click Install.
+            Install Omni MCP server to your favorite AI coding assistants. Select your preferred connection method and
+            click Install.
           </p>
         </div>
 

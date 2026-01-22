@@ -263,9 +263,7 @@ export function AgentConfigSheet({ instanceName, open, onOpenChange }: AgentConf
                         <Label htmlFor="disable_username_prefix" className="text-sm">
                           Disable username prefix
                         </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Don't prepend [username]: to messages
-                        </p>
+                        <p className="text-xs text-muted-foreground">Don't prepend [username]: to messages</p>
                       </div>
                       <Switch
                         id="disable_username_prefix"

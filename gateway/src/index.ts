@@ -223,27 +223,33 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
         console.log('[Gateway] MCP server disabled (MCP_ENABLED=false)');
       }
 
-      // Channel startup behavior: on-demand by default, eager if EAGER_CHANNELS=true
-      if (processManager.isLazyModeEnabled()) {
-        console.log('[Gateway] On-demand mode (default) - channels start when user enables them');
-        console.log('[Gateway] Set EAGER_CHANNELS=true to auto-start channels at boot');
+      // Channel startup behavior:
+      // - After setup complete: auto-start enabled channels (production-friendly)
+      // - Set LAZY_CHANNELS=true to disable auto-start (development only)
+      const forceLazy = process.env.LAZY_CHANNELS === 'true';
+      if (forceLazy) {
+        console.log('[Gateway] Lazy mode forced (LAZY_CHANNELS=true) - channels start on-demand');
       } else {
-        console.log('[Gateway] Eager mode enabled - auto-starting all channels...');
-        // Start Evolution API (WhatsApp channel - optional, soft-fail like Discord)
-        try {
-          await processManager.startEvolution();
-        } catch (error) {
-          console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
-          console.warn('[Gateway] WhatsApp functionality will be unavailable');
-          console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
+        console.log('[Gateway] Setup complete - auto-starting enabled channels...');
+        // Start Evolution API (WhatsApp channel - optional, soft-fail)
+        if (processManager.isChannelEnabled('evolution')) {
+          try {
+            await processManager.startEvolution();
+          } catch (error) {
+            console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
+            console.warn('[Gateway] WhatsApp functionality will be unavailable');
+            console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
+          }
         }
 
-        // Start Discord service manager (optional but recommended)
-        try {
-          await processManager.startDiscord();
-        } catch (error) {
-          console.warn('[Gateway] Discord service failed to start, continuing without it');
-          console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
+        // Start Discord service manager (optional)
+        if (processManager.isChannelEnabled('discord')) {
+          try {
+            await processManager.startDiscord();
+          } catch (error) {
+            console.warn('[Gateway] Discord service failed to start, continuing without it');
+            console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
+          }
         }
       }
 

@@ -15,6 +15,7 @@ import logging
 import os
 import json
 import secrets
+import httpx
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,6 +26,7 @@ from src.db.database import get_db
 from src.db.models import SettingValueType, InstanceConfig
 from src.services.settings_service import settings_service
 from src.utils.instance_utils import normalize_instance_name
+from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,48 @@ def _update_env_file(key: str, value: str) -> None:
     # Write back with newline at end
     ENV_FILE_PATH.write_text("\n".join(lines) + "\n")
     logger.info(f"Updated .env: {key}={value}")
+
+
+async def _auto_start_channels():
+    """Auto-start enabled channels via gateway API.
+
+    Called after setup completes to ensure services are running
+    without requiring user intervention in production.
+    """
+    gateway_port = config.api.port  # Gateway runs on same port
+    gateway_url = f"http://127.0.0.1:{gateway_port}/gateway/channels"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Get list of channels and their status
+            response = await client.get(gateway_url)
+            if response.status_code != 200:
+                logger.warning(f"Could not get channel list from gateway: {response.status_code}")
+                return
+
+            data = response.json()
+            channels = data.get("channels", [])
+
+            # Start each enabled but not running channel
+            for channel in channels:
+                name = channel.get("name")
+                enabled = channel.get("enabled", False)
+                running = channel.get("running", False)
+
+                if enabled and not running:
+                    logger.info(f"Auto-starting channel: {name}")
+                    try:
+                        start_response = await client.post(f"{gateway_url}/{name}/start")
+                        if start_response.status_code == 200:
+                            logger.info(f"Successfully started channel: {name}")
+                        else:
+                            logger.warning(f"Failed to start channel {name}: {start_response.status_code}")
+                    except Exception as e:
+                        logger.warning(f"Error starting channel {name}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Could not auto-start channels: {e}")
+        # Don't fail setup completion if channel start fails
 
 
 def _write_pgserve_config(memory_mode: bool, data_dir: Optional[str], replication_url: Optional[str] = None):
@@ -485,6 +529,10 @@ async def complete_setup(db: Session = Depends(get_db)):
             _update_env_file("EVOLUTION_API_URL", "http://127.0.0.1:18082")
         except Exception as env_err:
             logger.warning(f"Could not write EVOLUTION_API_URL to .env: {env_err}")
+
+        # Auto-start enabled channels after setup completes
+        # This ensures services are running without user intervention in production
+        await _auto_start_channels()
 
         return SetupCompleteResponse(success=True, message="Setup marked as complete")
 
