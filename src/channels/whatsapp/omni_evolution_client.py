@@ -53,8 +53,9 @@ class OmniEvolutionClient(EvolutionClient):
         Returns:
             Dictionary with paginated chats and metadata
         """
-        # Try to fetch with pagination params, but don't rely on them working
-        payload: Dict[str, Any] = {"page": 1, "limit": 10000}  # Fetch all chats
+        # Evolution uses Prisma-style pagination: take (limit) and skip (offset)
+        # Fetch a large batch for client-side filtering
+        payload: Dict[str, Any] = {"take": 10000, "skip": 0}
         response = await self._request("POST", f"/chat/findChats/{quote(instance_name, safe='')}", json=payload)
 
         # Apply client-side pagination
