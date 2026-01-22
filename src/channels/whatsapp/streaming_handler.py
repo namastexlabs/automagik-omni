@@ -89,7 +89,6 @@ class WhatsAppStreamingHandler:
         logger.debug(f"Checking streaming for recipient {recipient}")
         logger.debug(f"Instance config type: {type(instance_config)}")
         logger.debug(f"Instance config name: {getattr(instance_config, 'name', 'N/A')}")
-        logger.debug(f"Instance agent_instance_type: {getattr(instance_config, 'agent_instance_type', 'N/A')}")
         logger.debug(f"Instance agent_stream_mode: {getattr(instance_config, 'agent_stream_mode', 'N/A')}")
         logger.debug(f"Instance agent_id: {getattr(instance_config, 'agent_id', 'N/A')}")
 
@@ -97,7 +96,7 @@ class WhatsAppStreamingHandler:
         logger.debug(f"should_use_streaming returned: {should_stream}")
 
         if should_stream:
-            logger.info(f"Using AutomagikHive streaming for {recipient}")
+            logger.info(f"Using Agno streaming for {recipient}")
             self._handle_streaming_message(message, recipient, instance_config, trace_context)
         else:
             logger.info(f"Using traditional handler for {recipient}")

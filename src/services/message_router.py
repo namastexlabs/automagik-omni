@@ -2,7 +2,7 @@
 Enhanced Message Router Service
 Handles routing messages to the appropriate agent system.
 Uses the Automagik API for user and session management.
-Supports both traditional API routing and AutomagikHive streaming.
+Supports both traditional API routing and Agno streaming.
 """
 
 import logging
@@ -20,7 +20,7 @@ class RouteType(Enum):
     """Route types for message routing."""
 
     AGENT = "agent"
-    HIVE = "hive"
+    AGNO = "agno"
     HYBRID = "hybrid"
 
 
@@ -34,7 +34,7 @@ class ResponseFormat(Enum):
 class MessageRouter:
     """
     Routes messages to the appropriate agent system.
-    Supports both traditional API routing and AutomagikHive streaming.
+    Supports both traditional API routing and Agno streaming.
     """
 
     def __init__(self):
@@ -158,13 +158,13 @@ class MessageRouter:
 
         # Process the message through the Agent API
         try:
-            # Check if this is a Hive instance configuration
-            is_hive = agent_config and agent_config.get("instance_type") == "hive"
+            # Check if agent configuration is available
+            has_agent_config = agent_config and agent_config.get("api_url")
 
-            if is_hive:
-                # Use AutomagikHive client for Hive instances via unified configuration
-                logger.info("Detected Hive instance configuration - using AutomagikHive client")
-                from src.services.automagik_hive_client import AutomagikHiveClient
+            if has_agent_config:
+                # Use Agno client for agent routing
+                logger.info("Using Agno client for agent routing")
+                from src.services.agno_client import AgnoClient
 
                 instance_config = agent_config.get("instance_config")
                 config_override = instance_config or {
@@ -175,22 +175,22 @@ class MessageRouter:
                     "timeout": agent_config.get("timeout", 60),
                     "stream_mode": agent_config.get("stream_mode", False),
                 }
-                hive_client = AutomagikHiveClient(config_override=config_override)
+                agno_client = AgnoClient(config_override=config_override)
 
                 # Determine if this is a team or agent
                 agent_type = agent_config.get("agent_type", "agent")
                 agent_id = agent_config.get("agent_id") or agent_config.get("name")
 
-                logger.info(f"Routing to Hive {agent_type}: {agent_id}")
+                logger.info(f"Routing to Agno {agent_type}: {agent_id}")
 
-                # Use synchronous wrapper for async Hive calls
+                # Use synchronous wrapper for async Agno calls
                 import asyncio
 
-                async def call_hive():
+                async def call_agno():
                     try:
                         if agent_type == "team":
                             # Route to team
-                            response = await hive_client.create_team_run(
+                            response = await agno_client.create_team_run(
                                 team_id=agent_id,
                                 message=message_text,
                                 stream=agent_config.get("stream_mode", False),
@@ -200,7 +200,7 @@ class MessageRouter:
                             )
                         else:
                             # Route to agent
-                            response = await hive_client.create_agent_run(
+                            response = await agno_client.create_agent_run(
                                 agent_id=agent_id,
                                 message=message_text,
                                 stream=agent_config.get("stream_mode", False),
@@ -212,7 +212,7 @@ class MessageRouter:
                         # Handle streaming vs non-streaming response
                         if agent_config.get("stream_mode", False):
                             # Stream response with newline-based chunking
-                            logger.info("Processing Hive streaming response with real-time delivery...")
+                            logger.info("Processing Agno streaming response with real-time delivery...")
                             full_response = ""
                             event_count = 0
                             buffer = ""
@@ -253,17 +253,17 @@ class MessageRouter:
                             }
                         else:
                             # Non-streaming response
-                            logger.info(f"Hive response received: {response}")
-                            logger.info(f"Hive response type: {type(response)}")
+                            logger.info(f"Agno response received: {response}")
+                            logger.info(f"Agno response type: {type(response)}")
 
-                            # Hive API returns JSON with 'content' field
+                            # Agno API returns JSON with 'content' field
                             if isinstance(response, dict):
                                 content = response.get("content", "")
                                 if not content:
                                     # Fallback to raw response if no content field
                                     content = str(response)
                                     logger.warning(
-                                        f"No 'content' field in Hive response, using fallback: {content[:100]}"
+                                        f"No 'content' field in Agno response, using fallback: {content[:100]}"
                                     )
                             else:
                                 # Handle other response types
@@ -272,7 +272,7 @@ class MessageRouter:
                             logger.info(f"Extracted content: {content[:200] if content else 'EMPTY'}")
                             return {"response": content, "success": True}
                     except Exception as e:
-                        logger.error(f"Hive API error: {e}")
+                        logger.error(f"Agno API error: {e}")
                         return {"response": str(e), "success": False}
 
                 # Run the async function
@@ -282,8 +282,8 @@ class MessageRouter:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
 
-                response = loop.run_until_complete(call_hive())
-                return response.get("response", "Error processing Hive request")
+                response = loop.run_until_complete(call_agno())
+                return response.get("response", "Error processing Agno request")
 
             elif agent_config and "api_url" in agent_config:
                 # Use traditional Automagik API client
@@ -363,12 +363,12 @@ class MessageRouter:
         trace_context=None,
     ) -> bool:
         """
-        Route a message to AutomagikHive streaming for real-time WhatsApp delivery.
+        Route a message to Agno streaming for real-time WhatsApp delivery.
 
         Args:
             message_text: Message text
             recipient: WhatsApp recipient ID for streaming delivery
-            instance_config: Instance configuration with AutomagikHive settings
+            instance_config: Instance configuration with Agno settings
             user_id: User ID (optional if user dict is provided)
             user: User data dict with email, phone_number, and user_data for auto-creation
             session_name: Human-readable session name (required)
@@ -390,7 +390,7 @@ class MessageRouter:
         # Use session_name if provided
         session_identifier = session_name
         logger.info(
-            f"Routing message to AutomagikHive streaming for user {user_id if user_id else 'new user'}, session {session_identifier}"
+            f"Routing message to Agno streaming for user {user_id if user_id else 'new user'}, session {session_identifier}"
         )
         logger.info(f"Streaming to WhatsApp recipient: {recipient}")
         logger.info(f"Message text: {message_text}")
@@ -418,11 +418,10 @@ class MessageRouter:
             streaming_instance = get_enhanced_streaming_instance(instance_config)
 
             # Determine routing type based on instance configuration
-            # First try unified schema
-            if hasattr(instance_config, "is_hive") and instance_config.is_hive:
-                if instance_config.agent_type == "team":
+            if instance_config.agent_api_url and instance_config.agent_api_key:
+                if instance_config.is_team:
                     # Route to team streaming with enhanced tracing
-                    logger.info(f"Streaming to AutomagikHive team: {instance_config.agent_id}")
+                    logger.info(f"Streaming to Agno team: {instance_config.agent_id}")
                     success = await streaming_instance.stream_team_to_whatsapp_with_traces(
                         recipient=recipient,
                         team_id=instance_config.agent_id,
@@ -432,7 +431,7 @@ class MessageRouter:
                     )
                 else:
                     # Route to agent streaming with enhanced tracing
-                    logger.info(f"Streaming to AutomagikHive agent: {instance_config.agent_id}")
+                    logger.info(f"Streaming to Agno agent: {instance_config.agent_id}")
                     success = await streaming_instance.stream_agent_to_whatsapp_with_traces(
                         recipient=recipient,
                         agent_id=instance_config.agent_id,
@@ -441,18 +440,18 @@ class MessageRouter:
                         user_id=str(user_id) if user_id else None,
                     )
             else:
-                logger.error("No AutomagikHive agent_id configured for streaming")
+                logger.error("No Agno agent_id configured for streaming")
                 return False
 
             if success:
-                logger.info(f"AutomagikHive streaming completed successfully for {recipient}")
+                logger.info(f"Agno streaming completed successfully for {recipient}")
             else:
-                logger.warning(f"AutomagikHive streaming failed for {recipient}")
+                logger.warning(f"Agno streaming failed for {recipient}")
 
             return success
 
         except Exception as e:
-            logger.error(f"Error in AutomagikHive streaming for {recipient}: {e}", exc_info=True)
+            logger.error(f"Error in Agno streaming for {recipient}: {e}", exc_info=True)
             return False
 
     def should_use_streaming(self, instance_config: InstanceConfig) -> bool:
@@ -471,8 +470,6 @@ class MessageRouter:
 
         logger.debug(f"Checking streaming for instance {instance_config.name}:")
         logger.debug(f"  - stream_mode from agent_config: {stream_mode}")
-        logger.debug(f"  - agent_instance_type: {getattr(instance_config, 'agent_instance_type', None)}")
-        logger.debug(f"  - is_hive property: {getattr(instance_config, 'is_hive', False)}")
         logger.debug(f"  - agent_api_url: {bool(getattr(instance_config, 'agent_api_url', None))}")
         logger.debug(f"  - agent_api_key: {bool(getattr(instance_config, 'agent_api_key', None))}")
         logger.debug(f"  - agent_id: {getattr(instance_config, 'agent_id', None)}")
@@ -481,21 +478,16 @@ class MessageRouter:
             logger.debug("Streaming disabled: stream_mode is False")
             return False
 
-        # For unified schema: check if this is a hive instance with streaming
-        if hasattr(instance_config, "is_hive") and instance_config.is_hive:
-            # Require API configuration
-            if not instance_config.agent_api_url or not instance_config.agent_api_key:
-                logger.debug("Streaming disabled: Missing API URL or key")
-                return False
-            # Require agent_id
-            if not instance_config.agent_id:
-                logger.debug("Streaming disabled: No agent_id configured")
-                return False
-            logger.debug("Streaming ENABLED for Hive instance")
-            return True
-
-        logger.debug("Streaming disabled: Not a Hive instance")
-        return False
+        # Check if Agno API is configured
+        if not instance_config.agent_api_url or not instance_config.agent_api_key:
+            logger.debug("Streaming disabled: Missing API URL or key")
+            return False
+        # Require agent_id
+        if not instance_config.agent_id:
+            logger.debug("Streaming disabled: No agent_id configured")
+            return False
+        logger.debug("Streaming ENABLED for Agno instance")
+        return True
 
     async def route_message_smart(
         self,
@@ -532,7 +524,7 @@ class MessageRouter:
             For traditional API: Response string or dict from the handler
         """
         if self.should_use_streaming(instance_config):
-            logger.info(f"Using AutomagikHive streaming for {recipient}")
+            logger.info(f"Using Agno streaming for {recipient}")
             return await self.route_message_streaming(
                 message_text=message_text,
                 recipient=recipient,
@@ -551,11 +543,7 @@ class MessageRouter:
             # Convert instance_config to agent_config format for traditional routing
             agent_config = None
             if hasattr(instance_config, "agent_api_url") and instance_config.agent_api_url:
-                agent_identifier = (
-                    instance_config.agent_id
-                    if getattr(instance_config, "agent_id", None)
-                    else instance_config.default_agent
-                ) or "default"
+                agent_identifier = getattr(instance_config, "agent_id", None) or "default"
 
                 agent_config = {
                     "name": agent_identifier,
@@ -563,7 +551,6 @@ class MessageRouter:
                     "api_url": instance_config.agent_api_url,
                     "api_key": instance_config.agent_api_key,
                     "timeout": getattr(instance_config, "agent_timeout", 60),
-                    "instance_type": getattr(instance_config, "agent_instance_type", "automagik"),
                     "agent_type": getattr(instance_config, "agent_type", "agent"),
                     "stream_mode": getattr(instance_config, "agent_stream_mode", False),
                     "instance_config": instance_config,

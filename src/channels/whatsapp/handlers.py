@@ -226,7 +226,7 @@ class WhatsAppMessageHandler:
             logger.debug(f"Message queued for processing: {message.get('event')}")
 
         if instance_config:
-            logger.debug(f"Using instance config: {instance_config.name} -> Agent: {instance_config.default_agent}")
+            logger.debug(f"Using instance config: {instance_config.name} -> Agent: {instance_config.agent_id}")
         if trace_context:
             logger.debug(f"Message trace ID: {trace_context.trace_id}")
 
@@ -573,44 +573,21 @@ class WhatsAppMessageHandler:
 
                 # Create agent config using instance-specific or global configuration
                 if instance_config:
-                    # Use per-instance configuration with unified fields
-                    # Check if this is a Hive instance
-                    if (
-                        hasattr(instance_config, "agent_instance_type")
-                        and instance_config.agent_instance_type == "hive"
-                    ):
-                        # Use unified fields for Hive configuration
-                        agent_config = {
-                            "name": instance_config.agent_id or instance_config.default_agent,
-                            "agent_id": instance_config.agent_id or instance_config.default_agent,
-                            "type": "whatsapp",
-                            "api_url": instance_config.agent_api_url,
-                            "api_key": instance_config.agent_api_key,
-                            "timeout": instance_config.agent_timeout,
-                            "instance_type": instance_config.agent_instance_type,
-                            "agent_type": getattr(instance_config, "agent_type", "agent"),
-                            "stream_mode": getattr(instance_config, "agent_stream_mode", False),
-                            "instance_config": instance_config,  # Pass the full config for routing decisions
-                        }
-                        logger.info(
-                            f"Using Hive configuration: {instance_config.name} -> {instance_config.agent_instance_type}:{instance_config.agent_id} (type: {instance_config.agent_type})"
-                        )
-                    else:
-                        # Use legacy fields for Automagik
-                        agent_config = {
-                            "name": instance_config.agent_id or instance_config.default_agent,
-                            "agent_id": instance_config.agent_id or instance_config.default_agent,
-                            "type": "whatsapp",
-                            "api_url": instance_config.agent_api_url,
-                            "api_key": instance_config.agent_api_key,
-                            "timeout": instance_config.agent_timeout,
-                            "instance_type": getattr(instance_config, "agent_instance_type", "automagik"),
-                            "agent_type": getattr(instance_config, "agent_type", "agent"),
-                            "instance_config": instance_config,  # Pass the full config for routing decisions
-                        }
-                        logger.info(
-                            f"Using Automagik configuration: {instance_config.name} -> {instance_config.agent_id or instance_config.default_agent}"
-                        )
+                    # Use per-instance Agno configuration
+                    agent_config = {
+                        "name": instance_config.agent_id or "default",
+                        "agent_id": instance_config.agent_id or "default",
+                        "type": "whatsapp",
+                        "api_url": instance_config.agent_api_url,
+                        "api_key": instance_config.agent_api_key,
+                        "timeout": instance_config.agent_timeout,
+                        "agent_type": getattr(instance_config, "agent_type", "agent"),
+                        "stream_mode": getattr(instance_config, "agent_stream_mode", False),
+                        "instance_config": instance_config,  # Pass the full config for routing decisions
+                    }
+                    logger.info(
+                        f"Using Agno configuration: {instance_config.name} -> {instance_config.agent_id} (type: {instance_config.agent_type})"
+                    )
                 else:
                     # No instance configuration available - use defaults
                     agent_config = {"name": "", "type": "whatsapp"}

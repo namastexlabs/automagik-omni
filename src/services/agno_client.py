@@ -1,5 +1,5 @@
 """
-AutomagikHive Client - Async HTTP client for AutomagikHive API integration.
+Agno Client - Async HTTP client for Agno API integration.
 This client provides streaming capabilities for real-time agent/team conversations
 using Server-Sent Events (SSE) and supports authentication, error recovery,
 and connection management.
@@ -12,12 +12,12 @@ from typing import Optional, Dict, Any, AsyncIterator, Union, List
 from contextlib import asynccontextmanager
 import httpx
 from httpx import ConnectTimeout, ReadTimeout, TimeoutException
-from .automagik_hive_models import (
-    HiveEvent,
-    HiveContinueRequest,
-    HiveRunResponse,
-    parse_hive_event,
-    HiveEventType,
+from .agno_models import (
+    AgnoEvent,
+    AgnoContinueRequest,
+    AgnoRunResponse,
+    parse_agno_event,
+    AgnoEventType,
     ErrorEvent,
 )
 from ..db.models import InstanceConfig
@@ -25,33 +25,33 @@ from ..db.models import InstanceConfig
 logger = logging.getLogger(__name__)
 
 
-class AutomagikHiveError(Exception):
-    """Base exception for AutomagikHive client errors."""
+class AgnoError(Exception):
+    """Base exception for Agno client errors."""
 
     pass
 
 
-class AutomagikHiveAuthError(AutomagikHiveError):
-    """Authentication error with AutomagikHive API."""
+class AgnoAuthError(AgnoError):
+    """Authentication error with Agno API."""
 
     pass
 
 
-class AutomagikHiveConnectionError(AutomagikHiveError):
-    """Connection error with AutomagikHive API."""
+class AgnoConnectionError(AgnoError):
+    """Connection error with Agno API."""
 
     pass
 
 
-class AutomagikHiveStreamError(AutomagikHiveError):
-    """Streaming error with AutomagikHive API."""
+class AgnoStreamError(AgnoError):
+    """Streaming error with Agno API."""
 
     pass
 
 
-class AutomagikHiveClient:
+class AgnoClient:
     """
-    Async client for interacting with the AutomagikHive API.
+    Async client for interacting with the Agno API.
 
     Provides streaming capabilities for real-time agent and team conversations,
     with robust error handling and connection management.
@@ -59,22 +59,18 @@ class AutomagikHiveClient:
 
     def __init__(self, config_override: Optional[Union[InstanceConfig, Dict[str, Any]]] = None):
         """
-        Initialize the AutomagikHive client.
+        Initialize the Agno client.
 
         Args:
             config_override: Optional configuration override (InstanceConfig or dict)
         """
         # Extract configuration from InstanceConfig or dict
         if isinstance(config_override, InstanceConfig):
-            # Rely exclusively on unified agent_* fields
+            # Rely exclusively on agent_* fields
             self.api_url = getattr(config_override, "agent_api_url", None)
             self.api_key = getattr(config_override, "agent_api_key", None)
 
-            agent_identifier = getattr(config_override, "agent_id", None)
-            if not agent_identifier and hasattr(config_override, "default_agent"):
-                agent_identifier = getattr(config_override, "default_agent")
-            if not agent_identifier:
-                agent_identifier = "default"
+            agent_identifier = getattr(config_override, "agent_id", None) or "default"
             agent_type = getattr(config_override, "agent_type", "agent")
 
             if agent_type == "team":
@@ -92,12 +88,7 @@ class AutomagikHiveClient:
         elif isinstance(config_override, dict):
             self.api_url = config_override.get("api_url")
             self.api_key = config_override.get("api_key")
-            agent_identifier = (
-                config_override.get("agent_id")
-                or config_override.get("name")
-                or config_override.get("default_agent")
-                or "default"
-            )
+            agent_identifier = config_override.get("agent_id") or config_override.get("name") or "default"
             agent_type = config_override.get("agent_type", "agent")
 
             if agent_type == "team":
@@ -113,9 +104,9 @@ class AutomagikHiveClient:
 
         # Validate required configuration
         if not self.api_url:
-            raise ValueError("AutomagikHive API URL is required")
+            raise ValueError("Agno API URL is required")
         if not self.api_key:
-            raise ValueError("AutomagikHive API key is required")
+            raise ValueError("Agno API key is required")
         # Note: agent_id is not required for team operations, will be provided per-call
 
         # Clean up API URL
@@ -134,7 +125,7 @@ class AutomagikHiveClient:
         # API version tracking
         self._api_version: Optional[str] = None
 
-        logger.info(f"AutomagikHive client initialized - URL: {self.api_url}")
+        logger.info(f"Agno client initialized - URL: {self.api_url}")
 
     def _make_headers(self, accept_sse: bool = False) -> Dict[str, str]:
         """Make headers for API requests with X-API-Key authentication."""
@@ -191,7 +182,7 @@ class AutomagikHiveClient:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> Union[HiveRunResponse, AsyncIterator[HiveEvent]]:
+    ) -> Union[AgnoRunResponse, AsyncIterator[AgnoEvent]]:
         """
         Create a new agent run.
 
@@ -204,17 +195,17 @@ class AutomagikHiveClient:
             metadata: Optional additional metadata
 
         Returns:
-            HiveRunResponse if stream=False, AsyncIterator[HiveEvent] if stream=True
+            AgnoRunResponse if stream=False, AsyncIterator[AgnoEvent] if stream=True
 
         Raises:
-            AutomagikHiveAuthError: Authentication failed
-            AutomagikHiveConnectionError: Connection failed
-            AutomagikHiveStreamError: Streaming error
+            AgnoAuthError: Authentication failed
+            AgnoConnectionError: Connection failed
+            AgnoStreamError: Streaming error
         """
         if not agent_id:
             agent_id = self.default_agent_id
             if not agent_id:
-                raise AutomagikHiveError("agent_id is required")
+                raise AgnoError("agent_id is required")
 
         endpoint = f"{self.api_url}/agents/{agent_id}/runs"
 
@@ -239,7 +230,7 @@ class AutomagikHiveClient:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> Union[HiveRunResponse, AsyncIterator[HiveEvent]]:
+    ) -> Union[AgnoRunResponse, AsyncIterator[AgnoEvent]]:
         """
         Create a new team run.
 
@@ -252,12 +243,12 @@ class AutomagikHiveClient:
             metadata: Optional additional metadata
 
         Returns:
-            HiveRunResponse if stream=False, AsyncIterator[HiveEvent] if stream=True
+            AgnoRunResponse if stream=False, AsyncIterator[AgnoEvent] if stream=True
         """
         if not team_id:
             team_id = self.default_team_id
             if not team_id:
-                raise AutomagikHiveError("team_id is required")
+                raise AgnoError("team_id is required")
 
         endpoint = f"{self.api_url}/teams/{team_id}/runs"
 
@@ -281,7 +272,7 @@ class AutomagikHiveClient:
         agent_id: Optional[str] = None,
         user_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> AsyncIterator[HiveEvent]:
+    ) -> AsyncIterator[AgnoEvent]:
         """
         Continue an existing conversation.
 
@@ -293,14 +284,14 @@ class AutomagikHiveClient:
             metadata: Optional additional metadata
 
         Returns:
-            AsyncIterator[HiveEvent]: Stream of events
+            AsyncIterator[AgnoEvent]: Stream of events
         """
         if not agent_id:
             agent_id = self.default_agent_id
 
         endpoint = f"{self.api_url}/agents/{agent_id}/runs/{run_id}/continue"
 
-        request_data = HiveContinueRequest(message=message, user_id=user_id, metadata=metadata)
+        request_data = AgnoContinueRequest(message=message, user_id=user_id, metadata=metadata)
 
         return self._create_streaming_run(endpoint, request_data.model_dump())
 
@@ -321,17 +312,17 @@ class AutomagikHiveClient:
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
-                raise AutomagikHiveAuthError(f"Authentication failed: {e.response.text}")
+                raise AgnoAuthError(f"Authentication failed: {e.response.text}")
             elif e.response.status_code == 404:
-                raise AutomagikHiveError(f"Endpoint not found: {endpoint}")
+                raise AgnoError(f"Endpoint not found: {endpoint}")
             else:
-                raise AutomagikHiveError(f"HTTP error {e.response.status_code}: {e.response.text}")
+                raise AgnoError(f"HTTP error {e.response.status_code}: {e.response.text}")
         except (ConnectTimeout, ReadTimeout, TimeoutException) as e:
-            raise AutomagikHiveConnectionError(f"Connection timeout: {str(e)}")
+            raise AgnoConnectionError(f"Connection timeout: {str(e)}")
         except Exception as e:
-            raise AutomagikHiveError(f"Unexpected error: {str(e)}")
+            raise AgnoError(f"Unexpected error: {str(e)}")
 
-    async def _create_streaming_run(self, endpoint: str, payload: dict) -> AsyncIterator[HiveEvent]:
+    async def _create_streaming_run(self, endpoint: str, payload: dict) -> AsyncIterator[AgnoEvent]:
         """Create a streaming run and return event iterator using multipart/form-data."""
         client = await self._get_client()
         headers = {
@@ -347,46 +338,46 @@ class AutomagikHiveClient:
 
             async with client.stream("POST", endpoint, data=form_data, headers=headers) as response:
                 if response.status_code == 401:
-                    raise AutomagikHiveAuthError("Authentication failed")
+                    raise AgnoAuthError("Authentication failed")
                 elif response.status_code == 404:
-                    raise AutomagikHiveError(f"Endpoint not found: {endpoint}")
+                    raise AgnoError(f"Endpoint not found: {endpoint}")
                 elif response.status_code != 200:
                     error_text = await response.aread()
-                    raise AutomagikHiveError(f"HTTP error {response.status_code}: {error_text.decode()}")
+                    raise AgnoError(f"HTTP error {response.status_code}: {error_text.decode()}")
 
                 async for event in self.stream_events(response):
                     yield event
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
-                raise AutomagikHiveAuthError("Authentication failed")
+                raise AgnoAuthError("Authentication failed")
             else:
-                raise AutomagikHiveError(f"HTTP error: {e}")
+                raise AgnoError(f"HTTP error: {e}")
         except (ConnectTimeout, ReadTimeout, TimeoutException) as e:
-            raise AutomagikHiveConnectionError(f"Connection timeout: {str(e)}")
+            raise AgnoConnectionError(f"Connection timeout: {str(e)}")
         except Exception as e:
             if isinstance(
                 e,
                 (
-                    AutomagikHiveError,
-                    AutomagikHiveAuthError,
-                    AutomagikHiveConnectionError,
+                    AgnoError,
+                    AgnoAuthError,
+                    AgnoConnectionError,
                 ),
             ):
                 raise
-            raise AutomagikHiveStreamError(f"Streaming error: {str(e)}")
+            raise AgnoStreamError(f"Streaming error: {str(e)}")
 
-    async def stream_events(self, response) -> AsyncIterator[HiveEvent]:
+    async def stream_events(self, response) -> AsyncIterator[AgnoEvent]:
         """
         Parse JSON-per-line events from streaming response.
 
-        Hive sends JSON objects split across multiple lines, not standard SSE format.
+        Agno sends JSON objects split across multiple lines, not standard SSE format.
 
         Args:
             response: httpx streaming response
 
         Yields:
-            HiveEvent: Parsed event objects
+            AgnoEvent: Parsed event objects
         """
         buffer = ""
         json_buffer = ""
@@ -415,7 +406,7 @@ class AutomagikHiveClient:
                     continue
 
                 # Special handling: Check if this looks like concatenated JSON without newlines
-                # Hive sometimes sends all JSON objects concatenated on a single line
+                # Agnosometimes sends all JSON objects concatenated on a single line
                 if text.startswith("{") and text.count("}{") > 0 and "\n" not in text:
                     logger.debug("Detected concatenated JSON objects in single chunk without newlines")
                     # Process immediately without line splitting
@@ -434,7 +425,7 @@ class AutomagikHiveClient:
                                     logger.debug(f"Created event #{event_count}: {type(event).__name__}")
                                     yield event
 
-                                    if event.event == HiveEventType.RUN_COMPLETED:
+                                    if event.event == AgnoEventType.RUN_COMPLETED:
                                         logger.info(f"Run completed: {event.run_id}")
                                         return
                             except json.JSONDecodeError as e:
@@ -447,7 +438,7 @@ class AutomagikHiveClient:
                 logger.debug(f"Buffer length: {len(buffer)}")
 
                 # Check if buffer contains concatenated JSON (not SSE format)
-                # This handles the case where Hive sends raw concatenated JSON
+                # This handles the case where Agnosends raw concatenated JSON
                 if buffer.strip().startswith("{") and "}{" in buffer:
                     logger.debug("Buffer contains concatenated JSON, processing without line splitting")
                     json_buffer = buffer
@@ -470,7 +461,7 @@ class AutomagikHiveClient:
                                         logger.debug(f"Created event #{event_count}: {type(event).__name__}")
                                         yield event
 
-                                        if event.event == HiveEventType.RUN_COMPLETED:
+                                        if event.event == AgnoEventType.RUN_COMPLETED:
                                             logger.info(f"Run completed: {event.run_id}")
                                             return
                                 except json.JSONDecodeError as e:
@@ -499,7 +490,7 @@ class AutomagikHiveClient:
 
                         # Handle special SSE messages
                         if data == "[DONE]":
-                            logger.info("AutomagikHive streaming response completed")
+                            logger.info("Agno streaming response completed")
                             break
 
                         # Try to parse as complete JSON
@@ -515,7 +506,7 @@ class AutomagikHiveClient:
                                 yield event
 
                                 # Break on completion event
-                                if event.event == HiveEventType.RUN_COMPLETED:
+                                if event.event == AgnoEventType.RUN_COMPLETED:
                                     logger.info(f"Run completed: {event.run_id}")
                                     break
 
@@ -579,7 +570,7 @@ class AutomagikHiveClient:
                                 yield event
 
                                 # Break on completion event
-                                if event.event == HiveEventType.RUN_COMPLETED:
+                                if event.event == AgnoEventType.RUN_COMPLETED:
                                     logger.info(f"Run completed: {event.run_id}")
                                     json_buffer = remaining_buffer  # Update buffer
                                     return  # Exit the entire stream processing
@@ -658,7 +649,7 @@ class AutomagikHiveClient:
                 error_details={"error_type": type(e).__name__},
             )
             yield error_event
-            raise AutomagikHiveStreamError(f"Stream processing failed: {e}")
+            raise AgnoStreamError(f"Stream processing failed: {e}")
 
     def _split_concatenated_json(self, json_text: str) -> List[str]:
         """
@@ -730,15 +721,15 @@ class AutomagikHiveClient:
 
         return json_objects
 
-    def _create_event_from_data(self, event_data: dict) -> Optional[HiveEvent]:
+    def _create_event_from_data(self, event_data: dict) -> Optional[AgnoEvent]:
         """
-        Create HiveEvent from parsed JSON data with event type mapping.
+        Create AgnoEvent from parsed JSON data with event type mapping.
 
         Args:
             event_data: Parsed JSON event data
 
         Returns:
-            HiveEvent instance or None if creation failed
+            AgnoEvent instance or None if creation failed
         """
         try:
             # Handle TeamRunResponseContent -> RunResponseContent mapping
@@ -754,7 +745,7 @@ class AutomagikHiveClient:
                     event_data["event"] = "RunCompleted"
                     logger.debug("Mapped event type 'TeamRunCompleted' to 'RunCompleted'")
 
-            event = parse_hive_event(event_data)
+            event = parse_agno_event(event_data)
             return event
 
         except Exception as e:
@@ -775,7 +766,7 @@ class AutomagikHiveClient:
         Usage:
             async with client.stream_agent_conversation("agent-id", "Hello") as stream:
                 async for event in stream:
-                    if event.event == HiveEventType.RUN_RESPONSE_CONTENT:
+                    if event.event == AgnoEventType.RUN_RESPONSE_CONTENT:
                         print(event.content)
         """
         if not agent_id:
@@ -799,7 +790,7 @@ class AutomagikHiveClient:
         Usage:
             async with client.stream_team_conversation("team-id", "Hello") as stream:
                 async for event in stream:
-                    if event.event == HiveEventType.RUN_RESPONSE_CONTENT:
+                    if event.event == AgnoEventType.RUN_RESPONSE_CONTENT:
                         print(event.content)
         """
         if not team_id:
@@ -834,7 +825,7 @@ class AutomagikHiveClient:
                 version = openapi_spec.get("info", {}).get("version")
                 if version:
                     self._api_version = version
-                    logger.info(f"Detected Hive API version: {version}")
+                    logger.info(f"Detected AgnoAPI version: {version}")
                     return version
                 else:
                     logger.warning("Version not found in OpenAPI spec")
@@ -849,7 +840,7 @@ class AutomagikHiveClient:
 
     async def health_check(self) -> bool:
         """
-        Check if the AutomagikHive API is accessible and log version info.
+        Check if the Agno API is accessible and log version info.
 
         Returns:
             bool: True if API is accessible, False otherwise
@@ -866,7 +857,7 @@ class AutomagikHiveClient:
                 # Also fetch and log API version for debugging
                 await self.get_api_version()
                 logger.info(
-                    f"Hive health check passed - API URL: {self.api_url}, Version: {self._api_version or 'unknown'}"
+                    f"Agnohealth check passed - API URL: {self.api_url}, Version: {self._api_version or 'unknown'}"
                 )
                 return True
             else:
@@ -879,8 +870,16 @@ class AutomagikHiveClient:
 
     def __repr__(self) -> str:
         """String representation of the client without exposing sensitive data."""
-        return f"<AutomagikHiveClient(api_url='{self.api_url}', agent_id='{self.default_agent_id}')>"
+        return f"<AgnoClient(api_url='{self.api_url}', agent_id='{self.default_agent_id}')>"
 
     def __str__(self) -> str:
         """String representation of the client."""
-        return f"AutomagikHiveClient({self.api_url})"
+        return f"AgnoClient({self.api_url})"
+
+
+# Backward compatibility aliases (to be removed in future version)
+AutomagikHiveClient = AgnoClient
+AutomagikHiveError = AgnoError
+AutomagikHiveAuthError = AgnoAuthError
+AutomagikHiveConnectionError = AgnoConnectionError
+AutomagikHiveStreamError = AgnoStreamError

@@ -58,20 +58,16 @@ class InstanceConfig(Base):
     # slack_bot_token = Column(String, nullable=True)
     # slack_workspace = Column(String, nullable=True)
 
-    # Unified Agent API configuration (supports Automagik and Hive via agent_* fields)
+    # Agno Agent API configuration
     # Made optional for wizard flow - can be configured later via settings
-    agent_instance_type = Column(String, default="automagik", nullable=True)  # "automagik" or "hive"
     agent_api_url = Column(String, nullable=True)  # Optional - configure later
     agent_api_key = Column(String, nullable=True)  # Optional - configure later
     agent_id = Column(
         String, default="default", nullable=True
     )  # Agent name/ID - defaults to "default" for backward compatibility
-    agent_type = Column(String, default="agent", nullable=False)  # "agent" or "team" (team only for hive)
+    agent_type = Column(String, default="agent", nullable=False)  # "agent" or "team"
     agent_timeout = Column(Integer, default=60)
-    agent_stream_mode = Column(Boolean, default=False, nullable=False)  # Enable streaming (mainly for hive)
-
-    # Legacy field for backward compatibility (will be migrated to agent_id)
-    default_agent = Column(String, nullable=True)  # Deprecated - use agent_id instead
+    agent_stream_mode = Column(Boolean, default=False, nullable=False)  # Enable streaming
 
     # Automagik instance identification (for UI display)
     automagik_instance_id = Column(String, nullable=True)
@@ -118,26 +114,16 @@ class InstanceConfig(Base):
     def __repr__(self):
         return f"<InstanceConfig(name='{self.name}', is_default={self.is_default})>"
 
-    # Helper properties for unified schema
-    @property
-    def is_hive(self) -> bool:
-        """Check if this is a Hive instance."""
-        return self.agent_instance_type == "hive"
-
-    @property
-    def is_automagik(self) -> bool:
-        """Check if this is an Automagik instance."""
-        return self.agent_instance_type == "automagik"
-
+    # Helper properties
     @property
     def is_team(self) -> bool:
-        """Check if configured for team mode (Hive only)."""
-        return self.agent_type == "team" and self.is_hive
+        """Check if configured for team mode."""
+        return self.agent_type == "team"
 
     @property
     def streaming_enabled(self) -> bool:
         """Check if streaming is enabled."""
-        return self.agent_stream_mode and self.is_hive
+        return self.agent_stream_mode
 
     # WhatsApp Web API aliases (clean naming for evolution_* columns)
     @property
@@ -159,18 +145,10 @@ class InstanceConfig(Base):
         self.evolution_key = value
 
     def get_agent_config(self) -> dict:
-        """Get unified agent configuration as dictionary."""
-        # Use default_agent if agent_id is not set (backward compatibility)
-        # Check if agent_id is meaningful (not the default value)
-        if self.agent_id and self.agent_id != "default":
-            agent_identifier = self.agent_id
-        elif self.default_agent:
-            agent_identifier = self.default_agent
-        else:
-            agent_identifier = "default"
+        """Get agent configuration as dictionary."""
+        agent_identifier = self.agent_id or "default"
 
         config = {
-            "instance_type": self.agent_instance_type or "automagik",
             "api_url": self.agent_api_url,
             "api_key": self.agent_api_key,
             "agent_id": agent_identifier,

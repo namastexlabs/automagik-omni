@@ -1,6 +1,6 @@
 """
-Pydantic models for AutomagikHive API events and responses.
-These models define the structure of events received from AutomagikHive's streaming API,
+Pydantic models for Agno API events and responses.
+These models define the structure of events received from Agno's streaming API,
 including RunStarted, RunResponseContent, and RunCompleted events.
 """
 
@@ -13,8 +13,8 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
-class HiveEventType(str, Enum):
-    """Types of events received from AutomagikHive streaming API."""
+class AgnoEventType(str, Enum):
+    """Types of events received from Agno streaming API."""
 
     RUN_STARTED = "RunStarted"
     RUN_RESPONSE_CONTENT = "RunResponseContent"
@@ -23,10 +23,10 @@ class HiveEventType(str, Enum):
     HEARTBEAT = "Heartbeat"
 
 
-class BaseHiveEvent(BaseModel):
-    """Base class for all AutomagikHive events."""
+class BaseAgnoEvent(BaseModel):
+    """Base class for all Agno events."""
 
-    event: HiveEventType = Field(..., description="Type of the event")
+    event: AgnoEventType = Field(..., description="Type of the event")
     timestamp: Optional[datetime] = Field(None, description="Event timestamp")
     run_id: Optional[str] = Field(None, description="Run ID associated with this event")
 
@@ -50,19 +50,19 @@ class BaseHiveEvent(BaseModel):
         return v
 
 
-class RunStartedEvent(BaseHiveEvent):
+class RunStartedEvent(BaseAgnoEvent):
     """Event emitted when a run starts."""
 
-    event: HiveEventType = Field(default=HiveEventType.RUN_STARTED)
+    event: AgnoEventType = Field(default=AgnoEventType.RUN_STARTED)
     agent_id: Optional[str] = Field(None, description="Agent ID for the run")
     team_id: Optional[str] = Field(None, description="Team ID for the run")
     message: Optional[str] = Field(None, description="Initial message that started the run")
 
 
-class RunResponseContentEvent(BaseHiveEvent):
+class RunResponseContentEvent(BaseAgnoEvent):
     """Event emitted with streaming response content."""
 
-    event: HiveEventType = Field(default=HiveEventType.RUN_RESPONSE_CONTENT)
+    event: AgnoEventType = Field(default=AgnoEventType.RUN_RESPONSE_CONTENT)
     content: str = Field(..., description="Streaming content chunk")
     delta: Optional[str] = Field(None, description="Content delta (alias for content)")
 
@@ -75,33 +75,33 @@ class RunResponseContentEvent(BaseHiveEvent):
         return v or ""
 
 
-class RunCompletedEvent(BaseHiveEvent):
+class RunCompletedEvent(BaseAgnoEvent):
     """Event emitted when a run completes."""
 
-    event: HiveEventType = Field(default=HiveEventType.RUN_COMPLETED)
+    event: AgnoEventType = Field(default=AgnoEventType.RUN_COMPLETED)
     content: Optional[str] = Field(None, description="Final complete response")
     total_tokens: Optional[int] = Field(None, description="Total tokens used")
     completion_reason: Optional[str] = Field(None, description="Reason for completion")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
-class ErrorEvent(BaseHiveEvent):
+class ErrorEvent(BaseAgnoEvent):
     """Event emitted when an error occurs."""
 
-    event: HiveEventType = Field(default=HiveEventType.ERROR)
+    event: AgnoEventType = Field(default=AgnoEventType.ERROR)
     error_code: Optional[str] = Field(None, description="Error code")
     error_message: str = Field(..., description="Error description")
     error_details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
 
 
-class HeartbeatEvent(BaseHiveEvent):
+class HeartbeatEvent(BaseAgnoEvent):
     """Heartbeat event to keep connection alive."""
 
-    event: HiveEventType = Field(default=HiveEventType.HEARTBEAT)
+    event: AgnoEventType = Field(default=AgnoEventType.HEARTBEAT)
 
 
 # Union type for all possible events
-HiveEvent = Union[
+AgnoEvent = Union[
     RunStartedEvent,
     RunResponseContentEvent,
     RunCompletedEvent,
@@ -110,7 +110,7 @@ HiveEvent = Union[
 ]
 
 
-class HiveRunRequest(BaseModel):
+class AgnoRunRequest(BaseModel):
     """Request model for creating a new run."""
 
     message: str = Field(..., description="Message to send to the agent/team")
@@ -120,7 +120,7 @@ class HiveRunRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
-class HiveContinueRequest(BaseModel):
+class AgnoContinueRequest(BaseModel):
     """Request model for continuing a conversation."""
 
     message: str = Field(..., description="Follow-up message")
@@ -128,7 +128,7 @@ class HiveContinueRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
-class HiveRunResponse(BaseModel):
+class AgnoRunResponse(BaseModel):
     """Response model for run creation."""
 
     run_id: str = Field(..., description="Unique run identifier")
@@ -138,15 +138,15 @@ class HiveRunResponse(BaseModel):
     created_at: Optional[datetime] = Field(None, description="Run creation timestamp")
 
 
-def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
+def parse_agno_event(event_data: Dict[str, Any]) -> AgnoEvent:
     """
-    Parse raw event data into appropriate HiveEvent model.
+    Parse raw event data into appropriate AgnoEvent model.
 
     Args:
         event_data: Raw event data from SSE stream
 
     Returns:
-        Parsed HiveEvent instance
+        Parsed AgnoEvent instance
 
     Raises:
         ValueError: If event data is invalid or unknown event type
@@ -159,7 +159,7 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
         raise ValueError("Event data missing 'event' field")
 
     try:
-        event_enum = HiveEventType(event_type)
+        event_enum = AgnoEventType(event_type)
     except ValueError:
         # Try to map common variations (snake_case to PascalCase)
         event_type_mapping = {
@@ -178,26 +178,26 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
         if mapped_type:
             logger.info(f"Mapping event type '{event_type}' to '{mapped_type}'")
             try:
-                event_enum = HiveEventType(mapped_type)
+                event_enum = AgnoEventType(mapped_type)
             except ValueError:
                 logger.warning(f"Failed to map event type: {event_type} -> {mapped_type}")
                 # Return as generic event
-                return BaseHiveEvent(**event_data)
+                return BaseAgnoEvent(**event_data)
         else:
             logger.warning(f"Unknown event type: {event_type}")
             # Return as generic event
-            return BaseHiveEvent(**event_data)
+            return BaseAgnoEvent(**event_data)
 
     # Map to specific event classes
     event_class_map = {
-        HiveEventType.RUN_STARTED: RunStartedEvent,
-        HiveEventType.RUN_RESPONSE_CONTENT: RunResponseContentEvent,
-        HiveEventType.RUN_COMPLETED: RunCompletedEvent,
-        HiveEventType.ERROR: ErrorEvent,
-        HiveEventType.HEARTBEAT: HeartbeatEvent,
+        AgnoEventType.RUN_STARTED: RunStartedEvent,
+        AgnoEventType.RUN_RESPONSE_CONTENT: RunResponseContentEvent,
+        AgnoEventType.RUN_COMPLETED: RunCompletedEvent,
+        AgnoEventType.ERROR: ErrorEvent,
+        AgnoEventType.HEARTBEAT: HeartbeatEvent,
     }
 
-    event_class = event_class_map.get(event_enum, BaseHiveEvent)
+    event_class = event_class_map.get(event_enum, BaseAgnoEvent)
 
     try:
         return event_class(**event_data)
@@ -205,4 +205,14 @@ def parse_hive_event(event_data: Dict[str, Any]) -> HiveEvent:
         logger.error(f"Failed to parse {event_type} event: {e}")
         logger.debug(f"Event data: {event_data}")
         # Fallback to base event
-        return BaseHiveEvent(event=event_enum, **{k: v for k, v in event_data.items() if k != "event"})
+        return BaseAgnoEvent(event=event_enum, **{k: v for k, v in event_data.items() if k != "event"})
+
+
+# Backward compatibility aliases (to be removed in future version)
+HiveEventType = AgnoEventType
+BaseHiveEvent = BaseAgnoEvent
+HiveEvent = AgnoEvent
+HiveRunRequest = AgnoRunRequest
+HiveContinueRequest = AgnoContinueRequest
+HiveRunResponse = AgnoRunResponse
+parse_hive_event = parse_agno_event

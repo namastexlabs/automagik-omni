@@ -87,22 +87,14 @@ class InstanceConfigCreate(BaseModel):
     auto_qr: Optional[bool] = Field(True, description="Auto-generate QR code (WhatsApp)")
     integration: Optional[str] = Field("WHATSAPP-BAILEYS", description="WhatsApp integration type")
 
-    # Common agent configuration (optional for wizard flow - can be set later)
+    # Agent configuration (optional for wizard flow - can be set later)
     agent_api_url: Optional[HttpUrl] = None
     agent_api_key: Optional[str] = None
-    default_agent: Optional[str] = None
-    agent_timeout: int = 60
-    is_default: bool = False
-
-    # Automagik instance identification (for UI display)
-    automagik_instance_id: Optional[str] = Field(None, description="Automagik instance ID")
-    automagik_instance_name: Optional[str] = Field(None, description="Automagik instance name")
-
-    # Unified agent fields (optional for creation, use defaults if not provided)
-    agent_instance_type: Optional[str] = Field(default="hive", description="Agent instance type: automagik or hive")
     agent_id: Optional[str] = Field(default=None, description="Agent or team ID")
     agent_type: Optional[str] = Field(default="agent", description="Agent type: agent or team")
+    agent_timeout: int = 60
     agent_stream_mode: Optional[bool] = Field(default=False, description="Enable streaming mode")
+    is_default: bool = False
 
     # Message splitting control
     enable_auto_split: Optional[bool] = Field(
@@ -176,17 +168,11 @@ class InstanceConfigUpdate(BaseModel):
 
     agent_api_url: Optional[HttpUrl] = None
     agent_api_key: Optional[str] = None
-    default_agent: Optional[str] = None
-    agent_timeout: Optional[int] = None
-    is_default: Optional[bool] = None
-    automagik_instance_id: Optional[str] = None
-    automagik_instance_name: Optional[str] = None
-
-    # Unified agent fields
-    agent_instance_type: Optional[str] = None
     agent_id: Optional[str] = None
     agent_type: Optional[str] = None
+    agent_timeout: Optional[int] = None
     agent_stream_mode: Optional[bool] = None
+    is_default: Optional[bool] = None
 
     # Message splitting control
     enable_auto_split: Optional[bool] = None
@@ -237,13 +223,13 @@ class InstanceConfigResponse(BaseModel):
 
     agent_api_url: Optional[str] = None
     agent_api_key: Optional[str] = None
-    default_agent: Optional[str] = None
+    agent_id: Optional[str] = None
+    agent_type: Optional[str] = None
     agent_timeout: int = 60
+    agent_stream_mode: Optional[bool] = None
     is_default: bool = False
     is_active: bool = False
     connection_status: Optional[str] = None  # Live status: "connected"|"disconnected"|"connecting"|"error"|"unknown"
-    automagik_instance_id: Optional[str] = None
-    automagik_instance_name: Optional[str] = None
 
     # Profile information from WhatsApp Web API
     profile_name: Optional[str] = None
@@ -253,12 +239,6 @@ class InstanceConfigResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     whatsapp_web_status: Optional[WhatsAppWebStatusInfo] = None
-
-    # Unified agent fields
-    agent_instance_type: Optional[str] = None
-    agent_id: Optional[str] = None
-    agent_type: Optional[str] = None
-    agent_stream_mode: Optional[bool] = None
 
     # Message splitting control
     enable_auto_split: Optional[bool] = None
@@ -510,23 +490,18 @@ async def list_instances(
             "webhook_base64": instance.webhook_base64,
             "agent_api_url": instance.agent_api_url,
             "agent_api_key": instance.agent_api_key,
-            "default_agent": instance.default_agent,
+            "agent_id": getattr(instance, "agent_id", None),
+            "agent_type": getattr(instance, "agent_type", None),
             "agent_timeout": instance.agent_timeout,
+            "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
             "is_default": instance.is_default,
             "is_active": instance.is_active,
             "connection_status": live_statuses.get(instance.name),
-            "automagik_instance_id": instance.automagik_instance_id,
-            "automagik_instance_name": instance.automagik_instance_name,
             "profile_name": getattr(instance, "profile_name", None),
             "profile_pic_url": getattr(instance, "profile_pic_url", None),
             "owner_jid": getattr(instance, "owner_jid", None),
             "created_at": instance.created_at,
             "updated_at": instance.updated_at,
-            # Include unified fields
-            "agent_instance_type": getattr(instance, "agent_instance_type", None),
-            "agent_id": getattr(instance, "agent_id", None),
-            "agent_type": getattr(instance, "agent_type", None),
-            "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
             "enable_auto_split": instance.enable_auto_split,
             "message_debounce_seconds": getattr(instance, "message_debounce_seconds", 0),
             "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
@@ -630,22 +605,17 @@ async def get_instance(
         "webhook_base64": instance.webhook_base64,
         "agent_api_url": instance.agent_api_url,
         "agent_api_key": instance.agent_api_key,
-        "default_agent": instance.default_agent,
+        "agent_id": getattr(instance, "agent_id", None),
+        "agent_type": getattr(instance, "agent_type", None),
         "agent_timeout": instance.agent_timeout,
+        "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
         "is_default": instance.is_default,
         "is_active": instance.is_active,
-        "automagik_instance_id": instance.automagik_instance_id,
-        "automagik_instance_name": instance.automagik_instance_name,
         "profile_name": getattr(instance, "profile_name", None),
         "profile_pic_url": getattr(instance, "profile_pic_url", None),
         "owner_jid": getattr(instance, "owner_jid", None),
         "created_at": instance.created_at,
         "updated_at": instance.updated_at,
-        # Include unified fields
-        "agent_instance_type": getattr(instance, "agent_instance_type", None),
-        "agent_id": getattr(instance, "agent_id", None),
-        "agent_type": getattr(instance, "agent_type", None),
-        "agent_stream_mode": getattr(instance, "agent_stream_mode", None),
         "enable_auto_split": instance.enable_auto_split,
         "message_debounce_seconds": getattr(instance, "message_debounce_seconds", 0),
         "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
