@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { WhatsAppConnector } from '@/components/instances/WhatsAppConnector';
@@ -64,10 +66,26 @@ function getStatusBadge(status: ServiceStatus) {
   }
 }
 
+// Normalize instance name: remove spaces, convert to lowercase, replace with hyphens
+function normalizeInstanceName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-_]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+type WizardStep = 'name' | 'connect';
+
 export default function WhatsAppService() {
   const queryClient = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<WizardStep>('name');
   const [wizardInstanceName, setWizardInstanceName] = useState('');
+  const [wizardNameInput, setWizardNameInput] = useState('');
+  const [wizardNameError, setWizardNameError] = useState<string | null>(null);
   const [showStartupModal, setShowStartupModal] = useState(false);
 
   // Fetch health status
@@ -150,17 +168,45 @@ export default function WhatsAppService() {
   };
 
   const handleAddInstance = () => {
-    // Generate a default instance name
-    const baseName = 'whatsapp';
-    const existingNames = whatsappInstances.map((i) => i.name);
-    let counter = 1;
-    let newName = baseName;
-    while (existingNames.includes(newName)) {
-      newName = `${baseName}-${counter}`;
-      counter++;
-    }
-    setWizardInstanceName(newName);
+    // Reset wizard state and open at name step
+    setWizardStep('name');
+    setWizardNameInput('my-whatsapp');
+    setWizardInstanceName('');
+    setWizardNameError(null);
     setWizardOpen(true);
+  };
+
+  const handleWizardNameNext = () => {
+    const normalized = normalizeInstanceName(wizardNameInput);
+    if (!normalized) {
+      setWizardNameError('Please enter a valid connection name');
+      return;
+    }
+    if (normalized.length < 2) {
+      setWizardNameError('Name must be at least 2 characters');
+      return;
+    }
+    // Check for existing names
+    const existingNames = whatsappInstances.map((i) => i.name);
+    if (existingNames.includes(normalized)) {
+      setWizardNameError(`Instance "${normalized}" already exists`);
+      return;
+    }
+    setWizardInstanceName(normalized);
+    setWizardStep('connect');
+  };
+
+  const handleWizardClose = (open: boolean) => {
+    if (!open) {
+      // Reset state when closing
+      setTimeout(() => {
+        setWizardStep('name');
+        setWizardNameInput('my-whatsapp');
+        setWizardInstanceName('');
+        setWizardNameError(null);
+      }, 200);
+    }
+    setWizardOpen(open);
   };
 
   return (
@@ -304,19 +350,71 @@ export default function WhatsAppService() {
       </div>
 
       {/* Add Instance Dialog */}
-      <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+      <Dialog open={wizardOpen} onOpenChange={handleWizardClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add WhatsApp Instance</DialogTitle>
+            <DialogTitle>
+              {wizardStep === 'name' ? 'Name Your Connection' : 'Connect WhatsApp'}
+            </DialogTitle>
+            <DialogDescription>
+              {wizardStep === 'name'
+                ? 'Give your WhatsApp connection a unique name'
+                : 'Scan the QR code to connect'}
+            </DialogDescription>
           </DialogHeader>
-          <WhatsAppConnector
-            instanceName={wizardInstanceName}
-            onBack={() => setWizardOpen(false)}
-            onSuccess={() => {
-              setWizardOpen(false);
-              queryClient.invalidateQueries({ queryKey: ['instances'] });
-            }}
-          />
+
+          {wizardStep === 'name' ? (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="instance-name">Connection Name</Label>
+                <Input
+                  id="instance-name"
+                  value={wizardNameInput}
+                  onChange={(e) => {
+                    setWizardNameInput(e.target.value);
+                    setWizardNameError(null);
+                  }}
+                  placeholder="my-whatsapp"
+                  className="text-center"
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && handleWizardNameNext()}
+                />
+                {wizardNameInput !== normalizeInstanceName(wizardNameInput) &&
+                  normalizeInstanceName(wizardNameInput) && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Will be saved as:{' '}
+                      <span className="font-mono font-medium">
+                        {normalizeInstanceName(wizardNameInput)}
+                      </span>
+                    </p>
+                  )}
+                {wizardNameError && (
+                  <p className="text-xs text-destructive text-center">{wizardNameError}</p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => handleWizardClose(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleWizardNameNext} className="flex-1">
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <WhatsAppConnector
+              instanceName={wizardInstanceName}
+              onBack={() => setWizardStep('name')}
+              onSuccess={() => {
+                handleWizardClose(false);
+                queryClient.invalidateQueries({ queryKey: ['instances'] });
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
