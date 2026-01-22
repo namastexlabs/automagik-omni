@@ -154,6 +154,17 @@ class WhatsAppTransformer:
         if whatsapp_message.get("message"):
             msg = whatsapp_message["message"]
 
+            # Handle nested message wrappers (album children, ephemeral messages, etc.)
+            # These wrappers contain the actual message content in a nested structure:
+            # - associatedChildMessage: message.associatedChildMessage.message.<mediaType>
+            # - ephemeralMessage: message.ephemeralMessage.message.<content>
+            for wrapper_type in ["associatedChildMessage", "ephemeralMessage"]:
+                if msg.get(wrapper_type):
+                    nested_msg = msg[wrapper_type].get("message", {})
+                    if nested_msg:
+                        msg = nested_msg  # Use the nested message for media extraction
+                        break
+
             if msg.get("imageMessage"):
                 message_type = OmniMessageType.IMAGE
                 media = msg["imageMessage"]
