@@ -143,8 +143,10 @@ class OmniEvolutionClient(EvolutionClient):
         """
         # Fetch messages from Evolution API using POST with body
         # Evolution API: POST /chat/findMessages/{instance}
-        # Body: {"where": {"key": {"remoteJid": "..."}}, "limit": N}
-        payload = {"where": {"key": {"remoteJid": chat_id}}, "limit": limit}
+        # Body: {"where": {"key": {"remoteJid": "...", "remoteJidAlt": "..."}}, "limit": N}
+        # Pass chat_id to BOTH remoteJid and remoteJidAlt - Evolution uses OR to search both fields
+        # This handles WhatsApp's dual JID formats (@lid and @s.whatsapp.net)
+        payload = {"where": {"key": {"remoteJid": chat_id, "remoteJidAlt": chat_id}}, "limit": limit}
         response = await self._request(
             "POST",
             f"/chat/findMessages/{quote(instance_name, safe='')}",
@@ -198,9 +200,11 @@ class OmniEvolutionClient(EvolutionClient):
         """
         # Evolution API supports native pagination via page/offset parameters
         # POST /chat/findMessages/{instance}
-        # Body: {"where": {"key": {"remoteJid": "..."}}, "page": N, "offset": M}
+        # Body: {"where": {"key": {"remoteJid": "...", "remoteJidAlt": "..."}}, "page": N, "offset": M}
+        # Pass chat_id to BOTH remoteJid and remoteJidAlt - Evolution uses OR to search both fields
+        # This handles WhatsApp's dual JID formats (@lid and @s.whatsapp.net)
         payload = {
-            "where": {"key": {"remoteJid": chat_id}},
+            "where": {"key": {"remoteJid": chat_id, "remoteJidAlt": chat_id}},
             "page": page,
             "offset": page_size,  # offset is actually page size in Evolution API
         }
