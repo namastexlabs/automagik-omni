@@ -1,9 +1,10 @@
-import { useRef, useEffect, useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
-import { Loader2, User, Users, MoreVertical } from 'lucide-react';
+import { useRef, useEffect, useMemo, useState } from 'react';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { Loader2, User, Users, Pause, Play } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { api } from '@/lib';
@@ -19,6 +20,71 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
   const remoteJid = chat.remoteJid || chat.id || '';
   const name = chat.name || chat.pushName || (remoteJid ? remoteJid.split('@')[0] : 'Unknown');
   const isGroup = remoteJid?.includes('@g.us') || chat.isGroup;
+
+  // Agent pause state
+  const [isAgentPaused, setIsAgentPaused] = useState(false);
+  const [blockRuleId, setBlockRuleId] = useState<number | null>(null);
+  const [isToggling, setIsToggling] = useState(false);
+
+  // For block rules: extract phone/digits and add + prefix (matches backend logic)
+  // Backend does: remoteJid.split("@")[0] → keep digits only → add "+"
+  const extractBlockIdentifier = (): string | null => {
+    // For regular chats, prefer resolved phone number (handles LID chats)
+    if (!isGroup && chat.resolvedPhoneNumber) {
+      return `+${chat.resolvedPhoneNumber}`;
+    }
+    // Extract from JID: strip domain, keep digits only
+    if (remoteJid) {
+      const raw = remoteJid.split('@')[0];
+      const digitsOnly = raw.replace(/\D/g, '');
+      if (digitsOnly) {
+        return `+${digitsOnly}`;
+      }
+    }
+    return null;
+  };
+  const blockIdentifier = extractBlockIdentifier();
+
+  // Query existing block rules to check if this chat is paused
+  const { refetch: refetchRules } = useQuery({
+    queryKey: ['accessRules', instanceName, blockIdentifier],
+    queryFn: () => api.accessRules.list({ instance_name: instanceName, rule_type: 'block' }),
+    enabled: !!blockIdentifier,
+    onSuccess: (rules) => {
+      const existingRule = rules.find((r) => r.phone_number === blockIdentifier);
+      setIsAgentPaused(!!existingRule);
+      setBlockRuleId(existingRule?.id ?? null);
+    },
+  });
+
+  // Toggle agent pause
+  const handleTogglePause = async () => {
+    if (!blockIdentifier || isToggling) return;
+
+    setIsToggling(true);
+    try {
+      if (isAgentPaused && blockRuleId) {
+        // Resume: delete the block rule
+        await api.accessRules.delete(blockRuleId);
+        setIsAgentPaused(false);
+        setBlockRuleId(null);
+      } else {
+        // Pause: create a block rule
+        const rule = await api.accessRules.create({
+          phone_number: blockIdentifier,
+          rule_type: 'block',
+          instance_name: instanceName,
+        });
+        setIsAgentPaused(true);
+        setBlockRuleId(rule.id);
+      }
+      refetchRules();
+    } catch (error) {
+      console.error('Failed to toggle agent pause:', error);
+    } finally {
+      setIsToggling(false);
+    }
+  };
 
   // For LID chats, we need to fetch messages by both LID and resolved phone JID
   // because sent messages are stored with the phone JID, not the LID
@@ -90,7 +156,14 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <h2 className="font-medium truncate text-foreground">{name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-medium truncate text-foreground">{name}</h2>
+            {isAgentPaused && (
+              <Badge variant="secondary" className="text-xs shrink-0">
+                Agent Paused
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground truncate">
             {isGroup
               ? 'Group chat'
@@ -101,8 +174,21 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
                   : 'Unknown'}
           </p>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
-          <MoreVertical className="h-5 w-5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className={isAgentPaused ? 'text-orange-500 hover:text-orange-600' : 'text-muted-foreground'}
+          onClick={handleTogglePause}
+          disabled={isToggling || !blockIdentifier}
+          title={isAgentPaused ? 'Resume Agent' : 'Pause Agent'}
+        >
+          {isToggling ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : isAgentPaused ? (
+            <Play className="h-5 w-5" />
+          ) : (
+            <Pause className="h-5 w-5" />
+          )}
         </Button>
       </div>
 
