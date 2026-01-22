@@ -5,12 +5,15 @@ WhatsApp unified channel handler implementation.
 
 import logging
 from typing import List, Optional, Tuple, Dict, Any
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 from src.channels.omni_base import OmniChannelHandler
 from src.channels.whatsapp.channel_handler import WhatsAppChannelHandler
 from src.channels.whatsapp.omni_evolution_client import OmniEvolutionClient
-from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, OmniMessage
+from src.api.schemas.omni import OmniContact, OmniChat, OmniChannelInfo, OmniMessage, MessageDeliveryStatus
 from src.services.omni_transformers import WhatsAppTransformer
 from src.db.models import InstanceConfig
+from src.db.database import get_db
 from src.config import config
 from src.ip_utils import replace_localhost_with_ipv4
 
@@ -55,6 +58,72 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         # Pass instance name for logging/debugging only (auth uses bootstrap key)
         whatsapp_instance_name = instance.whatsapp_instance or instance.name
         return OmniEvolutionClient(evolution_url, bootstrap_key, whatsapp_instance_name)
+
+    def _enrich_messages_with_status(self, messages: List[OmniMessage], instance_name: str) -> List[OmniMessage]:
+        """
+        Enrich messages with delivery status from the database.
+
+        Evolution API doesn't return message status in findMessages response,
+        so we query the evo_Message table directly to get status for each message.
+        """
+        if not messages:
+            return messages
+
+        try:
+            # Get database session
+            db: Session = next(get_db())
+
+            # Get message IDs to query
+            message_ids = [msg.id for msg in messages if msg.id]
+            if not message_ids:
+                return messages
+
+            # Query status for all messages in one query
+            # Using raw SQL for efficiency with JSONB key extraction
+            query = text("""
+                SELECT
+                    m.key->>'id' as message_id,
+                    m.status
+                FROM "evo_Message" m
+                JOIN "evo_Instance" i ON m."instanceId" = i.id
+                WHERE i.name = :instance_name
+                AND m.key->>'id' = ANY(:message_ids)
+            """)
+
+            result = db.execute(query, {"instance_name": instance_name, "message_ids": message_ids})
+            status_map: Dict[str, str] = {row.message_id: row.status for row in result if row.message_id}
+
+            # Map Evolution status to our enum
+            status_mapping = {
+                "PENDING": MessageDeliveryStatus.PENDING,
+                "ERROR": MessageDeliveryStatus.FAILED,
+                "SENT": MessageDeliveryStatus.SENT,
+                "SERVER_ACK": MessageDeliveryStatus.SENT,
+                "DELIVERY_ACK": MessageDeliveryStatus.DELIVERED,
+                "DELIVERED": MessageDeliveryStatus.DELIVERED,
+                "READ": MessageDeliveryStatus.READ,
+                "PLAYED": MessageDeliveryStatus.READ,
+            }
+
+            # Update messages with status
+            for msg in messages:
+                if msg.id in status_map:
+                    raw_status = status_map[msg.id]
+                    if raw_status:
+                        msg.delivery_status = status_mapping.get(raw_status.upper(), MessageDeliveryStatus.UNKNOWN)
+                        msg.is_read = msg.delivery_status == MessageDeliveryStatus.READ
+
+            logger.debug(f"Enriched {len(status_map)} messages with delivery status for instance {instance_name}")
+            return messages
+
+        except Exception as e:
+            logger.warning(f"Failed to enrich messages with status: {e}")
+            return messages
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
 
     async def get_contacts(
         self,
@@ -439,6 +508,9 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                 except Exception as transform_error:
                     logger.warning(f"Failed to transform WhatsApp message: {transform_error}")
                     continue
+
+            # Enrich messages with delivery status from database
+            messages = self._enrich_messages_with_status(messages, instance.name)
 
             logger.info(
                 f"Successfully fetched {len(messages)} messages (total: {total_count}) for chat {chat_id} in instance {instance.name}"

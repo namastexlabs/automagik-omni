@@ -419,3 +419,90 @@ class UserPreference(Base):
 
     def __repr__(self):
         return f"<UserPreference(session='{self.session_id[:8]}...', key='{self.key}', value='{self.value}')>"
+
+
+# =============================================================================
+# Evolution API Tables (Read-Only Models)
+# These models map to tables managed by Evolution API for direct database queries.
+# DO NOT use these for writes - Evolution API manages these tables.
+# =============================================================================
+
+
+class EvolutionInstance(Base):
+    """Read-only model for Evolution API instance table.
+
+    Maps to evo_Instance table managed by Evolution API.
+    Use for querying instance data directly from database.
+    """
+
+    __tablename__ = "evo_Instance"
+
+    id = Column(String, primary_key=True)
+    name = Column(String(255), unique=True, nullable=False)
+    connectionStatus = Column(String, default="close")  # open, close, connecting
+    ownerJid = Column(String(100), nullable=True)
+    profileName = Column(String(100), nullable=True)
+    profilePicUrl = Column(String(500), nullable=True)
+    integration = Column(String(100), nullable=True)
+    number = Column(String(100), nullable=True)
+    createdAt = Column(DateTime, nullable=True)
+    updatedAt = Column(DateTime, nullable=True)
+
+    # Relationships
+    messages = relationship("EvolutionMessage", back_populates="instance", lazy="dynamic")
+    chats = relationship("EvolutionChat", back_populates="instance", lazy="dynamic")
+
+    def __repr__(self):
+        return f"<EvolutionInstance(name='{self.name}', status='{self.connectionStatus}')>"
+
+
+class EvolutionChat(Base):
+    """Read-only model for Evolution API chat table.
+
+    Maps to evo_Chat table managed by Evolution API.
+    """
+
+    __tablename__ = "evo_Chat"
+
+    id = Column(String, primary_key=True)
+    remoteJid = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=True)
+    instanceId = Column(String, ForeignKey("evo_Instance.id", ondelete="CASCADE"), nullable=False)
+    unreadMessages = Column(Integer, default=0)
+    createdAt = Column(DateTime, nullable=True)
+    updatedAt = Column(DateTime, nullable=True)
+
+    # Relationships
+    instance = relationship("EvolutionInstance", back_populates="chats")
+
+    def __repr__(self):
+        return f"<EvolutionChat(jid='{self.remoteJid}', unread={self.unreadMessages})>"
+
+
+class EvolutionMessage(Base):
+    """Read-only model for Evolution API message table.
+
+    Maps to evo_Message table managed by Evolution API.
+    Use for querying messages with delivery status directly from database.
+    """
+
+    __tablename__ = "evo_Message"
+
+    id = Column(String, primary_key=True)
+    key = Column(String, nullable=False)  # JSONB stored as string
+    pushName = Column(String(100), nullable=True)
+    participant = Column(String(100), nullable=True)
+    messageType = Column(String(100), nullable=False)
+    message = Column(String, nullable=False)  # JSONB stored as string
+    contextInfo = Column(String, nullable=True)  # JSONB stored as string
+    source = Column(String, nullable=False)  # DeviceMessage enum
+    messageTimestamp = Column(Integer, nullable=False)
+    instanceId = Column(String, ForeignKey("evo_Instance.id", ondelete="CASCADE"), nullable=False)
+    webhookUrl = Column(String(500), nullable=True)
+    status = Column(String(30), nullable=True)  # DELIVERY_ACK, READ, PLAYED, SERVER_ACK, PENDING
+
+    # Relationships
+    instance = relationship("EvolutionInstance", back_populates="messages")
+
+    def __repr__(self):
+        return f"<EvolutionMessage(id='{self.id}', status='{self.status}')>"
