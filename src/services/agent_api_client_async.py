@@ -41,7 +41,7 @@ class AsyncAgentApiClient:
             # Use per-instance configuration
             self.api_url = config_override.agent_api_url
             self.api_key = config_override.agent_api_key
-            self.default_agent_name = config_override.default_agent
+            self.default_agent_name = config_override.agent_id
             self.timeout = config_override.agent_timeout
             logger.info(
                 f"Async Agent API client initialized for instance '{config_override.name}' with URL: {self.api_url}"

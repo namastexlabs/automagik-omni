@@ -879,7 +879,7 @@ async def configure_channels(config: ChannelConfigRequest, db: Session = Depends
                         session_id_prefix=f"{instance_name}-",
                         agent_api_url="http://localhost:8000",  # Default, configure in dashboard
                         agent_api_key="default-key",  # Default, configure in dashboard
-                        default_agent="default-agent",
+                        agent_id="default",
                         is_active=False,  # Will be activated after QR scan
                         is_default=True,  # First instance is default
                     )

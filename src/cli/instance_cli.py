@@ -47,7 +47,7 @@ def list_instances():
             table.add_column("Name", style="cyan")
             table.add_column("WhatsApp Instance", style="green")
             table.add_column("Agent API URL", style="blue")
-            table.add_column("Default Agent", style="magenta")
+            table.add_column("Agent ID", style="magenta")
             table.add_column("Is Default", style="red")
 
             for instance in instances:
@@ -55,7 +55,7 @@ def list_instances():
                     instance.name,
                     instance.whatsapp_instance,
                     instance.agent_api_url,
-                    instance.default_agent,
+                    instance.agent_id,
                     "✓" if instance.is_default else "",
                 )
 
@@ -101,7 +101,7 @@ def show_instance(name: str):
         console.print(
             f"Agent API Key: {'*' * len(instance.agent_api_key) if instance.agent_api_key else '[dim]Not set[/dim]'}"
         )
-        console.print(f"Default Agent: {instance.default_agent}")
+        console.print(f"Agent ID: {instance.agent_id}")
         console.print(f"Agent Timeout: {instance.agent_timeout}s")
         console.print(f"Is Default: {instance.is_default}")
         console.print(f"Created: {instance.created_at}")
@@ -119,7 +119,7 @@ def add_instance(
     session_id_prefix: Optional[str] = typer.Option(None, help="Session ID prefix"),
     agent_api_url: str = typer.Option(..., help="Agent API URL"),
     agent_api_key: str = typer.Option(..., help="Agent API key"),
-    default_agent: str = typer.Option(..., help="Default agent name"),
+    agent_id: str = typer.Option(..., help="Default agent name"),
     agent_timeout: int = typer.Option(60, help="Agent API timeout in seconds"),
     make_default: bool = typer.Option(False, "--default", help="Make this the default instance"),
 ):
@@ -155,7 +155,7 @@ def add_instance(
                 session_id_prefix=session_id_prefix,
                 agent_api_url=agent_api_url,
                 agent_api_key=agent_api_key,
-                default_agent=default_agent,
+                agent_id=agent_id,
                 agent_timeout=agent_timeout,
                 is_default=make_default,
             )
@@ -196,7 +196,7 @@ def update_instance(
     session_id_prefix: Optional[str] = typer.Option(None, help="Session ID prefix"),
     agent_api_url: Optional[str] = typer.Option(None, help="Agent API URL"),
     agent_api_key: Optional[str] = typer.Option(None, help="Agent API key"),
-    default_agent: Optional[str] = typer.Option(None, help="Default agent name"),
+    agent_id: Optional[str] = typer.Option(None, help="Default agent name"),
     agent_timeout: Optional[int] = typer.Option(None, help="Agent API timeout in seconds"),
     make_default: bool = typer.Option(False, "--default", help="Make this the default instance"),
 ):
@@ -223,8 +223,8 @@ def update_instance(
             instance.agent_api_url = agent_api_url
         if agent_api_key is not None:
             instance.agent_api_key = agent_api_key
-        if default_agent is not None:
-            instance.default_agent = default_agent
+        if agent_id is not None:
+            instance.agent_id = agent_id
         if agent_timeout is not None:
             instance.agent_timeout = agent_timeout
 

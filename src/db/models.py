@@ -69,10 +69,6 @@ class InstanceConfig(Base):
     agent_timeout = Column(Integer, default=60)
     agent_stream_mode = Column(Boolean, default=False, nullable=False)  # Enable streaming
 
-    # Automagik instance identification (for UI display)
-    automagik_instance_id = Column(String, nullable=True)
-    automagik_instance_name = Column(String, nullable=True)
-
     # Profile information from Evolution API
     profile_name = Column(String, nullable=True)  # WhatsApp display name
     profile_pic_url = Column(String, nullable=True)  # Profile picture URL

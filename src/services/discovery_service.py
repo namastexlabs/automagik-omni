@@ -221,11 +221,11 @@ class DiscoveryService:
             updated = True
             logger.debug(f"Updated {db_instance.name} status: {evo_instance.status} -> active={expected_active}")
 
-        # Only update default_agent if it's currently empty/default and Evolution has profile data
-        if (not db_instance.default_agent or db_instance.default_agent == "default-agent") and evo_instance.profileName:
-            db_instance.default_agent = evo_instance.profileName
+        # Only update agent_id if it's currently empty/default and Evolution has profile data
+        if (not db_instance.agent_id or db_instance.agent_id == "default") and evo_instance.profileName:
+            db_instance.agent_id = evo_instance.profileName
             updated = True
-            logger.debug(f"Updated {db_instance.name} default_agent to Evolution profile: {evo_instance.profileName}")
+            logger.debug(f"Updated {db_instance.name} agent_id to Evolution profile: {evo_instance.profileName}")
 
         # Update profile information from Evolution API
         if evo_instance.profileName and db_instance.profile_name != evo_instance.profileName:
@@ -284,7 +284,7 @@ class DiscoveryService:
             new_instance = InstanceConfig(
                 name=normalized_name,
                 channel_type="whatsapp",
-                default_agent=evo_instance.profileName or "default-agent",
+                agent_id=evo_instance.profileName or "default",
                 evolution_url=evolution_url,
                 evolution_key=instance_token,  # Use Evolution's per-instance token
                 agent_api_url="http://localhost:8000",  # Default agent URL

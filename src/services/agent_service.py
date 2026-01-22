@@ -63,9 +63,7 @@ class AgentService:
         logger.info("Processing WhatsApp message")
         logger.debug(f"Message data: {data}")
         if instance_config:
-            logger.info(
-                f"Using instance configuration: {instance_config.name} -> Agent: {instance_config.default_agent}"
-            )
+            logger.info(f"Using instance configuration: {instance_config.name} -> Agent: {instance_config.agent_id}")
 
         # Handle system messages
         if data.get("messageType") in ["systemMessage"]:

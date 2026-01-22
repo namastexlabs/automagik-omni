@@ -252,7 +252,7 @@ def list_instances():
                 token_status,
                 status,
                 instance["agent_api_url"] or "Not set",
-                instance["default_agent"] or "Not set",
+                instance["agent_id"] or "Not set",
             )
 
         console.print(table)
