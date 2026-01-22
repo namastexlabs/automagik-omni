@@ -14,6 +14,37 @@ from src.api.schemas.omni import (
 )
 
 
+def _parse_file_length(file_length: Any) -> Optional[int]:
+    """
+    Parse file length from various formats.
+
+    Evolution API can return fileLength as:
+    - An integer (simple case)
+    - A protobuf Long dict: {"low": N, "high": M, "unsigned": bool}
+      where actual value = high * 2^32 + low
+
+    Returns:
+        Integer file size or None if parsing fails
+    """
+    if file_length is None:
+        return None
+    if isinstance(file_length, int):
+        return file_length
+    if isinstance(file_length, dict):
+        # Protobuf Long format
+        low = file_length.get("low", 0)
+        high = file_length.get("high", 0)
+        if isinstance(low, int) and isinstance(high, int):
+            return (high << 32) + low
+    # Try to convert string to int
+    if isinstance(file_length, str):
+        try:
+            return int(file_length)
+        except ValueError:
+            pass
+    return None
+
+
 class WhatsAppTransformer:
     """Transform WhatsApp data to omni format."""
 
@@ -170,7 +201,7 @@ class WhatsAppTransformer:
                 media = msg["imageMessage"]
                 media_url = media.get("url") or media.get("directPath")
                 media_mime_type = media.get("mimetype")
-                media_size = media.get("fileLength")
+                media_size = _parse_file_length(media.get("fileLength"))
                 caption = media.get("caption")
                 thumbnail_url = media.get("thumbnailUrl")
             elif msg.get("videoMessage"):
@@ -178,7 +209,7 @@ class WhatsAppTransformer:
                 media = msg["videoMessage"]
                 media_url = media.get("url") or media.get("directPath")
                 media_mime_type = media.get("mimetype")
-                media_size = media.get("fileLength")
+                media_size = _parse_file_length(media.get("fileLength"))
                 caption = media.get("caption")
                 thumbnail_url = media.get("thumbnailUrl")
             elif msg.get("audioMessage") or msg.get("ptt"):
@@ -186,13 +217,13 @@ class WhatsAppTransformer:
                 media = msg.get("audioMessage") or msg.get("ptt", {})
                 media_url = media.get("url") or media.get("directPath")
                 media_mime_type = media.get("mimetype")
-                media_size = media.get("fileLength")
+                media_size = _parse_file_length(media.get("fileLength"))
             elif msg.get("documentMessage"):
                 message_type = OmniMessageType.DOCUMENT
                 media = msg["documentMessage"]
                 media_url = media.get("url") or media.get("directPath")
                 media_mime_type = media.get("mimetype")
-                media_size = media.get("fileLength")
+                media_size = _parse_file_length(media.get("fileLength"))
                 caption = media.get("caption") or media.get("fileName")
             elif msg.get("stickerMessage"):
                 message_type = OmniMessageType.STICKER
