@@ -91,6 +91,7 @@ export interface ServerStats {
 
 export interface HealthResponse {
   status: 'up' | 'down' | 'degraded';
+  version?: string;
   timestamp: string;
   server?: ServerStats;
   services: {

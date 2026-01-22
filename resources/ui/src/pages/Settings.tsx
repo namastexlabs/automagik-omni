@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,10 +10,11 @@ import { api, getApiKey, formatDateTime } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Settings as SettingsIcon, Key, Info, Moon, Sun, Database, ArrowRight, FileText } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Info, Moon, Sun, Database, ArrowRight, FileText, Copy, Check } from 'lucide-react';
 
 export default function Settings() {
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
   const { data: health } = useQuery({
     queryKey: ['health'],
     queryFn: () => api.health(),
@@ -19,6 +22,18 @@ export default function Settings() {
 
   const apiKey = getApiKey();
   const maskedKey = apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}` : 'Not set';
+
+  const handleCopyApiKey = async () => {
+    if (!apiKey) return;
+    try {
+      await navigator.clipboard.writeText(apiKey);
+      setCopied(true);
+      toast.success('API key copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy API key');
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -59,7 +74,24 @@ export default function Settings() {
 
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
                   <span className="text-sm font-medium text-foreground">API Key</span>
-                  <code className="text-sm text-muted-foreground font-mono">{maskedKey}</code>
+                  <div className="flex items-center gap-2">
+                    <code className="text-sm text-muted-foreground font-mono">{maskedKey}</code>
+                    {apiKey && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={handleCopyApiKey}
+                        title="Copy API key"
+                      >
+                        {copied ? (
+                          <Check className="h-3.5 w-3.5 text-green-500" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
@@ -150,22 +182,12 @@ export default function Settings() {
                   <Info className="h-5 w-5 text-primary" />
                   <CardTitle>About</CardTitle>
                 </div>
-                <CardDescription>Information about Automagik Omni UI</CardDescription>
+                <CardDescription>Information about Omni</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
                   <span className="text-sm font-medium text-foreground">Application</span>
-                  <span className="text-sm text-muted-foreground">Automagik Omni UI</span>
-                </div>
-
-                <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
-                  <span className="text-sm font-medium text-foreground">Version</span>
-                  <code className="text-sm text-muted-foreground">0.1.0</code>
-                </div>
-
-                <div className="flex justify-between items-center p-3 bg-muted rounded-lg border border-border">
-                  <span className="text-sm font-medium text-foreground">Framework</span>
-                  <span className="text-sm text-muted-foreground">React 19 + Vite 6</span>
+                  <span className="text-sm text-muted-foreground">Omni</span>
                 </div>
 
                 {health?.timestamp && (
@@ -181,9 +203,7 @@ export default function Settings() {
             <div className="pt-6 pb-4">
               <Separator className="mb-4" />
               <p className="text-xs text-center text-muted-foreground">
-                Automagik Omni - Unified Multi-Channel Messaging Hub
-                <br />
-                Built with React, TypeScript, and shadcn/ui
+                Omni - Unified Multi-Channel Messaging Hub
               </p>
             </div>
           </div>

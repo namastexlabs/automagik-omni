@@ -96,7 +96,7 @@ export default function ApiKey() {
             </div>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Your API Key</h2>
-          <p className="text-gray-600">Save this key securely - you'll need it to access Automagik Omni</p>
+          <p className="text-gray-600">Save this key securely - you'll need it to access Omni</p>
         </div>
 
         {error && (

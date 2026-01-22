@@ -322,7 +322,7 @@ export default function DatabaseSetup() {
   // Show loading while checking services
   if (isCheckingServices) {
     return (
-      <OnboardingLayout currentStep={1} totalSteps={4} title="Welcome to Automagik Omni">
+      <OnboardingLayout currentStep={1} totalSteps={4} title="Welcome to Omni">
         <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-4" />
           <p className="text-gray-600">Checking services...</p>
@@ -332,7 +332,7 @@ export default function DatabaseSetup() {
   }
 
   return (
-    <OnboardingLayout currentStep={1} totalSteps={4} title="Welcome to Automagik Omni">
+    <OnboardingLayout currentStep={1} totalSteps={4} title="Welcome to Omni">
       <DatabaseStartupModal
         open={showStartupModal}
         onOpenChange={setShowStartupModal}

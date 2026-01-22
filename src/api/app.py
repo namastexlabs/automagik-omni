@@ -482,9 +482,16 @@ def custom_openapi():
     )
 
     # Add server information dynamically from configuration
-    servers = []
+    # Use relative URL "/" as primary - this makes Swagger use the current host automatically
+    # Works in both local development and production deployments
+    servers = [
+        {
+            "url": "/",
+            "description": "Current Server",
+        }
+    ]
 
-    # Add production server if configured
+    # Add production server if explicitly configured
     if config.api.prod_server_url:
         servers.append(
             {
@@ -492,14 +499,6 @@ def custom_openapi():
                 "description": "Production Server",
             }
         )
-
-    # Always add local development server with actual configured port
-    servers.append(
-        {
-            "url": f"http://localhost:{config.api.port}",
-            "description": "Local Development Server",
-        }
-    )
 
     openapi_schema["servers"] = servers
 
@@ -608,6 +607,7 @@ async def health_check():
     # Basic API health
     health_status = {
         "status": "healthy",
+        "version": config.api.version,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "services": {
             "api": {

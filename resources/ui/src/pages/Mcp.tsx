@@ -229,7 +229,7 @@ export default function Mcp() {
       <div className="flex flex-col h-full">
         <PageHeader
           title="MCP Configuration"
-          subtitle="Connect AI tools to Automagik Omni via Model Context Protocol"
+          subtitle="Connect AI tools to Omni via Model Context Protocol"
         />
 
         {/* Main Content */}

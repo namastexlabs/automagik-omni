@@ -101,6 +101,7 @@ export interface ServerStats {
 
 export interface AggregatedHealth {
   status: 'up' | 'down' | 'degraded';
+  version: string;
   timestamp: string;
   server?: ServerStats;
   services: {
@@ -726,6 +727,7 @@ export class HealthChecker {
 
     const health: AggregatedHealth = {
       status: overallStatus,
+      version: '0.5.2',
       timestamp: new Date().toISOString(),
       server: serverStats,
       services: {

@@ -70,7 +70,7 @@ export default function Login() {
             </div>
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Automagik Omni
+            Omni
           </CardTitle>
           <CardDescription className="text-base">
             Enter your API key to access the unified messaging hub
