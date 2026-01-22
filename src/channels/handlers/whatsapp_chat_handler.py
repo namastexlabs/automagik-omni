@@ -345,6 +345,7 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
         """
         Get messages from a WhatsApp chat in omni format.
 
+        Uses Evolution API's native pagination for efficient querying.
         For LID format chats, this also queries by the resolved phone JID
         and merges the results to ensure all messages are found.
         """
@@ -368,47 +369,70 @@ class WhatsAppChatHandler(WhatsAppChannelHandler, OmniChannelHandler):
                         jids_to_query.append(phone_jid)
                         logger.debug(f"LID chat {chat_id} resolved to phone JID {phone_jid}")
 
-            # Fetch messages for all JIDs
+            # Fetch messages using Evolution API's native pagination
+            # We pass page and page_size directly to let Evolution handle pagination server-side
+            messages_response = await evolution_client.fetch_messages_paginated(
+                instance_name=instance.name,
+                chat_id=jids_to_query[0],  # Primary JID
+                page=page,
+                page_size=page_size,
+            )
+
+            # Parse response - Evolution API returns: {"messages": {"total": N, "pages": P, "records": [...]}}
             all_messages: List[dict] = []
-            for jid in jids_to_query:
-                messages_response = await evolution_client.fetch_messages(
-                    instance_name=instance.name, chat_id=jid, page=1, page_size=10000, limit=200
-                )
+            total_count = 0
 
-                # Parse response
-                if isinstance(messages_response, dict):
-                    message_list = messages_response.get("messages", messages_response.get("data", []))
-                elif isinstance(messages_response, list):
-                    message_list = messages_response
+            if isinstance(messages_response, dict):
+                messages_data = messages_response.get("messages", {})
+                if isinstance(messages_data, dict):
+                    all_messages = messages_data.get("records", [])
+                    total_count = messages_data.get("total", len(all_messages))
                 else:
-                    message_list = []
+                    all_messages = messages_response.get("data", [])
+                    total_count = messages_response.get("total", len(all_messages))
+            elif isinstance(messages_response, list):
+                all_messages = messages_response
+                total_count = len(all_messages)
 
-                all_messages.extend(message_list)
+            # For LID chats with additional JIDs, we need to merge results from both
+            # This is necessary because messages might be stored under either the LID or phone JID
+            if len(jids_to_query) > 1:
+                for additional_jid in jids_to_query[1:]:
+                    additional_response = await evolution_client.fetch_messages_paginated(
+                        instance_name=instance.name,
+                        chat_id=additional_jid,
+                        page=page,
+                        page_size=page_size,
+                    )
+                    if isinstance(additional_response, dict):
+                        add_data = additional_response.get("messages", {})
+                        if isinstance(add_data, dict):
+                            additional_msgs = add_data.get("records", [])
+                            additional_total = add_data.get("total", 0)
+                        else:
+                            additional_msgs = additional_response.get("data", [])
+                            additional_total = additional_response.get("total", 0)
+                        all_messages.extend(additional_msgs)
+                        total_count = max(total_count, additional_total)  # Use higher count
 
-            # Deduplicate by message ID
-            seen_ids: set = set()
-            unique_messages: List[dict] = []
-            for msg in all_messages:
-                msg_id = msg.get("key", {}).get("id") if isinstance(msg, dict) else None
-                if msg_id and msg_id not in seen_ids:
-                    seen_ids.add(msg_id)
-                    unique_messages.append(msg)
-                elif not msg_id:
-                    unique_messages.append(msg)
+                # Deduplicate by message ID
+                seen_ids: set = set()
+                unique_messages: List[dict] = []
+                for msg in all_messages:
+                    msg_id = msg.get("key", {}).get("id") if isinstance(msg, dict) else None
+                    if msg_id and msg_id not in seen_ids:
+                        seen_ids.add(msg_id)
+                        unique_messages.append(msg)
+                    elif not msg_id:
+                        unique_messages.append(msg)
 
-            # Sort by timestamp descending (newest first)
-            unique_messages.sort(key=lambda m: int(m.get("messageTimestamp", 0)), reverse=True)
-
-            total_count = len(unique_messages)
-
-            # Apply pagination
-            start_idx = (page - 1) * page_size
-            end_idx = start_idx + page_size
-            paginated_messages = unique_messages[start_idx:end_idx]
+                # Sort by timestamp descending (newest first)
+                unique_messages.sort(key=lambda m: int(m.get("messageTimestamp", 0)), reverse=True)
+                all_messages = unique_messages[:page_size]  # Limit to page_size after merge
 
             # Transform each message to omni format
             messages = []
-            for msg in paginated_messages:
+            for msg in all_messages:
                 try:
                     omni_message = WhatsAppTransformer.message_to_omni(msg, instance.name)
                     messages.append(omni_message)

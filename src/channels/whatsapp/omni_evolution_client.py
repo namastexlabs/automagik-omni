@@ -64,6 +64,8 @@ class OmniEvolutionClient(EvolutionClient):
         """
         Fetch messages for a chat with client-side pagination.
 
+        DEPRECATED: Use fetch_messages_paginated() for proper server-side pagination.
+
         Args:
             instance_name: Name of the instance
             chat_id: Chat/conversation identifier (can be LID or phone JID format)
@@ -109,6 +111,43 @@ class OmniEvolutionClient(EvolutionClient):
 
         # Fallback for other response formats
         return self._apply_pagination(response, page, page_size)
+
+    async def fetch_messages_paginated(
+        self, instance_name: str, chat_id: str, page: int = 1, page_size: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Fetch messages for a chat using Evolution API's native server-side pagination.
+
+        This is more efficient than fetch_messages() as it only fetches the requested page
+        from the database, rather than fetching all messages and paginating client-side.
+
+        Args:
+            instance_name: Name of the instance
+            chat_id: Chat/conversation identifier (can be LID or phone JID format)
+            page: Page number (1-based)
+            page_size: Number of items per page
+
+        Returns:
+            Dictionary with messages and pagination metadata:
+            {"messages": {"total": N, "pages": P, "currentPage": X, "records": [...]}}
+        """
+        # Evolution API supports native pagination via page/offset parameters
+        # POST /chat/findMessages/{instance}
+        # Body: {"where": {"key": {"remoteJid": "..."}}, "page": N, "offset": M}
+        payload = {
+            "where": {"key": {"remoteJid": chat_id}},
+            "page": page,
+            "offset": page_size,  # offset is actually page size in Evolution API
+        }
+        response = await self._request(
+            "POST",
+            f"/chat/findMessages/{quote(instance_name, safe='')}",
+            json=payload,
+        )
+
+        # Return the raw response - it should be properly paginated from the API
+        # Format: {"messages": {"total": N, "pages": P, "currentPage": X, "records": [...]}}
+        return response
 
     def _apply_pagination(self, response: Any, page: int, page_size: int) -> Dict[str, Any]:
         """
