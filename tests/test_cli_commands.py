@@ -175,7 +175,7 @@ class TestInstanceCLI:
             whatsapp_instance="test1",
             agent_api_url="http://agent1.com",
             agent_api_key="key1",
-            default_agent="agent1",
+            agent_id="agent1",
             is_default=True,
         )
         instance2 = InstanceConfig(
@@ -184,7 +184,7 @@ class TestInstanceCLI:
             whatsapp_instance="test2",
             agent_api_url="http://agent2.com",
             agent_api_key="key2",
-            default_agent="agent2",
+            agent_id="agent2",
             is_default=False,
         )
         test_db.add(instance1)
@@ -219,7 +219,7 @@ class TestInstanceCLI:
             whatsapp_instance="keep_test",
             agent_api_url="http://keep.com",
             agent_api_key="keep_key",
-            default_agent="keep_agent",
+            agent_id="keep_agent",
             is_default=True,
         )
         instance2 = InstanceConfig(
@@ -228,7 +228,7 @@ class TestInstanceCLI:
             whatsapp_instance="delete_test",
             agent_api_url="http://delete.com",
             agent_api_key="delete_key",
-            default_agent="delete_agent",
+            agent_id="delete_agent",
         )
         test_db.add(instance1)
         test_db.add(instance2)
@@ -253,7 +253,7 @@ class TestInstanceCLI:
             whatsapp_instance="keep_test",
             agent_api_url="http://keep.com",
             agent_api_key="keep_key",
-            default_agent="keep_agent",
+            agent_id="keep_agent",
             is_default=True,
         )
         instance2 = InstanceConfig(
@@ -262,7 +262,7 @@ class TestInstanceCLI:
             whatsapp_instance="confirm_test",
             agent_api_url="http://confirm.com",
             agent_api_key="confirm_key",
-            default_agent="confirm_agent",
+            agent_id="confirm_agent",
         )
         test_db.add(instance1)
         test_db.add(instance2)
@@ -284,7 +284,7 @@ class TestInstanceCLI:
             whatsapp_instance="keep_test",
             agent_api_url="http://keep.com",
             agent_api_key="keep_key",
-            default_agent="keep_agent",
+            agent_id="keep_agent",
             is_default=True,
         )
         instance2 = InstanceConfig(
@@ -293,7 +293,7 @@ class TestInstanceCLI:
             whatsapp_instance="cancel_test",
             agent_api_url="http://cancel.com",
             agent_api_key="cancel_key",
-            default_agent="cancel_agent",
+            agent_id="cancel_agent",
         )
         test_db.add(instance1)
         test_db.add(instance2)
@@ -332,7 +332,7 @@ class TestInstanceCLI:
             whatsapp_instance="test1",
             agent_api_url="http://agent1.com",
             agent_api_key="key1",
-            default_agent="agent1",
+            agent_id="agent1",
             is_default=True,
         )
         instance2 = InstanceConfig(
@@ -341,7 +341,7 @@ class TestInstanceCLI:
             whatsapp_instance="test2",
             agent_api_url="http://agent2.com",
             agent_api_key="key2",
-            default_agent="agent2",
+            agent_id="agent2",
             is_default=False,
         )
         test_db.add(instance1)

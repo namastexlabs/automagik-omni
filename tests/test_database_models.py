@@ -21,7 +21,7 @@ class TestInstanceConfigModel:
             whatsapp_instance="test_whatsapp",
             agent_api_url="http://agent.test.com",
             agent_api_key="agent_key",
-            default_agent="test_agent",
+            agent_id="test_agent",
             agent_timeout=60,
         )
 
@@ -47,7 +47,7 @@ class TestInstanceConfigModel:
             whatsapp_instance="whatsapp1",
             agent_api_url="http://agent1.com",
             agent_api_key="agent_key1",
-            default_agent="agent1",
+            agent_id="agent1",
         )
         test_db.add(instance1)
         test_db.commit()
@@ -60,7 +60,7 @@ class TestInstanceConfigModel:
             whatsapp_instance="whatsapp2",
             agent_api_url="http://agent2.com",
             agent_api_key="agent_key2",
-            default_agent="agent2",
+            agent_id="agent2",
         )
         test_db.add(instance2)
 
@@ -76,7 +76,7 @@ class TestInstanceConfigModel:
             whatsapp_instance="test_whatsapp",
             agent_api_url="http://agent.com",
             agent_api_key="agent_key",
-            default_agent="test_agent",
+            agent_id="test_agent",
             # agent_timeout and is_default should use defaults
         )
 
@@ -97,7 +97,7 @@ class TestInstanceConfigModel:
             whatsapp_instance="test_whatsapp",
             agent_api_url="http://agent.com",
             agent_api_key="agent_key",
-            default_agent="test_agent",
+            agent_id="test_agent",
             is_default=True,
         )
 
@@ -152,7 +152,7 @@ class TestBootstrapFunctions:
             whatsapp_instance="test_whatsapp",
             agent_api_url="http://agent.com",
             agent_api_key="agent_key",
-            default_agent="test_agent",
+            agent_id="test_agent",
             is_default=False,
         )
         test_db.add(instance)
@@ -207,7 +207,7 @@ class TestDatabaseQueries:
             whatsapp_instance="test_whatsapp",
             agent_api_url="http://agent.com",
             agent_api_key="agent_key",
-            default_agent="test_agent",
+            agent_id="test_agent",
         )
         test_db.add(instance)
         test_db.commit()
@@ -232,7 +232,7 @@ class TestDatabaseQueries:
                 whatsapp_instance=f"whatsapp{i}",
                 agent_api_url=f"http://agent{i}.com",
                 agent_api_key=f"agent_key{i}",
-                default_agent=f"agent{i}",
+                agent_id=f"agent{i}",
             )
             test_db.add(instance)
         test_db.commit()

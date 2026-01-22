@@ -55,7 +55,7 @@ class TestAccessControlService:
             whatsapp_instance="test",
             agent_api_url="http://agent.com",
             agent_api_key="key",
-            default_agent="agent",
+            agent_id="agent",
             is_default=False,
         )
         test_db.add(instance)
@@ -157,7 +157,7 @@ class TestAccessControlService:
             whatsapp_instance="test",
             agent_api_url="http://agent.com",
             agent_api_key="key",
-            default_agent="agent",
+            agent_id="agent",
             is_default=False,
         )
         test_db.add(instance)
@@ -522,7 +522,7 @@ class TestRealWorldScenarios:
             whatsapp_instance="prod",
             agent_api_url="http://agent.com",
             agent_api_key="key",
-            default_agent="agent",
+            agent_id="agent",
             is_default=False,
         )
         test_instance = InstanceConfig(
@@ -533,7 +533,7 @@ class TestRealWorldScenarios:
             whatsapp_instance="test",
             agent_api_url="http://agent.com",
             agent_api_key="key",
-            default_agent="agent",
+            agent_id="agent",
             is_default=False,
         )
         test_db.add(prod_instance)

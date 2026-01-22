@@ -122,7 +122,7 @@ class TestOmniEndpointsAuthentication:
                 whatsapp_instance="test",
                 agent_api_url="http://test.com",
                 agent_api_key="test-key",
-                default_agent="test-agent",
+                agent_id="test-agent",
             )
         )
         test_db.add(
@@ -132,7 +132,7 @@ class TestOmniEndpointsAuthentication:
                 whatsapp_instance="test",
                 agent_api_url="http://test.com",
                 agent_api_key="test-key",
-                default_agent="test-agent",
+                agent_id="test-agent",
             )
         )
         test_db.commit()
@@ -936,7 +936,7 @@ class TestOmniChannelsEndpoint:
                 whatsapp_instance="test-wa",
                 agent_api_url="http://test.com",
                 agent_api_key="test-key",
-                default_agent="test-agent",
+                agent_id="test-agent",
             ),
             InstanceConfig(
                 name="discord-1",
@@ -944,7 +944,7 @@ class TestOmniChannelsEndpoint:
                 whatsapp_instance="test-dc",
                 agent_api_url="http://test.com",
                 agent_api_key="test-key",
-                default_agent="test-agent",
+                agent_id="test-agent",
             ),
         ]
         for instance in instances:

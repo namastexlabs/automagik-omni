@@ -348,7 +348,7 @@ def test_client(test_db):
                     whatsapp_instance="test-instance",
                     agent_api_url="http://agent.com",
                     agent_api_key="agent-key",
-                    default_agent="test_agent",
+                    agent_id="test_agent",
                     is_default=True,
                 )
                 test_db.add(default_instance)
@@ -377,7 +377,7 @@ def sample_instance_config() -> Dict[str, Any]:
         "integration": "WHATSAPP-BAILEYS",
         "agent_api_url": "http://test-agent.com",
         "agent_api_key": "test-agent-key",
-        "default_agent": "test_agent",
+        "agent_id": "test_agent",
         "agent_timeout": 60,
         "is_default": False,
     }
@@ -395,7 +395,7 @@ def default_instance_config(test_db: Session) -> InstanceConfig:
         session_id_prefix="default_",
         agent_api_url="http://default-agent.com",
         agent_api_key="default-agent-key",
-        default_agent="default_agent",
+        agent_id="agent_id",
         agent_timeout=60,
         is_default=True,
     )

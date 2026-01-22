@@ -48,7 +48,7 @@ class TestSessionFilteringIntegration:
                 whatsapp_instance="test_whatsapp_a",
                 agent_api_url="http://test-agent.com",
                 agent_api_key="test-agent-key",
-                default_agent="test_agent",
+                agent_id="test_agent",
                 is_active=True,
             ),
             InstanceConfig(
@@ -59,7 +59,7 @@ class TestSessionFilteringIntegration:
                 whatsapp_instance="test_whatsapp_b",
                 agent_api_url="http://test-agent.com",
                 agent_api_key="test-agent-key",
-                default_agent="test_agent",
+                agent_id="test_agent",
                 is_active=True,
             ),
         ]

@@ -1,6 +1,6 @@
 """
 Comprehensive tests for omni database models.
-Tests the omni agent fields and helper methods in InstanceConfig.
+Tests the agent fields and helper methods in InstanceConfig.
 """
 
 import pytest
@@ -8,30 +8,27 @@ from sqlalchemy.exc import IntegrityError
 from src.db.models import InstanceConfig, User
 
 
-class TestInstanceConfigOmniFields:
-    """Test the omni agent fields in InstanceConfig model."""
+class TestInstanceConfigAgentFields:
+    """Test the agent fields in InstanceConfig model."""
 
-    def test_default_omni_fields(self, test_db):
-        """Test that omni fields have correct defaults."""
+    def test_default_agent_fields(self, test_db):
+        """Test that agent fields have correct defaults."""
         instance = InstanceConfig(name="test", agent_api_url="http://test.com", agent_api_key="test-key")
         test_db.add(instance)
         test_db.commit()
 
         # Test defaults
-        assert instance.agent_instance_type == "automagik"
         assert instance.agent_id == "default"
         assert instance.agent_type == "agent"
         assert instance.agent_timeout == 60
         assert instance.agent_stream_mode is False
-        assert instance.default_agent is None
 
-    def test_omni_fields_assignment(self, test_db):
-        """Test that omni fields can be set correctly."""
+    def test_agent_fields_assignment(self, test_db):
+        """Test that agent fields can be set correctly."""
         instance = InstanceConfig(
-            name="hive-test",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.example.com/api",
-            agent_api_key="hive-api-key",
+            name="agno-test",
+            agent_api_url="https://agno.example.com/api",
+            agent_api_key="agno-api-key",
             agent_id="test-agent-123",
             agent_type="team",
             agent_timeout=120,
@@ -40,39 +37,19 @@ class TestInstanceConfigOmniFields:
         test_db.add(instance)
         test_db.commit()
 
-        assert instance.agent_instance_type == "hive"
-        assert instance.agent_api_url == "https://hive.example.com/api"
-        assert instance.agent_api_key == "hive-api-key"
+        assert instance.agent_api_url == "https://agno.example.com/api"
+        assert instance.agent_api_key == "agno-api-key"
         assert instance.agent_id == "test-agent-123"
         assert instance.agent_type == "team"
         assert instance.agent_timeout == 120
         assert instance.agent_stream_mode is True
 
-    def test_backward_compatibility(self, test_db):
-        """Test backward compatibility with legacy fields."""
+    def test_team_configuration(self, test_db):
+        """Test team configuration."""
         instance = InstanceConfig(
-            name="legacy",
-            agent_api_url="http://automagik.com",
-            agent_api_key="key",
-            default_agent="my-agent",
-            agent_timeout=90,
-        )
-        test_db.add(instance)
-        test_db.commit()
-
-        # Should use default_agent when agent_id is not set
-        config = instance.get_agent_config()
-        assert config["agent_id"] in ["my-agent", "default"]
-        assert config["instance_type"] == "automagik"
-        assert config["agent_type"] == "agent"
-
-    def test_hive_team_configuration(self, test_db):
-        """Test Hive team configuration."""
-        instance = InstanceConfig(
-            name="hive-team",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.api/v1",
-            agent_api_key="hive-key",
+            name="team-config",
+            agent_api_url="https://agno.api/v1",
+            agent_api_key="agno-key",
             agent_id="dev-team",
             agent_type="team",
             agent_stream_mode=True,
@@ -80,134 +57,74 @@ class TestInstanceConfigOmniFields:
         test_db.add(instance)
         test_db.commit()
 
-        assert instance.agent_instance_type == "hive"
         assert instance.agent_id == "dev-team"
         assert instance.agent_type == "team"
         assert instance.agent_stream_mode is True
 
 
 class TestInstanceConfigProperties:
-    """Test the property methods for omni configuration."""
-
-    def test_is_hive_property(self, test_db):
-        """Test is_hive property."""
-        # Hive instance
-        hive_instance = InstanceConfig(
-            name="hive",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
-            agent_api_key="key",
-        )
-        test_db.add(hive_instance)
-        test_db.commit()
-
-        assert hive_instance.is_hive is True
-        assert hive_instance.is_automagik is False
-
-        # Automagik instance
-        automagik_instance = InstanceConfig(
-            name="automagik",
-            agent_instance_type="automagik",
-            agent_api_url="https://automagik.com",
-            agent_api_key="key",
-        )
-        test_db.add(automagik_instance)
-        test_db.commit()
-
-        assert automagik_instance.is_hive is False
-        assert automagik_instance.is_automagik is True
+    """Test the property methods for agent configuration."""
 
     def test_is_team_property(self, test_db):
         """Test is_team property."""
-        # Hive team
-        hive_team = InstanceConfig(
-            name="hive-team",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
+        # Team instance
+        team_instance = InstanceConfig(
+            name="team",
+            agent_api_url="https://agno.com",
             agent_api_key="key",
             agent_type="team",
         )
-        test_db.add(hive_team)
+        test_db.add(team_instance)
         test_db.commit()
 
-        assert hive_team.is_team is True
+        assert team_instance.is_team is True
 
-        # Hive agent
-        hive_agent = InstanceConfig(
-            name="hive-agent",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
+        # Agent instance
+        agent_instance = InstanceConfig(
+            name="agent",
+            agent_api_url="https://agno.com",
             agent_api_key="key",
             agent_type="agent",
         )
-        test_db.add(hive_agent)
+        test_db.add(agent_instance)
         test_db.commit()
 
-        assert hive_agent.is_team is False
-
-        # Automagik (never team)
-        automagik = InstanceConfig(
-            name="automagik-agent",
-            agent_instance_type="automagik",
-            agent_api_url="https://automagik.com",
-            agent_api_key="key",
-            agent_type="team",  # Even if set to team
-        )
-        test_db.add(automagik)
-        test_db.commit()
-
-        assert automagik.is_team is False  # Automagik can't be team
+        assert agent_instance.is_team is False
 
     def test_streaming_enabled_property(self, test_db):
         """Test streaming_enabled property."""
-        # Hive with streaming
-        hive_streaming = InstanceConfig(
-            name="hive-stream",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
+        # With streaming enabled
+        streaming_instance = InstanceConfig(
+            name="streaming",
+            agent_api_url="https://agno.com",
             agent_api_key="key",
             agent_stream_mode=True,
         )
-        test_db.add(hive_streaming)
+        test_db.add(streaming_instance)
         test_db.commit()
 
-        assert hive_streaming.streaming_enabled is True
+        assert streaming_instance.streaming_enabled is True
 
-        # Hive without streaming
-        hive_no_stream = InstanceConfig(
-            name="hive-no-stream",
-            agent_instance_type="hive",
-            agent_api_url="https://hive.com",
+        # Without streaming
+        no_streaming_instance = InstanceConfig(
+            name="no-streaming",
+            agent_api_url="https://agno.com",
             agent_api_key="key",
             agent_stream_mode=False,
         )
-        test_db.add(hive_no_stream)
+        test_db.add(no_streaming_instance)
         test_db.commit()
 
-        assert hive_no_stream.streaming_enabled is False
-
-        # Automagik with streaming (still false because automagik doesn't support it)
-        automagik_stream = InstanceConfig(
-            name="automagik-stream",
-            agent_instance_type="automagik",
-            agent_api_url="https://automagik.com",
-            agent_api_key="key",
-            agent_stream_mode=True,
-        )
-        test_db.add(automagik_stream)
-        test_db.commit()
-
-        assert automagik_stream.streaming_enabled is False  # Automagik doesn't support streaming
+        assert no_streaming_instance.streaming_enabled is False
 
 
 class TestInstanceConfigMethods:
     """Test the helper methods in InstanceConfig."""
 
-    def test_get_agent_config_with_omni_fields(self, test_db):
-        """Test get_agent_config with omni fields."""
+    def test_get_agent_config_with_all_fields(self, test_db):
+        """Test get_agent_config with all fields set."""
         instance = InstanceConfig(
             name="test-config",
-            agent_instance_type="hive",
             agent_api_url="https://api.test.com",
             agent_api_key="test-key",
             agent_id="agent-123",
@@ -220,7 +137,6 @@ class TestInstanceConfigMethods:
 
         config = instance.get_agent_config()
 
-        assert config["instance_type"] == "hive"
         assert config["api_url"] == "https://api.test.com"
         assert config["api_key"] == "test-key"
         assert config["agent_id"] == "agent-123"
@@ -241,40 +157,23 @@ class TestInstanceConfigMethods:
 
         config = instance.get_agent_config()
 
-        assert config["instance_type"] == "automagik"
         assert config["agent_id"] == "default"
         assert config["name"] == "default"
         assert config["agent_type"] == "agent"
         assert config["timeout"] == 60
         assert config["stream_mode"] is False
 
-    def test_get_agent_config_fallback_to_default_agent(self, test_db):
-        """Test get_agent_config falls back to default_agent."""
-        instance = InstanceConfig(
-            name="fallback",
-            agent_api_url="https://api.test.com",
-            agent_api_key="test-key",
-            default_agent="fallback-agent",
-        )
-        test_db.add(instance)
-        test_db.commit()
-
-        config = instance.get_agent_config()
-        assert config["agent_id"] == "fallback-agent"
-        assert config["name"] == "fallback-agent"
-
 
 class TestInstanceConfigEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_null_values_handling(self, test_db):
-        """Test handling of null values in omni fields."""
+    def test_null_agent_id_handling(self, test_db):
+        """Test handling of null agent_id."""
         instance = InstanceConfig(
             name="null-test",
             agent_api_url="https://api.com",
             agent_api_key="key",
-            agent_id=None,  # Explicitly null
-            default_agent=None,  # Also null
+            agent_id=None,
         )
         test_db.add(instance)
         test_db.commit()
@@ -284,36 +183,19 @@ class TestInstanceConfigEdgeCases:
         assert config["agent_id"] == "default"
         assert config["name"] == "default"
 
-    def test_invalid_instance_type(self, test_db):
-        """Test handling of invalid instance type."""
-        instance = InstanceConfig(name="invalid-type", agent_api_url="https://api.com", agent_api_key="key")
-        test_db.add(instance)
-        test_db.commit()
-
-        # Manually set invalid type (simulating data corruption)
-        instance.agent_instance_type = "invalid"
-        test_db.commit()
-
-        # Properties should handle gracefully
-        assert instance.is_hive is False
-        assert instance.is_automagik is False
-        assert instance.is_team is False
-        assert instance.streaming_enabled is False
-
-    def test_empty_strings(self, test_db):
-        """Test handling of empty strings in fields."""
+    def test_empty_agent_id(self, test_db):
+        """Test handling of empty string agent_id."""
         instance = InstanceConfig(
             name="empty",
             agent_api_url="https://api.com",
             agent_api_key="key",
-            agent_id="",  # Empty string
-            default_agent="",  # Also empty
+            agent_id="",
         )
         test_db.add(instance)
         test_db.commit()
 
         config = instance.get_agent_config()
-        # Should fall back to "default" for empty strings
+        # Empty string should be treated as no value
         assert config["agent_id"] == "default"
         assert config["name"] == "default"
 

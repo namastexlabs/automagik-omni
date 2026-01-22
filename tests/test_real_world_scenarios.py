@@ -133,7 +133,7 @@ class TestRealWorldScenarios:
                 "evolution_key": "prod-evolution-key-12345",
                 "agent_api_url": "http://172.19.209.168:18881",
                 "agent_api_key": "prod-agent-key-67890",
-                "default_agent": "production-agent",
+                "agent_id": "production-agent",
                 "webhook_base64": True,
             }
 
@@ -255,7 +255,7 @@ class TestRealWorldScenarios:
                 "evolution_key": "backup-key-12345",
                 "agent_api_url": "http://172.19.209.168:18881",
                 "agent_api_key": "backup-agent-key",
-                "default_agent": "backup-agent",
+                "agent_id": "backup-agent",
             }
 
             response = client.post("/api/v1/instances", json=second_instance_data, headers=api_headers)
@@ -289,7 +289,7 @@ class TestRealWorldScenarios:
                 "evolution_key": "tenant-a-key",
                 "agent_api_url": "https://agent-tenant-a.com",
                 "agent_api_key": "tenant-a-agent-key",
-                "default_agent": "tenant-a-agent",
+                "agent_id": "tenant-a-agent",
             },
             {
                 "name": "tenant-b-whatsapp",
@@ -299,7 +299,7 @@ class TestRealWorldScenarios:
                 "evolution_key": "tenant-b-key",
                 "agent_api_url": "https://agent-tenant-b.com",
                 "agent_api_key": "tenant-b-agent-key",
-                "default_agent": "tenant-b-agent",
+                "agent_id": "tenant-b-agent",
             },
         ]
 
@@ -392,7 +392,7 @@ class TestRealWorldScenarios:
             "evolution_key": "fake-key",
             "agent_api_url": "https://agent.example.com",
             "agent_api_key": "agent-key",
-            "default_agent": "test-agent",
+            "agent_id": "test-agent",
         }
 
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
@@ -425,7 +425,7 @@ class TestRealWorldScenarios:
             "evolution_key": "recovery-key",
             "agent_api_url": "https://agent.recovery.com",
             "agent_api_key": "recovery-agent-key",
-            "default_agent": "recovery-agent",
+            "agent_id": "recovery-agent",
         }
 
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
@@ -468,7 +468,7 @@ class TestRealWorldScenarios:
             "evolution_key": "load-key",
             "agent_api_url": "https://agent.load.com",
             "agent_api_key": "load-agent-key",
-            "default_agent": "load-test-agent",
+            "agent_id": "load-test-agent",
         }
 
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_evo:
@@ -558,7 +558,7 @@ class TestRealWorldScenarios:
                 "agent_api_url": "https://agent1.persist.com",
                 "agent_api_key": "persist-agent-1",
                 "webhook_base64": True,
-                "default_agent": "persist-agent-1",
+                "agent_id": "persist-agent-1",
             },
             {
                 "name": "persistence-test-2",
@@ -569,7 +569,7 @@ class TestRealWorldScenarios:
                 "agent_api_url": "https://agent2.persist.com",
                 "agent_api_key": "persist-agent-2",
                 "webhook_base64": False,
-                "default_agent": "persist-agent-2",
+                "agent_id": "persist-agent-2",
             },
         ]
 

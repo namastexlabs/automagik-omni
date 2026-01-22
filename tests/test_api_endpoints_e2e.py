@@ -60,7 +60,7 @@ class TestDatabaseSetup:
                 evolution_key="migration-key",
                 agent_api_url="https://migration-agent.test.com",
                 agent_api_key="migration-agent-key",
-                default_agent="test-agent",
+                agent_id="test-agent",
                 is_default=True,
             )
             db.add(test_instance)
@@ -138,7 +138,7 @@ class TestAPIEndpoints:
                 whatsapp_instance="test-instance",
                 agent_api_url="http://agent.com",
                 agent_api_key="agent-key",
-                default_agent="test_agent",
+                agent_id="test_agent",
                 is_default=False,
             )
             db.add(instance)
@@ -431,7 +431,7 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
             "evolution_key": "real-evolution-key-123",
             "agent_api_url": "http://172.19.209.168:18881",
             "agent_api_key": "real-agent-key-123",
-            "default_agent": "test-agent",
+            "agent_id": "test-agent",
         }
 
         with patch("src.channels.base.ChannelHandlerFactory.get_handler") as mock_handler:
@@ -457,7 +457,7 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
             "evolution_key": "key",
             "agent_api_url": "http://172.19.209.168:18881",
             "agent_api_key": "agent-key",
-            "default_agent": "test-agent",
+            "agent_id": "test-agent",
         }
 
         response = test_client.post("/api/v1/instances", json=instance_data, headers=mention_api_headers)
@@ -522,7 +522,7 @@ class TestInstanceManagementEndpoints(TestAPIEndpoints):
                 "evolution_key": "extra-key",
                 "agent_api_url": "http://172.19.209.168:18881",
                 "agent_api_key": "extra-agent-key",
-                "default_agent": "extra-agent",
+                "agent_id": "extra-agent",
             }
             response = test_client.post("/api/v1/instances", json=extra_instance, headers=mention_api_headers)
             assert response.status_code == 201
@@ -941,7 +941,7 @@ class TestErrorHandling(TestAPIEndpoints):
             "evolution_key": "key",
             "agent_api_url": "http://172.19.209.168:18881",
             "agent_api_key": "agent-key",
-            "default_agent": "test-agent",
+            "agent_id": "test-agent",
         }
 
         response = test_client.post("/api/v1/instances", json=invalid_data, headers=mention_api_headers)
@@ -999,7 +999,7 @@ class TestRequestValidation(TestAPIEndpoints):
             "evolution_key": "key",
             "agent_api_url": "also-not-valid",
             "agent_api_key": "agent-key",
-            "default_agent": "test-agent",
+            "agent_id": "test-agent",
         }
 
         response = test_client.post("/api/v1/instances", json=invalid_url_data, headers=mention_api_headers)

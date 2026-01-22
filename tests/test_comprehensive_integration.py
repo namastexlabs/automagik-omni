@@ -46,7 +46,7 @@ class TestOmnichannelIntegration:
             session_id_prefix="test_",
             agent_api_url="http://agent.com",
             agent_api_key="agent-key",
-            default_agent="test_agent",
+            agent_id="test_agent",
             agent_timeout=60,
             is_default=False,
         )
@@ -90,7 +90,7 @@ class TestOmnichannelIntegration:
             "integration": "WHATSAPP-BAILEYS",
             "agent_api_url": "http://agent.com",
             "agent_api_key": "agent-key",
-            "default_agent": "test_agent",
+            "agent_id": "test_agent",
             "agent_timeout": 60,
             "is_default": False,
         }
@@ -146,7 +146,7 @@ class TestOmnichannelIntegration:
             whatsapp_instance="test_whatsapp",
             agent_api_url="http://agent.com",
             agent_api_key="agent-key",
-            default_agent="test_agent",
+            agent_id="test_agent",
         )
 
         # Test handler
@@ -196,7 +196,7 @@ class TestOmnichannelIntegration:
             whatsapp_instance="existing_whatsapp",
             agent_api_url="http://agent.com",
             agent_api_key="agent-key",
-            default_agent="test_agent",
+            agent_id="test_agent",
         )
 
         # Test handler
@@ -223,7 +223,7 @@ class TestOmnichannelIntegration:
             whatsapp_instance="crud_test",
             agent_api_url="http://agent.com",
             agent_api_key="agent-key",
-            default_agent="test_agent",
+            agent_id="test_agent",
         )
         db_session.add(instance)
         db_session.commit()
@@ -259,7 +259,7 @@ class TestOmnichannelIntegration:
             whatsapp_instance="test1",
             agent_api_url="http://agent1.com",
             agent_api_key="agent-key1",
-            default_agent="test_agent1",
+            agent_id="test_agent1",
             is_default=True,
         )
         db_session.add(instance1)
@@ -274,7 +274,7 @@ class TestOmnichannelIntegration:
             whatsapp_instance="test2",
             agent_api_url="http://agent2.com",
             agent_api_key="agent-key2",
-            default_agent="test_agent2",
+            agent_id="test_agent2",
             is_default=False,
         )
         db_session.add(instance2)
@@ -305,7 +305,7 @@ class TestOmnichannelIntegration:
             whatsapp_instance="test_whatsapp",
             agent_api_url="http://agent.com",
             agent_api_key="agent-key",
-            default_agent="test_agent",
+            agent_id="test_agent",
         )
         db_session.add(whatsapp)
 
@@ -318,7 +318,7 @@ class TestOmnichannelIntegration:
             whatsapp_instance=None,  # Not used for Slack
             agent_api_url="http://agent.com",
             agent_api_key="agent-key",
-            default_agent="test_agent",
+            agent_id="test_agent",
         )
         db_session.add(slack)
 

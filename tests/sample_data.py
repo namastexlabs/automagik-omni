@@ -102,7 +102,7 @@ SAMPLE_INSTANCE_CONFIG = {
     "evolution_key": "real-evolution-key-123",
     "agent_api_url": "http://172.19.209.168:18881",
     "agent_api_key": "real-agent-key-123",
-    "default_agent": "test-agent",
+    "agent_id": "test-agent",
     "webhook_base64": True,
     "is_default": True,
     "is_active": True,
