@@ -55,7 +55,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
     },
   });
 
-  // Fetch chats
+  // Fetch chats with a reasonable limit for performance
   const {
     data: chatsResponse,
     isLoading: chatsLoading,
@@ -64,7 +64,7 @@ export function ChatLayout({ instanceName }: ChatLayoutProps) {
     refetch: refetchChats,
   } = useQuery<EvolutionChat[]>({
     queryKey: ['chats', instanceName],
-    queryFn: () => api.evolution.findChats(instanceName),
+    queryFn: () => api.evolution.findChats(instanceName, { limit: 500 }),
     refetchInterval: 30000,
     retry: false, // Don't retry on Evolution errors
   });

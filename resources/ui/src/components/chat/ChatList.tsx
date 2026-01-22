@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatListItem } from './ChatListItem';
 import type { EvolutionChat } from '@/lib';
 
@@ -15,28 +15,29 @@ interface ChatListProps {
 export function ChatList({ chats, selectedChatId, onSelectChat }: ChatListProps) {
   const [search, setSearch] = useState('');
 
-  const filteredChats = chats.filter((chat) => {
-    const name = chat.name || chat.pushName || chat.remoteJid || '';
-    return name.toLowerCase().includes(search.toLowerCase());
-  });
+  // Memoize filtered and sorted chats to avoid recalculating on every render
+  const sortedChats = useMemo(() => {
+    // Filter by search
+    const filtered = chats.filter((chat) => {
+      const name = chat.name || chat.pushName || chat.remoteJid || '';
+      return name.toLowerCase().includes(search.toLowerCase());
+    });
 
-  // Sort by last message timestamp (most recent first)
-  // Chats without messages go to the bottom, sorted by updatedAt as tiebreaker
-  const sortedChats = [...filteredChats].sort((a, b) => {
-    // Use lastMessage.messageTimestamp if available (Unix timestamp in seconds)
-    const aLastMsgTime = a.lastMessage?.messageTimestamp ? Number(a.lastMessage.messageTimestamp) * 1000 : 0;
-    const bLastMsgTime = b.lastMessage?.messageTimestamp ? Number(b.lastMessage.messageTimestamp) * 1000 : 0;
+    // Sort by last message timestamp (most recent first)
+    // Chats without messages go to the bottom, sorted by updatedAt as tiebreaker
+    return filtered.sort((a, b) => {
+      const aLastMsgTime = a.lastMessage?.messageTimestamp ? Number(a.lastMessage.messageTimestamp) * 1000 : 0;
+      const bLastMsgTime = b.lastMessage?.messageTimestamp ? Number(b.lastMessage.messageTimestamp) * 1000 : 0;
 
-    // If both have no messages, sort by updatedAt as tiebreaker (keeps them grouped at bottom)
-    if (aLastMsgTime === 0 && bLastMsgTime === 0) {
-      const aUpdated = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const bUpdated = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return bUpdated - aUpdated;
-    }
+      if (aLastMsgTime === 0 && bLastMsgTime === 0) {
+        const aUpdated = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bUpdated = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bUpdated - aUpdated;
+      }
 
-    // Chats without messages go to bottom (use 0 instead of falling back to updatedAt)
-    return bLastMsgTime - aLastMsgTime;
-  });
+      return bLastMsgTime - aLastMsgTime;
+    });
+  }, [chats, search]);
 
   return (
     <div className="flex flex-col h-full bg-card">
@@ -58,21 +59,25 @@ export function ChatList({ chats, selectedChatId, onSelectChat }: ChatListProps)
         </div>
       </div>
 
-      {/* Chat List */}
-      <ScrollArea className="flex-1">
+      {/* Virtualized Chat List */}
+      <div className="flex-1">
         {sortedChats.length === 0 ? (
           <div className="p-4 text-center text-muted-foreground">{search ? 'No chats found' : 'No chats yet'}</div>
         ) : (
-          sortedChats.map((chat) => (
-            <ChatListItem
-              key={chat.id || chat.remoteJid}
-              chat={chat}
-              isSelected={selectedChatId === chat.id || selectedChatId === chat.remoteJid}
-              onClick={() => onSelectChat(chat.id || chat.remoteJid)}
-            />
-          ))
+          <Virtuoso
+            style={{ height: '100%' }}
+            data={sortedChats}
+            itemContent={(_, chat) => (
+              <ChatListItem
+                key={chat.id || chat.remoteJid}
+                chat={chat}
+                isSelected={selectedChatId === chat.id || selectedChatId === chat.remoteJid}
+                onClick={() => onSelectChat(chat.id || chat.remoteJid)}
+              />
+            )}
+          />
         )}
-      </ScrollArea>
+      </div>
     </div>
   );
 }
