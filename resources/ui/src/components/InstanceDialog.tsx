@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -16,8 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { api } from '@/lib';
-import type { InstanceConfig, InstanceCreateRequest, InstanceUpdateRequest, ProviderAgent } from '@/lib';
-import { AlertCircle, Loader2, Server, Settings2 } from 'lucide-react';
+import type { InstanceConfig, InstanceCreateRequest, InstanceUpdateRequest, ProviderAgent, ProviderTeam } from '@/lib';
+import { AlertCircle, Loader2, Server, Settings2, Bot, Users } from 'lucide-react';
 
 // Available channels (only implemented ones)
 const CHANNELS = {
@@ -32,15 +32,23 @@ interface InstanceDialogProps {
   onInstanceCreated?: (instanceName: string, channelType: string) => void;
 }
 
+// Combined agent/team item for dropdown
+interface AgentOrTeam {
+  id: string;
+  name: string;
+  description?: string | null;
+  type: 'agent' | 'team';
+}
+
 // Normalize instance name: remove spaces, convert to lowercase, replace with hyphens
 function normalizeInstanceName(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/[^a-z0-9-_]/g, '') // Remove invalid characters
-    .replace(/-+/g, '-') // Collapse multiple hyphens
-    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-_]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated }: InstanceDialogProps) {
@@ -50,17 +58,12 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
   const [formData, setFormData] = useState({
     name: '',
     channel_type: 'whatsapp',
-    // Provider selection
     agent_provider_id: null as number | null,
-    // Agent fields (manual or from provider)
     agent_api_url: '',
     agent_api_key: '',
     agent_id: '',
-    // Optional fields
     is_default: false,
-    // WhatsApp
     phone_number: '',
-    // Discord
     discord_bot_token: '',
     discord_client_id: '',
   });
@@ -72,7 +75,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
   // Fetch available providers
   const { data: providers } = useQuery({
     queryKey: ['providers'],
-    queryFn: () => api.providers.list(false), // Only active providers
+    queryFn: () => api.providers.list(false),
     enabled: open,
   });
 
@@ -83,11 +86,54 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     enabled: !!formData.agent_provider_id && configMode === 'provider',
   });
 
+  // Fetch teams from selected provider
+  const { data: providerTeams, isLoading: isLoadingTeams } = useQuery({
+    queryKey: ['provider-teams', formData.agent_provider_id],
+    queryFn: () => api.providers.fetchTeams(formData.agent_provider_id!),
+    enabled: !!formData.agent_provider_id && configMode === 'provider',
+  });
+
+  // Combine agents and teams into a single list
+  const agentsAndTeams = useMemo<AgentOrTeam[]>(() => {
+    const items: AgentOrTeam[] = [];
+
+    if (providerAgents) {
+      providerAgents.forEach((agent: ProviderAgent) => {
+        items.push({
+          id: `agent:${agent.id}`,
+          name: agent.name || agent.id,
+          description: agent.description,
+          type: 'agent',
+        });
+      });
+    }
+
+    if (providerTeams) {
+      providerTeams.forEach((team: ProviderTeam) => {
+        items.push({
+          id: `team:${team.id}`,
+          name: team.name || team.id,
+          description: team.description,
+          type: 'team',
+        });
+      });
+    }
+
+    return items;
+  }, [providerAgents, providerTeams]);
+
+  // Get selected item for description display
+  const selectedItem = useMemo(() => {
+    if (!formData.agent_id) return null;
+    return agentsAndTeams.find((item) => item.id === formData.agent_id);
+  }, [formData.agent_id, agentsAndTeams]);
+
+  const isLoadingItems = isLoadingAgents || isLoadingTeams;
+
   // Reset form when dialog opens/closes or instance changes
   useEffect(() => {
     if (open) {
       if (instance) {
-        // Editing: check if instance has a provider
         const hasProvider = !!instance.agent_provider_id;
         setConfigMode(hasProvider ? 'provider' : 'manual');
         setFormData({
@@ -99,11 +145,10 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
           agent_id: instance.agent_id || '',
           is_default: instance.is_default,
           phone_number: instance.phone_number || '',
-          discord_bot_token: '', // Never populate token for security
+          discord_bot_token: '',
           discord_client_id: instance.discord_client_id || '',
         });
       } else {
-        // Creating: default to provider mode if providers exist
         setConfigMode('provider');
         setFormData({
           name: '',
@@ -123,7 +168,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     }
   }, [open, instance]);
 
-  // When provider changes, update the agent_api_url and agent_api_key
+  // When provider changes, update the agent_api_url
   useEffect(() => {
     if (configMode === 'provider' && formData.agent_provider_id && providers) {
       const provider = providers.find((p) => p.id === formData.agent_provider_id);
@@ -131,7 +176,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
         setFormData((prev) => ({
           ...prev,
           agent_api_url: provider.api_url,
-          // API key will be fetched from provider on backend
         }));
       }
     }
@@ -143,7 +187,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
       queryClient.invalidateQueries({ queryKey: ['instances'] });
       toast.success(`Instance "${createdInstance.name}" created successfully`);
       onOpenChange(false);
-      // Notify parent to show QR code if WhatsApp
       if (onInstanceCreated && createdInstance.channel_type === 'whatsapp') {
         onInstanceCreated(createdInstance.name, createdInstance.channel_type);
       }
@@ -199,15 +242,22 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     setFormData((prev) => ({
       ...prev,
       agent_provider_id: id,
-      agent_id: '', // Reset agent selection when provider changes
+      agent_id: '',
     }));
+  };
+
+  // Parse agent_id to extract actual ID (remove type prefix)
+  const getActualAgentId = (compositeId: string): string => {
+    if (compositeId.startsWith('agent:') || compositeId.startsWith('team:')) {
+      return compositeId.split(':')[1];
+    }
+    return compositeId;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Normalize the name before submission
     const normalizedName = normalizeInstanceName(formData.name);
 
     if (!normalizedName) {
@@ -215,7 +265,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
       return;
     }
 
-    // Validate based on config mode
     if (configMode === 'provider') {
       if (!formData.agent_provider_id) {
         setError('Please select an Agent Provider');
@@ -232,14 +281,16 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
       }
     }
 
+    // Extract actual agent ID from composite ID
+    const actualAgentId = formData.agent_id ? getActualAgentId(formData.agent_id) : undefined;
+
     if (isEditing) {
-      // Update existing instance
       const updateData: InstanceUpdateRequest = {
         is_default: formData.is_default,
         agent_provider_id: configMode === 'provider' ? formData.agent_provider_id : null,
         agent_api_url: configMode === 'manual' ? formData.agent_api_url : undefined,
         agent_api_key: configMode === 'manual' ? formData.agent_api_key : undefined,
-        agent_id: formData.agent_id || undefined,
+        agent_id: actualAgentId,
         agent_instance_type: 'hive',
       };
 
@@ -254,14 +305,13 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
 
       updateMutation.mutate({ name: instance.name, data: updateData });
     } else {
-      // Create new instance
       const createData: InstanceCreateRequest = {
         name: normalizedName,
         channel_type: formData.channel_type,
         agent_provider_id: configMode === 'provider' ? formData.agent_provider_id : undefined,
         agent_api_url: configMode === 'manual' ? formData.agent_api_url : undefined,
         agent_api_key: configMode === 'manual' ? formData.agent_api_key : undefined,
-        agent_id: formData.agent_id || undefined,
+        agent_id: actualAgentId,
         is_default: formData.is_default,
         agent_instance_type: 'hive',
       };
@@ -287,14 +337,14 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Edit Instance' : 'Connect Your Data'}</DialogTitle>
             <DialogDescription>
               {isEditing
                 ? 'Update the instance configuration'
-                : 'Your AI becomes truly omnichannel - present in every network, the same entity handling everything about your life or business.'}
+                : 'Your AI becomes truly omnichannel - present in every network.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -320,9 +370,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 disabled={isEditing || isPending}
               />
               {nameWarning && <p className="text-xs text-warning">{nameWarning}</p>}
-              <p className="text-xs text-muted-foreground">
-                Unique identifier for this instance (letters, numbers, hyphens only)
-              </p>
             </div>
 
             {/* Channel Type */}
@@ -344,16 +391,13 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Select the messaging channel for this instance</p>
             </div>
 
             <Separator />
 
             {/* Agent Configuration Section */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Agent Configuration</Label>
-              </div>
+              <Label className="text-sm font-semibold">Agent Configuration</Label>
 
               {/* Config Mode Toggle */}
               {hasProviders && (
@@ -367,7 +411,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                     className="flex-1"
                   >
                     <Server className="h-4 w-4 mr-2" />
-                    Use Provider
+                    Provider
                   </Button>
                   <Button
                     type="button"
@@ -378,7 +422,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                     className="flex-1"
                   >
                     <Settings2 className="h-4 w-4 mr-2" />
-                    Manual Config
+                    Manual
                   </Button>
                 </div>
               )}
@@ -388,62 +432,88 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 <>
                   {/* Provider Selection */}
                   <div className="grid gap-2">
-                    <Label htmlFor="provider">Agent Provider *</Label>
+                    <Label htmlFor="provider">Provider *</Label>
                     <Select
                       value={formData.agent_provider_id?.toString() || 'none'}
                       onValueChange={handleProviderChange}
                       disabled={isPending}
                     >
                       <SelectTrigger id="provider">
-                        <SelectValue placeholder="Select a provider..." />
+                        <SelectValue placeholder="Select provider..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Select a provider...</SelectItem>
+                        <SelectItem value="none">Select provider...</SelectItem>
                         {providers?.map((provider) => (
                           <SelectItem key={provider.id} value={provider.id.toString()}>
-                            {provider.name}
-                            {provider.last_health_status === 'healthy' && ' ✓'}
+                            <span className="flex items-center gap-2">
+                              {provider.name}
+                              {provider.last_health_status === 'healthy' && <span className="text-green-500">●</span>}
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {selectedProvider && (
-                      <p className="text-xs text-muted-foreground">
-                        API URL: <code>{selectedProvider.api_url}</code>
+                      <p className="text-xs text-muted-foreground truncate">
+                        <code>{selectedProvider.api_url}</code>
                       </p>
                     )}
                   </div>
 
-                  {/* Agent Selection (when provider is selected) */}
+                  {/* Agent/Team Selection */}
                   {formData.agent_provider_id && (
                     <div className="grid gap-2">
-                      <Label htmlFor="agent_id">Agent</Label>
-                      {isLoadingAgents ? (
+                      <Label htmlFor="agent_id">Agent / Team</Label>
+                      {isLoadingItems ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Loading agents...
+                          Loading...
                         </div>
-                      ) : providerAgents && providerAgents.length > 0 ? (
-                        <Select
-                          value={formData.agent_id || 'none'}
-                          onValueChange={(value) =>
-                            setFormData({ ...formData, agent_id: value === 'none' ? '' : value })
-                          }
-                          disabled={isPending}
-                        >
-                          <SelectTrigger id="agent_id">
-                            <SelectValue placeholder="Select an agent (optional)..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No specific agent (use default)</SelectItem>
-                            {providerAgents.map((agent: ProviderAgent) => (
-                              <SelectItem key={agent.id} value={agent.id}>
-                                {agent.name || agent.id}
-                                {agent.description && ` - ${agent.description}`}
+                      ) : agentsAndTeams.length > 0 ? (
+                        <>
+                          <Select
+                            value={formData.agent_id || 'none'}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, agent_id: value === 'none' ? '' : value })
+                            }
+                            disabled={isPending}
+                          >
+                            <SelectTrigger id="agent_id">
+                              <SelectValue placeholder="Select (optional)...">
+                                {selectedItem && (
+                                  <span className="flex items-center gap-2">
+                                    {selectedItem.type === 'agent' ? (
+                                      <Bot className="h-3.5 w-3.5 text-blue-500" />
+                                    ) : (
+                                      <Users className="h-3.5 w-3.5 text-purple-500" />
+                                    )}
+                                    {selectedItem.name}
+                                  </span>
+                                )}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              <SelectItem value="none">
+                                <span className="text-muted-foreground">Default (no specific agent)</span>
                               </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                              {agentsAndTeams.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  <span className="flex items-center gap-2">
+                                    {item.type === 'agent' ? (
+                                      <Bot className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                                    ) : (
+                                      <Users className="h-3.5 w-3.5 text-purple-500 flex-shrink-0" />
+                                    )}
+                                    <span className="truncate">{item.name}</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedItem?.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">{selectedItem.description}</p>
+                          )}
+                        </>
                       ) : (
                         <Input
                           id="agent_id"
@@ -453,9 +523,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                           disabled={isPending}
                         />
                       )}
-                      <p className="text-xs text-muted-foreground">
-                        The agent to use for incoming messages. Leave empty to use the provider's default.
-                      </p>
                     </div>
                   )}
                 </>
@@ -467,12 +534,11 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                   {!hasProviders && (
                     <Alert>
                       <AlertDescription className="text-xs">
-                        💡 Tip: Create an Agent Provider in Settings → Providers to save and reuse API credentials.
+                        💡 Create a Provider in Settings → Providers to save credentials.
                       </AlertDescription>
                     </Alert>
                   )}
 
-                  {/* Agent API URL */}
                   <div className="grid gap-2">
                     <Label htmlFor="agent_api_url">Agent API URL *</Label>
                     <Input
@@ -484,10 +550,8 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                       required={configMode === 'manual'}
                       disabled={isPending}
                     />
-                    <p className="text-xs text-muted-foreground">Automagik agent API endpoint</p>
                   </div>
 
-                  {/* Agent API Key */}
                   <div className="grid gap-2">
                     <Label htmlFor="agent_api_key">Agent API Key *</Label>
                     <Input
@@ -501,17 +565,15 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                     />
                   </div>
 
-                  {/* Agent ID */}
                   <div className="grid gap-2">
                     <Label htmlFor="agent_id_manual">Agent ID</Label>
                     <Input
                       id="agent_id_manual"
                       value={formData.agent_id}
                       onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
-                      placeholder="agent-uuid"
+                      placeholder="agent-uuid (optional)"
                       disabled={isPending}
                     />
-                    <p className="text-xs text-muted-foreground">The agent ID to use for incoming messages</p>
                   </div>
                 </>
               )}
@@ -523,19 +585,18 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
             {formData.channel_type === 'whatsapp' && (
               <>
                 <div className="grid gap-2">
-                  <Label htmlFor="phone_number">Phone Number (Optional)</Label>
+                  <Label htmlFor="phone_number">Phone Number</Label>
                   <Input
                     id="phone_number"
                     value={formData.phone_number}
                     onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                    placeholder="+1234567890"
+                    placeholder="+1234567890 (optional)"
                     disabled={isPending}
                   />
-                  <p className="text-xs text-muted-foreground">Phone number for display purposes</p>
                 </div>
                 <Alert>
                   <AlertDescription className="text-xs">
-                    ℹ️ WhatsApp Web API configuration is handled automatically by the backend
+                    ℹ️ WhatsApp config is handled automatically by the backend
                   </AlertDescription>
                 </Alert>
               </>
@@ -555,16 +616,16 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                     required={!isEditing}
                     disabled={isPending}
                   />
-                  {isEditing && <p className="text-xs text-warning">Leave empty to keep existing token</p>}
+                  {isEditing && <p className="text-xs text-warning">Leave empty to keep existing</p>}
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="discord_client_id">Discord Client ID (Optional)</Label>
+                  <Label htmlFor="discord_client_id">Discord Client ID</Label>
                   <Input
                     id="discord_client_id"
                     value={formData.discord_client_id}
                     onChange={(e) => setFormData({ ...formData, discord_client_id: e.target.value })}
-                    placeholder="123456789012345678"
+                    placeholder="123456789012345678 (optional)"
                     disabled={isPending}
                   />
                 </div>
@@ -581,7 +642,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 className="h-4 w-4 rounded border-border"
                 disabled={isPending}
               />
-              <Label htmlFor="is_default" className="cursor-pointer">
+              <Label htmlFor="is_default" className="cursor-pointer text-sm">
                 Set as default instance
               </Label>
             </div>
@@ -598,7 +659,7 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                   {isEditing ? 'Updating...' : 'Creating...'}
                 </>
               ) : (
-                <>{isEditing ? 'Update Instance' : 'Create Instance'}</>
+                <>{isEditing ? 'Update' : 'Create'}</>
               )}
             </Button>
           </DialogFooter>
