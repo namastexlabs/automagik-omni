@@ -10,6 +10,7 @@ interface ProxyOptions {
   upstream: string;
   rewritePrefix?: string;
   websocket?: boolean;
+  rewriteHeaders?: Record<string, string>; // Map header names, e.g., { 'x-api-key': 'apikey' }
 }
 
 type ProxyBody =
@@ -28,7 +29,7 @@ type ProxyBody =
  * Uses Bun's native fetch() for HTTP proxying
  */
 export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions): Promise<void> {
-  const { prefix, upstream, rewritePrefix = prefix } = opts;
+  const { prefix, upstream, rewritePrefix = prefix, rewriteHeaders = {} } = opts;
 
   // Handler for proxying requests
   const proxyHandler = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -57,7 +58,10 @@ export async function registerProxy(fastify: FastifyInstance, opts: ProxyOptions
       const headers: Record<string, string> = {};
       for (const [key, value] of Object.entries(request.headers)) {
         if (value !== undefined && !hopByHopHeaders.has(key.toLowerCase())) {
-          headers[key] = Array.isArray(value) ? value.join(', ') : value;
+          // Apply header rewriting if configured
+          const lowerKey = key.toLowerCase();
+          const rewrittenKey = rewriteHeaders[lowerKey] || key;
+          headers[rewrittenKey] = Array.isArray(value) ? value.join(', ') : value;
         }
       }
 

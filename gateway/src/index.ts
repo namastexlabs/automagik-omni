@@ -616,12 +616,14 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
 
   // ============================================================
   // Route: /evolution/* - Proxy to Evolution API
+  // Evolution uses 'apikey' header instead of 'x-api-key'
   // ============================================================
   if (EVOLUTION_PORT) {
     await registerProxy(fastify, {
       upstream: `http://127.0.0.1:${EVOLUTION_PORT}`,
       prefix: '/evolution',
       rewritePrefix: '',
+      rewriteHeaders: { 'x-api-key': 'apikey' },
     });
   } else {
     // Evolution not available - return 503
