@@ -94,13 +94,17 @@ export interface InstanceCreateRequest {
   whatsapp_instance?: string;
   evolution_url?: string;
   evolution_key?: string;
+  phone_number?: string | null;
 
   // Discord specific
-  discord_client_id?: string;
+  discord_client_id?: string | null;
   discord_guild_id?: string;
   discord_bot_token?: string;
 
-  // Agent configuration
+  // Agent provider (shared credentials)
+  agent_provider_id?: number | null;
+
+  // Agent configuration (manual)
   agent_api_url?: string;
   agent_api_key?: string;
   agent_id?: string;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -14,17 +14,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { api } from '@/lib';
-import type { InstanceConfig, InstanceCreateRequest, InstanceUpdateRequest } from '@/lib';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import type { InstanceConfig, InstanceCreateRequest, InstanceUpdateRequest, ProviderAgent } from '@/lib';
+import { AlertCircle, Loader2, Server, Settings2 } from 'lucide-react';
 
 // Available channels (only implemented ones)
 const CHANNELS = {
   whatsapp: 'WhatsApp Web',
   discord: 'Discord',
 } as const;
-
-type ChannelKey = keyof typeof CHANNELS;
 
 interface InstanceDialogProps {
   open: boolean;
@@ -51,7 +50,9 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
   const [formData, setFormData] = useState({
     name: '',
     channel_type: 'whatsapp',
-    // REQUIRED Agent fields
+    // Provider selection
+    agent_provider_id: null as number | null,
+    // Agent fields (manual or from provider)
     agent_api_url: '',
     agent_api_key: '',
     agent_id: '',
@@ -66,14 +67,33 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
 
   const [error, setError] = useState<string | null>(null);
   const [nameWarning, setNameWarning] = useState<string | null>(null);
+  const [configMode, setConfigMode] = useState<'provider' | 'manual'>('provider');
+
+  // Fetch available providers
+  const { data: providers } = useQuery({
+    queryKey: ['providers'],
+    queryFn: () => api.providers.list(false), // Only active providers
+    enabled: open,
+  });
+
+  // Fetch agents from selected provider
+  const { data: providerAgents, isLoading: isLoadingAgents } = useQuery({
+    queryKey: ['provider-agents', formData.agent_provider_id],
+    queryFn: () => api.providers.fetchAgents(formData.agent_provider_id!),
+    enabled: !!formData.agent_provider_id && configMode === 'provider',
+  });
 
   // Reset form when dialog opens/closes or instance changes
   useEffect(() => {
     if (open) {
       if (instance) {
+        // Editing: check if instance has a provider
+        const hasProvider = !!instance.agent_provider_id;
+        setConfigMode(hasProvider ? 'provider' : 'manual');
         setFormData({
           name: instance.name,
           channel_type: instance.channel_type,
+          agent_provider_id: instance.agent_provider_id || null,
           agent_api_url: instance.agent_api_url || '',
           agent_api_key: instance.agent_api_key || '',
           agent_id: instance.agent_id || '',
@@ -83,9 +103,12 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
           discord_client_id: instance.discord_client_id || '',
         });
       } else {
+        // Creating: default to provider mode if providers exist
+        setConfigMode('provider');
         setFormData({
           name: '',
           channel_type: 'whatsapp',
+          agent_provider_id: null,
           agent_api_url: '',
           agent_api_key: '',
           agent_id: '',
@@ -99,6 +122,20 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
       setNameWarning(null);
     }
   }, [open, instance]);
+
+  // When provider changes, update the agent_api_url and agent_api_key
+  useEffect(() => {
+    if (configMode === 'provider' && formData.agent_provider_id && providers) {
+      const provider = providers.find((p) => p.id === formData.agent_provider_id);
+      if (provider) {
+        setFormData((prev) => ({
+          ...prev,
+          agent_api_url: provider.api_url,
+          // API key will be fetched from provider on backend
+        }));
+      }
+    }
+  }, [formData.agent_provider_id, providers, configMode]);
 
   const createMutation = useMutation({
     mutationFn: (data: InstanceCreateRequest) => api.instances.create(data),
@@ -141,6 +178,31 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     }
   };
 
+  const handleConfigModeChange = (mode: 'provider' | 'manual') => {
+    setConfigMode(mode);
+    if (mode === 'manual') {
+      setFormData((prev) => ({
+        ...prev,
+        agent_provider_id: null,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        agent_api_url: '',
+        agent_api_key: '',
+      }));
+    }
+  };
+
+  const handleProviderChange = (providerId: string) => {
+    const id = providerId === 'none' ? null : parseInt(providerId, 10);
+    setFormData((prev) => ({
+      ...prev,
+      agent_provider_id: id,
+      agent_id: '', // Reset agent selection when provider changes
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -153,14 +215,31 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
       return;
     }
 
+    // Validate based on config mode
+    if (configMode === 'provider') {
+      if (!formData.agent_provider_id) {
+        setError('Please select an Agent Provider');
+        return;
+      }
+    } else {
+      if (!formData.agent_api_url) {
+        setError('Agent API URL is required');
+        return;
+      }
+      if (!formData.agent_api_key) {
+        setError('Agent API Key is required');
+        return;
+      }
+    }
+
     if (isEditing) {
       // Update existing instance
       const updateData: InstanceUpdateRequest = {
         is_default: formData.is_default,
-        agent_api_url: formData.agent_api_url || undefined,
-        agent_api_key: formData.agent_api_key || undefined,
+        agent_provider_id: configMode === 'provider' ? formData.agent_provider_id : null,
+        agent_api_url: configMode === 'manual' ? formData.agent_api_url : undefined,
+        agent_api_key: configMode === 'manual' ? formData.agent_api_key : undefined,
         agent_id: formData.agent_id || undefined,
-        // Always use hive as the agent instance type
         agent_instance_type: 'hive',
       };
 
@@ -179,17 +258,16 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
       const createData: InstanceCreateRequest = {
         name: normalizedName,
         channel_type: formData.channel_type,
-        agent_api_url: formData.agent_api_url,
-        agent_api_key: formData.agent_api_key,
+        agent_provider_id: configMode === 'provider' ? formData.agent_provider_id : undefined,
+        agent_api_url: configMode === 'manual' ? formData.agent_api_url : undefined,
+        agent_api_key: configMode === 'manual' ? formData.agent_api_key : undefined,
         agent_id: formData.agent_id || undefined,
         is_default: formData.is_default,
-        // Always use hive as the agent instance type
         agent_instance_type: 'hive',
       };
 
       if (formData.channel_type === 'whatsapp') {
         createData.phone_number = formData.phone_number || null;
-        // Backend will handle Evolution API config automatically
       } else if (formData.channel_type === 'discord') {
         if (!formData.discord_bot_token) {
           setError('Discord bot token is required for Discord instances');
@@ -204,6 +282,8 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const hasProviders = providers && providers.length > 0;
+  const selectedProvider = providers?.find((p) => p.id === formData.agent_provider_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -267,47 +347,177 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
               <p className="text-xs text-muted-foreground">Select the messaging channel for this instance</p>
             </div>
 
-            {/* Agent API URL */}
-            <div className="grid gap-2">
-              <Label htmlFor="agent_api_url">Agent API URL *</Label>
-              <Input
-                id="agent_api_url"
-                type="url"
-                value={formData.agent_api_url}
-                onChange={(e) => setFormData({ ...formData, agent_api_url: e.target.value })}
-                placeholder="http://localhost:8000"
-                required
-                disabled={isPending}
-              />
-              <p className="text-xs text-muted-foreground">Automagik agent API endpoint</p>
+            <Separator />
+
+            {/* Agent Configuration Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Label className="text-base font-semibold">Agent Configuration</Label>
+              </div>
+
+              {/* Config Mode Toggle */}
+              {hasProviders && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={configMode === 'provider' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleConfigModeChange('provider')}
+                    disabled={isPending}
+                    className="flex-1"
+                  >
+                    <Server className="h-4 w-4 mr-2" />
+                    Use Provider
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={configMode === 'manual' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleConfigModeChange('manual')}
+                    disabled={isPending}
+                    className="flex-1"
+                  >
+                    <Settings2 className="h-4 w-4 mr-2" />
+                    Manual Config
+                  </Button>
+                </div>
+              )}
+
+              {/* Provider Mode */}
+              {configMode === 'provider' && hasProviders && (
+                <>
+                  {/* Provider Selection */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="provider">Agent Provider *</Label>
+                    <Select
+                      value={formData.agent_provider_id?.toString() || 'none'}
+                      onValueChange={handleProviderChange}
+                      disabled={isPending}
+                    >
+                      <SelectTrigger id="provider">
+                        <SelectValue placeholder="Select a provider..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select a provider...</SelectItem>
+                        {providers?.map((provider) => (
+                          <SelectItem key={provider.id} value={provider.id.toString()}>
+                            {provider.name}
+                            {provider.last_health_status === 'healthy' && ' ✓'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedProvider && (
+                      <p className="text-xs text-muted-foreground">
+                        API URL: <code>{selectedProvider.api_url}</code>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Agent Selection (when provider is selected) */}
+                  {formData.agent_provider_id && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="agent_id">Agent</Label>
+                      {isLoadingAgents ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading agents...
+                        </div>
+                      ) : providerAgents && providerAgents.length > 0 ? (
+                        <Select
+                          value={formData.agent_id || 'none'}
+                          onValueChange={(value) =>
+                            setFormData({ ...formData, agent_id: value === 'none' ? '' : value })
+                          }
+                          disabled={isPending}
+                        >
+                          <SelectTrigger id="agent_id">
+                            <SelectValue placeholder="Select an agent (optional)..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No specific agent (use default)</SelectItem>
+                            {providerAgents.map((agent: ProviderAgent) => (
+                              <SelectItem key={agent.id} value={agent.id}>
+                                {agent.name || agent.id}
+                                {agent.description && ` - ${agent.description}`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id="agent_id"
+                          value={formData.agent_id}
+                          onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
+                          placeholder="agent-uuid (optional)"
+                          disabled={isPending}
+                        />
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        The agent to use for incoming messages. Leave empty to use the provider's default.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Manual Mode or No Providers */}
+              {(configMode === 'manual' || !hasProviders) && (
+                <>
+                  {!hasProviders && (
+                    <Alert>
+                      <AlertDescription className="text-xs">
+                        💡 Tip: Create an Agent Provider in Settings → Providers to save and reuse API credentials.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Agent API URL */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="agent_api_url">Agent API URL *</Label>
+                    <Input
+                      id="agent_api_url"
+                      type="url"
+                      value={formData.agent_api_url}
+                      onChange={(e) => setFormData({ ...formData, agent_api_url: e.target.value })}
+                      placeholder="http://localhost:8000"
+                      required={configMode === 'manual'}
+                      disabled={isPending}
+                    />
+                    <p className="text-xs text-muted-foreground">Automagik agent API endpoint</p>
+                  </div>
+
+                  {/* Agent API Key */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="agent_api_key">Agent API Key *</Label>
+                    <Input
+                      id="agent_api_key"
+                      type="password"
+                      value={formData.agent_api_key}
+                      onChange={(e) => setFormData({ ...formData, agent_api_key: e.target.value })}
+                      placeholder="••••••••"
+                      required={configMode === 'manual'}
+                      disabled={isPending}
+                    />
+                  </div>
+
+                  {/* Agent ID */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="agent_id_manual">Agent ID</Label>
+                    <Input
+                      id="agent_id_manual"
+                      value={formData.agent_id}
+                      onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
+                      placeholder="agent-uuid"
+                      disabled={isPending}
+                    />
+                    <p className="text-xs text-muted-foreground">The agent ID to use for incoming messages</p>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Agent API Key */}
-            <div className="grid gap-2">
-              <Label htmlFor="agent_api_key">Agent API Key *</Label>
-              <Input
-                id="agent_api_key"
-                type="password"
-                value={formData.agent_api_key}
-                onChange={(e) => setFormData({ ...formData, agent_api_key: e.target.value })}
-                placeholder="••••••••"
-                required
-                disabled={isPending}
-              />
-            </div>
-
-            {/* Agent ID */}
-            <div className="grid gap-2">
-              <Label htmlFor="agent_id">Agent ID</Label>
-              <Input
-                id="agent_id"
-                value={formData.agent_id}
-                onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
-                placeholder="agent-uuid"
-                disabled={isPending}
-              />
-              <p className="text-xs text-muted-foreground">The Hive agent ID to use for incoming messages</p>
-            </div>
+            <Separator />
 
             {/* WhatsApp Fields */}
             {formData.channel_type === 'whatsapp' && (
