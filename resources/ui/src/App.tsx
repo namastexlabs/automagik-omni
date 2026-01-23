@@ -14,7 +14,6 @@ import Instances from './pages/Instances';
 import Contacts from './pages/Contacts';
 import Chats from './pages/Chats';
 import Settings from './pages/Settings';
-import GlobalSettings from './pages/GlobalSettings';
 import AccessRules from './pages/AccessRules';
 import DatabaseSetup from './pages/onboarding/DatabaseSetup';
 import ApiKey from './pages/onboarding/ApiKey';
@@ -166,16 +165,8 @@ function App() {
                   </SetupGuard>
                 }
               />
-              <Route
-                path="/global-settings"
-                element={
-                  <SetupGuard>
-                    <ProtectedRoute>
-                      <GlobalSettings />
-                    </ProtectedRoute>
-                  </SetupGuard>
-                }
-              />
+              {/* Redirect old global-settings URL to new unified settings */}
+              <Route path="/global-settings" element={<Navigate to="/settings?tab=system" replace />} />
               <Route
                 path="/access-rules"
                 element={
