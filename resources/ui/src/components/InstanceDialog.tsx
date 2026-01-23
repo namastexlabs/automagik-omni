@@ -63,7 +63,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
     agent_api_key: '',
     agent_id: '',
     is_default: false,
-    phone_number: '',
     discord_bot_token: '',
     discord_client_id: '',
   });
@@ -581,27 +580,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
 
             <Separator />
 
-            {/* WhatsApp Fields */}
-            {formData.channel_type === 'whatsapp' && (
-              <>
-                <div className="grid gap-2">
-                  <Label htmlFor="phone_number">Phone Number</Label>
-                  <Input
-                    id="phone_number"
-                    value={formData.phone_number}
-                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                    placeholder="+1234567890 (optional)"
-                    disabled={isPending}
-                  />
-                </div>
-                <Alert>
-                  <AlertDescription className="text-xs">
-                    ℹ️ WhatsApp config is handled automatically by the backend
-                  </AlertDescription>
-                </Alert>
-              </>
-            )}
-
             {/* Discord Fields */}
             {formData.channel_type === 'discord' && (
               <>
@@ -631,21 +609,6 @@ export function InstanceDialog({ open, onOpenChange, instance, onInstanceCreated
                 </div>
               </>
             )}
-
-            {/* Set as Default */}
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="is_default"
-                checked={formData.is_default}
-                onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
-                className="h-4 w-4 rounded border-border"
-                disabled={isPending}
-              />
-              <Label htmlFor="is_default" className="cursor-pointer text-sm">
-                Set as default instance
-              </Label>
-            </div>
           </div>
 
           <DialogFooter>
