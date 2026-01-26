@@ -14,7 +14,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import httpx
 
@@ -228,7 +228,7 @@ class MediaProcessingService:
                     media_content.pricing_rate_input = result.pricing_rate_input
                     media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
-                    media_content.processed_at = datetime.utcnow()
+                    media_content.processed_at = utcnow()
                 else:
                     media_content.status = "failed"
                     media_content.error_message = result.error_message
@@ -384,7 +384,7 @@ class MediaProcessingService:
                     media_content.pricing_rate_input = result.pricing_rate_input
                     media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
-                    media_content.processed_at = datetime.utcnow()
+                    media_content.processed_at = utcnow()
                 else:
                     media_content.status = "failed"
                     media_content.error_message = result.error_message
@@ -703,7 +703,7 @@ class MediaProcessingService:
                     media_content.pricing_rate_input = result.pricing_rate_input
                     media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
-                    media_content.processed_at = datetime.utcnow()
+                    media_content.processed_at = utcnow()
                     logger.info(f"Transcribed trace {trace_id}: {result.content[:50]}...")
                 else:
                     media_content.status = "failed"
@@ -1005,7 +1005,7 @@ class MediaProcessingService:
                     media_content.pricing_rate_input = result.pricing_rate_input
                     media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
-                    media_content.processed_at = datetime.utcnow()
+                    media_content.processed_at = utcnow()
                     logger.info(f"Described image trace {trace_id}: {result.content[:50]}...")
                 else:
                     media_content.status = "failed"
@@ -1274,7 +1274,7 @@ class MediaProcessingService:
                     media_content.pricing_rate_input = result.pricing_rate_input
                     media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
-                    media_content.processed_at = datetime.utcnow()
+                    media_content.processed_at = utcnow()
                 else:
                     media_content.status = "failed"
                     media_content.error_message = result.error_message
@@ -1442,7 +1442,7 @@ class MediaProcessingService:
                     media_content.pricing_rate_input = result.pricing_rate_input
                     media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
-                    media_content.processed_at = datetime.utcnow()
+                    media_content.processed_at = utcnow()
                     logger.info(f"Processed document trace {trace_id}: {result.content[:50]}...")
                 else:
                     media_content.status = "failed"

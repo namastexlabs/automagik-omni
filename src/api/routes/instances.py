@@ -18,6 +18,7 @@ from src.channels.whatsapp.channel_handler import ValidationError
 from src.ip_utils import ensure_ipv4_in_config
 from src.utils.instance_utils import normalize_instance_name
 from src.services.settings_service import settings_service
+from src.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -569,16 +570,16 @@ async def list_instances(
                             owner_jid=instance_info.get("ownerJid"),
                             profile_name=instance_info.get("profileName"),
                             profile_picture_url=instance_info.get("profilePictureUrl"),
-                            last_updated=datetime.now(),
+                            last_updated=utcnow(),
                         )
                     else:
                         instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(
-                            error="Invalid response format", last_updated=datetime.now()
+                            error="Invalid response format", last_updated=utcnow()
                         )
 
             except Exception as e:
                 logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")
-                instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(error=str(e), last_updated=datetime.now())
+                instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(error=str(e), last_updated=utcnow())
 
         response_instances.append(InstanceConfigResponse(**instance_dict))
 
@@ -690,16 +691,16 @@ async def get_instance(
                         owner_jid=evolution_instance.ownerJid,
                         profile_name=evolution_instance.profileName,
                         profile_picture_url=evolution_instance.profilePicUrl,
-                        last_updated=datetime.now(),
+                        last_updated=utcnow(),
                     )
                 else:
                     instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(
-                        error="Instance not found in WhatsApp Web API", last_updated=datetime.now()
+                        error="Instance not found in WhatsApp Web API", last_updated=utcnow()
                     )
 
         except Exception as e:
             logger.warning(f"Failed to get Evolution status for {instance.name}: {e}")
-            instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(error=str(e), last_updated=datetime.now())
+            instance_dict["whatsapp_web_status"] = EvolutionStatusInfo(error=str(e), last_updated=utcnow())
 
     return InstanceConfigResponse(**instance_dict)
 

@@ -6,7 +6,6 @@ buttons, select menus, and modals for the automagik-omni bot.
 """
 
 import logging
-from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, TYPE_CHECKING
 from enum import Enum
 
@@ -17,6 +16,7 @@ from discord import app_commands
 from src.db.models import InstanceConfig
 from src.services.message_router import MessageRouter
 from ...utils.cache import CacheManager
+from src.utils.datetime_utils import utcnow
 
 if TYPE_CHECKING:
     from ...ai.agent_interface import AgentInterface
@@ -406,7 +406,7 @@ class DiscordInteractionHandler:
                 title="🎤 Voice Connected",
                 description=f"Joined **{channel.name}**",
                 color=discord.Color.green(),
-                timestamp=datetime.utcnow(),
+                timestamp=utcnow(),
             )
 
             view = self.ui_builder.create_voice_controls_view()
@@ -430,7 +430,7 @@ class DiscordInteractionHandler:
             title="🔇 Voice Disconnected",
             description="Left the voice channel",
             color=discord.Color.orange(),
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
 
         await interaction.followup.send(embed=embed)
@@ -609,7 +609,7 @@ class DiscordInteractionHandler:
                     title="🤖 AI Assistant Response",
                     description=response.content[:4096],  # Discord embed limit
                     color=discord.Color.blue(),
-                    timestamp=datetime.utcnow(),
+                    timestamp=utcnow(),
                 )
 
                 embed.set_footer(text=f"Asked by {interaction.user.display_name}")
@@ -639,7 +639,7 @@ class DiscordUIBuilder:
         embed = discord.Embed(
             title="🤖 Automagik Omni Bot Help",
             color=discord.Color.blue(),
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
 
         if category == "general":
@@ -737,7 +737,7 @@ class DiscordUIBuilder:
             title="📖 Detailed Help & Features",
             description="Comprehensive guide to using Automagik Omni Bot",
             color=discord.Color.green(),
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
 
         embed.add_field(
@@ -781,7 +781,7 @@ class DiscordUIBuilder:
         embed = discord.Embed(
             title="🤖 Bot Status",
             color=discord.Color.green(),
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
 
         embed.add_field(
@@ -818,7 +818,7 @@ class DiscordUIBuilder:
         embed = discord.Embed(
             title="⚙️ Bot Configuration",
             color=discord.Color.blue(),
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
 
         # Add config fields based on actual config structure
@@ -890,7 +890,7 @@ class DiscordUIBuilder:
         embed = discord.Embed(
             title=f"⚙️ {option.title()} Configuration",
             color=discord.Color.blue(),
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
 
         if option == "ai":

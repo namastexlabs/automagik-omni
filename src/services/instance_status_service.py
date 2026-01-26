@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple
 
 from src.db.models import InstanceConfig
 from src.channels.base import ChannelHandlerFactory
+from src.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ async def get_live_status(instance: InstanceConfig) -> str:
     # Check cache first
     if instance_name in _status_cache:
         cached_status, cached_at = _status_cache[instance_name]
-        if datetime.utcnow() - cached_at < timedelta(seconds=CACHE_TTL_SECONDS):
+        if utcnow() - cached_at < timedelta(seconds=CACHE_TTL_SECONDS):
             logger.debug(f"Cache hit for {instance_name}: {cached_status}")
             return cached_status
 
@@ -66,7 +67,7 @@ async def get_live_status(instance: InstanceConfig) -> str:
                 status = "unknown"
 
         # Cache the result
-        _status_cache[instance_name] = (status, datetime.utcnow())
+        _status_cache[instance_name] = (status, utcnow())
         logger.debug(f"Live status for {instance_name}: {status}")
 
         return status

@@ -1,6 +1,7 @@
 # src/services/omni_transformers.py
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from src.utils.datetime_utils import utcnow
 from src.api.schemas.omni import (
     OmniContact,
     OmniChat,
@@ -295,7 +296,7 @@ class WhatsAppTransformer:
             timestamp=WhatsAppTransformer._parse_datetime(
                 whatsapp_message.get("messageTimestamp") or whatsapp_message.get("timestamp")
             )
-            or datetime.now(),
+            or utcnow(),
             channel_type=ChannelType.WHATSAPP,
             instance_name=instance_name,
             channel_data={"raw_message": whatsapp_message},
@@ -308,7 +309,7 @@ class WhatsAppTransformer:
             return None
         try:
             if isinstance(timestamp, (int, float)):
-                return datetime.fromtimestamp(timestamp / 1000 if timestamp > 1e10 else timestamp)
+                return datetime.fromtimestamp(timestamp / 1000 if timestamp > 1e10 else timestamp, tz=timezone.utc)
             return datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
         except Exception:
             return None
@@ -497,7 +498,7 @@ class DiscordTransformer:
             reply_to_message_id=str(reply_to_message_id) if reply_to_message_id else None,
             delivery_status=MessageDeliveryStatus.DELIVERED,  # Discord messages are always delivered
             is_read=False,  # Discord doesn't track read status
-            timestamp=DiscordTransformer._parse_datetime(discord_message.get("timestamp")) or datetime.now(),
+            timestamp=DiscordTransformer._parse_datetime(discord_message.get("timestamp")) or utcnow(),
             edited_at=DiscordTransformer._parse_datetime(discord_message.get("edited_timestamp")),
             channel_type=ChannelType.DISCORD,
             instance_name=instance_name,

@@ -5,7 +5,7 @@ including RunStarted, RunResponseContent, and RunCompleted events.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Union
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
 from enum import Enum
@@ -35,7 +35,7 @@ class BaseAgnoEvent(BaseModel):
     def parse_timestamp(cls, v):
         """Parse timestamp from various formats."""
         if v is None:
-            return datetime.utcnow()
+            return datetime.now(timezone.utc)
         if isinstance(v, str):
             try:
                 # Try ISO format first
@@ -46,7 +46,7 @@ class BaseAgnoEvent(BaseModel):
                     return datetime.strptime(v, "%Y-%m-%dT%H:%M:%S.%fZ")
                 except ValueError:
                     logger.warning(f"Could not parse timestamp: {v}")
-                    return datetime.utcnow()
+                    return datetime.now(timezone.utc)
         return v
 
 
