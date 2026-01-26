@@ -6,7 +6,7 @@ Saves incoming WhatsApp webhook payloads in agent API format for testing.
 import json
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger("src.utils.payload_tester")
@@ -57,7 +57,7 @@ class PayloadTester:
             agent_payload = {
                 "message_content": message_content,
                 "message_type": message_type,
-                "session_name": f"test_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                "session_name": f"test_session_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
                 "user": {
                     "phone_number": "+5511999999999",  # Test phone number
                     "email": "",
@@ -75,7 +75,7 @@ class PayloadTester:
                 agent_payload["media_contents"] = media_contents
 
             # Generate filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Include milliseconds
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Include milliseconds
             message_id = data.get("key", {}).get("id", "unknown")
             filename = f"agent_payload_{message_type}_{timestamp}_{message_id[:8]}.json"
 

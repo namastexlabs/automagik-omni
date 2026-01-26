@@ -6,7 +6,7 @@ Captures real WhatsApp media messages for testing agent API integration.
 import json
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger("src.utils.test_capture")
@@ -88,14 +88,14 @@ class TestCapture:
                 return None
 
             # Generate capture filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
             message_id = data.get("key", {}).get("id", "unknown")
             message_type = self._extract_message_type(data)
 
             # Create comprehensive capture data
             capture_data = {
                 "capture_info": {
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message_type": message_type,
                     "user_name": push_name,
                     "message_id": message_id,
@@ -170,7 +170,7 @@ class TestCapture:
         payload = {
             "message_content": content,
             "message_type": message_type,
-            "session_name": f"test_capture_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "session_name": f"test_capture_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
             "user": {
                 "phone_number": "+5511999999999",  # Test phone
                 "email": "",
@@ -273,7 +273,7 @@ class TestCapture:
         """Save curl command as executable script."""
         try:
             script_content = f"""#!/bin/bash
-# Real WhatsApp media test captured on {datetime.now().isoformat()}
+# Real WhatsApp media test captured on {datetime.now(timezone.utc).isoformat()}
 # Usage: chmod +x {os.path.basename(curl_file_path)} && ./{os.path.basename(curl_file_path)}
 
 {curl_command}

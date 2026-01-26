@@ -14,7 +14,7 @@ from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Dict, List, Optional, Any, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Discord is an optional dependency - guard the import
 try:
@@ -221,7 +221,7 @@ class VoiceSession:
         self._ensure_recordings_dir()
 
         # Generate unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"{self.instance_name}_{self.guild_id}_{timestamp}.wav"
         self.recording_file_path = os.path.join(self.recordings_dir, filename)
 

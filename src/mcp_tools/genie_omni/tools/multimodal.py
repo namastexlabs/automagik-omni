@@ -56,9 +56,9 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate temporary filename
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"talk_{timestamp}.mp3"
         output_path = output_dir / filename
 
