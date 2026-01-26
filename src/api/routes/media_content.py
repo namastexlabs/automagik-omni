@@ -51,7 +51,7 @@ class BatchReprocessRequest(BaseModel):
     days_back: int = 30
     limit: int = 100
     language: str = "pt"
-    content_types: List[str] = ["audio"]  # audio, image, document
+    content_types: List[str] = ["audio"]  # audio, image, document (supports all three)
 
 
 class BatchReprocessResponse(BaseModel):
@@ -182,10 +182,23 @@ async def reprocess_batch(
             results["skipped"] += image_result["skipped"]
             results["results"].extend(image_result["results"])
 
-        if not any(ct in request.content_types for ct in ["audio", "image"]):
+        if "document" in request.content_types:
+            document_result = await media_processing_service.batch_reprocess_documents(
+                instance_name=request.instance_name,
+                days_back=request.days_back,
+                limit=request.limit,
+                db=db,
+            )
+            results["total"] += document_result["total"]
+            results["processed"] += document_result["processed"]
+            results["failed"] += document_result["failed"]
+            results["skipped"] += document_result["skipped"]
+            results["results"].extend(document_result["results"])
+
+        if not any(ct in request.content_types for ct in ["audio", "image", "document"]):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported content types: {request.content_types}. Supported: audio, image",
+                detail=f"Unsupported content types: {request.content_types}. Supported: audio, image, document",
             )
 
         return BatchReprocessResponse(**results)

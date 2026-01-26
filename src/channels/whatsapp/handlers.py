@@ -19,6 +19,8 @@ import base64
 from src.services.message_router import message_router
 from src.services.user_service import user_service
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
+from src.services.media_processing import media_processing_service
+from src.services.settings_service import settings_service
 from src.utils.datetime_utils import now
 
 # Remove the circular import
@@ -344,6 +346,333 @@ class WhatsAppMessageHandler:
         }
         return mime_to_ext.get(mime_type, ".bin")
 
+    def _process_media_content(
+        self,
+        message: Dict[str, Any],
+        instance_config,
+        is_audio_message: bool,
+        is_media_message: bool,
+        message_type: str,
+    ) -> Optional[str]:
+        """
+        Process media content (audio/image) to extract text description.
+
+        This method:
+        - Checks if media processing is enabled
+        - Transcribes audio messages using Groq/OpenAI Whisper
+        - Describes images using Gemini Vision
+        - Returns the processed text to be included in the message
+
+        Args:
+            message: The WhatsApp message data
+            instance_config: Instance configuration
+            is_audio_message: True if this is an audio message
+            is_media_message: True if this is any media message
+            message_type: The specific message type string
+
+        Returns:
+            Processed text content or None if processing not applicable/failed
+        """
+        import asyncio
+        import tempfile
+        import os as os_module
+
+        try:
+            # Check if media processing is enabled
+            from src.db.database import get_db
+
+            db_gen = get_db()
+            db = next(db_gen)
+
+            try:
+                media_enabled = settings_service.get_setting_value("media_processing_enabled", db)
+                if media_enabled is None:
+                    media_enabled = True  # Default to enabled if setting doesn't exist
+                elif isinstance(media_enabled, str):
+                    media_enabled = media_enabled.lower() == "true"
+
+                if not media_enabled:
+                    logger.debug("Media processing is disabled")
+                    return None
+
+                # Get instance name and message ID
+                instance_name = instance_config.name if instance_config else "default"
+                data = message.get("data", {})
+                message_id = data.get("key", {}).get("id", "unknown")
+
+                # Extract base64 data from message
+                message_obj = data.get("message", {})
+                base64_data = message_obj.get("base64") or data.get("base64")
+
+                if not base64_data:
+                    # Try to find base64 in media type objects
+                    for media_key in ["audioMessage", "imageMessage", "videoMessage", "documentMessage"]:
+                        if media_key in message_obj and isinstance(message_obj[media_key], dict):
+                            if "base64" in message_obj[media_key]:
+                                base64_data = message_obj[media_key]["base64"]
+                                break
+
+                if not base64_data:
+                    logger.debug("No base64 data found in message for processing")
+                    return None
+
+                # Process audio messages
+                if is_audio_message:
+                    audio_meta = message_obj.get("audioMessage", {})
+                    mime_type = audio_meta.get("mimetype", "audio/ogg")
+                    if ";" in mime_type:
+                        mime_type = mime_type.split(";")[0].strip()
+                    duration = audio_meta.get("seconds")
+
+                    # Get transcription language from settings
+                    language = settings_service.get_setting_value("audio_transcription_language", db) or "pt"
+
+                    logger.info(f"Processing audio message for transcription (duration: {duration}s, lang: {language})")
+
+                    # Decode base64 and save to temp file
+                    audio_bytes = base64.b64decode(base64_data)
+                    ext = ".ogg" if "ogg" in mime_type else ".mp3" if "mp3" in mime_type else ".m4a"
+                    fd, temp_path = tempfile.mkstemp(suffix=ext)
+                    try:
+                        with os_module.fdopen(fd, "wb") as f:
+                            f.write(audio_bytes)
+
+                        # Load settings and process
+                        media_processing_service._load_settings(db)
+
+                        if not media_processing_service._audio_processor:
+                            logger.warning("Audio processor not configured (missing API keys)")
+                            return None
+
+                        # Run async processing
+                        from pathlib import Path
+
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            result = loop.run_until_complete(
+                                media_processing_service._audio_processor.process(
+                                    file_path=Path(temp_path),
+                                    mime_type=mime_type,
+                                    language=language,
+                                )
+                            )
+                        finally:
+                            loop.close()
+
+                        if result.success and result.content:
+                            logger.info(f"Audio transcribed: {result.content[:100]}...")
+                            # Store in database for future reference
+                            from src.db.trace_models import MediaContent
+                            from src.utils.datetime_utils import utcnow
+
+                            media_content = MediaContent(
+                                instance_name=instance_name,
+                                channel_type="whatsapp",
+                                original_message_id=message_id,
+                                content_type="audio_transcript",
+                                source_media_type="audio",
+                                content=result.content,
+                                content_format=result.content_format or "text",
+                                processor_name=result.processor_name,
+                                processor_model=result.processor_model,
+                                processing_time_ms=result.processing_time_ms,
+                                confidence_score=result.confidence_score,
+                                media_mime_type=mime_type,
+                                media_duration_seconds=duration,
+                                status="completed",
+                                processed_at=utcnow(),
+                            )
+                            db.add(media_content)
+                            db.commit()
+
+                            return f"[Audio Transcription]: {result.content}"
+                        else:
+                            logger.warning(f"Audio transcription failed: {result.error_message}")
+                            return None
+                    finally:
+                        if os_module.path.exists(temp_path):
+                            os_module.unlink(temp_path)
+
+                # Process image messages
+                elif message_type in ["imageMessage", "image"]:
+                    image_meta = message_obj.get("imageMessage", {})
+                    mime_type = image_meta.get("mimetype", "image/jpeg")
+                    if ";" in mime_type:
+                        mime_type = mime_type.split(";")[0].strip()
+                    caption = image_meta.get("caption", "")
+
+                    logger.info(f"Processing image message for description (mime: {mime_type})")
+
+                    # Decode base64 and save to temp file
+                    image_bytes = base64.b64decode(base64_data)
+                    ext = ".jpg" if "jpeg" in mime_type else ".png" if "png" in mime_type else ".webp"
+                    fd, temp_path = tempfile.mkstemp(suffix=ext)
+                    try:
+                        with os_module.fdopen(fd, "wb") as f:
+                            f.write(image_bytes)
+
+                        # Load settings and process
+                        media_processing_service._load_settings(db)
+
+                        if not media_processing_service._image_processor:
+                            logger.warning("Image processor not configured (missing GEMINI_API_KEY)")
+                            return None
+
+                        # Build prompt with caption context
+                        custom_prompt = None
+                        if caption:
+                            custom_prompt = f"The user sent this image with the caption: '{caption}'\n\n{media_processing_service._image_processor.prompt}"
+
+                        # Run async processing
+                        from pathlib import Path
+
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            result = loop.run_until_complete(
+                                media_processing_service._image_processor.process(
+                                    file_path=Path(temp_path),
+                                    mime_type=mime_type,
+                                    custom_prompt=custom_prompt,
+                                )
+                            )
+                        finally:
+                            loop.close()
+
+                        if result.success and result.content:
+                            logger.info(f"Image described: {result.content[:100]}...")
+                            # Store in database for future reference
+                            from src.db.trace_models import MediaContent
+                            from src.utils.datetime_utils import utcnow
+
+                            media_content = MediaContent(
+                                instance_name=instance_name,
+                                channel_type="whatsapp",
+                                original_message_id=message_id,
+                                content_type="image_description",
+                                source_media_type="image",
+                                content=result.content,
+                                content_format=result.content_format or "text",
+                                processor_name=result.processor_name,
+                                processor_model=result.processor_model,
+                                processing_time_ms=result.processing_time_ms,
+                                confidence_score=result.confidence_score,
+                                media_mime_type=mime_type,
+                                status="completed",
+                                processed_at=utcnow(),
+                            )
+                            db.add(media_content)
+                            db.commit()
+
+                            return f"[Image Description]: {result.content}"
+                        else:
+                            logger.warning(f"Image description failed: {result.error_message}")
+                            return None
+                    finally:
+                        if os_module.path.exists(temp_path):
+                            os_module.unlink(temp_path)
+
+                # Process document messages
+                elif message_type in ["documentMessage", "document"]:
+                    doc_meta = message_obj.get("documentMessage", {})
+                    mime_type = doc_meta.get("mimetype", "application/pdf")
+                    if ";" in mime_type:
+                        mime_type = mime_type.split(";")[0].strip()
+                    filename = doc_meta.get("fileName", "document")
+
+                    # Only process PDF and Word documents
+                    supported_types = [
+                        "application/pdf",
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "text/plain",
+                    ]
+                    if mime_type not in supported_types:
+                        logger.debug(f"Document type {mime_type} not supported for processing")
+                        return None
+
+                    logger.info(f"Processing document: {filename} ({mime_type})")
+
+                    # Decode base64 and save to temp file
+                    doc_bytes = base64.b64decode(base64_data)
+                    ext = ".pdf" if "pdf" in mime_type else ".docx" if "word" in mime_type else ".txt"
+                    fd, temp_path = tempfile.mkstemp(suffix=ext)
+                    try:
+                        with os_module.fdopen(fd, "wb") as f:
+                            f.write(doc_bytes)
+
+                        # Load settings and process
+                        media_processing_service._load_settings(db)
+
+                        if not media_processing_service._document_processor:
+                            logger.warning("Document processor not initialized")
+                            return None
+
+                        # Run async processing
+                        from pathlib import Path
+
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            result = loop.run_until_complete(
+                                media_processing_service._document_processor.process(
+                                    file_path=Path(temp_path),
+                                    mime_type=mime_type,
+                                )
+                            )
+                        finally:
+                            loop.close()
+
+                        if result.success and result.content:
+                            logger.info(f"Document extracted: {result.content[:100]}...")
+                            # Store in database for future reference
+                            from src.db.trace_models import MediaContent
+                            from src.utils.datetime_utils import utcnow
+
+                            media_content = MediaContent(
+                                instance_name=instance_name,
+                                channel_type="whatsapp",
+                                original_message_id=message_id,
+                                content_type="document_content",
+                                source_media_type="document",
+                                content=result.content,
+                                content_format=result.content_format or "text",
+                                processor_name=result.processor_name,
+                                processor_model=result.processor_model,
+                                processing_time_ms=result.processing_time_ms,
+                                confidence_score=result.confidence_score,
+                                media_mime_type=mime_type,
+                                status="completed",
+                                processed_at=utcnow(),
+                            )
+                            db.add(media_content)
+                            db.commit()
+
+                            # Truncate content for agent if too long
+                            content_preview = result.content
+                            if len(content_preview) > 4000:
+                                content_preview = (
+                                    content_preview[:4000] + f"\n\n[... truncated, {len(result.content)} total chars]"
+                                )
+
+                            return f"[Document Content - {filename}]: {content_preview}"
+                        else:
+                            logger.warning(f"Document extraction failed: {result.error_message}")
+                            return None
+                    finally:
+                        if os_module.path.exists(temp_path):
+                            os_module.unlink(temp_path)
+
+                return None
+
+            finally:
+                db.close()
+
+        except Exception as e:
+            logger.error(f"Error processing media content: {e}", exc_info=True)
+            return None
+
     def _process_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
         """
         Process a WhatsApp message.
@@ -442,12 +771,25 @@ class WhatsAppMessageHandler:
                 # The agent API will be the source of truth for user_id
                 # We'll get the actual user_id from the agent response after processing
 
-                # Handle audio messages (transcription disabled)
-                if is_audio_message:
-                    logger.debug("Audio message received (transcription disabled)")
-
-                # Extract message content (will use transcription if available)
+                # Extract message content first
                 message_content = self._extract_message_content(message)
+
+                # ================= Media Processing (Transcription/Description) =================
+                # Process audio and image messages to extract text content
+                processed_media_text = self._process_media_content(
+                    message=message,
+                    instance_config=instance_config,
+                    is_audio_message=is_audio_message,
+                    is_media_message=is_media_message,
+                    message_type=message_type,
+                )
+                if processed_media_text:
+                    # Prepend the processed media content to the message
+                    if message_content:
+                        message_content = f"{processed_media_text}\n\n{message_content}"
+                    else:
+                        message_content = processed_media_text
+                    logger.info(f"Added processed media content to message ({len(processed_media_text)} chars)")
 
                 # Add quoted message context if present
                 quoted_context = self._extract_quoted_context(message)

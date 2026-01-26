@@ -167,6 +167,23 @@ async def update_setting(
     """Update a setting's value."""
 
     try:
+        # Check if this is a secret setting and validate the value
+        existing = settings_service.get_setting(key, db)
+        if existing and existing.is_secret:
+            value_str = str(update_data.value) if update_data.value is not None else ""
+            # Reject masked values (contain *** in the middle)
+            if "***" in value_str:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot save masked value. Please provide the full secret.",
+                )
+            # Reject empty values for secrets
+            if not value_str.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Secret value cannot be empty.",
+                )
+
         setting = settings_service.update_setting(
             key=key,
             value=update_data.value,
@@ -177,6 +194,8 @@ async def update_setting(
 
         return _to_setting_response(setting)
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

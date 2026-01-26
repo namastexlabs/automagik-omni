@@ -12,6 +12,8 @@ from src.db.models import InstanceConfig
 from src.utils.dependency_guard import requires_feature, LazyImport, DependencyError
 from src.services.message_router import message_router
 from src.services.trace_service import TraceService
+from src.services.media_processing import media_processing_service
+from src.services.settings_service import settings_service
 from src.db.database import SessionLocal
 from src.utils.datetime_utils import utcnow
 
@@ -286,6 +288,237 @@ class DiscordChannelHandler(ChannelHandler):
             except Exception:
                 logger.warning("Failed to persist Discord outbound trace", exc_info=True)
 
+    async def _process_discord_attachments(
+        self,
+        message,
+        instance: InstanceConfig,
+    ) -> Optional[str]:
+        """
+        Process Discord attachments (audio/images) and return text description.
+
+        Args:
+            message: Discord message object
+            instance: Instance configuration
+
+        Returns:
+            Processed text content or None
+        """
+        import tempfile
+        import os as os_module
+        import httpx
+        from pathlib import Path
+
+        if not message.attachments:
+            return None
+
+        try:
+            # Check if media processing is enabled
+            db = SessionLocal()
+            try:
+                media_enabled = settings_service.get_setting_value("media_processing_enabled", db)
+                if media_enabled is None:
+                    media_enabled = True
+                elif isinstance(media_enabled, str):
+                    media_enabled = media_enabled.lower() == "true"
+
+                if not media_enabled:
+                    logger.debug("Media processing is disabled")
+                    return None
+
+                processed_texts = []
+
+                for attachment in message.attachments:
+                    content_type = attachment.content_type or ""
+                    filename = attachment.filename.lower()
+
+                    # Determine media type
+                    is_audio = content_type.startswith("audio/") or any(
+                        filename.endswith(ext) for ext in [".mp3", ".ogg", ".wav", ".m4a", ".opus", ".flac"]
+                    )
+                    is_image = content_type.startswith("image/") or any(
+                        filename.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+                    )
+                    is_document = content_type in [
+                        "application/pdf",
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "text/plain",
+                    ] or any(filename.endswith(ext) for ext in [".pdf", ".doc", ".docx", ".txt"])
+
+                    if not (is_audio or is_image or is_document):
+                        continue
+
+                    logger.info(f"Processing Discord attachment: {attachment.filename} ({content_type})")
+
+                    # Download attachment
+                    try:
+                        async with httpx.AsyncClient(timeout=60.0) as client:
+                            response = await client.get(attachment.url)
+                            response.raise_for_status()
+                            file_data = response.content
+                    except Exception as e:
+                        logger.error(f"Failed to download Discord attachment: {e}")
+                        continue
+
+                    # Determine extension and mime type
+                    if is_audio:
+                        ext = ".ogg" if "ogg" in content_type else ".mp3" if "mp3" in content_type else ".m4a"
+                        mime_type = content_type if content_type else "audio/mpeg"
+                    elif is_image:
+                        ext = ".jpg" if "jpeg" in content_type else ".png" if "png" in content_type else ".webp"
+                        mime_type = content_type if content_type else "image/jpeg"
+                    else:  # is_document
+                        ext = (
+                            ".pdf"
+                            if "pdf" in content_type or filename.endswith(".pdf")
+                            else ".docx"
+                            if "word" in content_type or filename.endswith((".doc", ".docx"))
+                            else ".txt"
+                        )
+                        mime_type = content_type if content_type else "application/pdf"
+
+                    # Save to temp file
+                    fd, temp_path = tempfile.mkstemp(suffix=ext)
+                    try:
+                        with os_module.fdopen(fd, "wb") as f:
+                            f.write(file_data)
+
+                        # Load settings and process
+                        media_processing_service._load_settings(db)
+
+                        if is_audio:
+                            if not media_processing_service._audio_processor:
+                                logger.warning("Audio processor not configured")
+                                continue
+
+                            language = settings_service.get_setting_value("audio_transcription_language", db) or "pt"
+
+                            result = await media_processing_service._audio_processor.process(
+                                file_path=Path(temp_path),
+                                mime_type=mime_type,
+                                language=language,
+                            )
+
+                            if result.success and result.content:
+                                logger.info(f"Discord audio transcribed: {result.content[:100]}...")
+                                processed_texts.append(
+                                    f"[Audio Transcription - {attachment.filename}]: {result.content}"
+                                )
+
+                                # Store in database
+                                from src.db.trace_models import MediaContent
+
+                                media_content = MediaContent(
+                                    instance_name=instance.name,
+                                    channel_type="discord",
+                                    original_message_id=str(message.id),
+                                    content_type="audio_transcript",
+                                    source_media_type="audio",
+                                    content=result.content,
+                                    content_format=result.content_format or "text",
+                                    processor_name=result.processor_name,
+                                    processor_model=result.processor_model,
+                                    processing_time_ms=result.processing_time_ms,
+                                    confidence_score=result.confidence_score,
+                                    media_mime_type=mime_type,
+                                    status="completed",
+                                    processed_at=utcnow(),
+                                )
+                                db.add(media_content)
+                                db.commit()
+
+                        elif is_image:
+                            if not media_processing_service._image_processor:
+                                logger.warning("Image processor not configured")
+                                continue
+
+                            result = await media_processing_service._image_processor.process(
+                                file_path=Path(temp_path),
+                                mime_type=mime_type,
+                            )
+
+                            if result.success and result.content:
+                                logger.info(f"Discord image described: {result.content[:100]}...")
+                                processed_texts.append(f"[Image Description - {attachment.filename}]: {result.content}")
+
+                                # Store in database
+                                from src.db.trace_models import MediaContent
+
+                                media_content = MediaContent(
+                                    instance_name=instance.name,
+                                    channel_type="discord",
+                                    original_message_id=str(message.id),
+                                    content_type="image_description",
+                                    source_media_type="image",
+                                    content=result.content,
+                                    content_format=result.content_format or "text",
+                                    processor_name=result.processor_name,
+                                    processor_model=result.processor_model,
+                                    processing_time_ms=result.processing_time_ms,
+                                    confidence_score=result.confidence_score,
+                                    media_mime_type=mime_type,
+                                    status="completed",
+                                    processed_at=utcnow(),
+                                )
+                                db.add(media_content)
+                                db.commit()
+
+                        else:  # is_document
+                            if not media_processing_service._document_processor:
+                                logger.warning("Document processor not configured")
+                                continue
+
+                            result = await media_processing_service._document_processor.process(
+                                file_path=Path(temp_path),
+                                mime_type=mime_type,
+                            )
+
+                            if result.success and result.content:
+                                logger.info(f"Discord document extracted: {result.content[:100]}...")
+                                # Truncate content if too long
+                                content_preview = result.content
+                                if len(content_preview) > 4000:
+                                    content_preview = (
+                                        content_preview[:4000]
+                                        + f"\n\n[... truncated, {len(result.content)} total chars]"
+                                    )
+                                processed_texts.append(f"[Document Content - {attachment.filename}]: {content_preview}")
+
+                                # Store in database
+                                from src.db.trace_models import MediaContent
+
+                                media_content = MediaContent(
+                                    instance_name=instance.name,
+                                    channel_type="discord",
+                                    original_message_id=str(message.id),
+                                    content_type="document_content",
+                                    source_media_type="document",
+                                    content=result.content,
+                                    content_format=result.content_format or "text",
+                                    processor_name=result.processor_name,
+                                    processor_model=result.processor_model,
+                                    processing_time_ms=result.processing_time_ms,
+                                    confidence_score=result.confidence_score,
+                                    media_mime_type=mime_type,
+                                    status="completed",
+                                    processed_at=utcnow(),
+                                )
+                                db.add(media_content)
+                                db.commit()
+
+                    finally:
+                        if os_module.path.exists(temp_path):
+                            os_module.unlink(temp_path)
+
+                return "\n\n".join(processed_texts) if processed_texts else None
+
+            finally:
+                db.close()
+
+        except Exception as e:
+            logger.error(f"Error processing Discord attachments: {e}", exc_info=True)
+            return None
+
     async def _handle_message(self, message, instance: InstanceConfig, client) -> None:
         """Handle incoming Discord message with @mention detection."""
         try:
@@ -312,6 +545,15 @@ class DiscordChannelHandler(ChannelHandler):
 
             # Clean up the message (strip whitespace)
             content = content.strip()
+
+            # Process any attachments (audio/images)
+            attachment_text = await self._process_discord_attachments(message, instance)
+            if attachment_text:
+                if content:
+                    content = f"{attachment_text}\n\n{content}"
+                else:
+                    content = attachment_text
+                logger.info(f"Added processed attachment content ({len(attachment_text)} chars)")
 
             if not content:
                 await message.channel.send("Hi! How can I help you? Please include your message after mentioning me.")

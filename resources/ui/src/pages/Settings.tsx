@@ -100,12 +100,31 @@ export default function Settings() {
 
   const handleEdit = (setting: GlobalSetting) => {
     setEditingKey(setting.key);
-    setEditValues({ ...editValues, [setting.key]: setting.value || '' });
+    // For secrets, start with empty field to avoid saving masked values
+    // User must enter the full new value
+    if (setting.is_secret) {
+      setEditValues({ ...editValues, [setting.key]: '' });
+    } else {
+      setEditValues({ ...editValues, [setting.key]: setting.value || '' });
+    }
   };
 
   const handleSave = (setting: GlobalSetting) => {
     const newValue = editValues[setting.key];
     if (newValue !== undefined) {
+      // For secrets: if empty, don't update (user cancelled or didn't enter anything)
+      // Also check for masked pattern to prevent accidental overwrite
+      if (setting.is_secret) {
+        if (!newValue || newValue.trim() === '') {
+          toast.error('Please enter a value or cancel to keep existing');
+          return;
+        }
+        // Check if it looks like a masked value (contains *** in the middle)
+        if (newValue.includes('***')) {
+          toast.error('Cannot save masked value. Please enter the full key.');
+          return;
+        }
+      }
       updateMutation.mutate({ key: setting.key, value: newValue });
     }
   };
@@ -137,6 +156,7 @@ export default function Settings() {
             type={setting.is_secret && !showSecrets[setting.key] ? 'password' : 'text'}
             value={editValues[setting.key] || ''}
             onChange={(e) => setEditValues({ ...editValues, [setting.key]: e.target.value })}
+            placeholder={setting.is_secret ? 'Enter new value (leave empty to cancel)' : ''}
             className="flex-1 font-mono text-sm"
           />
           <Button size="sm" variant="outline" onClick={() => handleSave(setting)} disabled={updateMutation.isPending}>
@@ -363,13 +383,16 @@ export default function Settings() {
                     {Object.entries(groupedSettings || {}).map(([category, categorySettings]) => (
                       <Card key={category} className="border-border elevation-md">
                         <CardHeader>
-                          <CardTitle className="capitalize">{category}</CardTitle>
+                          <CardTitle className="capitalize">
+                          {category === 'media_processing' ? 'Media Processing' : category.replace(/_/g, ' ')}
+                        </CardTitle>
                           <CardDescription>
                             {category === 'integration' && 'External service configuration'}
                             {category === 'limits' && 'System limits and quotas'}
                             {category === 'features' && 'Feature toggles'}
                             {category === 'general' && 'General system settings'}
                             {category === 'security' && 'Security and authentication settings'}
+                            {category === 'media_processing' && 'API keys and settings for audio transcription and image description'}
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
