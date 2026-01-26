@@ -1122,6 +1122,13 @@ export class ProcessManager {
       return;
     }
 
+    // Check if Discord is already running - prevent duplicate processes
+    const existing = this.processes.get(name);
+    if (existing && existing.process && !existing.process.killed) {
+      console.log('[ProcessManager] Discord service manager already running, skipping...');
+      return;
+    }
+
     console.log(`[ProcessManager] Starting Discord service manager...`);
 
     const runtime = detectPythonRuntime();

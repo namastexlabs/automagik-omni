@@ -133,6 +133,27 @@ class AutomagikBot(commands.Bot):
         logger.info(f"Bot '{self.instance_name}' left guild: {guild.name} (ID: {guild.id})")
         await self.manager._handle_guild_remove(self.instance_name, guild)
 
+    async def on_reaction_add(self, reaction, user):
+        """Handle reaction additions."""
+        logger.info(
+            f"[DEBUG] on_reaction_add fired: emoji={reaction.emoji}, user={user.name}, message_id={reaction.message.id}"
+        )
+        # Ignore bot's own reactions
+        if user.bot:
+            logger.info("[DEBUG] Ignoring bot's own reaction")
+            return
+        await self.manager._handle_reaction_add(self.instance_name, reaction, user)
+
+    async def on_raw_reaction_add(self, payload):
+        """Handle raw reaction additions (works even if message not in cache)."""
+        logger.info(
+            f"[DEBUG] on_raw_reaction_add fired: emoji={payload.emoji}, user_id={payload.user_id}, message_id={payload.message_id}"
+        )
+        # Raw events work even when message isn't cached
+        if payload.user_id == self.user.id:
+            return
+        await self.manager._handle_raw_reaction_add(self.instance_name, payload)
+
     async def on_interaction(self, interaction):
         """Handle slash command interactions."""
         await self.manager._handle_interaction(self.instance_name, interaction)
@@ -263,6 +284,8 @@ class DiscordBotManager:
             intents.guilds = True
             intents.guild_messages = True
             intents.dm_messages = True
+            intents.reactions = True  # Required for on_reaction_add events
+            intents.dm_reactions = True  # Required for DM reaction events
 
             # Create bot instance
             bot = AutomagikBot(
@@ -708,9 +731,139 @@ class DiscordBotManager:
             if bot_mentioned:
                 content = content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
 
+            # Build comprehensive Discord raw payload (like WhatsApp raw payload for tracing)
+            discord_raw_payload = {
+                "message_id": str(message.id),
+                "channel_id": str(message.channel.id),
+                "channel_type": str(type(message.channel).__name__),
+                "guild_id": str(message.guild.id) if message.guild else None,
+                "guild_name": message.guild.name if message.guild else None,
+                "author": {
+                    "id": str(message.author.id),
+                    "name": message.author.name,
+                    "display_name": message.author.display_name,
+                    "discriminator": message.author.discriminator,
+                    "bot": message.author.bot,
+                    "avatar_url": str(message.author.avatar.url) if message.author.avatar else None,
+                },
+                "content": message.content,
+                "clean_content": message.clean_content,
+                "created_at": message.created_at.isoformat() if message.created_at else None,
+                "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+                "message_type": str(message.type),
+                "is_reply": message.reference is not None,
+                "reference": {
+                    "message_id": str(message.reference.message_id) if message.reference else None,
+                    "channel_id": str(message.reference.channel_id) if message.reference else None,
+                    "guild_id": str(message.reference.guild_id)
+                    if message.reference and message.reference.guild_id
+                    else None,
+                }
+                if message.reference
+                else None,
+                "attachments": [
+                    {
+                        "id": str(att.id),
+                        "filename": att.filename,
+                        "url": att.url,
+                        "proxy_url": att.proxy_url,
+                        "size": att.size,
+                        "content_type": att.content_type,
+                        "width": att.width,
+                        "height": att.height,
+                        "description": att.description,
+                    }
+                    for att in message.attachments
+                ],
+                "embeds": [
+                    {
+                        "title": embed.title,
+                        "description": embed.description,
+                        "url": embed.url,
+                        "type": embed.type,
+                    }
+                    for embed in message.embeds
+                ],
+                "stickers": [
+                    {
+                        "id": str(sticker.id),
+                        "name": sticker.name,
+                        "url": sticker.url,
+                        "format": str(sticker.format),
+                    }
+                    for sticker in message.stickers
+                ],
+                "mentions": [str(user.id) for user in message.mentions],
+                "role_mentions": [str(role.id) for role in message.role_mentions],
+                "channel_mentions": [str(ch.id) for ch in message.channel_mentions]
+                if hasattr(message, "channel_mentions")
+                else [],
+                "reactions": [
+                    {
+                        "emoji": str(reaction.emoji),
+                        "count": reaction.count,
+                        "me": reaction.me,
+                    }
+                    for reaction in message.reactions
+                ]
+                if message.reactions
+                else [],
+                "pinned": message.pinned,
+                "tts": message.tts,
+                "flags": message.flags.value if message.flags else 0,
+            }
+
+            # Detect message type based on content
+            if message.stickers:
+                detected_message_type = "sticker"
+            elif message.attachments:
+                # Determine type from first attachment's content_type
+                first_att = message.attachments[0]
+                content_type = first_att.content_type or ""
+                if content_type.startswith("image/"):
+                    detected_message_type = "image"
+                elif content_type.startswith("video/"):
+                    detected_message_type = "video"
+                elif content_type.startswith("audio/"):
+                    detected_message_type = "audio"
+                else:
+                    detected_message_type = "document"
+            elif message.reference:
+                detected_message_type = "text"  # Reply is still text type, but with reference
+            else:
+                detected_message_type = "text"
+
+            # Build media_contents list from attachments
+            media_contents = None
+            if message.attachments:
+                media_contents = []
+                for att in message.attachments:
+                    media_contents.append(
+                        {
+                            "type": att.content_type.split("/")[0] if att.content_type else "file",
+                            "url": att.url,
+                            "mime_type": att.content_type,
+                            "filename": att.filename,
+                            "size": att.size,
+                        }
+                    )
+
+            # Log full payload for debugging/analysis
             logger.info(
                 f"Processing Discord message: '{content}' from user: {message.author.name} in session: {session_name}"
             )
+            logger.info(
+                f"Discord message type: {detected_message_type}, attachments: {len(message.attachments)}, "
+                f"stickers: {len(message.stickers)}, is_reply: {message.reference is not None}"
+            )
+            if message.attachments:
+                for att in message.attachments:
+                    logger.info(f"  Attachment: {att.filename} ({att.content_type}) - {att.url}")
+            if message.stickers:
+                for sticker in message.stickers:
+                    logger.info(f"  Sticker: {sticker.name} - {sticker.url}")
+            if message.reference:
+                logger.info(f"  Reply to message: {message.reference.message_id}")
 
             # Get instance configuration for this bot
             instance_config = self.instance_configs.get(instance_name)
@@ -729,8 +882,8 @@ class DiscordBotManager:
                     "api_url": instance_config.agent_api_url,
                     "api_key": instance_config.agent_api_key,
                     "timeout": instance_config.agent_timeout or 60,
-                    "agent_type": getattr(instance_config, "agent_type", "agent"),
-                    "stream_mode": getattr(instance_config, "agent_stream_mode", False),
+                    "agent_type": instance_config.agent_type or "agent",
+                    "stream_mode": instance_config.agent_stream_mode or False,
                     "instance_config": instance_config,
                 }
 
@@ -773,11 +926,11 @@ class DiscordBotManager:
                     user_id=resolved_user_id,  # If resolved, prefer stable local user_id
                     user=None if resolved_user_id else user_dict,  # Fallback to user dict if not resolved
                     session_name=session_name,
-                    message_type="text",
-                    whatsapp_raw_payload=None,  # Discord doesn't use WhatsApp payload
+                    message_type=detected_message_type,  # Now properly detected
+                    whatsapp_raw_payload=discord_raw_payload,  # Full Discord payload for tracing
                     session_origin="discord",
                     agent_config=agent_config,  # Pass agent configuration
-                    media_contents=None,  # TODO: Handle Discord attachments if needed
+                    media_contents=media_contents,  # Discord attachments
                     trace_context=None,
                 )
                 agent_response = await loop.run_in_executor(None, route_func)
@@ -807,7 +960,7 @@ class DiscordBotManager:
                     user_id=resolved_user_id,
                     user=None if resolved_user_id else user_dict,
                     session_name=session_name,
-                    message_type="text",
+                    message_type=detected_message_type,
                     whatsapp_raw_payload=None,
                     session_origin="discord",
                     agent_config=agent_config,
@@ -859,6 +1012,87 @@ class DiscordBotManager:
         logger.info(f"Bot '{instance_name}' left guild: {guild.name} (ID: {guild.id})")
 
         # Could implement cleanup here
+
+    async def _handle_reaction_add(self, instance_name: str, reaction: discord.Reaction, user: discord.User):
+        """Handle reaction additions - log full payload for tracing."""
+        try:
+            # Build comprehensive reaction payload
+            reaction_payload = {
+                "event_type": "reaction_add",
+                "instance_name": instance_name,
+                "emoji": str(reaction.emoji),
+                "emoji_id": str(reaction.emoji.id) if hasattr(reaction.emoji, "id") and reaction.emoji.id else None,
+                "emoji_name": reaction.emoji.name if hasattr(reaction.emoji, "name") else str(reaction.emoji),
+                "emoji_animated": reaction.emoji.animated if hasattr(reaction.emoji, "animated") else False,
+                "count": reaction.count,
+                "message_id": str(reaction.message.id),
+                "channel_id": str(reaction.message.channel.id),
+                "guild_id": str(reaction.message.guild.id) if reaction.message.guild else None,
+                "user": {
+                    "id": str(user.id),
+                    "name": user.name,
+                    "display_name": user.display_name,
+                    "bot": user.bot,
+                },
+                "message_author": {
+                    "id": str(reaction.message.author.id),
+                    "name": reaction.message.author.name,
+                }
+                if reaction.message.author
+                else None,
+                "message_content": reaction.message.content[:100] if reaction.message.content else None,
+            }
+
+            logger.info(f"Discord reaction: {reaction.emoji} by {user.name} on message {reaction.message.id}")
+            logger.info(f"Reaction payload: {reaction_payload}")
+
+            # TODO: Could route reactions to agent if needed
+            # For now just log for analysis
+
+        except Exception as e:
+            logger.error(f"Error handling reaction: {e}", exc_info=True)
+
+    async def _handle_raw_reaction_add(self, instance_name: str, payload: discord.RawReactionActionEvent):
+        """Handle raw reaction additions - works even when message isn't in cache."""
+        try:
+            # Build emoji URL for custom emojis
+            emoji_url = None
+            if payload.emoji.id:
+                # Custom emoji - construct CDN URL
+                ext = "gif" if (hasattr(payload.emoji, "animated") and payload.emoji.animated) else "png"
+                emoji_url = f"https://cdn.discordapp.com/emojis/{payload.emoji.id}.{ext}"
+
+            raw_reaction_payload = {
+                "event_type": "raw_reaction_add",
+                "instance_name": instance_name,
+                "emoji": str(payload.emoji),
+                "emoji_id": str(payload.emoji.id) if payload.emoji.id else None,
+                "emoji_name": payload.emoji.name,
+                "emoji_url": emoji_url,  # CDN URL for custom emojis
+                "emoji_animated": payload.emoji.animated if hasattr(payload.emoji, "animated") else False,
+                "emoji_is_custom": payload.emoji.id is not None,
+                "emoji_is_unicode": payload.emoji.id is None,
+                "message_id": str(payload.message_id),
+                "channel_id": str(payload.channel_id),
+                "guild_id": str(payload.guild_id) if payload.guild_id else None,
+                "user_id": str(payload.user_id),
+                "member": {
+                    "id": str(payload.member.id),
+                    "name": payload.member.name,
+                }
+                if payload.member
+                else None,
+            }
+
+            logger.info(
+                f"Discord RAW reaction: {payload.emoji} by user {payload.user_id} on message {payload.message_id}"
+            )
+            if emoji_url:
+                logger.info(f"  Custom emoji URL: {emoji_url}")
+            logger.info(f"Raw reaction payload: {raw_reaction_payload}")
+
+        except Exception as e:
+            logger.error(f"Error handling raw reaction: {e}", exc_info=True)
 
     async def _handle_interaction(self, instance_name: str, interaction: discord.Interaction):
         """Handle slash command interactions."""
