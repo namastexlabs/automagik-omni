@@ -255,3 +255,81 @@ class TracePayload(Base):
             result["payload"] = self.get_payload()
 
         return result
+
+
+class MediaContent(Base):
+    """
+    Processed media content extracted from messages.
+    Stores transcriptions, image descriptions, and document content.
+    Channel-agnostic - works for WhatsApp, Discord, and future channels.
+    """
+
+    __tablename__ = "omni_media_content"
+
+    id = Column(Integer, primary_key=True)
+
+    # Link to original message
+    instance_name = Column(String(255), ForeignKey("omni_instance_configs.name"), index=True, nullable=False)
+    channel_type = Column(String(20), nullable=False)  # 'whatsapp' or 'discord'
+    original_message_id = Column(String(255), nullable=False, index=True)  # WhatsApp key.id or Discord message.id
+
+    # Content type
+    content_type = Column(
+        String(50), nullable=False, index=True
+    )  # 'audio_transcript', 'image_description', 'document_content'
+    source_media_type = Column(String(50), nullable=False)  # 'audio', 'image', 'video', 'document'
+
+    # Processed content
+    content = Column(Text, nullable=False)  # The extracted/generated text
+    content_format = Column(String(20), default="text")  # 'text', 'markdown', 'json'
+
+    # Processing metadata
+    processor_name = Column(String(100))  # 'groq_whisper', 'gemini_vision', 'docling', etc.
+    processor_model = Column(String(100))  # 'whisper-large-v3-turbo', 'gemini-2.5-flash', etc.
+    processing_time_ms = Column(Integer)
+    confidence_score = Column(Integer)  # 0-100 confidence/quality score (stored as int for DB compat)
+
+    # Source media info (for re-download capability)
+    media_url = Column(Text)
+    media_mime_type = Column(String(100))
+    media_size_bytes = Column(Integer)
+    media_duration_seconds = Column(Integer)  # For audio/video
+    media_key = Column(Text)  # WhatsApp media key for encrypted media (base64)
+
+    # Status tracking
+    status = Column(String(20), default="pending", index=True)  # 'pending', 'processing', 'completed', 'failed'
+    error_message = Column(Text)
+    retry_count = Column(Integer, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow, index=True)
+    processed_at = Column(DateTime)
+
+    def __repr__(self):
+        return f"<MediaContent(id={self.id}, type='{self.content_type}', msg='{self.original_message_id}')>"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            "id": self.id,
+            "instance_name": self.instance_name,
+            "channel_type": self.channel_type,
+            "original_message_id": self.original_message_id,
+            "content_type": self.content_type,
+            "source_media_type": self.source_media_type,
+            "content": self.content,
+            "content_format": self.content_format,
+            "processor_name": self.processor_name,
+            "processor_model": self.processor_model,
+            "processing_time_ms": self.processing_time_ms,
+            "confidence_score": self.confidence_score,
+            "media_url": self.media_url,
+            "media_mime_type": self.media_mime_type,
+            "media_size_bytes": self.media_size_bytes,
+            "media_duration_seconds": self.media_duration_seconds,
+            "status": self.status,
+            "error_message": self.error_message,
+            "retry_count": self.retry_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "processed_at": self.processed_at.isoformat() if self.processed_at else None,
+        }
