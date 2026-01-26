@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, Loader2, Copy, RefreshCw, Terminal, AlertTriangle, Bot } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatLogTimestamp } from '@/lib/utils';
 
 // Installation phases
 type Phase = 'init' | 'installing' | 'verifying' | 'ready' | 'error';
@@ -40,7 +40,7 @@ const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
   <>
     {logs.map((log, i) => (
       <div key={`${log.timestamp}-${i}`} className="flex gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+        <span className="text-muted-foreground/60 flex-shrink-0">[{formatLogTimestamp(log.timestamp)}]</span>
         <span className="break-all text-foreground">{log.message}</span>
       </div>
     ))}

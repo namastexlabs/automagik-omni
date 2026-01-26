@@ -1,6 +1,6 @@
 import { Users } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { cn } from '@/lib';
+import { cn, formatTimestampForChat } from '@/lib';
 import type { EvolutionChat, EvolutionMessage } from '@/lib';
 
 interface ChatListItemProps {
@@ -107,41 +107,5 @@ function getLastMessagePreview(chat: EvolutionChat): string {
 }
 
 function formatTimestamp(timestamp: number | string | undefined): string {
-  if (!timestamp || timestamp === 0 || timestamp === '0') return '';
-
-  // Convert to milliseconds if it looks like a Unix timestamp in seconds
-  const numericTs = typeof timestamp === 'number' ? timestamp : Number(timestamp);
-  const ms = numericTs > 1e12 ? numericTs : numericTs * 1000;
-
-  const date = new Date(ms);
-
-  // Check for invalid date
-  if (isNaN(date.getTime())) return '';
-
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-
-  // Today - show time
-  if (diff < 86400000 && date.getDate() === now.getDate()) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-
-  // Yesterday
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (
-    date.getDate() === yesterday.getDate() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getFullYear() === yesterday.getFullYear()
-  ) {
-    return 'Yesterday';
-  }
-
-  // This week - show day name
-  if (diff < 604800000) {
-    return date.toLocaleDateString([], { weekday: 'long' });
-  }
-
-  // Older - show date
-  return date.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatTimestampForChat(timestamp);
 }

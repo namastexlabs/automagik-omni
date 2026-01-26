@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api, HealthResponse, setInstanceKey, cn } from '@/lib';
+import { api, HealthResponse, setInstanceKey, cn, formatDateTime } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -83,14 +83,7 @@ function formatPhone(jid?: string): string | null {
 }
 
 function formatDate(dateStr?: string): string {
-  if (!dateStr) return 'N/A';
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTime(dateStr);
 }
 
 interface InstanceManageCardProps {

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, cn } from '@/lib';
+import { api, cn, formatTime } from '@/lib';
 import { Circle, Loader2, Database, Server, MessageSquare, Cpu } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -381,7 +381,7 @@ export function StatusFooter() {
         </div>
 
         <div className="flex items-center gap-4 text-muted-foreground">
-          {health?.timestamp && <span>{new Date(health.timestamp).toLocaleTimeString()}</span>}
+          {health?.timestamp && <span>{formatTime(health.timestamp)}</span>}
           <span>v{APP_VERSION}</span>
         </div>
       </footer>

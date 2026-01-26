@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { cn, api } from '@/lib';
+import { cn, api, formatTimeFromTimestamp } from '@/lib';
 import type { EvolutionMessage } from '@/lib';
 
 interface MessageBubbleProps {
@@ -545,7 +545,5 @@ function getMessageContent(message: EvolutionMessage): MessageContent {
 }
 
 function formatMessageTime(timestamp: number | undefined): string {
-  if (!timestamp) return '';
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return formatTimeFromTimestamp(timestamp);
 }

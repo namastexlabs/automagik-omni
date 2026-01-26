@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { api } from '@/lib';
+import { api, formatDateTime } from '@/lib';
 import type { AccessRule, AccessRuleType, InstanceConfig } from '@/lib';
 import { Shield, Plus, Trash2, Loader2, Phone, Globe, Filter } from 'lucide-react';
 
@@ -104,16 +104,6 @@ export default function AccessRules() {
       phone_number: newRule.phone_number.trim(),
       rule_type: newRule.rule_type,
       instance_name: newRule.instance_name || undefined,
-    });
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   };
 
@@ -341,7 +331,7 @@ export default function AccessRules() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{formatDate(rule.created_at)}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{formatDateTime(rule.created_at)}</TableCell>
                           <TableCell>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>

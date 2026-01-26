@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
-import { api, BatchJob } from '@/lib';
+import { api, BatchJob, formatDateTime } from '@/lib';
 import {
   Play,
   Square,
@@ -431,7 +431,7 @@ export default function BatchJobs() {
                             )}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                            {job.created_at ? new Date(job.created_at).toLocaleString() : '-'}
+                            {job.created_at ? formatDateTime(job.created_at) : '-'}
                           </TableCell>
                         </TableRow>
                       ))}

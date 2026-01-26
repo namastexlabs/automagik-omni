@@ -17,7 +17,7 @@ import {
   Play,
   QrCode,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatLogTimestamp } from '@/lib/utils';
 import type { LogEntry } from '@/lib';
 
 // Configuration phases
@@ -96,7 +96,7 @@ const LogList = memo(({ logs }: { logs: LogEntry[] }) => (
   <>
     {logs.map((log, i) => (
       <div key={`${log.timestamp}-${i}`} className="flex gap-2">
-        <span className="text-muted-foreground/60 flex-shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+        <span className="text-muted-foreground/60 flex-shrink-0">[{formatLogTimestamp(log.timestamp)}]</span>
         <span className={cn('break-all', getLogColor(log.level))}>{log.message}</span>
       </div>
     ))}

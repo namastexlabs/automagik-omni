@@ -1,6 +1,7 @@
 import { Zap, Database, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatRelativeTime } from '@/lib/utils';
 import type { RuntimeDatabaseConfig, SavedDatabaseConfig } from '@/lib';
 
 interface DatabaseStatusCardProps {
@@ -21,19 +22,8 @@ export function DatabaseStatusCard({ runtime, saved, isSynced }: DatabaseStatusC
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null;
-    try {
-      const date = new Date(dateStr);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 0) return 'Today';
-      if (diffDays === 1) return 'Yesterday';
-      if (diffDays < 7) return `${diffDays} days ago`;
-      return date.toLocaleDateString();
-    } catch {
-      return dateStr;
-    }
+    const result = formatRelativeTime(dateStr);
+    return result === 'N/A' ? null : result;
   };
 
   return (
