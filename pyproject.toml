@@ -33,6 +33,11 @@ dependencies = [
     # Utilities
     "pytz>=2025.2",
     "thefuzz>=0.22.1",
+    # Media processing (transcription, description, extraction)
+    "groq>=0.4.0",  # Groq Whisper for fast audio transcription
+    "google-generativeai>=0.8.0",  # Gemini for image description
+    "pymupdf>=1.24.0",  # PDF text extraction (lightweight)
+    "python-docx>=1.1.0",  # Word document processing
 ]
 
 [project.scripts]
@@ -76,14 +81,6 @@ discord-voice-ai = [
     "openai>=1.0.0",
     "speechrecognition>=3.10.0",
     "pydub>=0.25.1",
-]
-# Media processing (transcription, description, extraction)
-media-processing = [
-    "groq>=0.4.0",  # Groq Whisper for fast audio transcription
-    "google-generativeai>=0.8.0",  # Gemini for image description
-    "pydantic-ai>=0.0.24",  # Multimodal LLM framework
-    "pymupdf>=1.24.0",  # PDF text extraction (lightweight)
-    "python-docx>=1.1.0",  # Word document processing
 ]
 # All channels (for full installation)
 all-channels = [
