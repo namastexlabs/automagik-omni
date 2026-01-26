@@ -149,22 +149,46 @@ async def reprocess_batch(
 
     This endpoint processes historical messages that weren't processed in real-time.
     For WhatsApp, it extracts base64 from stored webhook payloads.
+
+    Supported content_types: audio, image
     """
     try:
+        results = {"total": 0, "processed": 0, "failed": 0, "skipped": 0, "results": []}
+
         if "audio" in request.content_types:
-            result = await media_processing_service.batch_reprocess_audio(
+            audio_result = await media_processing_service.batch_reprocess_audio(
                 instance_name=request.instance_name,
                 days_back=request.days_back,
                 limit=request.limit,
                 language=request.language,
                 db=db,
             )
-            return BatchReprocessResponse(**result)
-        else:
+            results["total"] += audio_result["total"]
+            results["processed"] += audio_result["processed"]
+            results["failed"] += audio_result["failed"]
+            results["skipped"] += audio_result["skipped"]
+            results["results"].extend(audio_result["results"])
+
+        if "image" in request.content_types:
+            image_result = await media_processing_service.batch_reprocess_images(
+                instance_name=request.instance_name,
+                days_back=request.days_back,
+                limit=request.limit,
+                db=db,
+            )
+            results["total"] += image_result["total"]
+            results["processed"] += image_result["processed"]
+            results["failed"] += image_result["failed"]
+            results["skipped"] += image_result["skipped"]
+            results["results"].extend(image_result["results"])
+
+        if not any(ct in request.content_types for ct in ["audio", "image"]):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported content types: {request.content_types}. Only 'audio' is currently supported.",
+                detail=f"Unsupported content types: {request.content_types}. Supported: audio, image",
             )
+
+        return BatchReprocessResponse(**results)
 
     except HTTPException:
         raise

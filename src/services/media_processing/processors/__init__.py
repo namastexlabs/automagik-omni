@@ -2,5 +2,6 @@
 
 from .base import BaseProcessor, ProcessingResult
 from .audio import AudioProcessor
+from .image import ImageProcessor
 
-__all__ = ["BaseProcessor", "ProcessingResult", "AudioProcessor"]
+__all__ = ["BaseProcessor", "ProcessingResult", "AudioProcessor", "ImageProcessor"]
