@@ -121,12 +121,12 @@ def register_tools(mcp: FastMCP, get_client: Callable):
         client = get_client(ctx)
 
         try:
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
 
             # Import models from parent package
             from ..models import TraceFilter
 
-            start_time = datetime.utcnow() - timedelta(hours=hours)
+            start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
             filters = TraceFilter(instance_name=instance_name, start_date=start_time, limit=limit)
 

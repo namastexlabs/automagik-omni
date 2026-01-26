@@ -7,7 +7,7 @@ No bot needed, just webhook URLs for sending messages.
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 import httpx
@@ -82,7 +82,7 @@ class DiscordEmbed(BaseModel):
     def set_timestamp(self, timestamp: Optional[datetime] = None) -> "DiscordEmbed":
         """Set the timestamp of the embed."""
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
         self.timestamp = timestamp.isoformat()
         return self
 
