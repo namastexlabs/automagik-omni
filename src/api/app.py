@@ -416,6 +416,11 @@ from src.api.routes.traces import router as traces_router
 
 app.include_router(traces_router, prefix="/api/v1", tags=["traces"])
 
+# Include media content routes (transcriptions, descriptions)
+from src.api.routes.media_content import router as media_content_router
+
+app.include_router(media_content_router, prefix="/api/v1", tags=["media-content"])
+
 # Include message sending routes
 from src.api.routes.messages import router as messages_router
 
