@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -250,13 +249,20 @@ export default function BatchJobs() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label>Days Back</Label>
-                        <Input
-                          type="number"
-                          value={daysBack}
-                          onChange={(e) => setDaysBack(parseInt(e.target.value) || 30)}
-                          min={1}
-                          max={365}
-                        />
+                        <Select value={String(daysBack)} onValueChange={(v) => setDaysBack(parseInt(v))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="7">7 days</SelectItem>
+                            <SelectItem value="14">14 days</SelectItem>
+                            <SelectItem value="30">30 days</SelectItem>
+                            <SelectItem value="60">60 days</SelectItem>
+                            <SelectItem value="90">90 days</SelectItem>
+                            <SelectItem value="180">180 days</SelectItem>
+                            <SelectItem value="365">1 year</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-2">
                         <Label>Max Items</Label>
@@ -398,43 +404,71 @@ export default function BatchJobs() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Job ID</TableHead>
                         <TableHead>Instance</TableHead>
+                        <TableHead>Types</TableHead>
+                        <TableHead>Period</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Progress</TableHead>
+                        <TableHead>Found / Processed</TableHead>
                         <TableHead>Duration</TableHead>
                         <TableHead>Cost</TableHead>
                         <TableHead>Created</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {completedJobs.map((job) => (
-                        <TableRow key={job.job_id}>
-                          <TableCell className="font-mono text-xs">{job.job_id.substring(0, 8)}...</TableCell>
-                          <TableCell>{job.instance_name || 'All'}</TableCell>
-                          <TableCell>{getStatusBadge(job.status)}</TableCell>
-                          <TableCell>
-                            <span className="text-sm">
-                              {job.processed_items}/{job.total_items}
-                              {job.failed_items > 0 && (
-                                <span className="text-destructive ml-1">({job.failed_items} failed)</span>
+                      {completedJobs.map((job) => {
+                        const params = job.request_params;
+                        const types = params?.content_types || [];
+                        return (
+                          <TableRow key={job.job_id}>
+                            <TableCell className="text-sm">{job.instance_name || 'All'}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                {types.includes('audio') && <FileAudio className="h-4 w-4 text-blue-500" title="Audio" />}
+                                {types.includes('image') && <FileImage className="h-4 w-4 text-green-500" title="Image" />}
+                                {types.includes('document') && <FileText className="h-4 w-4 text-orange-500" title="Document" />}
+                                {types.length === 0 && <span className="text-muted-foreground text-xs">-</span>}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm">{params?.days_back ? `${params.days_back}d` : '-'}</TableCell>
+                            <TableCell>{getStatusBadge(job.status)}</TableCell>
+                            <TableCell>
+                              <div className="text-sm space-y-0.5">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-muted-foreground">Found:</span>
+                                  <span>{job.total_found || 0}</span>
+                                </div>
+                                {job.skipped_items > 0 && (
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <span>Skipped:</span>
+                                    <span>{job.skipped_items}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-green-600">Processed:</span>
+                                  <span className="text-green-600">{job.processed_items}</span>
+                                  {job.failed_items > 0 && (
+                                    <span className="text-destructive">({job.failed_items} failed)</span>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm">{formatDuration(job.started_at, job.completed_at)}</TableCell>
+                            <TableCell>
+                              {job.total_cost_usd !== null && job.total_cost_usd > 0 ? (
+                                <span className="flex items-center gap-1 text-sm">
+                                  <DollarSign className="h-3 w-3" />
+                                  {formatCost(job.total_cost_usd)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
                               )}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-sm">{formatDuration(job.started_at, job.completed_at)}</TableCell>
-                          <TableCell>
-                            {job.total_cost_usd !== null && (
-                              <span className="flex items-center gap-1 text-sm">
-                                <DollarSign className="h-3 w-3" />
-                                {formatCost(job.total_cost_usd)}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {job.created_at ? formatDateTime(job.created_at) : '-'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {job.created_at ? formatDateTime(job.created_at) : '-'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}

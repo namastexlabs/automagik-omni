@@ -86,11 +86,13 @@ class BatchJobStatusResponse(BaseModel):
     job_id: str
     job_type: str
     instance_name: Optional[str]
+    request_params: Optional[dict] = None  # Parsed request params for UI display
     status: str
-    total_items: int
-    processed_items: int
-    failed_items: int
-    skipped_items: int
+    total_found: int = 0  # All items matching criteria (before filtering)
+    total_items: int = 0  # Items to process (after filtering)
+    processed_items: int = 0
+    failed_items: int = 0
+    skipped_items: int = 0  # Already processed (had MediaContent)
     current_item: Optional[str]
     progress_percent: float
     total_cost_usd: Optional[float]
@@ -135,7 +137,9 @@ async def _run_batch_processing(job_id: str, request_params: dict):
         language = request_params.get("language", "pt")
         force = request_params.get("force", False)
 
-        total_items = 0
+        total_found = 0  # All items matching criteria
+        already_processed = 0  # Items skipped (had MediaContent)
+        total_items = 0  # Items to process this run
         processed_items = 0
         failed_items = 0
         skipped_items = 0
@@ -176,6 +180,9 @@ async def _run_batch_processing(job_id: str, request_params: dict):
             else:
                 continue
 
+            # Aggregate stats including new fields
+            total_found += result.get("total_found", 0)
+            already_processed += result.get("already_processed", 0)
             total_items += result.get("total", 0)
             processed_items += result.get("processed", 0)
             failed_items += result.get("failed", 0)
@@ -189,14 +196,15 @@ async def _run_batch_processing(job_id: str, request_params: dict):
                 if r.get("tokens"):
                     total_tokens += r["tokens"]
 
-        # Update job as completed
+        # Update job as completed with all stats
         job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
         job.status = "completed"
         job.completed_at = datetime_utcnow()
-        job.total_items = total_items
+        job.total_found = total_found  # All items found
+        job.total_items = total_items  # Items to process
         job.processed_items = processed_items
         job.failed_items = failed_items
-        job.skipped_items = skipped_items
+        job.skipped_items = already_processed  # Store already_processed as skipped_items
         job.total_cost_usd = total_cost if total_cost > 0 else None
         job.total_tokens = total_tokens if total_tokens > 0 else None
         job.results_summary = json.dumps({"results_count": len(all_results)})
@@ -443,11 +451,21 @@ async def get_batch_job_status(
                 detail=f"Job {job_id} not found",
             )
 
+        # Parse request_params JSON
+        request_params = None
+        if job.request_params:
+            try:
+                request_params = json.loads(job.request_params)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         return BatchJobStatusResponse(
             job_id=job.job_id,
             job_type=job.job_type,
             instance_name=job.instance_name,
+            request_params=request_params,
             status=job.status,
+            total_found=job.total_found or 0,
             total_items=job.total_items or 0,
             processed_items=job.processed_items or 0,
             failed_items=job.failed_items or 0,
@@ -488,12 +506,21 @@ async def list_batch_jobs(
 
         jobs = query.order_by(BatchJob.created_at.desc()).limit(limit).all()
 
-        return [
-            BatchJobStatusResponse(
+        def build_response(job):
+            # Parse request_params JSON
+            request_params = None
+            if job.request_params:
+                try:
+                    request_params = json.loads(job.request_params)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return BatchJobStatusResponse(
                 job_id=job.job_id,
                 job_type=job.job_type,
                 instance_name=job.instance_name,
+                request_params=request_params,
                 status=job.status,
+                total_found=job.total_found or 0,
                 total_items=job.total_items or 0,
                 processed_items=job.processed_items or 0,
                 failed_items=job.failed_items or 0,
@@ -507,8 +534,8 @@ async def list_batch_jobs(
                 started_at=job.started_at,
                 completed_at=job.completed_at,
             )
-            for job in jobs
-        ]
+
+        return [build_response(job) for job in jobs]
 
     except Exception as e:
         logger.error(f"Error listing batch jobs: {e}")

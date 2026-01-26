@@ -762,7 +762,8 @@ class MediaProcessingService:
             # Find audio traces that haven't been processed
             cutoff_date = utcnow() - timedelta(days=days_back)
 
-            query = db.query(MessageTrace).filter(
+            # Base query for all matching traces
+            base_query = db.query(MessageTrace).filter(
                 and_(
                     MessageTrace.message_type.in_(["audio", "audioMessage", "ptt", "voice"]),
                     MessageTrace.has_media == True,  # noqa: E712
@@ -771,9 +772,24 @@ class MediaProcessingService:
             )
 
             if instance_name:
-                query = query.filter(MessageTrace.instance_name == instance_name)
+                base_query = base_query.filter(MessageTrace.instance_name == instance_name)
 
-            # Exclude already processed (unless force=True)
+            # Count total found BEFORE filtering (for visibility)
+            total_found = base_query.count()
+
+            # Count already processed
+            already_processed_count = (
+                db.query(MediaContent)
+                .filter(
+                    MediaContent.content_type == "audio_transcript",
+                    MediaContent.status == "completed",
+                    MediaContent.original_message_id.in_(base_query.with_entities(MessageTrace.whatsapp_message_id)),
+                )
+                .count()
+            )
+
+            # Get traces to process
+            query = base_query
             if not force:
                 processed_ids_subq = (
                     db.query(MediaContent.original_message_id)
@@ -790,10 +806,14 @@ class MediaProcessingService:
                 query = query.limit(limit)
             traces = query.all()
 
-            logger.info(f"Found {len(traces)} audio traces to reprocess")
+            logger.info(
+                f"Found {total_found} total audio traces, {already_processed_count} already processed, {len(traces)} to process"
+            )
 
             stats = {
-                "total": len(traces),
+                "total_found": total_found,  # All matching traces
+                "already_processed": already_processed_count,  # Skipped (have MediaContent)
+                "total": len(traces),  # To be processed this run
                 "processed": 0,
                 "failed": 0,
                 "skipped": 0,
@@ -1062,7 +1082,8 @@ class MediaProcessingService:
         try:
             cutoff_date = utcnow() - timedelta(days=days_back)
 
-            query = db.query(MessageTrace).filter(
+            # Base query for all matching traces
+            base_query = db.query(MessageTrace).filter(
                 and_(
                     MessageTrace.message_type.in_(["image", "imageMessage"]),
                     MessageTrace.has_media == True,  # noqa: E712
@@ -1071,9 +1092,24 @@ class MediaProcessingService:
             )
 
             if instance_name:
-                query = query.filter(MessageTrace.instance_name == instance_name)
+                base_query = base_query.filter(MessageTrace.instance_name == instance_name)
 
-            # Exclude already processed (unless force=True)
+            # Count total found BEFORE filtering (for visibility)
+            total_found = base_query.count()
+
+            # Count already processed
+            already_processed_count = (
+                db.query(MediaContent)
+                .filter(
+                    MediaContent.content_type == "image_description",
+                    MediaContent.status == "completed",
+                    MediaContent.original_message_id.in_(base_query.with_entities(MessageTrace.whatsapp_message_id)),
+                )
+                .count()
+            )
+
+            # Get traces to process
+            query = base_query
             if not force:
                 processed_ids_subq = (
                     db.query(MediaContent.original_message_id)
@@ -1090,9 +1126,13 @@ class MediaProcessingService:
                 query = query.limit(limit)
             traces = query.all()
 
-            logger.info(f"Found {len(traces)} image traces to reprocess")
+            logger.info(
+                f"Found {total_found} total image traces, {already_processed_count} already processed, {len(traces)} to process"
+            )
 
             stats = {
+                "total_found": total_found,
+                "already_processed": already_processed_count,
                 "total": len(traces),
                 "processed": 0,
                 "failed": 0,
@@ -1497,7 +1537,8 @@ class MediaProcessingService:
         try:
             cutoff_date = utcnow() - timedelta(days=days_back)
 
-            query = db.query(MessageTrace).filter(
+            # Base query for all matching traces
+            base_query = db.query(MessageTrace).filter(
                 and_(
                     MessageTrace.message_type.in_(["document", "documentMessage"]),
                     MessageTrace.has_media == True,  # noqa: E712
@@ -1506,9 +1547,24 @@ class MediaProcessingService:
             )
 
             if instance_name:
-                query = query.filter(MessageTrace.instance_name == instance_name)
+                base_query = base_query.filter(MessageTrace.instance_name == instance_name)
 
-            # Exclude already processed (unless force=True)
+            # Count total found BEFORE filtering (for visibility)
+            total_found = base_query.count()
+
+            # Count already processed
+            already_processed_count = (
+                db.query(MediaContent)
+                .filter(
+                    MediaContent.content_type == "document_content",
+                    MediaContent.status == "completed",
+                    MediaContent.original_message_id.in_(base_query.with_entities(MessageTrace.whatsapp_message_id)),
+                )
+                .count()
+            )
+
+            # Get traces to process
+            query = base_query
             if not force:
                 processed_ids_subq = (
                     db.query(MediaContent.original_message_id)
@@ -1525,9 +1581,13 @@ class MediaProcessingService:
                 query = query.limit(limit)
             traces = query.all()
 
-            logger.info(f"Found {len(traces)} document traces to reprocess")
+            logger.info(
+                f"Found {total_found} total document traces, {already_processed_count} already processed, {len(traces)} to process"
+            )
 
             stats = {
+                "total_found": total_found,
+                "already_processed": already_processed_count,
                 "total": len(traces),
                 "processed": 0,
                 "failed": 0,

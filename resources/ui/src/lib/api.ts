@@ -64,15 +64,26 @@ export interface Trace {
 }
 
 // Batch Job Types
+export interface BatchJobRequestParams {
+  instance_name?: string;
+  days_back?: number;
+  limit?: number;
+  language?: string;
+  content_types?: string[];
+  force?: boolean;
+}
+
 export interface BatchJob {
   job_id: string;
   job_type: string;
   instance_name: string | null;
+  request_params: BatchJobRequestParams | null;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-  total_items: number;
+  total_found: number;  // All items matching criteria
+  total_items: number;  // Items to process (after filtering)
   processed_items: number;
   failed_items: number;
-  skipped_items: number;
+  skipped_items: number;  // Already processed (had MediaContent)
   current_item: string | null;
   progress_percent: number;
   total_cost_usd: number | null;

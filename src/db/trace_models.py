@@ -379,10 +379,11 @@ class BatchJob(Base):
 
     # Progress tracking
     status = Column(String(20), default="pending", index=True)  # pending, processing, completed, failed, cancelled
-    total_items = Column(Integer, default=0)
+    total_found = Column(Integer, default=0)  # Total items found matching criteria (before filtering)
+    total_items = Column(Integer, default=0)  # Items to process (after filtering already-processed)
     processed_items = Column(Integer, default=0)
     failed_items = Column(Integer, default=0)
-    skipped_items = Column(Integer, default=0)
+    skipped_items = Column(Integer, default=0)  # Already had MediaContent (not needing reprocess)
 
     # Current item being processed (for real-time progress)
     current_item = Column(String(255))  # e.g., trace_id or message_id being processed
@@ -405,18 +406,28 @@ class BatchJob(Base):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
+        # Parse request_params JSON if available
+        params = {}
+        if self.request_params:
+            try:
+                params = json.loads(self.request_params)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         return {
             "job_id": self.job_id,
             "job_type": self.job_type,
             "instance_name": self.instance_name,
+            "request_params": params,  # Parsed JSON for UI display
             "status": self.status,
-            "total_items": self.total_items,
-            "processed_items": self.processed_items,
-            "failed_items": self.failed_items,
-            "skipped_items": self.skipped_items,
+            "total_found": self.total_found or 0,  # Items found before filtering
+            "total_items": self.total_items or 0,  # Items to process
+            "processed_items": self.processed_items or 0,
+            "failed_items": self.failed_items or 0,
+            "skipped_items": self.skipped_items or 0,
             "current_item": self.current_item,
             "progress_percent": round((self.processed_items / self.total_items) * 100, 1)
-            if self.total_items > 0
+            if self.total_items and self.total_items > 0
             else 0,
             "total_cost_usd": float(self.total_cost_usd) if self.total_cost_usd else None,
             "total_tokens": self.total_tokens,
