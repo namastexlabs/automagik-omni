@@ -51,7 +51,12 @@ install: ## Install dependencies and deploy to PM2
 	@echo "$(FONT_CYAN)Initializing submodules...$(FONT_RESET)"
 	@git submodule update --init --recursive
 	@echo "$(FONT_CYAN)Installing Python dependencies...$(FONT_RESET)"
-	uv sync
+	@if uv pip show discord.py >/dev/null 2>&1; then \
+		echo "  (discord extra detected, preserving)"; \
+		uv sync --extra discord; \
+	else \
+		uv sync; \
+	fi
 	@echo "$(FONT_CYAN)Installing Gateway dependencies...$(FONT_RESET)"
 	cd gateway && bun install
 	@echo "$(FONT_CYAN)Installing UI dependencies...$(FONT_RESET)"
@@ -89,11 +94,16 @@ update: ## Pull updates, rebuild everything, restart
 	@echo "$(FONT_CYAN)Updating submodules...$(FONT_RESET)"
 	@git submodule update --init --recursive
 	@echo "$(FONT_CYAN)Updating Python dependencies...$(FONT_RESET)"
-	@uv sync
+	@if uv pip show discord.py >/dev/null 2>&1; then \
+		echo "  (discord extra detected, preserving)"; \
+		uv sync --extra discord; \
+	else \
+		uv sync; \
+	fi
 	@echo "$(FONT_CYAN)Updating Gateway dependencies...$(FONT_RESET)"
 	@cd gateway && bun install
 	@echo "$(FONT_CYAN)Updating Evolution (WhatsApp) dependencies...$(FONT_RESET)"
-	@cd resources/omni-whatsapp-core && pnpm install && npx prisma generate
+	@cd resources/omni-whatsapp-core && pnpm install --ignore-workspace && npx prisma generate
 	@echo "$(FONT_CYAN)Rebuilding UI...$(FONT_RESET)"
 	@cd resources/ui && bun install && bun run build
 	@echo "$(FONT_CYAN)Restarting services...$(FONT_RESET)"
