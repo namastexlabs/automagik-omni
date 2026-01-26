@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from .base import BaseProcessor, ProcessingResult
+from ..pricing import calculate_processing_cost
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,9 @@ Output the complete text content in markdown format."""
 
             processing_time_ms = int((time.time() - start_time) * 1000)
 
+            # Local processing - no cost
+            cost_info = calculate_processing_cost("text_reader", "local")
+
             return ProcessingResult(
                 success=True,
                 content=content,
@@ -134,6 +138,10 @@ Output the complete text content in markdown format."""
                 processor_name="text_reader",
                 processing_time_ms=processing_time_ms,
                 confidence_score=100,
+                cost_input_usd=cost_info["input_cost_usd"],
+                cost_output_usd=cost_info["output_cost_usd"],
+                cost_total_usd=cost_info["total_cost_usd"],
+                pricing_model=cost_info["pricing_model"],
             )
         except Exception as e:
             logger.error(f"Error reading text file: {e}")
@@ -172,6 +180,8 @@ Output the complete text content in markdown format."""
             # Check if we got meaningful text
             if len(extracted_text.strip()) >= self.MIN_TEXT_LENGTH:
                 logger.info(f"PyMuPDF extracted {len(extracted_text)} chars from {total_pages} pages")
+                # Local processing - no cost
+                cost_info = calculate_processing_cost("pymupdf", "local")
                 return ProcessingResult(
                     success=True,
                     content=extracted_text,
@@ -179,6 +189,10 @@ Output the complete text content in markdown format."""
                     processor_name="pymupdf",
                     processing_time_ms=processing_time_ms,
                     confidence_score=95,
+                    cost_input_usd=cost_info["input_cost_usd"],
+                    cost_output_usd=cost_info["output_cost_usd"],
+                    cost_total_usd=cost_info["total_cost_usd"],
+                    pricing_model=cost_info["pricing_model"],
                 )
 
             # Text extraction yielded little content - likely a scanned PDF
@@ -187,6 +201,7 @@ Output the complete text content in markdown format."""
                 return await self._process_pdf_with_gemini(file_path, total_pages, start_time)
             else:
                 # Return what we have even if minimal
+                cost_info = calculate_processing_cost("pymupdf", "local")
                 return ProcessingResult(
                     success=True,
                     content=extracted_text or "[No text content extracted from PDF]",
@@ -194,6 +209,10 @@ Output the complete text content in markdown format."""
                     processor_name="pymupdf",
                     processing_time_ms=processing_time_ms,
                     confidence_score=30,  # Low confidence for minimal extraction
+                    cost_input_usd=cost_info["input_cost_usd"],
+                    cost_output_usd=cost_info["output_cost_usd"],
+                    cost_total_usd=cost_info["total_cost_usd"],
+                    pricing_model=cost_info["pricing_model"],
                 )
 
         except Exception as e:
@@ -220,6 +239,10 @@ Output the complete text content in markdown format."""
             doc = fitz.open(file_path)
             all_text_parts = []
 
+            # Track cumulative token usage across all pages
+            total_input_tokens = 0
+            total_output_tokens = 0
+
             # Process each page as an image
             for page_num in range(min(total_pages, 20)):  # Limit to 20 pages
                 page = doc[page_num]
@@ -245,11 +268,31 @@ Output the complete text content in markdown format."""
                 if response and response.text:
                     all_text_parts.append(f"--- Page {page_num + 1} ---\n{response.text.strip()}")
 
+                    # Accumulate token usage
+                    if hasattr(response, "usage_metadata") and response.usage_metadata:
+                        usage = response.usage_metadata
+                        total_input_tokens += getattr(usage, "prompt_token_count", 0) or 0
+                        total_output_tokens += getattr(usage, "candidates_token_count", 0) or 0
+
             doc.close()
 
             if all_text_parts:
                 full_text = "\n\n".join(all_text_parts)
                 processing_time_ms = int((time.time() - start_time) * 1000)
+
+                # Calculate cost based on accumulated tokens
+                cost_info = calculate_processing_cost(
+                    processor_name="gemini_vision",
+                    model=self.gemini_model,
+                    input_tokens=total_input_tokens if total_input_tokens > 0 else None,
+                    output_tokens=total_output_tokens if total_output_tokens > 0 else None,
+                )
+
+                cost_str = f"${float(cost_info['total_cost_usd']):.6f}" if cost_info["total_cost_usd"] else "N/A"
+                logger.info(
+                    f"Gemini PDF extraction: {len(all_text_parts)} pages, "
+                    f"tokens: {total_input_tokens + total_output_tokens}, cost: {cost_str}"
+                )
 
                 return ProcessingResult(
                     success=True,
@@ -259,6 +302,17 @@ Output the complete text content in markdown format."""
                     processor_model=self.gemini_model,
                     processing_time_ms=processing_time_ms,
                     confidence_score=85,
+                    input_tokens=total_input_tokens if total_input_tokens > 0 else None,
+                    output_tokens=total_output_tokens if total_output_tokens > 0 else None,
+                    total_tokens=(total_input_tokens + total_output_tokens)
+                    if (total_input_tokens + total_output_tokens) > 0
+                    else None,
+                    cost_input_usd=cost_info["input_cost_usd"],
+                    cost_output_usd=cost_info["output_cost_usd"],
+                    cost_total_usd=cost_info["total_cost_usd"],
+                    pricing_model=cost_info["pricing_model"],
+                    pricing_rate_input=cost_info["pricing_rate_input"],
+                    pricing_rate_output=cost_info["pricing_rate_output"],
                 )
             else:
                 return ProcessingResult(
@@ -307,6 +361,9 @@ Output the complete text content in markdown format."""
             content = "\n\n".join(paragraphs)
             processing_time_ms = int((time.time() - start_time) * 1000)
 
+            # Local processing - no cost
+            cost_info = calculate_processing_cost("python_docx", "local")
+
             return ProcessingResult(
                 success=True,
                 content=content,
@@ -314,6 +371,10 @@ Output the complete text content in markdown format."""
                 processor_name="python_docx",
                 processing_time_ms=processing_time_ms,
                 confidence_score=90,
+                cost_input_usd=cost_info["input_cost_usd"],
+                cost_output_usd=cost_info["output_cost_usd"],
+                cost_total_usd=cost_info["total_cost_usd"],
+                pricing_model=cost_info["pricing_model"],
             )
 
         except Exception as e:

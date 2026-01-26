@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from .base import BaseProcessor, ProcessingResult
+from ..pricing import calculate_processing_cost
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class AudioProcessor(BaseProcessor):
         file_path: Path,
         mime_type: str,
         language: Optional[str] = None,
+        duration_seconds: Optional[int] = None,
         **kwargs,
     ) -> ProcessingResult:
         """
@@ -96,12 +98,17 @@ class AudioProcessor(BaseProcessor):
             file_path: Path to the audio file
             mime_type: MIME type of the audio
             language: Language code (e.g., 'pt', 'en'). Defaults to Portuguese.
+            duration_seconds: Duration of audio in seconds (for cost calculation)
 
         Returns:
-            ProcessingResult with transcription
+            ProcessingResult with transcription and cost
         """
         start_time = time.time()
         language = language or self.default_language
+
+        # Try to get duration if not provided
+        if duration_seconds is None:
+            duration_seconds = self._get_audio_duration(file_path)
 
         # Try Groq first (faster and cheaper)
         result = await self._transcribe_with_groq(file_path, language)
@@ -115,12 +122,54 @@ class AudioProcessor(BaseProcessor):
         processing_time_ms = int((time.time() - start_time) * 1000)
         result.processing_time_ms = processing_time_ms
 
+        # Calculate cost if we have duration
+        if result.success and duration_seconds:
+            cost_info = calculate_processing_cost(
+                processor_name=result.processor_name,
+                model=result.processor_model,
+                duration_seconds=duration_seconds,
+            )
+            result.cost_input_usd = cost_info["input_cost_usd"]
+            result.cost_output_usd = cost_info["output_cost_usd"]
+            result.cost_total_usd = cost_info["total_cost_usd"]
+            result.pricing_model = cost_info["pricing_model"]
+            result.pricing_rate_input = cost_info["pricing_rate_input"]
+            result.pricing_rate_output = cost_info["pricing_rate_output"]
+
         if result.success:
-            logger.info(f"Audio transcription successful in {processing_time_ms}ms")
+            cost_str = f"${float(result.cost_total_usd):.6f}" if result.cost_total_usd else "N/A"
+            logger.info(f"Audio transcription successful in {processing_time_ms}ms, cost: {cost_str}")
         else:
             logger.error(f"Audio transcription failed: {result.error_message}")
 
         return result
+
+    def _get_audio_duration(self, file_path: Path) -> Optional[int]:
+        """Try to get audio duration from file."""
+        try:
+            # Try mutagen first (lightweight)
+            from mutagen import File as MutagenFile
+
+            audio = MutagenFile(file_path)
+            if audio and audio.info:
+                return int(audio.info.length)
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Could not get duration with mutagen: {e}")
+
+        try:
+            # Fallback to pydub
+            from pydub import AudioSegment
+
+            audio = AudioSegment.from_file(file_path)
+            return int(len(audio) / 1000)  # pydub gives milliseconds
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Could not get duration with pydub: {e}")
+
+        return None
 
     async def _transcribe_with_groq(
         self,

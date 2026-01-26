@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from .base import BaseProcessor, ProcessingResult
+from ..pricing import calculate_processing_cost
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +126,29 @@ Respond in the same language as any text in the image, or in Portuguese if no te
             # Extract text from response
             if response and response.text:
                 description = response.text.strip()
-
                 processing_time_ms = int((time.time() - start_time) * 1000)
+
+                # Extract token usage from response
+                input_tokens = None
+                output_tokens = None
+                total_tokens = None
+
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
+                    usage = response.usage_metadata
+                    input_tokens = getattr(usage, "prompt_token_count", None)
+                    output_tokens = getattr(usage, "candidates_token_count", None)
+                    total_tokens = getattr(usage, "total_token_count", None)
+
+                # Calculate cost
+                cost_info = calculate_processing_cost(
+                    processor_name="gemini_vision",
+                    model=self.model_name,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+
+                cost_str = f"${float(cost_info['total_cost_usd']):.6f}" if cost_info["total_cost_usd"] else "N/A"
+                logger.info(f"Image described in {processing_time_ms}ms, tokens: {total_tokens}, cost: {cost_str}")
 
                 return ProcessingResult(
                     success=True,
@@ -136,6 +158,15 @@ Respond in the same language as any text in the image, or in Portuguese if no te
                     processor_model=self.model_name,
                     processing_time_ms=processing_time_ms,
                     confidence_score=90,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    cost_input_usd=cost_info["input_cost_usd"],
+                    cost_output_usd=cost_info["output_cost_usd"],
+                    cost_total_usd=cost_info["total_cost_usd"],
+                    pricing_model=cost_info["pricing_model"],
+                    pricing_rate_input=cost_info["pricing_rate_input"],
+                    pricing_rate_output=cost_info["pricing_rate_output"],
                 )
             else:
                 return ProcessingResult(
@@ -198,6 +229,25 @@ Respond in the same language as any text in the image, or in Portuguese if no te
                 description = response.text.strip()
                 processing_time_ms = int((time.time() - start_time) * 1000)
 
+                # Extract token usage from response
+                input_tokens = None
+                output_tokens = None
+                total_tokens = None
+
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
+                    usage = response.usage_metadata
+                    input_tokens = getattr(usage, "prompt_token_count", None)
+                    output_tokens = getattr(usage, "candidates_token_count", None)
+                    total_tokens = getattr(usage, "total_token_count", None)
+
+                # Calculate cost
+                cost_info = calculate_processing_cost(
+                    processor_name="gemini_vision",
+                    model=self.model_name,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+
                 return ProcessingResult(
                     success=True,
                     content=description,
@@ -206,6 +256,15 @@ Respond in the same language as any text in the image, or in Portuguese if no te
                     processor_model=self.model_name,
                     processing_time_ms=processing_time_ms,
                     confidence_score=90,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    cost_input_usd=cost_info["input_cost_usd"],
+                    cost_output_usd=cost_info["output_cost_usd"],
+                    cost_total_usd=cost_info["total_cost_usd"],
+                    pricing_model=cost_info["pricing_model"],
+                    pricing_rate_input=cost_info["pricing_rate_input"],
+                    pricing_rate_output=cost_info["pricing_rate_output"],
                 )
             else:
                 return ProcessingResult(

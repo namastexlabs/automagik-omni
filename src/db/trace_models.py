@@ -7,7 +7,7 @@ import uuid
 import json
 import zlib
 import base64
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Numeric
 from sqlalchemy.orm import relationship
 from typing import Dict, Any, Optional
 from .database import Base
@@ -289,6 +289,21 @@ class MediaContent(Base):
     processing_time_ms = Column(Integer)
     confidence_score = Column(Integer)  # 0-100 confidence/quality score (stored as int for DB compat)
 
+    # Token/usage tracking
+    input_tokens = Column(Integer)  # Number of input tokens (for LLM-based processing)
+    output_tokens = Column(Integer)  # Number of output tokens (for LLM responses)
+    total_tokens = Column(Integer)  # Total tokens used
+
+    # Cost tracking (in USD, using Numeric for precision)
+    cost_input_usd = Column(Numeric(precision=10, scale=8))  # Cost for input processing
+    cost_output_usd = Column(Numeric(precision=10, scale=8))  # Cost for output generation
+    cost_total_usd = Column(Numeric(precision=10, scale=8))  # Total cost
+
+    # Pricing metadata (for audit/debugging)
+    pricing_model = Column(String(100))  # e.g., 'groq_whisper-large-v3-turbo'
+    pricing_rate_input = Column(Numeric(precision=10, scale=8))  # Rate used for input
+    pricing_rate_output = Column(Numeric(precision=10, scale=8))  # Rate used for output
+
     # Source media info (for re-download capability)
     media_url = Column(Text)
     media_mime_type = Column(String(100))
@@ -323,6 +338,16 @@ class MediaContent(Base):
             "processor_model": self.processor_model,
             "processing_time_ms": self.processing_time_ms,
             "confidence_score": self.confidence_score,
+            # Token/usage tracking
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+            # Cost tracking
+            "cost_input_usd": float(self.cost_input_usd) if self.cost_input_usd else None,
+            "cost_output_usd": float(self.cost_output_usd) if self.cost_output_usd else None,
+            "cost_total_usd": float(self.cost_total_usd) if self.cost_total_usd else None,
+            "pricing_model": self.pricing_model,
+            # Media info
             "media_url": self.media_url,
             "media_mime_type": self.media_mime_type,
             "media_size_bytes": self.media_size_bytes,

@@ -3,6 +3,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Optional
 from pathlib import Path
 
@@ -21,6 +22,21 @@ class ProcessingResult:
     processing_time_ms: Optional[int] = None
     confidence_score: Optional[int] = None  # 0-100
     error_message: Optional[str] = None
+
+    # Token/usage tracking
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+
+    # Cost tracking (USD)
+    cost_input_usd: Optional[Decimal] = None
+    cost_output_usd: Optional[Decimal] = None
+    cost_total_usd: Optional[Decimal] = None
+
+    # Pricing metadata
+    pricing_model: Optional[str] = None
+    pricing_rate_input: Optional[Decimal] = None
+    pricing_rate_output: Optional[Decimal] = None
 
 
 class BaseProcessor(ABC):
