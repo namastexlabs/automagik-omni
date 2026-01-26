@@ -6,10 +6,24 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Normalize a timestamp string to include UTC timezone if missing.
+ * Backend stores UTC but SQLAlchemy returns naive timestamps without 'Z'.
+ * This ensures date-fns parseISO treats them as UTC, not local time.
+ */
+function normalizeUtcTimestamp(dateString: string): string {
+  // If already has timezone info (+00:00, Z, etc), return as-is
+  if (/[+-]\d{2}:\d{2}$/.test(dateString) || dateString.endsWith('Z')) {
+    return dateString;
+  }
+  // Append Z to treat as UTC
+  return dateString + 'Z';
+}
+
 export function formatDateTime(dateString: string | undefined): string {
   if (!dateString) return 'N/A';
   try {
-    const date = parseISO(dateString);
+    const date = parseISO(normalizeUtcTimestamp(dateString));
     return format(date, 'MMM d, yyyy, h:mm a');
   } catch {
     return 'Invalid date';
@@ -19,7 +33,7 @@ export function formatDateTime(dateString: string | undefined): string {
 export function formatRelativeTime(dateString: string | undefined): string {
   if (!dateString) return 'N/A';
   try {
-    const date = parseISO(dateString);
+    const date = parseISO(normalizeUtcTimestamp(dateString));
     return formatDistanceToNow(date, { addSuffix: true });
   } catch {
     return 'Invalid date';
@@ -29,7 +43,7 @@ export function formatRelativeTime(dateString: string | undefined): string {
 export function formatDate(dateString: string | undefined): string {
   if (!dateString) return 'N/A';
   try {
-    const date = parseISO(dateString);
+    const date = parseISO(normalizeUtcTimestamp(dateString));
     return format(date, 'MMM d, yyyy');
   } catch {
     return 'Invalid date';
@@ -39,7 +53,7 @@ export function formatDate(dateString: string | undefined): string {
 export function formatTime(dateString: string | undefined): string {
   if (!dateString) return 'N/A';
   try {
-    const date = parseISO(dateString);
+    const date = parseISO(normalizeUtcTimestamp(dateString));
     return format(date, 'h:mm a');
   } catch {
     return 'Invalid date';
