@@ -272,6 +272,7 @@ class MediaContent(Base):
     instance_name = Column(String(255), ForeignKey("omni_instance_configs.name"), index=True, nullable=False)
     channel_type = Column(String(20), nullable=False)  # 'whatsapp' or 'discord'
     original_message_id = Column(String(255), nullable=False, index=True)  # WhatsApp key.id or Discord message.id
+    sender_id = Column(String(255), index=True)  # remoteJid for WhatsApp, user_id for Discord
 
     # Content type
     content_type = Column(

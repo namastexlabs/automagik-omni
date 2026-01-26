@@ -395,10 +395,12 @@ class WhatsAppMessageHandler:
                     logger.debug("Media processing is disabled")
                     return None
 
-                # Get instance name and message ID
+                # Get instance name, message ID, and sender ID
                 instance_name = instance_config.name if instance_config else "default"
                 data = message.get("data", {})
-                message_id = data.get("key", {}).get("id", "unknown")
+                key_data = data.get("key", {})
+                message_id = key_data.get("id", "unknown")
+                sender_id = key_data.get("remoteJid", "unknown")  # Who sent this message in this chat
 
                 # Extract base64 data from message
                 message_obj = data.get("message", {})
@@ -470,6 +472,7 @@ class WhatsAppMessageHandler:
                                 instance_name=instance_name,
                                 channel_type="whatsapp",
                                 original_message_id=message_id,
+                                sender_id=sender_id,
                                 content_type="audio_transcript",
                                 source_media_type="audio",
                                 content=result.content,
@@ -550,6 +553,7 @@ class WhatsAppMessageHandler:
                                 instance_name=instance_name,
                                 channel_type="whatsapp",
                                 original_message_id=message_id,
+                                sender_id=sender_id,
                                 content_type="image_description",
                                 source_media_type="image",
                                 content=result.content,
@@ -634,6 +638,7 @@ class WhatsAppMessageHandler:
                                 instance_name=instance_name,
                                 channel_type="whatsapp",
                                 original_message_id=message_id,
+                                sender_id=sender_id,
                                 content_type="document_content",
                                 source_media_type="document",
                                 content=result.content,
