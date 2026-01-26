@@ -729,9 +729,9 @@ class DiscordBotManager:
                     "api_url": instance_config.agent_api_url,
                     "api_key": instance_config.agent_api_key,
                     "timeout": instance_config.agent_timeout or 60,
-                    "instance_type": instance_config.agent_instance_type,  # Add instance type for proper routing
-                    "agent_type": instance_config.agent_type,  # Add agent type (agent or team)
-                    "instance_config": instance_config,  # Pass the full config for hive client
+                    "agent_type": getattr(instance_config, "agent_type", "agent"),
+                    "stream_mode": getattr(instance_config, "agent_stream_mode", False),
+                    "instance_config": instance_config,
                 }
 
             # Attempt to resolve existing local user via shared identity linking
