@@ -732,7 +732,7 @@ class MediaProcessingService:
         self,
         instance_name: Optional[str] = None,
         days_back: int = 30,
-        limit: int = 100,
+        limit: Optional[int] = 100,  # None or 0 means no limit
         language: str = "pt",
         force: bool = False,
         db: Optional[Session] = None,
@@ -785,7 +785,10 @@ class MediaProcessingService:
                 )
                 query = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq))
 
-            traces = query.limit(limit).all()
+            # Apply limit if specified (None or 0 means no limit)
+            if limit and limit > 0:
+                query = query.limit(limit)
+            traces = query.all()
 
             logger.info(f"Found {len(traces)} audio traces to reprocess")
 
@@ -1030,7 +1033,7 @@ class MediaProcessingService:
         self,
         instance_name: Optional[str] = None,
         days_back: int = 30,
-        limit: int = 100,
+        limit: Optional[int] = 100,  # None or 0 means no limit
         custom_prompt: Optional[str] = None,
         force: bool = False,
         db: Optional[Session] = None,
@@ -1082,7 +1085,10 @@ class MediaProcessingService:
                 )
                 query = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq))
 
-            traces = query.limit(limit).all()
+            # Apply limit if specified (None or 0 means no limit)
+            if limit and limit > 0:
+                query = query.limit(limit)
+            traces = query.all()
 
             logger.info(f"Found {len(traces)} image traces to reprocess")
 
@@ -1464,7 +1470,7 @@ class MediaProcessingService:
         self,
         instance_name: Optional[str] = None,
         days_back: int = 30,
-        limit: int = 100,
+        limit: Optional[int] = 100,  # None or 0 means no limit
         force: bool = False,
         db: Optional[Session] = None,
         progress_callback: Optional[callable] = None,
@@ -1514,7 +1520,10 @@ class MediaProcessingService:
                 )
                 query = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq))
 
-            traces = query.limit(limit).all()
+            # Apply limit if specified (None or 0 means no limit)
+            if limit and limit > 0:
+                query = query.limit(limit)
+            traces = query.all()
 
             logger.info(f"Found {len(traces)} document traces to reprocess")
 

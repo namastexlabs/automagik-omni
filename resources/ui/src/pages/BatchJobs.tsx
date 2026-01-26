@@ -99,7 +99,7 @@ function getStatusBadge(status: BatchJob['status']) {
 export default function BatchJobs() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedInstance, setSelectedInstance] = useState<string>('');
+  const [selectedInstance, setSelectedInstance] = useState<string>('__all__');
   const [daysBack, setDaysBack] = useState(30);
   const [limit, setLimit] = useState(100);
   const [language, setLanguage] = useState('pt');
@@ -132,9 +132,9 @@ export default function BatchJobs() {
   const startMutation = useMutation({
     mutationFn: () =>
       api.batchJobs.startReprocess({
-        instance_name: selectedInstance || undefined,
+        instance_name: selectedInstance === '__all__' ? undefined : selectedInstance,
         days_back: daysBack,
-        limit,
+        limit: limit === 0 ? undefined : limit, // 0 means "all" - send undefined
         language,
         content_types: contentTypes,
         force: forceReprocess,
@@ -205,7 +205,7 @@ export default function BatchJobs() {
                           <SelectValue placeholder="All instances" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All instances</SelectItem>
+                          <SelectItem value="__all__">All instances</SelectItem>
                           {instances?.map((inst) => (
                             <SelectItem key={inst.name} value={inst.name}>
                               {inst.name}
@@ -260,13 +260,19 @@ export default function BatchJobs() {
                       </div>
                       <div className="grid gap-2">
                         <Label>Max Items</Label>
-                        <Input
-                          type="number"
-                          value={limit}
-                          onChange={(e) => setLimit(parseInt(e.target.value) || 100)}
-                          min={1}
-                          max={1000}
-                        />
+                        <Select value={String(limit)} onValueChange={(v) => setLimit(parseInt(v))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                            <SelectItem value="250">250</SelectItem>
+                            <SelectItem value="500">500</SelectItem>
+                            <SelectItem value="1000">1000</SelectItem>
+                            <SelectItem value="0">All</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 

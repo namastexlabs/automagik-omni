@@ -1658,17 +1658,20 @@ export const api = {
       force?: boolean;
       async_mode?: boolean;
     }): Promise<BatchJobStartResponse> {
+      const body: Record<string, unknown> = {
+        days_back: params.days_back ?? 30,
+        language: params.language ?? 'pt',
+        content_types: params.content_types ?? ['audio'],
+        force: params.force ?? false,
+        async_mode: params.async_mode ?? true,
+      };
+      // Only include optional params if set
+      if (params.instance_name) body.instance_name = params.instance_name;
+      if (params.limit !== undefined) body.limit = params.limit;
+
       return apiRequest('/media-content/reprocess-batch', {
         method: 'POST',
-        body: JSON.stringify({
-          instance_name: params.instance_name,
-          days_back: params.days_back ?? 30,
-          limit: params.limit ?? 100,
-          language: params.language ?? 'pt',
-          content_types: params.content_types ?? ['audio'],
-          force: params.force ?? false,
-          async_mode: params.async_mode ?? true,
-        }),
+        body: JSON.stringify(body),
       });
     },
   },

@@ -3,13 +3,14 @@ Media Content API endpoints.
 Provides endpoints for managing processed media content (transcriptions, descriptions).
 """
 
+import asyncio
 import json
 import logging
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -53,7 +54,7 @@ class BatchReprocessRequest(BaseModel):
 
     instance_name: Optional[str] = None
     days_back: int = 30
-    limit: int = 100
+    limit: Optional[int] = 100  # None or 0 means no limit (all items)
     language: str = "pt"
     content_types: List[str] = ["audio"]  # audio, image, document
     force: bool = False  # Force reprocess even if already completed
@@ -300,7 +301,6 @@ async def get_media_content(
 @router.post("/media-content/reprocess-batch")
 async def reprocess_batch(
     request: BatchReprocessRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
@@ -348,18 +348,20 @@ async def reprocess_batch(
             db.add(job)
             db.commit()
 
-            # Schedule background processing
-            background_tasks.add_task(
-                _run_batch_processing,
-                job_id,
-                {
-                    "instance_name": request.instance_name,
-                    "days_back": request.days_back,
-                    "limit": request.limit,
-                    "language": request.language,
-                    "content_types": request.content_types,
-                    "force": request.force,
-                },
+            # Schedule background processing using asyncio.create_task
+            # This truly runs in background without blocking the response
+            asyncio.create_task(
+                _run_batch_processing(
+                    job_id,
+                    {
+                        "instance_name": request.instance_name,
+                        "days_back": request.days_back,
+                        "limit": request.limit if request.limit else None,  # 0 or None = no limit
+                        "language": request.language,
+                        "content_types": request.content_types,
+                        "force": request.force,
+                    },
+                )
             )
 
             return BatchJobResponse(
