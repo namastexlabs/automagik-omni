@@ -359,3 +359,69 @@ class MediaContent(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "processed_at": self.processed_at.isoformat() if self.processed_at else None,
         }
+
+
+class BatchJob(Base):
+    """
+    Tracks batch processing jobs for async operations.
+    Allows UI to poll for progress instead of waiting for completion.
+    """
+
+    __tablename__ = "omni_batch_jobs"
+
+    # Job identification
+    job_id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    job_type = Column(String(50), nullable=False, index=True)  # 'media_reprocess', 'sync_messages', etc.
+
+    # Request context
+    instance_name = Column(String(255), index=True)
+    request_params = Column(Text)  # JSON of original request parameters
+
+    # Progress tracking
+    status = Column(String(20), default="pending", index=True)  # pending, processing, completed, failed, cancelled
+    total_items = Column(Integer, default=0)
+    processed_items = Column(Integer, default=0)
+    failed_items = Column(Integer, default=0)
+    skipped_items = Column(Integer, default=0)
+
+    # Current item being processed (for real-time progress)
+    current_item = Column(String(255))  # e.g., trace_id or message_id being processed
+
+    # Results summary
+    results_summary = Column(Text)  # JSON summary of results
+    error_message = Column(Text)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow, index=True)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+
+    # Cost tracking (aggregate)
+    total_cost_usd = Column(Numeric(precision=10, scale=8))
+    total_tokens = Column(Integer)
+
+    def __repr__(self):
+        return f"<BatchJob(job_id='{self.job_id}', type='{self.job_type}', status='{self.status}', progress={self.processed_items}/{self.total_items})>"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            "job_id": self.job_id,
+            "job_type": self.job_type,
+            "instance_name": self.instance_name,
+            "status": self.status,
+            "total_items": self.total_items,
+            "processed_items": self.processed_items,
+            "failed_items": self.failed_items,
+            "skipped_items": self.skipped_items,
+            "current_item": self.current_item,
+            "progress_percent": round((self.processed_items / self.total_items) * 100, 1)
+            if self.total_items > 0
+            else 0,
+            "total_cost_usd": float(self.total_cost_usd) if self.total_cost_usd else None,
+            "total_tokens": self.total_tokens,
+            "error_message": self.error_message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }

@@ -206,6 +206,7 @@ class MediaProcessingService:
                     file_path=file_path,
                     mime_type=mime_type,
                     language=language,
+                    duration_seconds=duration_seconds,
                 )
 
                 # Update record with result
@@ -216,6 +217,16 @@ class MediaProcessingService:
                     media_content.processor_model = result.processor_model
                     media_content.processing_time_ms = result.processing_time_ms
                     media_content.confidence_score = result.confidence_score
+                    # Token and cost tracking
+                    media_content.input_tokens = result.input_tokens
+                    media_content.output_tokens = result.output_tokens
+                    media_content.total_tokens = result.total_tokens
+                    media_content.cost_input_usd = result.cost_input_usd
+                    media_content.cost_output_usd = result.cost_output_usd
+                    media_content.cost_total_usd = result.cost_total_usd
+                    media_content.pricing_model = result.pricing_model
+                    media_content.pricing_rate_input = result.pricing_rate_input
+                    media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
                     media_content.processed_at = datetime.utcnow()
                 else:
@@ -362,6 +373,16 @@ class MediaProcessingService:
                     media_content.processor_model = result.processor_model
                     media_content.processing_time_ms = result.processing_time_ms
                     media_content.confidence_score = result.confidence_score
+                    # Token and cost tracking
+                    media_content.input_tokens = result.input_tokens
+                    media_content.output_tokens = result.output_tokens
+                    media_content.total_tokens = result.total_tokens
+                    media_content.cost_input_usd = result.cost_input_usd
+                    media_content.cost_output_usd = result.cost_output_usd
+                    media_content.cost_total_usd = result.cost_total_usd
+                    media_content.pricing_model = result.pricing_model
+                    media_content.pricing_rate_input = result.pricing_rate_input
+                    media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
                     media_content.processed_at = datetime.utcnow()
                 else:
@@ -533,6 +554,7 @@ class MediaProcessingService:
         self,
         trace_id: str,
         language: str = "pt",
+        force: bool = False,
         db: Optional[Session] = None,
     ) -> Optional[MediaContent]:
         """
@@ -627,7 +649,7 @@ class MediaProcessingService:
                     .first()
                 )
 
-                if existing and existing.status == "completed":
+                if existing and existing.status == "completed" and not force:
                     logger.info(f"Audio already transcribed for trace {trace_id}")
                     return existing
 
@@ -659,6 +681,7 @@ class MediaProcessingService:
                     file_path=Path(temp_path),
                     mime_type=mime_type,
                     language=language,
+                    duration_seconds=duration,
                 )
 
                 # Update record with result
@@ -669,6 +692,16 @@ class MediaProcessingService:
                     media_content.processor_model = result.processor_model
                     media_content.processing_time_ms = result.processing_time_ms
                     media_content.confidence_score = result.confidence_score
+                    # Token and cost tracking
+                    media_content.input_tokens = result.input_tokens
+                    media_content.output_tokens = result.output_tokens
+                    media_content.total_tokens = result.total_tokens
+                    media_content.cost_input_usd = result.cost_input_usd
+                    media_content.cost_output_usd = result.cost_output_usd
+                    media_content.cost_total_usd = result.cost_total_usd
+                    media_content.pricing_model = result.pricing_model
+                    media_content.pricing_rate_input = result.pricing_rate_input
+                    media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
                     media_content.processed_at = datetime.utcnow()
                     logger.info(f"Transcribed trace {trace_id}: {result.content[:50]}...")
@@ -701,7 +734,9 @@ class MediaProcessingService:
         days_back: int = 30,
         limit: int = 100,
         language: str = "pt",
+        force: bool = False,
         db: Optional[Session] = None,
+        progress_callback: Optional[callable] = None,
     ) -> dict:
         """
         Batch reprocess audio messages from traces.
@@ -711,6 +746,8 @@ class MediaProcessingService:
             days_back: How many days back to look
             limit: Maximum number of messages to process
             language: Language code for transcription
+            force: If True, reprocess even if already completed
+            progress_callback: Optional callback(current_item) for progress updates
 
         Returns:
             dict with processing stats
@@ -736,17 +773,19 @@ class MediaProcessingService:
             if instance_name:
                 query = query.filter(MessageTrace.instance_name == instance_name)
 
-            # Exclude already processed
-            processed_ids_subq = (
-                db.query(MediaContent.original_message_id)
-                .filter(
-                    MediaContent.content_type == "audio_transcript",
-                    MediaContent.status == "completed",
+            # Exclude already processed (unless force=True)
+            if not force:
+                processed_ids_subq = (
+                    db.query(MediaContent.original_message_id)
+                    .filter(
+                        MediaContent.content_type == "audio_transcript",
+                        MediaContent.status == "completed",
+                    )
+                    .scalar_subquery()
                 )
-                .scalar_subquery()
-            )
+                query = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq))
 
-            traces = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq)).limit(limit).all()
+            traces = query.limit(limit).all()
 
             logger.info(f"Found {len(traces)} audio traces to reprocess")
 
@@ -760,9 +799,14 @@ class MediaProcessingService:
 
             for trace in traces:
                 try:
+                    # Report progress if callback provided
+                    if progress_callback:
+                        progress_callback(trace.trace_id)
+
                     result = await self.reprocess_audio_from_trace(
                         trace_id=trace.trace_id,
                         language=language,
+                        force=force,
                         db=db,
                     )
 
@@ -773,6 +817,8 @@ class MediaProcessingService:
                                 "trace_id": trace.trace_id,
                                 "status": "completed",
                                 "content_preview": result.content[:100] if result.content else "",
+                                "cost_usd": float(result.cost_total_usd) if result.cost_total_usd else None,
+                                "tokens": result.total_tokens,
                             }
                         )
                     elif result:
@@ -808,6 +854,7 @@ class MediaProcessingService:
         self,
         trace_id: str,
         custom_prompt: Optional[str] = None,
+        force: bool = False,
         db: Optional[Session] = None,
     ) -> Optional[MediaContent]:
         """
@@ -898,7 +945,7 @@ class MediaProcessingService:
                     .first()
                 )
 
-                if existing and existing.status == "completed":
+                if existing and existing.status == "completed" and not force:
                     logger.info(f"Image already described for trace {trace_id}")
                     return existing
 
@@ -944,6 +991,16 @@ class MediaProcessingService:
                     media_content.processor_model = result.processor_model
                     media_content.processing_time_ms = result.processing_time_ms
                     media_content.confidence_score = result.confidence_score
+                    # Token and cost tracking
+                    media_content.input_tokens = result.input_tokens
+                    media_content.output_tokens = result.output_tokens
+                    media_content.total_tokens = result.total_tokens
+                    media_content.cost_input_usd = result.cost_input_usd
+                    media_content.cost_output_usd = result.cost_output_usd
+                    media_content.cost_total_usd = result.cost_total_usd
+                    media_content.pricing_model = result.pricing_model
+                    media_content.pricing_rate_input = result.pricing_rate_input
+                    media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
                     media_content.processed_at = datetime.utcnow()
                     logger.info(f"Described image trace {trace_id}: {result.content[:50]}...")
@@ -975,7 +1032,9 @@ class MediaProcessingService:
         days_back: int = 30,
         limit: int = 100,
         custom_prompt: Optional[str] = None,
+        force: bool = False,
         db: Optional[Session] = None,
+        progress_callback: Optional[callable] = None,
     ) -> dict:
         """
         Batch reprocess image messages from traces.
@@ -985,6 +1044,8 @@ class MediaProcessingService:
             days_back: How many days back to look
             limit: Maximum number of messages to process
             custom_prompt: Custom prompt for descriptions
+            force: If True, reprocess even if already completed
+            progress_callback: Optional callback(current_item) for progress updates
 
         Returns:
             dict with processing stats
@@ -1009,17 +1070,19 @@ class MediaProcessingService:
             if instance_name:
                 query = query.filter(MessageTrace.instance_name == instance_name)
 
-            # Exclude already processed
-            processed_ids_subq = (
-                db.query(MediaContent.original_message_id)
-                .filter(
-                    MediaContent.content_type == "image_description",
-                    MediaContent.status == "completed",
+            # Exclude already processed (unless force=True)
+            if not force:
+                processed_ids_subq = (
+                    db.query(MediaContent.original_message_id)
+                    .filter(
+                        MediaContent.content_type == "image_description",
+                        MediaContent.status == "completed",
+                    )
+                    .scalar_subquery()
                 )
-                .scalar_subquery()
-            )
+                query = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq))
 
-            traces = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq)).limit(limit).all()
+            traces = query.limit(limit).all()
 
             logger.info(f"Found {len(traces)} image traces to reprocess")
 
@@ -1033,9 +1096,14 @@ class MediaProcessingService:
 
             for trace in traces:
                 try:
+                    # Report progress if callback provided
+                    if progress_callback:
+                        progress_callback(trace.trace_id)
+
                     result = await self.reprocess_image_from_trace(
                         trace_id=trace.trace_id,
                         custom_prompt=custom_prompt,
+                        force=force,
                         db=db,
                     )
 
@@ -1046,6 +1114,8 @@ class MediaProcessingService:
                                 "trace_id": trace.trace_id,
                                 "status": "completed",
                                 "content_preview": result.content[:100] if result.content else "",
+                                "cost_usd": float(result.cost_total_usd) if result.cost_total_usd else None,
+                                "tokens": result.total_tokens,
                             }
                         )
                     elif result:
@@ -1187,6 +1257,16 @@ class MediaProcessingService:
                     media_content.processor_model = result.processor_model
                     media_content.processing_time_ms = result.processing_time_ms
                     media_content.confidence_score = result.confidence_score
+                    # Token and cost tracking
+                    media_content.input_tokens = result.input_tokens
+                    media_content.output_tokens = result.output_tokens
+                    media_content.total_tokens = result.total_tokens
+                    media_content.cost_input_usd = result.cost_input_usd
+                    media_content.cost_output_usd = result.cost_output_usd
+                    media_content.cost_total_usd = result.cost_total_usd
+                    media_content.pricing_model = result.pricing_model
+                    media_content.pricing_rate_input = result.pricing_rate_input
+                    media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
                     media_content.processed_at = datetime.utcnow()
                 else:
@@ -1345,6 +1425,16 @@ class MediaProcessingService:
                     media_content.processor_model = result.processor_model
                     media_content.processing_time_ms = result.processing_time_ms
                     media_content.confidence_score = result.confidence_score
+                    # Token and cost tracking
+                    media_content.input_tokens = result.input_tokens
+                    media_content.output_tokens = result.output_tokens
+                    media_content.total_tokens = result.total_tokens
+                    media_content.cost_input_usd = result.cost_input_usd
+                    media_content.cost_output_usd = result.cost_output_usd
+                    media_content.cost_total_usd = result.cost_total_usd
+                    media_content.pricing_model = result.pricing_model
+                    media_content.pricing_rate_input = result.pricing_rate_input
+                    media_content.pricing_rate_output = result.pricing_rate_output
                     media_content.status = "completed"
                     media_content.processed_at = datetime.utcnow()
                     logger.info(f"Processed document trace {trace_id}: {result.content[:50]}...")
@@ -1375,7 +1465,9 @@ class MediaProcessingService:
         instance_name: Optional[str] = None,
         days_back: int = 30,
         limit: int = 100,
+        force: bool = False,
         db: Optional[Session] = None,
+        progress_callback: Optional[callable] = None,
     ) -> dict:
         """
         Batch reprocess document messages from traces.
@@ -1384,6 +1476,8 @@ class MediaProcessingService:
             instance_name: Filter by instance (optional)
             days_back: How many days back to look
             limit: Maximum number of documents to process
+            force: If True, reprocess even if already completed
+            progress_callback: Optional callback(current_item) for progress updates
 
         Returns:
             dict with processing stats
@@ -1408,17 +1502,19 @@ class MediaProcessingService:
             if instance_name:
                 query = query.filter(MessageTrace.instance_name == instance_name)
 
-            # Exclude already processed
-            processed_ids_subq = (
-                db.query(MediaContent.original_message_id)
-                .filter(
-                    MediaContent.content_type == "document_content",
-                    MediaContent.status == "completed",
+            # Exclude already processed (unless force=True)
+            if not force:
+                processed_ids_subq = (
+                    db.query(MediaContent.original_message_id)
+                    .filter(
+                        MediaContent.content_type == "document_content",
+                        MediaContent.status == "completed",
+                    )
+                    .scalar_subquery()
                 )
-                .scalar_subquery()
-            )
+                query = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq))
 
-            traces = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq)).limit(limit).all()
+            traces = query.limit(limit).all()
 
             logger.info(f"Found {len(traces)} document traces to reprocess")
 
@@ -1432,6 +1528,10 @@ class MediaProcessingService:
 
             for trace in traces:
                 try:
+                    # Report progress if callback provided
+                    if progress_callback:
+                        progress_callback(trace.trace_id)
+
                     result = await self.reprocess_document_from_trace(
                         trace_id=trace.trace_id,
                         db=db,
@@ -1444,6 +1544,8 @@ class MediaProcessingService:
                                 "trace_id": trace.trace_id,
                                 "status": "completed",
                                 "content_preview": result.content[:100] if result.content else "",
+                                "cost_usd": float(result.cost_total_usd) if result.cost_total_usd else None,
+                                "tokens": result.total_tokens,
                             }
                         )
                     elif result:
