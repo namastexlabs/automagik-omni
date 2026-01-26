@@ -23,6 +23,7 @@ import Services from './pages/Services';
 import WhatsAppService from './pages/services/WhatsAppService';
 import DiscordService from './pages/services/DiscordService';
 import Mcp from './pages/Mcp';
+import BatchJobs from './pages/BatchJobs';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -213,6 +214,16 @@ function App() {
                   <SetupGuard>
                     <ProtectedRoute>
                       <Mcp />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/media-processing"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <BatchJobs />
                     </ProtectedRoute>
                   </SetupGuard>
                 }

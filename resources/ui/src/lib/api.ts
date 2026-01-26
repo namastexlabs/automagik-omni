@@ -63,6 +63,53 @@ export interface Trace {
   evolution_success: boolean | null;
 }
 
+// Batch Job Types
+export interface BatchJob {
+  job_id: string;
+  job_type: string;
+  instance_name: string | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  total_items: number;
+  processed_items: number;
+  failed_items: number;
+  skipped_items: number;
+  current_item: string | null;
+  progress_percent: number;
+  total_cost_usd: number | null;
+  total_tokens: number | null;
+  error_message: string | null;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface BatchJobStartResponse {
+  job_id: string;
+  job_type: string;
+  status: string;
+  message: string;
+}
+
+// Media Content Types
+export interface MediaContent {
+  id: number;
+  instance_name: string;
+  channel_type: string;
+  original_message_id: string;
+  content_type: string;
+  source_media_type: string;
+  content: string;
+  content_format: string;
+  processor_name: string | null;
+  processor_model: string | null;
+  processing_time_ms: number | null;
+  confidence_score: number | null;
+  status: string;
+  error_message: string | null;
+  created_at: string | null;
+  processed_at: string | null;
+}
+
 // Health Types
 export interface ServerStats {
   memory: {
@@ -1574,6 +1621,83 @@ export const api = {
       }>
     > {
       return apiRequest(`/providers/${id}/teams`);
+    },
+  },
+
+  // Batch Jobs API
+  batchJobs: {
+    async list(params?: {
+      instance_name?: string;
+      status?: string;
+      limit?: number;
+    }): Promise<BatchJob[]> {
+      const queryParams = new URLSearchParams();
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.status) queryParams.append('status_filter', params.status);
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      const query = queryParams.toString();
+      return apiRequest(`/batch-jobs${query ? `?${query}` : ''}`);
+    },
+
+    async get(jobId: string): Promise<BatchJob> {
+      return apiRequest(`/batch-jobs/${jobId}`);
+    },
+
+    async cancel(jobId: string): Promise<{ message: string; status: string }> {
+      return apiRequest(`/batch-jobs/${jobId}`, {
+        method: 'DELETE',
+      });
+    },
+
+    async startReprocess(params: {
+      instance_name?: string;
+      days_back?: number;
+      limit?: number;
+      language?: string;
+      content_types?: string[];
+      force?: boolean;
+      async_mode?: boolean;
+    }): Promise<BatchJobStartResponse> {
+      return apiRequest('/media-content/reprocess-batch', {
+        method: 'POST',
+        body: JSON.stringify({
+          instance_name: params.instance_name,
+          days_back: params.days_back ?? 30,
+          limit: params.limit ?? 100,
+          language: params.language ?? 'pt',
+          content_types: params.content_types ?? ['audio'],
+          force: params.force ?? false,
+          async_mode: params.async_mode ?? true,
+        }),
+      });
+    },
+  },
+
+  // Media Content API
+  mediaContent: {
+    async list(params?: {
+      instance_name?: string;
+      content_type?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }): Promise<MediaContent[]> {
+      const queryParams = new URLSearchParams();
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.content_type) queryParams.append('content_type', params.content_type);
+      if (params?.status) queryParams.append('status_filter', params.status);
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.offset) queryParams.append('offset', params.offset.toString());
+      const query = queryParams.toString();
+      return apiRequest(`/media-content${query ? `?${query}` : ''}`);
+    },
+
+    async get(messageId: string, params?: { instance_name?: string; content_type?: string }): Promise<MediaContent> {
+      const queryParams = new URLSearchParams();
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.content_type) queryParams.append('content_type', params.content_type);
+      const query = queryParams.toString();
+      return apiRequest(`/media-content/${messageId}${query ? `?${query}` : ''}`);
     },
   },
 };
