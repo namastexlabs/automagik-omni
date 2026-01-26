@@ -63,10 +63,10 @@ class OmniEvolutionClient(EvolutionClient):
 
     async def fetch_chats_paginated(self, instance_name: str, page: int = 1, page_size: int = 50) -> Dict[str, Any]:
         """
-        Fetch chats for an instance using Evolution API's native server-side pagination.
+        Fetch chats for an instance with server-side pagination.
 
-        This is more efficient than fetch_chats() as it only fetches the requested page
-        from the database, rather than fetching all chats and paginating client-side.
+        Only returns chats that have at least one message, filtering out
+        contacts that were synced but never had any conversation.
 
         Args:
             instance_name: Name of the instance
@@ -76,46 +76,35 @@ class OmniEvolutionClient(EvolutionClient):
         Returns:
             Dictionary with chats, pagination metadata, and total count
         """
-        # Evolution API uses Prisma-style pagination: take (limit) and skip (offset)
-        # POST /chat/findChats/{instance}
-        # Body: {"take": N, "skip": M}
-        skip = (page - 1) * page_size
-        payload = {
-            "take": page_size,
-            "skip": skip,
-        }
-        response = await self._request(
-            "POST",
-            f"/chat/findChats/{quote(instance_name, safe='')}",
-            json=payload,
-        )
-
-        # Evolution returns a plain array - wrap with pagination metadata
-        # We need to get total count separately
+        # Query database directly to filter chats with actual messages
+        # This avoids returning synced contacts that have no message history
+        records = await self._fetch_chats_from_db(instance_name, page, page_size)
         total = await self._get_chats_count(instance_name)
 
-        if isinstance(response, list):
-            return {
-                "records": response,
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-            }
-        return response
+        return {
+            "records": records,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
 
     async def _get_chats_count(self, instance_name: str) -> int:
-        """Get total count of chats for an instance by querying the database directly."""
+        """Get total count of chats that have at least one message."""
         try:
-            # Query database directly for accurate count
             from src.db.database import get_db
             from sqlalchemy import text
 
             db = next(get_db())
             query = text("""
-                SELECT COUNT(*) as count
-                FROM "evo_Contact" c
+                SELECT COUNT(DISTINCT c.id) as count
+                FROM "evo_Chat" c
                 JOIN "evo_Instance" i ON c."instanceId" = i.id
                 WHERE i.name = :instance_name
+                AND EXISTS (
+                    SELECT 1 FROM "evo_Message" m
+                    WHERE m."instanceId" = c."instanceId"
+                    AND m.key->>'remoteJid' = c."remoteJid"
+                )
             """)
             result = db.execute(query, {"instance_name": instance_name})
             row = result.fetchone()
@@ -123,6 +112,69 @@ class OmniEvolutionClient(EvolutionClient):
         except Exception as e:
             logger.warning(f"Failed to get chats count for {instance_name}: {e}")
             return 0
+
+    async def _fetch_chats_from_db(
+        self, instance_name: str, page: int = 1, page_size: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch chats directly from database, filtered to only include chats with messages.
+
+        This bypasses Evolution API to ensure we only return chats that have actual
+        message history, not just synced contacts.
+        """
+        try:
+            from src.db.database import get_db
+            from sqlalchemy import text
+
+            db = next(get_db())
+            offset = (page - 1) * page_size
+
+            query = text("""
+                SELECT
+                    c.id,
+                    c."remoteJid",
+                    c.name,
+                    c.labels,
+                    c."createdAt",
+                    c."updatedAt",
+                    c."unreadMessages"
+                FROM "evo_Chat" c
+                JOIN "evo_Instance" i ON c."instanceId" = i.id
+                WHERE i.name = :instance_name
+                AND EXISTS (
+                    SELECT 1 FROM "evo_Message" m
+                    WHERE m."instanceId" = c."instanceId"
+                    AND m.key->>'remoteJid' = c."remoteJid"
+                )
+                ORDER BY c."updatedAt" DESC NULLS LAST
+                LIMIT :page_size OFFSET :offset
+            """)
+
+            result = db.execute(
+                query,
+                {"instance_name": instance_name, "page_size": page_size, "offset": offset},
+            )
+            rows = result.fetchall()
+
+            # Convert to list of dicts matching Evolution API format
+            chats = []
+            for row in rows:
+                chat = {
+                    "id": row.id,
+                    "remoteJid": row.remoteJid,
+                    "name": row.name,
+                    "labels": row.labels,
+                    "createdAt": row.createdAt.isoformat() if row.createdAt else None,
+                    "updatedAt": row.updatedAt.isoformat() if row.updatedAt else None,
+                    "unreadMessages": row.unreadMessages or 0,
+                }
+                chats.append(chat)
+
+            return chats
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch chats from DB for {instance_name}: {e}")
+            return []
 
     async def fetch_messages(
         self, instance_name: str, chat_id: str, page: int = 1, page_size: int = 50, limit: int = 100
