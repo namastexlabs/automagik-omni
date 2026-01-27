@@ -1,181 +1,76 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, MessageSquare, AlertCircle, Play } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ChatList } from './ChatList';
 import { ChatView } from './ChatView';
 import { api } from '@/lib';
-import type { EvolutionChat, EvolutionGroup } from '@/lib';
+import type { EvolutionChat, OmniChatsResponse } from '@/lib';
 
 interface ChatLayoutProps {
   instanceName: string;
 }
 
-// Format phone number or LID to display name
-function formatDisplayName(jid: string | undefined): string {
-  if (!jid) return 'Unknown';
-  const id = jid.split('@')[0];
+// Transform OmniChat to EvolutionChat format for compatibility with ChatList/ChatListItem
+function transformOmniChatToEvolution(chat: OmniChatsResponse['chats'][0]): EvolutionChat {
+  const channelData = chat.channel_data as {
+    last_message_preview?: string;
+    message_count?: number;
+    contact_phone?: string;
+  } | undefined;
 
-  // If it's a LID (Linked ID), just show it as-is or truncate
-  if (jid.includes('@lid')) {
-    return id.length > 12 ? `${id.slice(0, 12)}...` : id;
-  }
-
-  // Format phone number with country code
-  if (id.length >= 10) {
-    // Try to format as phone number
-    const cleaned = id.replace(/\D/g, '');
-    if (cleaned.length === 13) {
-      // Brazilian format: +55 12 98765-4321
-      return `+${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
-    } else if (cleaned.length >= 10) {
-      // Generic format
-      return `+${cleaned}`;
-    }
-  }
-
-  return id;
+  return {
+    id: chat.id,
+    remoteJid: chat.id, // id is the JID in our schema
+    name: chat.name || 'Unknown',
+    pushName: chat.name,
+    profilePicUrl: chat.avatar_url || undefined,
+    unreadCount: chat.unread_count || 0,
+    isGroup: chat.chat_type === 'group',
+    // Create a lastMessage structure for preview and timestamp
+    lastMessage: channelData?.last_message_preview ? {
+      messageTimestamp: chat.last_message_at ? Math.floor(new Date(chat.last_message_at).getTime() / 1000) : undefined,
+      message: { conversation: channelData.last_message_preview },
+    } : undefined,
+    updatedAt: chat.last_message_at || undefined,
+  } as EvolutionChat;
 }
 
 export function ChatLayout({ instanceName }: ChatLayoutProps) {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const queryClient = useQueryClient();
 
-  // Mutation to start Evolution service
-  const startEvolutionMutation = useMutation({
-    mutationFn: () => api.gateway.startChannel('evolution'),
-    onSuccess: () => {
-      // Wait a moment for Evolution to fully start, then refetch
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['chats', instanceName] });
-        queryClient.invalidateQueries({ queryKey: ['groups', instanceName] });
-      }, 2000);
-    },
-  });
-
-  // Fetch chats with a reasonable limit for performance
+  // Fetch chats from our local omni_chats table (fast, pre-sorted by last_message_at)
   const {
     data: chatsResponse,
-    isLoading: chatsLoading,
-    isError: chatsError,
+    isLoading,
+    isError,
     error: chatsErrorData,
-    refetch: refetchChats,
-  } = useQuery<EvolutionChat[]>({
+  } = useQuery<OmniChatsResponse>({
     queryKey: ['chats', instanceName],
-    queryFn: () => api.evolution.findChats(instanceName, { limit: 500 }),
+    queryFn: () => api.chats.list(instanceName, { page_size: 500 }),
     refetchInterval: 30000,
-    retry: false, // Don't retry on Evolution errors
   });
 
-  // Fetch groups to get proper group names
-  const {
-    data: groupsResponse,
-    isLoading: groupsLoading,
-    isError: groupsError,
-  } = useQuery<EvolutionGroup[]>({
-    queryKey: ['groups', instanceName],
-    queryFn: () => api.evolution.fetchAllGroups(instanceName),
-    refetchInterval: 60000,
-    retry: false, // Don't retry on Evolution errors
-  });
-
-  // Create a map of group IDs to group info
-  const groupsMap = useMemo(() => {
-    const map = new Map<string, EvolutionGroup>();
-    if (Array.isArray(groupsResponse)) {
-      groupsResponse.forEach((group) => {
-        if (group.id) {
-          map.set(group.id, group);
-        }
-      });
-    }
-    return map;
-  }, [groupsResponse]);
-
-  // Merge chats with group info and filter out empty metadata-only entries
+  // Transform OmniChat[] to EvolutionChat[] for compatibility with existing components
   const chats = useMemo(() => {
-    const rawChats: EvolutionChat[] = Array.isArray(chatsResponse) ? chatsResponse : [];
-    return rawChats
-      .map((chat) => {
-        const isGroup = chat.remoteJid?.includes('@g.us');
-        if (isGroup) {
-          const groupInfo = groupsMap.get(chat.remoteJid);
-          if (groupInfo) {
-            return {
-              ...chat,
-              name: groupInfo.subject, // Use group subject as name
-              profilePicUrl: groupInfo.pictureUrl || chat.profilePicUrl,
-              isGroup: true,
-            };
-          }
-          return {
-            ...chat,
-            name: chat.pushName || 'Group',
-            isGroup: true,
-          };
-        }
-        // For direct chats
-        return {
-          ...chat,
-          name: chat.pushName || formatDisplayName(chat.remoteJid),
-          isGroup: false,
-        };
-      })
-      .filter((chat) => {
-        // Filter out empty LID entries (no name and no messages)
-        // These are WhatsApp metadata entries for contacts that haven't been messaged yet
-        const isLID = chat.remoteJid?.includes('@lid');
-        if (isLID && !chat.pushName && !chat.lastMessage) {
-          return false; // Hide empty LID entries
-        }
-        return true;
-      });
-  }, [chatsResponse, groupsMap]);
+    if (!chatsResponse?.chats) return [];
+    return chatsResponse.chats.map(transformOmniChatToEvolution);
+  }, [chatsResponse]);
 
-  const isLoading = chatsLoading || groupsLoading;
-  const hasEvolutionError = chatsError || groupsError;
   const selectedChat = chats.find((c) => c.id === selectedChatId || c.remoteJid === selectedChatId);
 
-  // Handle Evolution service not running (500/503 errors)
-  if (hasEvolutionError && !isLoading) {
-    const isStarting = startEvolutionMutation.isPending;
-    const justStarted = startEvolutionMutation.isSuccess;
-
+  // Handle errors loading chats
+  if (isError && !isLoading) {
+    const errorMessage = chatsErrorData instanceof Error ? chatsErrorData.message : 'Failed to load chats';
     return (
       <div className="flex items-center justify-center h-full bg-background">
         <div className="max-w-md text-center space-y-4">
-          <Alert variant={justStarted ? 'default' : 'destructive'}>
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{justStarted ? 'Starting WhatsApp Service...' : 'WhatsApp Service Not Running'}</AlertTitle>
-            <AlertDescription>
-              {justStarted
-                ? 'Please wait while the service starts. This may take a few seconds.'
-                : 'The WhatsApp service needs to be started to load your chats.'}
-            </AlertDescription>
+            <AlertTitle>Error Loading Chats</AlertTitle>
+            <AlertDescription>{errorMessage}</AlertDescription>
           </Alert>
-
-          {justStarted ? (
-            <div className="flex items-center justify-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Connecting...</span>
-            </div>
-          ) : (
-            <Button onClick={() => startEvolutionMutation.mutate()} disabled={isStarting} className="gap-2">
-              {isStarting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Start WhatsApp Service
-                </>
-              )}
-            </Button>
-          )}
         </div>
       </div>
     );
