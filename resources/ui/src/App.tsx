@@ -25,6 +25,7 @@ import DiscordService from './pages/services/DiscordService';
 import Mcp from './pages/Mcp';
 import BatchJobs from './pages/BatchJobs';
 import Users from './pages/Users';
+import InstanceSettings from './pages/InstanceSettings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -133,6 +134,16 @@ function App() {
                   <SetupGuard>
                     <ProtectedRoute>
                       <Instances />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/instances/:instanceName"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <InstanceSettings />
                     </ProtectedRoute>
                   </SetupGuard>
                 }

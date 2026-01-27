@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -7,7 +8,7 @@ import { api } from '@/lib';
 import type { InstanceConfig } from '@/lib';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
-import { ConnectionWizard, InstanceSettings } from '@/components/instances';
+import { ConnectionWizard } from '@/components/instances';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { InstanceCard } from '@/components/InstanceCard';
 import { Plus, AlertCircle } from 'lucide-react';
@@ -15,9 +16,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Instances() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [settingsInstance, setSettingsInstance] = useState<InstanceConfig | null>(null);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
 
   const {
@@ -48,7 +49,8 @@ export default function Instances() {
   };
 
   const handleSettings = (instance: InstanceConfig) => {
-    setSettingsInstance(instance);
+    // Navigate to the unified settings page
+    navigate(`/instances/${instance.name}`);
   };
 
   const handleShowQR = (instanceName: string) => {
@@ -152,20 +154,12 @@ export default function Instances() {
       <ConnectionWizard
         open={wizardOpen}
         onOpenChange={setWizardOpen}
-        onSuccess={(instanceName, channelType) => {
-          // Refresh instances list
+        onSuccess={(instanceName) => {
+          // Navigate to the new instance's settings page
           queryClient.invalidateQueries({ queryKey: ['instances'] });
+          navigate(`/instances/${instanceName}`);
         }}
       />
-
-      {/* Instance Settings Dialog */}
-      {settingsInstance && (
-        <InstanceSettings
-          open={settingsInstance !== null}
-          onOpenChange={(open) => !open && setSettingsInstance(null)}
-          instance={settingsInstance}
-        />
-      )}
 
       {/* QR Code Dialog (for reconnecting) */}
       {qrInstance && (
