@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, TraceAnalytics, HealthResponse, cn } from '@/lib';
+import { api, TraceAnalytics, HealthResponse, cn, InstanceConfig } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTimeRange } from '../TimeRangeSelector';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
-import { Circle, MessageSquare, Users, MessagesSquare, Smartphone } from 'lucide-react';
+import { Circle, MessageSquare, Users, MessagesSquare, Smartphone, Bot } from 'lucide-react';
+import { WhatsAppIcon, DiscordIcon } from '@/components/icons/BrandIcons';
 
 const chartConfig = {
   messages: {
@@ -16,7 +17,8 @@ const chartConfig = {
 
 interface InstanceDetailCardProps {
   name: string;
-  status: 'connected' | 'disconnected';
+  channelType: 'whatsapp' | 'discord' | 'slack';
+  status: 'connected' | 'disconnected' | 'unknown';
   version?: string;
   whatsappVersion?: string;
   messages: number;
@@ -28,6 +30,7 @@ interface InstanceDetailCardProps {
 
 function InstanceDetailCard({
   name,
+  channelType,
   status,
   version,
   whatsappVersion,
@@ -37,13 +40,33 @@ function InstanceDetailCard({
   tracedMessages,
   successRate,
 }: InstanceDetailCardProps) {
+  const getChannelIcon = () => {
+    switch (channelType) {
+      case 'discord':
+        return <DiscordIcon className="h-4 w-4 text-[#5865F2]" />;
+      case 'whatsapp':
+      default:
+        return <WhatsAppIcon className="h-4 w-4 text-[#25D366]" />;
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (status) {
+      case 'connected':
+        return 'text-success';
+      case 'disconnected':
+        return 'text-destructive';
+      default:
+        return 'text-muted-foreground';
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-3">
-          <Circle
-            className={cn('h-3 w-3 fill-current', status === 'connected' ? 'text-success' : 'text-destructive')}
-          />
+          {getChannelIcon()}
+          <Circle className={cn('h-3 w-3 fill-current', getStatusColor())} />
           <CardTitle className="text-base">{name}</CardTitle>
         </div>
       </CardHeader>
@@ -71,13 +94,25 @@ function InstanceDetailCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Smartphone className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <div className="font-medium truncate max-w-[100px]" title={whatsappVersion}>
-                {whatsappVersion ? whatsappVersion.split('.').slice(0, 2).join('.') : 'N/A'}
-              </div>
-              <div className="text-xs text-muted-foreground">WhatsApp</div>
-            </div>
+            {channelType === 'discord' ? (
+              <>
+                <Bot className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">Discord</div>
+                  <div className="text-xs text-muted-foreground">Bot</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="font-medium truncate max-w-[100px]" title={whatsappVersion}>
+                    {whatsappVersion ? whatsappVersion.split('.').slice(0, 2).join('.') : 'N/A'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">WhatsApp</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -100,10 +135,42 @@ function InstanceDetailCard({
           </div>
         )}
 
-        {version && <div className="text-xs text-muted-foreground">WhatsApp Web v{version}</div>}
+        {version && channelType === 'whatsapp' && (
+          <div className="text-xs text-muted-foreground">WhatsApp Web v{version}</div>
+        )}
       </CardContent>
     </Card>
   );
+}
+
+// Helper to get connection status from InstanceConfig
+function getInstanceStatus(instance: InstanceConfig): 'connected' | 'disconnected' | 'unknown' {
+  // Check connection_status field first
+  if (instance.connection_status) {
+    const status = instance.connection_status.toLowerCase();
+    if (status === 'connected' || status === 'open') return 'connected';
+    if (status === 'disconnected' || status === 'close' || status === 'closed') return 'disconnected';
+  }
+
+  // For Discord
+  if (instance.channel_type === 'discord') {
+    return instance.has_discord_bot_token ? 'unknown' : 'disconnected';
+  }
+
+  // For WhatsApp - check whatsapp_web_status
+  const state =
+    instance.whatsapp_web_status?.state ||
+    instance.whatsapp_web_status?.instance?.state ||
+    instance.evolution_status?.state;
+
+  if (!state) return 'unknown';
+
+  const normalizedState = state.toLowerCase();
+  if (normalizedState === 'open' || normalizedState === 'connected') return 'connected';
+  if (normalizedState === 'close' || normalizedState === 'closed' || normalizedState === 'disconnected')
+    return 'disconnected';
+
+  return 'unknown';
 }
 
 export function InstancesTab() {
@@ -122,6 +189,13 @@ export function InstancesTab() {
   const { data: health, isLoading: healthLoading } = useQuery<HealthResponse>({
     queryKey: ['health'],
     queryFn: () => api.health(),
+    refetchInterval: 30000,
+  });
+
+  // Fetch ALL instances (WhatsApp + Discord)
+  const { data: instances, isLoading: instancesLoading } = useQuery<InstanceConfig[]>({
+    queryKey: ['instances'],
+    queryFn: () => api.instances.list({ limit: 100, include_live_status: true }),
     refetchInterval: 30000,
   });
 
@@ -149,6 +223,12 @@ export function InstancesTab() {
       }
     | undefined;
 
+  // Build a map of Evolution instance details for WhatsApp counts
+  const evolutionInstanceMap = new Map<string, EvolutionInstanceDetail>();
+  evolutionDetails?.instanceDetails?.forEach((detail) => {
+    evolutionInstanceMap.set(detail.name, detail);
+  });
+
   // Prepare chart data from analytics.instances
   const instanceChartData = Object.entries(analytics?.instances || {}).map(([name, count]) => ({
     name,
@@ -156,7 +236,7 @@ export function InstancesTab() {
     fill: 'hsl(var(--chart-1))',
   }));
 
-  const isLoading = analyticsLoading || healthLoading;
+  const isLoading = analyticsLoading || healthLoading || instancesLoading;
 
   return (
     <div className="space-y-6">
@@ -196,29 +276,33 @@ export function InstancesTab() {
         </CardContent>
       </Card>
 
-      {/* Instance Detail Cards */}
+      {/* Instance Detail Cards - ALL instances (WhatsApp + Discord) */}
       <div>
         <h3 className="text-lg font-medium mb-4">Instance Details</h3>
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Skeleton className="h-48" />
           </div>
-        ) : evolutionDetails?.instanceDetails && evolutionDetails.instanceDetails.length > 0 ? (
+        ) : instances && instances.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {evolutionDetails.instanceDetails.map((instance) => (
-              <InstanceDetailCard
-                key={instance.name}
-                name={instance.name}
-                status={instance.connectionStatus === 'open' ? 'connected' : 'disconnected'}
-                version={evolutionDetails.version}
-                whatsappVersion={evolutionDetails.whatsappWebVersion}
-                messages={instance.counts?.messages ?? 0}
-                contacts={instance.counts?.contacts ?? 0}
-                chats={instance.counts?.chats ?? 0}
-                tracedMessages={analytics?.instances?.[instance.name]}
-                successRate={analytics?.success_rate}
-              />
-            ))}
+            {instances.map((instance) => {
+              const evoDetail = evolutionInstanceMap.get(instance.name);
+              return (
+                <InstanceDetailCard
+                  key={instance.name}
+                  name={instance.name}
+                  channelType={instance.channel_type || 'whatsapp'}
+                  status={getInstanceStatus(instance)}
+                  version={evolutionDetails?.version}
+                  whatsappVersion={evolutionDetails?.whatsappWebVersion}
+                  messages={evoDetail?.counts?.messages ?? 0}
+                  contacts={evoDetail?.counts?.contacts ?? 0}
+                  chats={evoDetail?.counts?.chats ?? 0}
+                  tracedMessages={analytics?.instances?.[instance.name]}
+                  successRate={analytics?.success_rate}
+                />
+              );
+            })}
           </div>
         ) : (
           <p className="text-muted-foreground">No instance data available</p>
