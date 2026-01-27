@@ -480,6 +480,11 @@ from src.api.routes.providers import router as providers_router
 
 app.include_router(providers_router, prefix="/api/v1", tags=["providers"])
 
+# Include user management routes
+from src.api.routes.users import router as users_router
+
+app.include_router(users_router, prefix="/api/v1", tags=["users"])
+
 # Note: MCP server now runs as standalone service on port 28882
 # Gateway proxies /mcp requests directly to standalone MCP server
 

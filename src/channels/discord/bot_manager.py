@@ -887,7 +887,7 @@ class DiscordBotManager:
                     "instance_config": instance_config,
                 }
 
-            # Attempt to resolve existing local user via shared identity linking
+            # Get or create local user for Discord identity tracking
             resolved_user_id = None
             try:
                 from src.db.database import SessionLocal
@@ -895,22 +895,27 @@ class DiscordBotManager:
 
                 db_session = SessionLocal()
                 try:
-                    resolved = user_service.resolve_user_by_external(
-                        provider="discord", external_id=str(message.author.id), db=db_session
+                    # Create or update user record for this Discord user
+                    user = user_service.get_or_create_user_by_discord(
+                        discord_user_id=str(message.author.id),
+                        instance_name=instance_name,
+                        display_name=message.author.display_name,
+                        username=message.author.name,
+                        session_name=session_name,
+                        db=db_session,
                     )
-                    if resolved:
-                        resolved_user_id = resolved.id
-                        logger.info(
-                            f"Resolved Discord user {message.author.id} to local user {resolved_user_id} via external link"
-                        )
+                    resolved_user_id = user.id
+                    logger.info(
+                        f"Discord user {message.author.id} ({message.author.name}) → local user {resolved_user_id}"
+                    )
                 except DatabaseError as db_err:
-                    logger.error(f"Failed to resolve Discord user {message.author.id}: {db_err}")
+                    logger.error(f"Failed to get/create Discord user {message.author.id}: {db_err}")
                 except Exception as e:
-                    logger.error(f"Failed during Discord identity resolution: {e}", exc_info=True)
+                    logger.error(f"Failed during Discord user creation: {e}", exc_info=True)
                 finally:
                     db_session.close()
             except Exception as e:
-                logger.error(f"Failed to initialise Discord identity resolution session: {e}", exc_info=True)
+                logger.error(f"Failed to initialise Discord user session: {e}", exc_info=True)
 
             # Route message to MessageRouter (synchronous call from async context)
             # Since we're in an async context and route_message is sync, use executor
