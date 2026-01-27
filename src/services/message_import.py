@@ -503,7 +503,14 @@ class MessageImportService:
                 since_timestamp = datetime_utcnow() - timedelta(days=7)
 
         # Calculate days since timestamp
-        days = (datetime_utcnow() - since_timestamp).days + 1
+        # Normalize both to naive UTC for comparison (datetime_utcnow returns aware datetime)
+        now = datetime_utcnow().replace(tzinfo=None)
+        since_naive = (
+            since_timestamp.replace(tzinfo=None)
+            if hasattr(since_timestamp, "tzinfo") and since_timestamp.tzinfo
+            else since_timestamp
+        )
+        days = (now - since_naive).days + 1
 
         logger.info(f"Incremental sync for {instance_name} since {since_timestamp}")
 

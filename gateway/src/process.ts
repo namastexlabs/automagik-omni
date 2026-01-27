@@ -815,46 +815,66 @@ export class ProcessManager {
 
     let pgserveUrl: string | null = null;
 
-    try {
-      const configUrl = `http://127.0.0.1:${pythonPort}/api/v1/_internal/subprocess-config`;
-      const response = await fetch(configUrl, { signal: AbortSignal.timeout(10000) }); // 10s timeout
+    // Retry fetching config from Python API (it may still be starting up)
+    const maxRetries = 5;
+    const retryDelay = 2000;
+    let config: ReturnType<typeof parseSubprocessConfig> | null = null;
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch subprocess config: HTTP ${response.status}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const configUrl = `http://127.0.0.1:${pythonPort}/api/v1/_internal/subprocess-config`;
+        const response = await fetch(configUrl, { signal: AbortSignal.timeout(10000) });
+
+        if (response.ok) {
+          config = parseSubprocessConfig(await response.json());
+          console.log('[ProcessManager] Loaded subprocess config from Python API');
+          break;
+        } else if (response.status === 503) {
+          // Python is starting up, retry
+          console.log(`[ProcessManager] Python initializing, retrying... (attempt ${attempt}/${maxRetries})`);
+        } else {
+          throw new Error(`Failed to fetch subprocess config: HTTP ${response.status}`);
+        }
+      } catch (err) {
+        if (attempt < maxRetries) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.log(`[ProcessManager] Waiting for Python API... (${errMsg}) attempt ${attempt}/${maxRetries}`);
+          await new Promise((r) => setTimeout(r, retryDelay));
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          throw new Error(`Cannot start Evolution: ${message}`);
+        }
       }
+    }
 
-      const config = parseSubprocessConfig(await response.json());
-      console.log('[ProcessManager] Loaded subprocess config from Python API');
+    if (!config) {
+      throw new Error('Failed to get subprocess config from Python API after retries');
+    }
 
-      // Use live pgserve port directly (bypasses potential stale port in Python's env var)
-      // This fixes port mismatch when Gateway restarts but Python doesn't
-      // Fall back to external PostgreSQL from environment if pgserve isn't running
-      const runtimePgUrl = this.getPgserveConnectionUrl('automagik_omni');
-      pgserveUrl = runtimePgUrl || config.database_connection_uri || process.env.AUTOMAGIK_OMNI_DATABASE_URL || null;
-      if (!pgserveUrl || config.database_provider !== 'postgresql') {
-        throw new Error(
-          'PostgreSQL not available - cannot start Evolution without database. ' +
-            'Please ensure PostgreSQL (embedded or external) is configured before enabling WhatsApp.',
-        );
-      }
+    // Use live pgserve port directly (bypasses potential stale port in Python's env var)
+    // This fixes port mismatch when Gateway restarts but Python doesn't
+    // Fall back to external PostgreSQL from environment if pgserve isn't running
+    const runtimePgUrl = this.getPgserveConnectionUrl('automagik_omni');
+    pgserveUrl = runtimePgUrl || config.database_connection_uri || process.env.AUTOMAGIK_OMNI_DATABASE_URL || null;
+    if (!pgserveUrl || config.database_provider !== 'postgresql') {
+      throw new Error(
+        'PostgreSQL not available - cannot start Evolution without database. ' +
+          'Please ensure PostgreSQL (embedded or external) is configured before enabling WhatsApp.',
+      );
+    }
 
-      subprocessEnv.DATABASE_CONNECTION_URI = pgserveUrl;
-      subprocessEnv.DATABASE_PROVIDER = config.database_provider;
-      // Enable all data persistence for Evolution API
-      subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true'; // Auth state storage
-      subprocessEnv.DATABASE_SAVE_DATA_HISTORIC = 'true'; // Save synced history messages
-      subprocessEnv.DATABASE_SAVE_DATA_NEW_MESSAGE = 'true'; // Save new messages
-      subprocessEnv.DATABASE_SAVE_DATA_CHATS = 'true'; // Save chat list
-      subprocessEnv.DATABASE_SAVE_DATA_CONTACTS = 'true'; // Save contacts
-      console.log(`[ProcessManager] Evolution will use PostgreSQL at: ${pgserveUrl}`);
+    subprocessEnv.DATABASE_CONNECTION_URI = pgserveUrl;
+    subprocessEnv.DATABASE_PROVIDER = config.database_provider;
+    // Enable all data persistence for Evolution API
+    subprocessEnv.DATABASE_SAVE_DATA_INSTANCE = 'true'; // Auth state storage
+    subprocessEnv.DATABASE_SAVE_DATA_HISTORIC = 'true'; // Save synced history messages
+    subprocessEnv.DATABASE_SAVE_DATA_NEW_MESSAGE = 'true'; // Save new messages
+    subprocessEnv.DATABASE_SAVE_DATA_CHATS = 'true'; // Save chat list
+    subprocessEnv.DATABASE_SAVE_DATA_CONTACTS = 'true'; // Save contacts
+    console.log(`[ProcessManager] Evolution will use PostgreSQL at: ${pgserveUrl}`);
 
-      if (config.authentication_api_key && config.authentication_api_key.trim().length > 0) {
-        subprocessEnv.AUTHENTICATION_API_KEY = config.authentication_api_key;
-      }
-    } catch (err) {
-      // Re-throw with context - don't silently continue
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Cannot start Evolution: ${message}`);
+    if (config.authentication_api_key && config.authentication_api_key.trim().length > 0) {
+      subprocessEnv.AUTHENTICATION_API_KEY = config.authentication_api_key;
     }
 
     // Detect package manager (prefer pnpm over npm)

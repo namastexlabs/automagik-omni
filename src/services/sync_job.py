@@ -224,7 +224,12 @@ class ContinuousSyncJob:
 
         if last_sync:
             # Calculate days since last sync
-            days_since_sync = (datetime_utcnow() - last_sync).days + 1
+            # Normalize both to naive UTC for comparison (datetime_utcnow returns aware datetime)
+            now = datetime_utcnow().replace(tzinfo=None)
+            last_sync_naive = (
+                last_sync.replace(tzinfo=None) if hasattr(last_sync, "tzinfo") and last_sync.tzinfo else last_sync
+            )
+            days_since_sync = (now - last_sync_naive).days + 1
             days_back = min(days_since_sync, days_back)
 
         logger.debug(f"Syncing {instance_name} for last {days_back} days")

@@ -212,11 +212,20 @@ class ChatSyncService:
         return result[0] if result else None
 
     def _get_last_message_preview(self, instance_name: str, chat_id: str) -> Optional[str]:
-        """Get preview of last message for chat list display."""
-        result = (
+        """Get preview of last message for chat list display.
+
+        Checks both evo_Message (all messages) and omni_messages (webhook messages)
+        and returns the most recent one.
+        """
+        # First try evo_Message which has all messages
+        evo_preview = self._get_last_message_from_evo(instance_name, chat_id)
+
+        # Then try omni_messages
+        omni_result = (
             self.db.query(
                 OmniMessageRecord.content_text,
                 OmniMessageRecord.message_type,
+                OmniMessageRecord.message_timestamp,
             )
             .filter(
                 OmniMessageRecord.instance_name == instance_name,
@@ -226,24 +235,123 @@ class ChatSyncService:
             .first()
         )
 
-        if not result:
+        omni_preview = None
+        omni_ts = None
+        if omni_result:
+            text, msg_type, omni_ts = omni_result
+            if text:
+                omni_preview = text[:250]
+            else:
+                type_labels = {
+                    "audio": "🎵 Audio",
+                    "image": "📷 Image",
+                    "video": "🎬 Video",
+                    "document": "📄 Document",
+                    "sticker": "🎨 Sticker",
+                    "location": "📍 Location",
+                    "contact": "👤 Contact",
+                }
+                omni_preview = type_labels.get(msg_type, msg_type)
+
+        # Return the most recent preview
+        if evo_preview and omni_preview:
+            # Compare timestamps - evo_preview is tuple (text, timestamp)
+            evo_text, evo_ts = evo_preview
+            if evo_ts and omni_ts:
+                # Normalize types: evo_ts is int (Unix), omni_ts is datetime
+                omni_ts_int = int(omni_ts.timestamp()) if hasattr(omni_ts, "timestamp") else omni_ts
+                evo_ts_int = int(evo_ts) if not hasattr(evo_ts, "timestamp") else int(evo_ts.timestamp())
+                return evo_text if evo_ts_int > omni_ts_int else omni_preview
+            return evo_text  # Prefer evo if we can't compare
+        elif evo_preview:
+            return evo_preview[0]
+        else:
+            return omni_preview
+
+    def _get_last_message_from_evo(self, instance_name: str, chat_id: str) -> Optional[tuple]:
+        """Get last message preview from evo_Message table.
+
+        Returns tuple of (preview_text, timestamp) or None.
+        """
+        try:
+            # Get instance ID first
+            instance_result = self.db.execute(
+                text('SELECT id FROM "evo_Instance" WHERE name = :name'),
+                {"name": instance_name},
+            ).fetchone()
+
+            if not instance_result:
+                return None
+
+            instance_id = instance_result[0]
+
+            # Query evo_Message for the last message in this chat
+            result = self.db.execute(
+                text("""
+                    SELECT
+                        m.message,
+                        m."messageType",
+                        m."messageTimestamp"
+                    FROM "evo_Message" m
+                    WHERE m."instanceId" = :instance_id
+                      AND m.key->>'remoteJid' = :chat_id
+                    ORDER BY m."messageTimestamp" DESC
+                    LIMIT 1
+                """),
+                {"instance_id": instance_id, "chat_id": chat_id},
+            ).fetchone()
+
+            if not result:
+                return None
+
+            message_json, msg_type, timestamp = result
+
+            # Extract text from message JSON
+            preview = self._extract_message_preview(message_json, msg_type)
+            return (preview, timestamp) if preview else None
+
+        except Exception as e:
+            logger.debug(f"Error getting evo_Message preview for {chat_id}: {e}")
             return None
 
-        text, msg_type = result
-        if text:
-            return text[:250]  # Truncate to 250 chars
+    def _extract_message_preview(self, message_json: dict, msg_type: str) -> Optional[str]:
+        """Extract preview text from Evolution message JSON."""
+        if not message_json:
+            return None
 
-        # Return message type indicator for media
+        # Try common text fields
+        if "conversation" in message_json:
+            return message_json["conversation"][:250]
+
+        if "extendedTextMessage" in message_json:
+            text = message_json["extendedTextMessage"].get("text", "")
+            return text[:250] if text else None
+
+        # Media type indicators
         type_labels = {
-            "audio": "🎵 Audio",
-            "image": "📷 Image",
-            "video": "🎬 Video",
-            "document": "📄 Document",
-            "sticker": "🎨 Sticker",
-            "location": "📍 Location",
-            "contact": "👤 Contact",
+            "imageMessage": "📷 Image",
+            "videoMessage": "🎬 Video",
+            "audioMessage": "🎵 Audio",
+            "documentMessage": "📄 Document",
+            "stickerMessage": "🎨 Sticker",
+            "locationMessage": "📍 Location",
+            "contactMessage": "👤 Contact",
+            "reactionMessage": "reaction",
         }
-        return type_labels.get(msg_type, msg_type)
+
+        for key, label in type_labels.items():
+            if key in message_json:
+                # For documents, try to get filename
+                if key == "documentMessage":
+                    filename = message_json[key].get("fileName", "")
+                    return f"📄 {filename}" if filename else label
+                # For images/videos, try to get caption
+                if key in ("imageMessage", "videoMessage"):
+                    caption = message_json[key].get("caption", "")
+                    return caption[:250] if caption else label
+                return label
+
+        return msg_type if msg_type else None
 
     def _determine_chat_type(self, chat_id: str) -> str:
         """Determine chat type from chat ID format."""

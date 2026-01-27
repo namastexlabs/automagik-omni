@@ -224,31 +224,72 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
       }
 
       // Channel startup behavior:
-      // - After setup complete: auto-start enabled channels (production-friendly)
-      // - Set LAZY_CHANNELS=true to disable auto-start (development only)
+      // - Query database to see which channels were running before shutdown
+      // - Auto-start only channels that have connected/enabled instances
+      // - Set LAZY_CHANNELS=true to disable all auto-start (development only)
       const forceLazy = process.env.LAZY_CHANNELS === 'true';
       if (forceLazy) {
         console.log('[Gateway] Lazy mode forced (LAZY_CHANNELS=true) - channels start on-demand');
       } else {
-        console.log('[Gateway] Setup complete - auto-starting enabled channels...');
-        // Start Evolution API (WhatsApp channel - optional, soft-fail)
-        if (processManager.isChannelEnabled('evolution')) {
-          try {
-            await processManager.startEvolution();
-          } catch (error) {
-            console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
-            console.warn('[Gateway] WhatsApp functionality will be unavailable');
-            console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
+        console.log('[Gateway] Setup complete - checking which channels need to start...');
+
+        // Query Python API to check which channels have active instances
+        // If Python isn't ready yet, fall back to starting enabled channels
+        const pythonPort = processManager.portRegistry.getPort('python');
+        let channelInfo: { evolution_needed?: boolean; discord_needed?: boolean; evolution_reason?: string; discord_reason?: string } | null = null;
+
+        if (pythonPort) {
+          // Retry a few times - Python may still be starting
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              const url = `http://127.0.0.1:${pythonPort}/api/v1/_internal/channel-startup-info`;
+              const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+              if (response.ok) {
+                channelInfo = await response.json();
+                console.log('[Gateway] Channel startup info:', JSON.stringify(channelInfo, null, 2));
+                break;
+              }
+            } catch (error) {
+              if (attempt < 3) {
+                console.log(`[Gateway] Waiting for Python API... (attempt ${attempt}/3)`);
+                await new Promise((r) => setTimeout(r, 2000));
+              } else {
+                console.warn('[Gateway] Could not query channel startup info, using defaults');
+              }
+            }
           }
         }
 
-        // Start Discord service manager (optional)
+        // Start Evolution API if needed (or if we couldn't determine)
+        if (processManager.isChannelEnabled('evolution')) {
+          const shouldStart = channelInfo?.evolution_needed ?? true; // Default to true if unknown
+          if (shouldStart) {
+            const reason = channelInfo?.evolution_reason || 'channel enabled (could not verify instances)';
+            console.log(`[Gateway] Auto-starting Evolution: ${reason}`);
+            try {
+              await processManager.startEvolution();
+            } catch (error) {
+              console.warn('[Gateway] Evolution/WhatsApp service failed to start, continuing without it');
+              console.warn('[Gateway] Error:', error instanceof Error ? error.message : error);
+            }
+          } else {
+            console.log('[Gateway] Evolution not needed - no WhatsApp instances found');
+          }
+        }
+
+        // Start Discord service if needed (or if we couldn't determine and it's enabled)
         if (processManager.isChannelEnabled('discord')) {
-          try {
-            await processManager.startDiscord();
-          } catch (error) {
-            console.warn('[Gateway] Discord service failed to start, continuing without it');
-            console.warn('[Gateway] Install Discord support: uv pip install -e ".[discord]"');
+          const shouldStart = channelInfo?.discord_needed ?? true; // Default to true if unknown
+          if (shouldStart) {
+            const reason = channelInfo?.discord_reason || 'channel enabled (could not verify instances)';
+            console.log(`[Gateway] Auto-starting Discord: ${reason}`);
+            try {
+              await processManager.startDiscord();
+            } catch (error) {
+              console.warn('[Gateway] Discord service failed to start, continuing without it');
+            }
+          } else {
+            console.log('[Gateway] Discord not needed - no Discord instances found');
           }
         }
       }

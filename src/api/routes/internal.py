@@ -128,3 +128,75 @@ async def internal_health(request: Request):
     _verify_localhost(request)
 
     return {"status": "healthy", "service": "omni-internal"}
+
+
+class ChannelStartupInfo(BaseModel):
+    """Information about which channels should be auto-started."""
+
+    evolution_needed: bool = False
+    evolution_reason: str | None = None
+    discord_needed: bool = False
+    discord_reason: str | None = None
+    whatsapp_instances: list[str] = []
+    discord_instances: list[str] = []
+
+
+@router.get("/channel-startup-info", response_model=ChannelStartupInfo)
+async def get_channel_startup_info(request: Request, db: Session = Depends(get_db)):
+    """
+    Get information about which channels need to be auto-started.
+
+    Checks database for:
+    - WhatsApp instances with connectionStatus='open' in evo_Instance
+    - Discord instances that are enabled in omni_instance_configs
+
+    **Localhost only** - No authentication required.
+
+    Called by gateway at startup to decide which channels to start.
+    """
+    from sqlalchemy import text
+
+    _verify_localhost(request)
+
+    result = ChannelStartupInfo()
+
+    # Check for WhatsApp instances that exist (were previously configured)
+    # We check for ANY evo_Instance, not just connected ones, because:
+    # - At startup, Evolution isn't running yet, so status won't be 'open'
+    # - If user had Evolution running before restart, we want to restart it
+    try:
+        whatsapp_query = text("""
+            SELECT name, "connectionStatus" FROM "evo_Instance"
+        """)
+        whatsapp_rows = db.execute(whatsapp_query).fetchall()
+        result.whatsapp_instances = [row[0] for row in whatsapp_rows]
+
+        if result.whatsapp_instances:
+            result.evolution_needed = True
+            connected_count = sum(1 for row in whatsapp_rows if row[1] == "open")
+            if connected_count > 0:
+                result.evolution_reason = f"Found {len(result.whatsapp_instances)} WhatsApp instance(s), {connected_count} connected: {', '.join(result.whatsapp_instances)}"
+            else:
+                result.evolution_reason = f"Found {len(result.whatsapp_instances)} WhatsApp instance(s) (will reconnect): {', '.join(result.whatsapp_instances)}"
+    except Exception:
+        # evo_Instance table might not exist yet
+        pass
+
+    # Check for Discord instances that are enabled
+    try:
+        discord_query = text("""
+            SELECT name FROM omni_instance_configs
+            WHERE channel_type = 'discord'
+              AND (channel_config->>'enabled')::boolean = true
+        """)
+        discord_rows = db.execute(discord_query).fetchall()
+        result.discord_instances = [row[0] for row in discord_rows]
+
+        if result.discord_instances:
+            result.discord_needed = True
+            result.discord_reason = f"Found {len(result.discord_instances)} enabled Discord instance(s): {', '.join(result.discord_instances)}"
+    except Exception:
+        # Table might not exist or column might not be there
+        pass
+
+    return result
