@@ -3,6 +3,11 @@ Chat Sync Service
 
 Syncs chat metadata from Evolution API (evo_Chat) to local omni_chats table.
 Computes message stats from omni_messages for unified local-first queries.
+
+Name Resolution Priority (for direct chats):
+1. evo_Contact.pushName - WhatsApp contact's display name (most reliable)
+2. omni_messages.sender_name - Name from recent messages
+3. Phone number extracted from chat_id
 """
 
 import logging
@@ -24,18 +29,20 @@ class ChatSyncService:
     Service for syncing chat metadata to local omni_chats table.
 
     Combines data from:
+    - evo_Contact: Contact names (pushName) and profile pictures
     - evo_Chat: Group names, archived status, etc.
-    - omni_messages: Message counts, last message, contact names
+    - omni_messages: Message counts, last message, sender names (fallback)
     - chat_id_mappings: Canonical chat IDs for unified queries
     """
 
     def __init__(self, db: Session):
         self.db = db
         self._resolver = ChatIdResolver(db)
+        self._contacts_cache: Dict[str, Dict] = {}  # remoteJid -> contact data
 
     def sync_chats_for_instance(self, instance_name: str) -> Dict[str, Any]:
         """
-        Sync all chats for an instance from evo_Chat and omni_messages.
+        Sync all chats for an instance from evo_Chat, evo_Contact, and omni_messages.
 
         Returns:
             Dict with sync statistics
@@ -45,6 +52,7 @@ class ChatSyncService:
             "synced": 0,
             "updated": 0,
             "from_evo_chat": 0,
+            "from_evo_contact": 0,
             "from_messages": 0,
             "errors": 0,
         }
@@ -57,15 +65,19 @@ class ChatSyncService:
                 logger.warning(f"Instance {instance_name} not found in evo_Instance")
                 return stats
 
-            # Step 1: Get chats from evo_Chat (has group names, archived status)
+            # Step 1: Load contacts into cache (for name/avatar resolution)
+            self._contacts_cache = self._get_evo_contacts(evo_instance.id)
+            stats["from_evo_contact"] = len(self._contacts_cache)
+
+            # Step 2: Get chats from evo_Chat (has group names, archived status)
             evo_chats = self._get_evo_chats(evo_instance.id, instance_name)
             stats["from_evo_chat"] = len(evo_chats)
 
-            # Step 2: Get unique chats from omni_messages (may have chats not in evo_Chat)
+            # Step 3: Get unique chats from omni_messages (may have chats not in evo_Chat)
             message_chats = self._get_chats_from_messages(instance_name)
             stats["from_messages"] = len(message_chats)
 
-            # Step 3: Merge and sync
+            # Step 4: Merge and sync
             all_chat_ids = set(evo_chats.keys()) | set(message_chats.keys())
 
             for chat_id in all_chat_ids:
@@ -89,8 +101,46 @@ class ChatSyncService:
             logger.error(f"Chat sync failed for {instance_name}: {e}")
             self.db.rollback()
             raise
+        finally:
+            # Clear cache after sync
+            self._contacts_cache = {}
 
         return stats
+
+    def _get_evo_contacts(self, instance_id: str) -> Dict[str, Dict]:
+        """
+        Get contact data from evo_Contact table.
+
+        Returns:
+            Dict mapping remoteJid -> {push_name, profile_pic_url}
+        """
+        result = self.db.execute(
+            text("""
+                SELECT
+                    "remoteJid",
+                    "pushName",
+                    "profilePicUrl"
+                FROM "evo_Contact"
+                WHERE "instanceId" = :instance_id
+            """),
+            {"instance_id": instance_id},
+        ).fetchall()
+
+        contacts = {}
+        for row in result:
+            jid = row.remoteJid
+            # Store contact data, filtering out empty/None values
+            push_name = row.pushName if row.pushName and row.pushName.strip() else None
+            profile_pic = row.profilePicUrl if row.profilePicUrl and row.profilePicUrl.strip() else None
+
+            if push_name or profile_pic:
+                contacts[jid] = {
+                    "push_name": push_name,
+                    "profile_pic_url": profile_pic,
+                }
+
+        logger.debug(f"Loaded {len(contacts)} contacts from evo_Contact")
+        return contacts
 
     def _get_evo_chats(self, instance_id: str, instance_name: str) -> Dict[str, Dict]:
         """Get chat metadata from evo_Chat table."""
@@ -209,6 +259,56 @@ class ChatSyncService:
             return chat_id.replace("@s.whatsapp.net", "")
         return None
 
+    def _get_contact_info(self, chat_id: str) -> Dict[str, Optional[str]]:
+        """
+        Get contact info from evo_Contact cache.
+
+        Returns:
+            Dict with 'push_name' and 'profile_pic_url' if found
+        """
+        return self._contacts_cache.get(chat_id, {})
+
+    def _resolve_display_name(
+        self,
+        instance_name: str,
+        chat_id: str,
+        chat_type: str,
+        evo_data: Dict,
+    ) -> str:
+        """
+        Resolve the best display name for a chat.
+
+        Priority for direct chats:
+        1. evo_Contact.pushName (WhatsApp contact name)
+        2. omni_messages.sender_name (name from recent messages)
+        3. Phone number (extracted from chat_id)
+
+        For groups/channels:
+        1. evo_Chat.name (group name)
+        2. chat_id as fallback
+        """
+        if chat_type in ("group", "channel"):
+            return evo_data.get("name") or chat_id
+
+        # Direct chat - try multiple sources
+        contact_info = self._get_contact_info(chat_id)
+
+        # Priority 1: evo_Contact.pushName
+        if contact_info.get("push_name"):
+            return contact_info["push_name"]
+
+        # Priority 2: sender_name from messages
+        msg_name = self._get_contact_name(instance_name, chat_id)
+        if msg_name:
+            return msg_name
+
+        # Priority 3: Phone number
+        phone = self._extract_phone(chat_id)
+        if phone:
+            return phone
+
+        return chat_id
+
     def _sync_chat(
         self,
         instance_name: str,
@@ -227,16 +327,12 @@ class ChatSyncService:
         # Get canonical chat ID
         canonical_id = self._resolver.get_canonical_id(instance_name, chat_id)
 
-        # Determine display name
-        if chat_type == "group" or chat_type == "channel":
-            # Use evo_Chat name for groups
-            name = evo_data.get("name") or chat_id
-        else:
-            # Use contact name from messages for direct chats
-            name = self._get_contact_name(instance_name, chat_id)
-            if not name:
-                # Fall back to phone number
-                name = self._extract_phone(chat_id) or chat_id
+        # Resolve display name with priority logic
+        name = self._resolve_display_name(instance_name, chat_id, chat_type, evo_data)
+
+        # Get contact info for avatar
+        contact_info = self._get_contact_info(chat_id)
+        avatar_url = contact_info.get("profile_pic_url")
 
         # Get last message preview
         preview = self._get_last_message_preview(instance_name, chat_id)
@@ -254,6 +350,16 @@ class ChatSyncService:
             existing.unread_count = evo_data.get("unread_count", 0)
             existing.synced_at = datetime_utcnow()
             existing.updated_at = datetime_utcnow()
+
+            # Update avatar if we have one
+            if avatar_url:
+                existing.avatar_url = avatar_url
+
+            # Update contact fields for direct chats
+            if chat_type == "direct":
+                existing.contact_name = name
+                existing.contact_phone = self._extract_phone(chat_id)
+
             return "updated"
         else:
             # Create new record
@@ -265,6 +371,7 @@ class ChatSyncService:
                 canonical_chat_id=canonical_id,
                 name=name,
                 chat_type=chat_type,
+                avatar_url=avatar_url,
                 message_count=msg_data.get("message_count", 0),
                 last_message_at=msg_data.get("last_message_at"),
                 last_message_preview=preview,

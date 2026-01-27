@@ -1,8 +1,8 @@
 """Add skip_media_processing column to omni_chats
 
-Revision ID: 014
-Revises: 013
-Create Date: 2024-01-27
+Revision ID: 014_skip_media_processing
+Revises: 013_omni_chats
+Create Date: 2026-01-27
 
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "014"
-down_revision = "013"
+revision = "014_skip_media_processing"
+down_revision = "013_omni_chats"
 branch_labels = None
 depends_on = None
 
