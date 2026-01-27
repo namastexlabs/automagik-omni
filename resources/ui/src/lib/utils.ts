@@ -109,7 +109,9 @@ export function formatTimestampForChat(timestamp: number | string | undefined): 
 export function formatLogTimestamp(timestamp: string | undefined): string {
   if (!timestamp) return '';
   try {
-    const date = new Date(timestamp);
+    // Normalize UTC timestamp if it's an ISO string without timezone
+    const normalized = normalizeUtcTimestamp(timestamp);
+    const date = parseISO(normalized);
     return format(date, 'h:mm:ss a');
   } catch {
     return '';

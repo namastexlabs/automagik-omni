@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session as SQLAlchemySession
 from src.db.database import get_db
 from src.db.models import EvolutionInstance, EvolutionMessage
 from src.db.trace_models import OmniMessageRecord
+from src.services.chat_id_resolver import ChatIdResolver
 from src.utils.datetime_utils import datetime_utcnow
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ class MessageImportService:
     def __init__(self, db: SQLAlchemySession):
         self.db = db
         self._instance_cache: Dict[str, str] = {}  # instanceId -> instance_name
+        self._chat_id_resolver = ChatIdResolver(db)
 
     def _get_instance_name(self, instance_id: str) -> Optional[str]:
         """Get instance name from Evolution instance ID."""
@@ -268,12 +270,16 @@ class MessageImportService:
             # Convert Unix timestamp to datetime
             msg_timestamp = datetime.utcfromtimestamp(evo_msg.messageTimestamp)
 
+            # Resolve canonical chat ID for unified conversations
+            canonical_chat_id = self._chat_id_resolver.get_canonical_id(instance_name, chat_id)
+
             # Create record
             record = OmniMessageRecord(
                 id=OmniMessageRecord.generate_id(instance_name, platform_message_id),
                 instance_name=instance_name,
                 channel_type="whatsapp",
                 chat_id=chat_id,
+                canonical_chat_id=canonical_chat_id,
                 platform_message_id=platform_message_id,
                 direction="outbound" if is_from_me else "inbound",
                 sender_id=sender_id,
@@ -504,21 +510,36 @@ class MessageImportService:
         return self.import_from_evolution(instance_name, days=days, batch_size=500)
 
 
-def import_messages_for_instance(instance_name: str, days: int = 30) -> Dict[str, Any]:
+def import_messages_for_instance(instance_name: str, days: int = 30, discover_mappings: bool = True) -> Dict[str, Any]:
     """
     Utility function to import messages for an instance.
 
     Args:
         instance_name: Instance to import
         days: Days of history to import
+        discover_mappings: If True, run chat ID mapping discovery after import
 
     Returns:
-        Import statistics dictionary
+        Import statistics dictionary with optional mapping stats
     """
     db = next(get_db())
     try:
         service = MessageImportService(db)
         stats = service.import_from_evolution(instance_name, days=days)
-        return stats.to_dict()
+        result = stats.to_dict()
+
+        # Optionally discover and apply chat ID mappings
+        if discover_mappings:
+            resolver = ChatIdResolver(db)
+
+            # Discover mappings by matching sender names
+            discovery_stats = resolver.discover_mappings_by_sender_name(instance_name)
+            result["mapping_discovery"] = discovery_stats
+
+            # Update canonical_chat_id for messages with known mappings
+            update_stats = resolver.update_canonical_chat_ids(instance_name)
+            result["mapping_updates"] = update_stats
+
+        return result
     finally:
         db.close()

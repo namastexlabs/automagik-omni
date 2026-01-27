@@ -19,6 +19,7 @@ from src.db.trace_models import MediaContent, BatchJob, OmniMessageRecord
 from src.db.database import SessionLocal
 from src.services.media_processing import media_processing_service
 from src.services.message_import import MessageImportService
+from src.services.chat_id_resolver import ChatIdResolver
 from src.services.sync_job import start_sync_job, stop_sync_job, get_sync_job_status
 from src.utils.datetime_utils import datetime_utcnow
 
@@ -884,7 +885,10 @@ async def get_stored_messages_stats(
 @router.get("/messages/stored")
 async def list_stored_messages(
     instance_name: str = Query(..., description="Instance name"),
-    chat_id: Optional[str] = Query(None, description="Filter by chat"),
+    chat_id: Optional[str] = Query(None, description="Filter by chat ID"),
+    unified: bool = Query(
+        False, description="Use canonical_chat_id for unified conversation queries (merges @lid and @s.whatsapp.net)"
+    ),
     message_type: Optional[str] = Query(None, description="Filter by message type"),
     has_media: Optional[bool] = Query(None, description="Filter by media presence"),
     source: Optional[str] = Query(None, description="Filter by source (webhook, sync, api)"),
@@ -894,12 +898,26 @@ async def list_stored_messages(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """List stored messages from omni_messages table."""
+    """
+    List stored messages from omni_messages table.
+
+    When unified=true, uses canonical_chat_id to return messages from unified conversations.
+    This merges messages from different WhatsApp chat ID formats (@lid and @s.whatsapp.net)
+    that belong to the same contact.
+    """
     try:
         query = db.query(OmniMessageRecord).filter(OmniMessageRecord.instance_name == instance_name)
 
         if chat_id:
-            query = query.filter(OmniMessageRecord.chat_id == chat_id)
+            if unified:
+                # Resolve to canonical chat ID and query by that
+                resolver = ChatIdResolver(db)
+                canonical_id = resolver.get_canonical_id(instance_name, chat_id)
+                query = query.filter(OmniMessageRecord.canonical_chat_id == canonical_id)
+            else:
+                # Direct chat_id match (legacy behavior)
+                query = query.filter(OmniMessageRecord.chat_id == chat_id)
+
         if message_type:
             query = query.filter(OmniMessageRecord.message_type == message_type)
         if has_media is not None:
@@ -918,6 +936,7 @@ async def list_stored_messages(
             "has_more": offset + limit < total,
             "instance_name": instance_name,
             "chat_id": chat_id,
+            "unified": unified,
         }
 
     except Exception as e:

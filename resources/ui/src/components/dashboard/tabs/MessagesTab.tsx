@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, TraceAnalytics, Trace, cn } from '@/lib';
+import { api, TraceAnalytics, Trace, cn, formatRelativeTime } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MessageTypesChart } from '../charts/MessageTypesChart';
 import { useTimeRange } from '../TimeRangeSelector';
 import { Badge } from '@/components/ui/badge';
-import { formatDistanceToNow } from 'date-fns';
 
 function StatusBadge({ status }: { status: Trace['status'] }) {
   const variants: Record<string, { className: string; label: string }> = {
@@ -56,7 +55,7 @@ function TracesTable({ traces, isLoading }: { traces: Trace[]; isLoading: boolea
           {traces.map((trace) => (
             <tr key={trace.trace_id} className="border-b hover:bg-muted/50">
               <td className="py-3 px-2 text-muted-foreground">
-                {trace.received_at ? formatDistanceToNow(new Date(trace.received_at), { addSuffix: true }) : '-'}
+                {trace.received_at ? formatRelativeTime(trace.received_at) : '-'}
               </td>
               <td className="py-3 px-2">
                 <div className="font-medium">{trace.sender_name || 'Unknown'}</div>

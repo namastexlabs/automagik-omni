@@ -706,6 +706,7 @@ class WhatsAppMessageHandler:
         try:
             from src.db.database import SessionLocal
             from src.db.trace_models import OmniMessageRecord
+            from src.services.chat_id_resolver import ChatIdResolver
 
             # Extract message data
             data = message.get("data", {})
@@ -829,6 +830,10 @@ class WhatsAppMessageHandler:
             # Save to database
             db_session = SessionLocal()
             try:
+                # Resolve canonical chat ID for unified conversations
+                resolver = ChatIdResolver(db_session)
+                canonical_chat_id = resolver.get_canonical_id(instance_name, chat_id)
+
                 # Check if exists (upsert logic)
                 existing = db_session.query(OmniMessageRecord).filter(OmniMessageRecord.id == record_id).first()
 
@@ -836,6 +841,9 @@ class WhatsAppMessageHandler:
                     # Update only specific fields (don't overwrite content_raw)
                     if not existing.trace_id and trace_context:
                         existing.trace_id = trace_context.trace_id
+                    # Update canonical_chat_id if not set
+                    if not existing.canonical_chat_id:
+                        existing.canonical_chat_id = canonical_chat_id
                     existing.updated_at = datetime_utcnow()
                     db_session.commit()
                     logger.debug(f"Updated existing omni_message: {record_id}")
@@ -847,6 +855,7 @@ class WhatsAppMessageHandler:
                     instance_name=instance_name,
                     channel_type="whatsapp",
                     chat_id=chat_id,
+                    canonical_chat_id=canonical_chat_id,
                     platform_message_id=platform_message_id,
                     direction="outbound" if is_from_me else "inbound",
                     sender_id=sender_id,

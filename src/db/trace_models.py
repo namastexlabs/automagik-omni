@@ -460,6 +460,7 @@ class OmniMessageRecord(Base):
     instance_name = Column(String(255), ForeignKey("omni_instance_configs.name"), nullable=False, index=True)
     channel_type = Column(String(20), nullable=False)  # 'whatsapp', 'discord'
     chat_id = Column(String(255), nullable=False)  # remoteJid for WhatsApp, channel_id for Discord
+    canonical_chat_id = Column(String(255), nullable=True, index=True)  # Normalized chat ID for unified queries
 
     # Platform-specific identification
     platform_message_id = Column(String(255), nullable=False)  # WhatsApp key.id, Discord message.id
@@ -565,6 +566,7 @@ class OmniMessageRecord(Base):
             "instance_name": self.instance_name,
             "channel_type": self.channel_type,
             "chat_id": self.chat_id,
+            "canonical_chat_id": self.canonical_chat_id,
             "platform_message_id": self.platform_message_id,
             "platform_key": self.get_platform_key(),
             "direction": self.direction,
@@ -602,3 +604,43 @@ class OmniMessageRecord(Base):
     def generate_id(cls, instance_name: str, platform_message_id: str) -> str:
         """Generate composite primary key."""
         return f"{instance_name}:{platform_message_id}"
+
+
+class ChatIdMapping(Base):
+    """
+    Maps alternate chat IDs to canonical chat IDs.
+
+    WhatsApp uses different chat ID formats:
+    - @s.whatsapp.net: Phone number format (e.g., 553488722041@s.whatsapp.net)
+    - @lid: Linked device ID format (e.g., 179538357133535@lid)
+    - @g.us: Group format
+
+    The same contact can have multiple chat IDs depending on how messages are sent.
+    This table stores known mappings to enable unified conversation queries.
+    """
+
+    __tablename__ = "omni_chat_id_mappings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    instance_name = Column(String(255), ForeignKey("omni_instance_configs.name"), nullable=False)
+
+    # The canonical ID (usually @s.whatsapp.net format with phone number)
+    canonical_chat_id = Column(String(255), nullable=False, index=True)
+
+    # The alternative ID (@lid format)
+    alternate_chat_id = Column(String(255), nullable=False, index=True)
+
+    # Contact name for reference
+    contact_name = Column(String(255), nullable=True)
+
+    # Phone number extracted (if available)
+    phone_number = Column(String(50), nullable=True)
+
+    # How this mapping was discovered
+    discovery_method = Column(String(50), nullable=True)  # 'sender_name', 'manual', 'api'
+
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<ChatIdMapping(canonical='{self.canonical_chat_id}', alternate='{self.alternate_chat_id}')>"

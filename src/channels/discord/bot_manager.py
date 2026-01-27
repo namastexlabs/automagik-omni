@@ -10,7 +10,9 @@ import logging
 import random
 from typing import Dict, Optional, Any, List
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+
+from src.utils.datetime_utils import utcnow
 import json
 import os
 from aiohttp import web
@@ -81,13 +83,13 @@ class AutomagikBot(commands.Bot):
         self.instance_name = instance_name
         self.manager = manager
         self.start_time = None
-        self.last_heartbeat = datetime.now(timezone.utc)
+        self.last_heartbeat = utcnow()
         self._heartbeat_task = None
 
     async def on_ready(self):
         """Called when bot is ready."""
-        self.start_time = datetime.now(timezone.utc)
-        self.last_heartbeat = datetime.now(timezone.utc)
+        self.start_time = utcnow()
+        self.last_heartbeat = utcnow()
 
         logger.info(f"Discord bot '{self.instance_name}' is ready!")
         logger.info(f"Bot user: {self.user}")
@@ -102,7 +104,7 @@ class AutomagikBot(commands.Bot):
 
     async def on_message(self, message):
         """Handle incoming messages."""
-        self.last_heartbeat = datetime.now(timezone.utc)
+        self.last_heartbeat = utcnow()
 
         # Update health monitor heartbeat
         health_monitor = self.manager.health_monitors.get(self.instance_name)
@@ -585,7 +587,7 @@ class DiscordBotManager:
         if not circuit_breaker.is_open:
             return False
 
-        current_time = datetime.now(timezone.utc)
+        current_time = utcnow()
 
         # Check if recovery timeout has passed
         if circuit_breaker.next_retry_time and current_time >= circuit_breaker.next_retry_time:
@@ -610,7 +612,7 @@ class DiscordBotManager:
         # Mark circuit breaker as permanently failed
         circuit_breaker.is_open = True
         circuit_breaker.consecutive_failures += 1
-        circuit_breaker.last_failure_time = datetime.now(timezone.utc)
+        circuit_breaker.last_failure_time = utcnow()
 
         # Cleanup resources immediately for permanent failures
         await self._cleanup_bot(instance_name)
@@ -628,14 +630,12 @@ class DiscordBotManager:
         """Handle connection failures with circuit breaker logic."""
         circuit_breaker.failure_count += 1
         circuit_breaker.consecutive_failures += 1
-        circuit_breaker.last_failure_time = datetime.now(timezone.utc)
+        circuit_breaker.last_failure_time = utcnow()
 
         # Check if circuit breaker should open
         if circuit_breaker.consecutive_failures >= circuit_breaker.failure_threshold and not circuit_breaker.is_open:
             circuit_breaker.is_open = True
-            circuit_breaker.next_retry_time = datetime.now(timezone.utc) + timedelta(
-                seconds=circuit_breaker.recovery_timeout
-            )
+            circuit_breaker.next_retry_time = utcnow() + timedelta(seconds=circuit_breaker.recovery_timeout)
             logger.warning(
                 f"Circuit breaker OPENED for bot '{instance_name}' after {circuit_breaker.consecutive_failures} "
                 f"consecutive failures. Recovery timeout: {circuit_breaker.recovery_timeout}s"
@@ -1230,7 +1230,7 @@ class DiscordBotManager:
             )
 
             # Add timestamp
-            embed.timestamp = datetime.now(timezone.utc)
+            embed.timestamp = utcnow()
 
             await ctx.send(embed=embed)
             logger.info(f"Help command executed for {instance_name}")
@@ -1413,7 +1413,7 @@ def create_embed(
                 inline=field.get("inline", False),
             )
 
-    embed.timestamp = datetime.now(timezone.utc)
+    embed.timestamp = utcnow()
     return embed
 
 

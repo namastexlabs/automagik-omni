@@ -8,7 +8,8 @@ import logging
 import requests
 from typing import Dict, Any, Optional, Union
 import threading
-from datetime import datetime, timezone
+
+from src.utils.datetime_utils import utcnow
 import time
 import os
 import mimetypes
@@ -346,7 +347,7 @@ class WhatsAppClient:
             response_data = {
                 "direction": "outbound",
                 "status": "sent",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": utcnow().isoformat(),
                 "recipient": formatted_recipient,
                 "text": text,
                 "raw_response": response.json() if response.content else None,
@@ -513,7 +514,7 @@ class WhatsAppClient:
             response_data = {
                 "direction": "outbound",
                 "status": "sent",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": utcnow().isoformat(),
                 "recipient": recipient,
                 "media_url": media_url,
                 "media_type": media_type,

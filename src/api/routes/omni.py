@@ -5,9 +5,10 @@ Provides consistent access to contacts, chats, and channel information across al
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List, Tuple
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
 from src.api.deps import get_database, verify_api_key, get_instance_by_name
 from src.api.schemas.omni import (
     OmniContactsResponse,
@@ -16,6 +17,7 @@ from src.api.schemas.omni import (
     OmniMessagesResponse,
     OmniContact,
     OmniChat,
+    OmniChatType,
     ChannelType,
     ValidateRecipientRequest,
     ValidateRecipientResponse,
@@ -23,6 +25,7 @@ from src.api.schemas.omni import (
     RecipientProfile,
 )
 from src.db.models import InstanceConfig
+from src.db.trace_models import OmniMessageRecord
 from src.channels.base import ChannelHandlerFactory
 from src.channels.handlers.whatsapp_chat_handler import WhatsAppChatHandler
 from src.channels.omni_base import OmniChannelHandler
@@ -56,6 +59,99 @@ def get_omni_handler(channel_type: str) -> OmniChannelHandler:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Omni operations not supported for channel type: {channel_type}",
         )
+
+
+def _get_chats_from_local(
+    db: Session,
+    instance_name: str,
+    channel_type: str,
+    page: int = 1,
+    page_size: int = 50,
+    chat_type_filter: Optional[str] = None,
+) -> Tuple[List[OmniChat], int]:
+    """
+    Get chats from local omni_messages table using canonical_chat_id for unified conversations.
+
+    Aggregates messages by canonical_chat_id to provide unified chat list.
+    """
+    # Subquery to get latest message and stats per canonical chat
+    # Use canonical_chat_id if set, otherwise fall back to chat_id
+    chat_stats = (
+        db.query(
+            func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id).label("chat_id"),
+            func.max(OmniMessageRecord.message_timestamp).label("last_message_at"),
+            func.count(OmniMessageRecord.id).label("message_count"),
+            func.max(OmniMessageRecord.sender_name).label("last_sender_name"),
+        )
+        .filter(OmniMessageRecord.instance_name == instance_name)
+        .group_by(func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id))
+    )
+
+    # Apply chat type filter
+    if chat_type_filter:
+        if chat_type_filter == "group":
+            chat_stats = chat_stats.having(
+                func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id).like("%@g.us")
+            )
+        elif chat_type_filter == "direct":
+            chat_stats = chat_stats.having(
+                ~func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id).like("%@g.us")
+            )
+
+    # Get total count
+    total_count = chat_stats.count()
+
+    # Apply pagination and ordering
+    chat_results = chat_stats.order_by(desc("last_message_at")).offset((page - 1) * page_size).limit(page_size).all()
+
+    # Build OmniChat objects
+    chats = []
+    for row in chat_results:
+        chat_id = row.chat_id
+        is_group = chat_id.endswith("@g.us") if chat_id else False
+
+        # Determine chat type
+        if is_group:
+            chat_type = OmniChatType.GROUP
+        else:
+            chat_type = OmniChatType.DIRECT
+
+        # Get chat name - for direct chats, get the contact name from recent messages
+        chat_name = row.last_sender_name or chat_id
+        if not is_group and chat_id:
+            # Try to get a better name from recent inbound messages
+            recent_msg = (
+                db.query(OmniMessageRecord.sender_name)
+                .filter(
+                    OmniMessageRecord.instance_name == instance_name,
+                    func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id) == chat_id,
+                    OmniMessageRecord.is_from_me == False,  # noqa: E712
+                    OmniMessageRecord.sender_name.isnot(None),
+                )
+                .order_by(OmniMessageRecord.message_timestamp.desc())
+                .first()
+            )
+            if recent_msg and recent_msg[0]:
+                chat_name = recent_msg[0]
+
+        chats.append(
+            OmniChat(
+                id=chat_id,
+                name=chat_name,
+                chat_type=chat_type,
+                channel_type=ChannelType(channel_type),
+                instance_name=instance_name,
+                participant_count=None,  # Would need separate query for groups
+                is_muted=False,
+                is_archived=False,
+                is_pinned=False,
+                unread_count=None,  # Not tracked in omni_messages
+                last_message_at=row.last_message_at,
+                channel_data={"message_count": row.message_count},
+            )
+        )
+
+    return chats, total_count
 
 
 @router.get("/{instance_name}/contacts", response_model=OmniContactsResponse)
@@ -151,6 +247,9 @@ async def get_omni_chats(
     archived: Optional[bool] = Query(None, description="Filter by archived status"),
     has_unread: Optional[bool] = Query(None, description="Filter by unread status (true=has unread, false=no unread)"),
     channel_type: Optional[ChannelType] = Query(None, description="Filter by specific channel type"),
+    source: str = Query(
+        "local", description="Data source: 'local' (omni_messages, unified) or 'evolution' (Evolution API)"
+    ),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
@@ -160,13 +259,20 @@ async def get_omni_chats(
     Supports pagination and filtering across all channel types.
     Returns chats in a consistent format regardless of the underlying channel.
 
+    Data Sources:
+    - source=local (default): Reads from local omni_messages table with unified conversations
+      (merges @lid and @s.whatsapp.net formats using canonical_chat_id)
+    - source=evolution: Calls Evolution API directly (legacy behavior)
+
     Filters:
     - chat_type_filter: Filter by chat type (direct, group, channel, thread)
-    - archived: Filter by archived status
-    - has_unread: Filter by unread status (true=only chats with unread messages, false=only fully read chats)
+    - archived: Filter by archived status (evolution source only)
+    - has_unread: Filter by unread status (evolution source only)
     """
     try:
-        logger.info(f"Fetching omni chats for instance '{instance_name}' - page: {page}, size: {page_size}")
+        logger.info(
+            f"Fetching omni chats for instance '{instance_name}' - page: {page}, size: {page_size}, source: {source}"
+        )
 
         # Get instance configuration
         instance = get_instance_by_name(instance_name, db)
@@ -191,27 +297,40 @@ async def get_omni_chats(
                 ],
             )
 
-        # Get omni handler for instance channel type
-        handler = get_omni_handler(instance.channel_type)
+        # Choose data source
+        if source == "local":
+            # Read from local omni_messages table (unified conversations)
+            chats, total_count = _get_chats_from_local(
+                db=db,
+                instance_name=instance_name,
+                channel_type=instance.channel_type,
+                page=page,
+                page_size=page_size,
+                chat_type_filter=chat_type_filter,
+            )
+            # Note: archived and has_unread filters not supported for local source
+            if archived is not None or has_unread is not None:
+                logger.warning("archived and has_unread filters are not supported with source=local")
+        else:
+            # Use Evolution API (legacy behavior)
+            handler = get_omni_handler(instance.channel_type)
+            chats, total_count = await handler.get_chats(
+                instance=instance,
+                page=page,
+                page_size=page_size,
+                chat_type_filter=chat_type_filter,
+                archived=archived,
+            )
 
-        # Fetch chats
-        chats, total_count = await handler.get_chats(
-            instance=instance,
-            page=page,
-            page_size=page_size,
-            chat_type_filter=chat_type_filter,
-            archived=archived,
-        )
-
-        # Apply has_unread filter (post-fetch filtering)
-        if has_unread is not None:
-            if has_unread:
-                # Only chats with unread messages
-                chats = [c for c in chats if (c.unread_count or 0) > 0]
-            else:
-                # Only chats with no unread messages
-                chats = [c for c in chats if (c.unread_count or 0) == 0]
-            total_count = len(chats)
+            # Apply has_unread filter (post-fetch filtering) - only for evolution source
+            if has_unread is not None:
+                if has_unread:
+                    # Only chats with unread messages
+                    chats = [c for c in chats if (c.unread_count or 0) > 0]
+                else:
+                    # Only chats with no unread messages
+                    chats = [c for c in chats if (c.unread_count or 0) == 0]
+                total_count = len(chats)
 
         # Calculate pagination info
         has_more = (page * page_size) < total_count

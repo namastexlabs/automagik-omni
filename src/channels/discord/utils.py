@@ -11,7 +11,9 @@ import json
 import logging
 from typing import List, Dict, Optional, Union, Any
 from urllib.parse import urlencode
-from datetime import datetime, timezone
+from datetime import datetime
+
+from src.utils.datetime_utils import utcnow
 from enum import IntFlag
 
 logger = logging.getLogger(__name__)
@@ -383,7 +385,7 @@ class EmbedBuilder:
     def timestamp(self, timestamp: Optional[datetime] = None) -> "EmbedBuilder":
         """Set embed timestamp."""
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = utcnow()
         self.embed_data["timestamp"] = timestamp.isoformat()
         return self
 

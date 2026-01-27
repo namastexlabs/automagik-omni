@@ -5,7 +5,9 @@ import logging
 import time
 from typing import Dict, Optional, Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
+
+from src.utils.datetime_utils import utcnow
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +76,7 @@ class HealthMonitor:
         return HealthStatus(
             instance_name=self.instance_name,
             status=status,
-            last_check=datetime.now(timezone.utc),
+            last_check=utcnow(),
             uptime=uptime,
             error_count=self.error_count,
             last_error=self.last_error,

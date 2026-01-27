@@ -590,8 +590,8 @@ async def health_check():
     import os
     import resource
     import subprocess
-    from datetime import datetime, timezone
     from src.db import get_engine
+    from src.utils.datetime_utils import utcnow
 
     # Get PID
     pid = os.getpid()
@@ -641,7 +641,7 @@ async def health_check():
     health_status = {
         "status": "healthy",
         "version": config.api.version,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": utcnow().isoformat(),
         "services": {
             "api": {
                 "status": "up",
