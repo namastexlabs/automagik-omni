@@ -644,3 +644,65 @@ class ChatIdMapping(Base):
 
     def __repr__(self):
         return f"<ChatIdMapping(canonical='{self.canonical_chat_id}', alternate='{self.alternate_chat_id}')>"
+
+
+class OmniChatRecord(Base):
+    """
+    Local chat metadata storage for fast queries without Evolution API dependency.
+
+    Synced from evo_Chat with additional computed fields from omni_messages.
+    """
+
+    __tablename__ = "omni_chats"
+
+    # Primary key: composite format {instance}:{chat_id}
+    id = Column(String(512), primary_key=True)
+
+    # Instance linkage
+    instance_name = Column(String(255), ForeignKey("omni_instance_configs.name"), nullable=False)
+    channel_type = Column(String(20), nullable=False)  # 'whatsapp', 'discord'
+
+    # Chat identification
+    chat_id = Column(String(255), nullable=False, index=True)  # remoteJid for WhatsApp
+    canonical_chat_id = Column(String(255), nullable=True, index=True)  # Unified ID
+
+    # Chat metadata
+    name = Column(String(255), nullable=True)  # Display name
+    chat_type = Column(String(20), nullable=False)  # 'direct', 'group', 'channel'
+    avatar_url = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+
+    # Participant info (for groups)
+    participant_count = Column(Integer, nullable=True)
+
+    # Status flags
+    is_muted = Column(Boolean, default=False, nullable=False)
+    is_archived = Column(Boolean, default=False, nullable=False)
+    is_pinned = Column(Boolean, default=False, nullable=False)
+    is_read_only = Column(Boolean, default=False, nullable=False)
+
+    # Message stats (computed from omni_messages)
+    unread_count = Column(Integer, default=0, nullable=True)
+    message_count = Column(Integer, default=0, nullable=True)
+    last_message_at = Column(DateTime, nullable=True)
+    last_message_preview = Column(String(255), nullable=True)
+
+    # Contact info (for direct chats)
+    contact_name = Column(String(255), nullable=True)  # From sender_name
+    contact_phone = Column(String(50), nullable=True)  # Extracted phone
+
+    # Sync tracking
+    evo_chat_id = Column(String(255), nullable=True)  # Link to evo_Chat.id
+    synced_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    @staticmethod
+    def generate_id(instance_name: str, chat_id: str) -> str:
+        """Generate composite ID."""
+        return f"{instance_name}:{chat_id}"
+
+    def __repr__(self):
+        return f"<OmniChatRecord(id='{self.id}', name='{self.name}', type='{self.chat_type}')>"
