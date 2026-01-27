@@ -61,6 +61,30 @@ def get_omni_handler(channel_type: str) -> OmniChannelHandler:
         )
 
 
+def _get_chat_names_from_evo(db: Session, instance_name: str, chat_ids: List[str]) -> dict:
+    """Get chat names from evo_Chat table (has group names)."""
+    from sqlalchemy import text
+
+    if not chat_ids:
+        return {}
+
+    try:
+        result = db.execute(
+            text("""
+                SELECT c."remoteJid", c.name
+                FROM "evo_Chat" c
+                JOIN "evo_Instance" i ON c."instanceId" = i.id
+                WHERE i.name = :instance_name
+                AND c."remoteJid" = ANY(:chat_ids)
+            """),
+            {"instance_name": instance_name, "chat_ids": chat_ids},
+        ).fetchall()
+        return {r[0]: r[1] for r in result if r[1] and r[1] != "None"}
+    except Exception as e:
+        logger.warning(f"Failed to get chat names from evo_Chat: {e}")
+        return {}
+
+
 def _get_chats_from_local(
     db: Session,
     instance_name: str,
@@ -73,6 +97,7 @@ def _get_chats_from_local(
     Get chats from local omni_messages table using canonical_chat_id for unified conversations.
 
     Aggregates messages by canonical_chat_id to provide unified chat list.
+    Uses evo_Chat for group names, sender_name for direct chat names.
     """
     # Subquery to get latest message and stats per canonical chat
     # Use canonical_chat_id if set, otherwise fall back to chat_id
@@ -81,7 +106,6 @@ def _get_chats_from_local(
             func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id).label("chat_id"),
             func.max(OmniMessageRecord.message_timestamp).label("last_message_at"),
             func.count(OmniMessageRecord.id).label("message_count"),
-            func.max(OmniMessageRecord.sender_name).label("last_sender_name"),
         )
         .filter(OmniMessageRecord.instance_name == instance_name)
         .group_by(func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id))
@@ -104,22 +128,17 @@ def _get_chats_from_local(
     # Apply pagination and ordering
     chat_results = chat_stats.order_by(desc("last_message_at")).offset((page - 1) * page_size).limit(page_size).all()
 
-    # Build OmniChat objects
-    chats = []
-    for row in chat_results:
-        chat_id = row.chat_id
-        is_group = chat_id.endswith("@g.us") if chat_id else False
+    # Get chat IDs for name lookup
+    chat_ids = [row.chat_id for row in chat_results if row.chat_id]
 
-        # Determine chat type
-        if is_group:
-            chat_type = OmniChatType.GROUP
-        else:
-            chat_type = OmniChatType.DIRECT
+    # Get group names from evo_Chat
+    evo_names = _get_chat_names_from_evo(db, instance_name, chat_ids)
 
-        # Get chat name - for direct chats, get the contact name from recent messages
-        chat_name = row.last_sender_name or chat_id
-        if not is_group and chat_id:
-            # Try to get a better name from recent inbound messages
+    # Get contact names for direct chats from inbound messages
+    direct_chat_ids = [cid for cid in chat_ids if not cid.endswith("@g.us")]
+    contact_names = {}
+    if direct_chat_ids:
+        for chat_id in direct_chat_ids:
             recent_msg = (
                 db.query(OmniMessageRecord.sender_name)
                 .filter(
@@ -127,12 +146,36 @@ def _get_chats_from_local(
                     func.coalesce(OmniMessageRecord.canonical_chat_id, OmniMessageRecord.chat_id) == chat_id,
                     OmniMessageRecord.is_from_me == False,  # noqa: E712
                     OmniMessageRecord.sender_name.isnot(None),
+                    OmniMessageRecord.sender_name != "",
                 )
                 .order_by(OmniMessageRecord.message_timestamp.desc())
                 .first()
             )
             if recent_msg and recent_msg[0]:
-                chat_name = recent_msg[0]
+                contact_names[chat_id] = recent_msg[0]
+
+    # Build OmniChat objects
+    chats = []
+    for row in chat_results:
+        chat_id = row.chat_id
+        is_group = chat_id.endswith("@g.us") if chat_id else False
+        is_broadcast = chat_id.endswith("@broadcast") if chat_id else False
+
+        # Determine chat type
+        if is_group:
+            chat_type = OmniChatType.GROUP
+        elif is_broadcast:
+            chat_type = OmniChatType.CHANNEL
+        else:
+            chat_type = OmniChatType.DIRECT
+
+        # Get chat name from appropriate source
+        if is_group or is_broadcast:
+            # Use evo_Chat name for groups/broadcasts
+            chat_name = evo_names.get(chat_id, chat_id)
+        else:
+            # Use contact name from messages for direct chats
+            chat_name = contact_names.get(chat_id, chat_id)
 
         chats.append(
             OmniChat(
