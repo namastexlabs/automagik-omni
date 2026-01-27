@@ -114,6 +114,31 @@ class MessageDeliveryStatus(str, Enum):
     UNKNOWN = "unknown"  # Status unknown
 
 
+class MessageSource(str, Enum):
+    """Source of message ingestion into omni_messages."""
+
+    WEBHOOK = "webhook"  # Real-time message via Evolution webhook
+    SYNC = "sync"  # Imported from evo_Message table
+    API = "api"  # Fetched on-demand via Evolution API
+
+
+class MediaStatus(str, Enum):
+    """Status of media download/processing workflow."""
+
+    PENDING = "pending"  # Media not yet downloaded
+    DOWNLOADED = "downloaded"  # Media downloaded to local storage
+    PROCESSED = "processed"  # Media content extracted (transcript, description)
+    FAILED = "failed"  # Download or processing failed
+    EXPIRED = "expired"  # URL expired and could not be re-fetched
+
+
+class MessageDirection(str, Enum):
+    """Message direction relative to the instance."""
+
+    INBOUND = "inbound"  # Message received by the instance
+    OUTBOUND = "outbound"  # Message sent by the instance
+
+
 class OmniMessage(BaseModel):
     """Omni message representation across all channels."""
 
@@ -321,3 +346,112 @@ class ValidateRecipientResponse(BaseModel):
     # Instance information
     instance_name: str = Field(..., description="Instance used for validation")
     channel_type: ChannelType = Field(..., description="Channel type")
+
+
+# =============================================================================
+# Unified Message Store Models (omni_messages table)
+# =============================================================================
+
+
+class StoredMessageBase(BaseModel):
+    """Base model for messages stored in omni_messages table."""
+
+    id: str = Field(..., description="Composite ID: {instance}:{platform_message_id}")
+    instance_name: str = Field(..., description="Instance name")
+    channel_type: ChannelType = Field(..., description="Channel type (whatsapp, discord)")
+    chat_id: str = Field(..., description="Chat identifier (remoteJid or channel_id)")
+    platform_message_id: str = Field(..., description="Platform-specific message ID")
+    platform_key: Optional[Dict[str, Any]] = Field(None, description="Full WhatsApp key object")
+
+    direction: MessageDirection = Field(..., description="Message direction (inbound/outbound)")
+    sender_id: Optional[str] = Field(None, description="Sender identifier (JID or user ID)")
+    sender_name: Optional[str] = Field(None, description="Sender display name")
+    is_from_me: bool = Field(False, description="Whether message is from the instance owner")
+
+    message_type: OmniMessageType = Field(..., description="Type of message content")
+    content_text: Optional[str] = Field(None, description="Text content or caption")
+
+    has_media: bool = Field(False, description="Whether message has media attachment")
+    media_url: Optional[str] = Field(None, description="Original media URL (may expire)")
+    media_mime_type: Optional[str] = Field(None, description="Media MIME type")
+    media_size_bytes: Optional[int] = Field(None, description="Media file size in bytes")
+    media_duration_seconds: Optional[int] = Field(None, description="Duration for audio/video")
+    media_status: MediaStatus = Field(MediaStatus.PENDING, description="Media processing status")
+
+    quoted_message_id: Optional[str] = Field(None, description="ID of quoted/replied message")
+    delivery_status: Optional[MessageDeliveryStatus] = Field(None, description="Message delivery status")
+
+    source: MessageSource = Field(..., description="How message was ingested (webhook/sync/api)")
+    message_timestamp: datetime = Field(..., description="Original message timestamp")
+
+
+class StoredMessage(StoredMessageBase):
+    """Full stored message with all fields."""
+
+    media_local_path: Optional[str] = Field(None, description="Local file path after download")
+    media_key: Optional[str] = Field(None, description="WhatsApp media encryption key")
+    media_sha256: Optional[str] = Field(None, description="Media file SHA256 for dedup")
+
+    context_info: Optional[Dict[str, Any]] = Field(None, description="Message context info")
+    content_raw: Optional[Dict[str, Any]] = Field(None, description="Raw platform message object")
+
+    sync_batch_id: Optional[str] = Field(None, description="Sync batch identifier")
+    trace_id: Optional[str] = Field(None, description="Link to message trace record")
+
+    status_updated_at: Optional[datetime] = Field(None, description="When delivery status was updated")
+    created_at: Optional[datetime] = Field(None, description="When record was created")
+    updated_at: Optional[datetime] = Field(None, description="When record was last updated")
+    synced_at: Optional[datetime] = Field(None, description="When message was synced from Evolution")
+
+
+class StoredMessageWithTranscript(StoredMessageBase):
+    """Stored message with media transcript/description if available."""
+
+    transcript: Optional[str] = Field(None, description="Audio transcript or image description")
+    transcript_processor: Optional[str] = Field(None, description="Processor used for transcript")
+    transcript_confidence: Optional[int] = Field(None, description="Transcript confidence score (0-100)")
+
+
+class StoredMessagesResponse(BaseModel):
+    """Response model for stored messages endpoint."""
+
+    messages: List[StoredMessageBase] = Field(..., description="List of stored messages")
+    total_count: int = Field(..., description="Total number of messages")
+    page: int = Field(1, description="Current page number")
+    page_size: int = Field(50, description="Items per page")
+    has_more: bool = Field(False, description="More pages available")
+
+    # Filtering info
+    instance_name: str = Field(..., description="Instance name filter")
+    chat_id: Optional[str] = Field(None, description="Chat ID filter if applied")
+    source_filter: Optional[MessageSource] = Field(None, description="Source filter if applied")
+
+    # Stats
+    webhook_count: Optional[int] = Field(None, description="Messages from webhook")
+    sync_count: Optional[int] = Field(None, description="Messages from sync")
+    media_count: Optional[int] = Field(None, description="Messages with media")
+
+
+class MessageImportStats(BaseModel):
+    """Statistics from message import operation."""
+
+    total_found: int = Field(..., description="Total messages found in source")
+    total_imported: int = Field(..., description="Messages successfully imported")
+    already_exists: int = Field(..., description="Messages skipped (already exist)")
+    failed: int = Field(..., description="Messages that failed to import")
+    with_media: int = Field(..., description="Imported messages with media")
+
+    instance_name: str = Field(..., description="Instance that was imported")
+    source: str = Field(..., description="Import source (e.g., 'evo_Message')")
+    started_at: datetime = Field(..., description="Import start time")
+    completed_at: Optional[datetime] = Field(None, description="Import completion time")
+    duration_seconds: Optional[float] = Field(None, description="Import duration")
+
+
+class MessageImportRequest(BaseModel):
+    """Request model for message import endpoint."""
+
+    instance_name: str = Field(..., description="Instance to import messages for")
+    days: int = Field(30, ge=1, le=365, description="Number of days of history to import")
+    batch_size: int = Field(500, ge=100, le=2000, description="Batch size for processing")
+    skip_existing: bool = Field(True, description="Skip messages that already exist")

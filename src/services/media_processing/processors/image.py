@@ -47,7 +47,7 @@ Respond in the same language as any text in the image, or in Portuguese if no te
     def __init__(
         self,
         gemini_api_key: Optional[str] = None,
-        model_name: str = "gemini-2.0-flash",
+        model_name: str = "gemini-2.5-flash",
         custom_prompt: Optional[str] = None,
     ):
         super().__init__()

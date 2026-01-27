@@ -15,9 +15,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from src.api.deps import get_database, verify_api_key
-from src.db.trace_models import MediaContent, BatchJob
+from src.db.trace_models import MediaContent, BatchJob, OmniMessageRecord
 from src.db.database import SessionLocal
 from src.services.media_processing import media_processing_service
+from src.services.message_import import MessageImportService
+from src.services.sync_job import start_sync_job, stop_sync_job, get_sync_job_status
 from src.utils.datetime_utils import datetime_utcnow
 
 logger = logging.getLogger(__name__)
@@ -111,6 +113,64 @@ class ReprocessTraceRequest(BaseModel):
 
     trace_id: str
     language: str = "pt"
+
+
+class MessageImportRequest(BaseModel):
+    """Request model for message import from Evolution."""
+
+    instance_name: str
+    days: int = 30
+    batch_size: int = 500
+    async_mode: bool = True
+
+
+class MessageImportJobResponse(BaseModel):
+    """Response model for async message import job."""
+
+    job_id: str
+    job_type: str
+    status: str
+    instance_name: str
+    days: int
+    message: str
+
+
+class MessageImportStatsResponse(BaseModel):
+    """Response model for sync message import."""
+
+    instance_name: str
+    total_found: int
+    total_imported: int
+    already_exists: int
+    failed: int
+    with_media: int
+    source: str
+    started_at: datetime
+    completed_at: Optional[datetime]
+    duration_seconds: Optional[float]
+
+
+class StoredMessagesStatsResponse(BaseModel):
+    """Response model for stored messages statistics."""
+
+    instance_name: Optional[str]
+    total_messages: int
+    by_source: dict
+    by_type: dict
+    by_media_status: dict
+    with_media: int
+
+
+class OmniMediaBatchRequest(BaseModel):
+    """Request for batch processing from omni_messages (unified store)."""
+
+    content_type: str = "audio"  # 'audio', 'image', 'document'
+    instance_name: Optional[str] = None
+    days_back: int = 30
+    limit: int = 100
+    language: str = "pt"  # For audio transcription
+    force: bool = False
+    async_mode: bool = True
 
 
 async def _run_batch_processing(job_id: str, request_params: dict):
@@ -612,3 +672,734 @@ async def reprocess_trace(
     except Exception as e:
         logger.error(f"Error reprocessing trace: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Message Import Endpoints (Import from evo_Message to omni_messages)
+# =============================================================================
+
+
+async def _run_message_import(job_id: str, instance_name: str, days: int, batch_size: int):
+    """Background task to import messages from Evolution to omni_messages."""
+    db = SessionLocal()
+    try:
+        # Update job to processing
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+        if not job:
+            logger.error(f"Job {job_id} not found")
+            return
+
+        job.status = "processing"
+        job.started_at = datetime_utcnow()
+        db.commit()
+
+        # Run import
+        service = MessageImportService(db)
+
+        def progress_callback(processed: int, total: int):
+            try:
+                job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+                if job:
+                    job.processed_items = processed
+                    job.total_items = total
+                    db.commit()
+            except Exception as e:
+                logger.warning(f"Failed to update import progress: {e}")
+
+        stats = service.import_from_evolution(
+            instance_name=instance_name,
+            days=days,
+            batch_size=batch_size,
+            progress_callback=progress_callback,
+        )
+
+        # Update job as completed
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+        job.status = "completed"
+        job.completed_at = datetime_utcnow()
+        job.total_found = stats.total_found
+        job.total_items = stats.total_imported + stats.already_exists
+        job.processed_items = stats.total_imported
+        job.skipped_items = stats.already_exists
+        job.failed_items = stats.failed
+        job.results_summary = json.dumps(
+            {
+                "with_media": stats.with_media,
+                "source": "evo_Message",
+                "duration_seconds": (stats.completed_at - stats.started_at).total_seconds()
+                if stats.completed_at
+                else None,
+            }
+        )
+        job.current_item = None
+        db.commit()
+
+        logger.info(
+            f"Message import job {job_id} completed: imported {stats.total_imported}, skipped {stats.already_exists}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error in message import job {job_id}: {e}", exc_info=True)
+        try:
+            job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime_utcnow()
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@router.post("/messages/import", response_model=None)
+async def import_messages(
+    request: MessageImportRequest,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Import messages from Evolution's evo_Message table into omni_messages.
+
+    This enables media processing on ALL messages (not just webhook-received)
+    and reduces dependency on Evolution API for message queries.
+
+    If async_mode=True (default), returns immediately with job_id for progress polling.
+    If async_mode=False, waits for completion (may timeout for large imports).
+    """
+    try:
+        if request.async_mode:
+            # Create batch job record
+            import uuid
+
+            job_id = str(uuid.uuid4())
+            job = BatchJob(
+                job_id=job_id,
+                job_type="message_import",
+                instance_name=request.instance_name,
+                request_params=json.dumps(
+                    {
+                        "instance_name": request.instance_name,
+                        "days": request.days,
+                        "batch_size": request.batch_size,
+                    }
+                ),
+                status="pending",
+                total_items=0,
+                processed_items=0,
+                failed_items=0,
+                skipped_items=0,
+            )
+            db.add(job)
+            db.commit()
+
+            # Schedule background processing
+            asyncio.create_task(_run_message_import(job_id, request.instance_name, request.days, request.batch_size))
+
+            return MessageImportJobResponse(
+                job_id=job_id,
+                job_type="message_import",
+                status="pending",
+                instance_name=request.instance_name,
+                days=request.days,
+                message=f"Import started. Poll /batch-jobs/{job_id} for progress.",
+            )
+        else:
+            # Sync mode - process and wait
+            service = MessageImportService(db)
+            stats = service.import_from_evolution(
+                instance_name=request.instance_name,
+                days=request.days,
+                batch_size=request.batch_size,
+            )
+            return MessageImportStatsResponse(**stats.to_dict())
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in message import: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/messages/stored/stats", response_model=StoredMessagesStatsResponse)
+async def get_stored_messages_stats(
+    instance_name: Optional[str] = Query(None, description="Filter by instance"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """Get statistics for stored messages in omni_messages table."""
+    try:
+        from sqlalchemy import func
+
+        base_query = db.query(OmniMessageRecord)
+        if instance_name:
+            base_query = base_query.filter(OmniMessageRecord.instance_name == instance_name)
+
+        # Total count
+        total = base_query.count()
+
+        # By source
+        source_counts = dict(
+            db.query(OmniMessageRecord.source, func.count(OmniMessageRecord.id))
+            .filter(OmniMessageRecord.instance_name == instance_name if instance_name else True)
+            .group_by(OmniMessageRecord.source)
+            .all()
+        )
+
+        # By type
+        type_counts = dict(
+            db.query(OmniMessageRecord.message_type, func.count(OmniMessageRecord.id))
+            .filter(OmniMessageRecord.instance_name == instance_name if instance_name else True)
+            .group_by(OmniMessageRecord.message_type)
+            .all()
+        )
+
+        # By media status
+        media_status_counts = dict(
+            db.query(OmniMessageRecord.media_status, func.count(OmniMessageRecord.id))
+            .filter(OmniMessageRecord.instance_name == instance_name if instance_name else True)
+            .filter(OmniMessageRecord.has_media == True)  # noqa: E712
+            .group_by(OmniMessageRecord.media_status)
+            .all()
+        )
+
+        # With media
+        with_media = base_query.filter(OmniMessageRecord.has_media == True).count()  # noqa: E712
+
+        return StoredMessagesStatsResponse(
+            instance_name=instance_name,
+            total_messages=total,
+            by_source=source_counts,
+            by_type=type_counts,
+            by_media_status=media_status_counts,
+            with_media=with_media,
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting stored messages stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/messages/stored")
+async def list_stored_messages(
+    instance_name: str = Query(..., description="Instance name"),
+    chat_id: Optional[str] = Query(None, description="Filter by chat"),
+    message_type: Optional[str] = Query(None, description="Filter by message type"),
+    has_media: Optional[bool] = Query(None, description="Filter by media presence"),
+    source: Optional[str] = Query(None, description="Filter by source (webhook, sync, api)"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    include_raw: bool = Query(False, description="Include raw message content"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """List stored messages from omni_messages table."""
+    try:
+        query = db.query(OmniMessageRecord).filter(OmniMessageRecord.instance_name == instance_name)
+
+        if chat_id:
+            query = query.filter(OmniMessageRecord.chat_id == chat_id)
+        if message_type:
+            query = query.filter(OmniMessageRecord.message_type == message_type)
+        if has_media is not None:
+            query = query.filter(OmniMessageRecord.has_media == has_media)
+        if source:
+            query = query.filter(OmniMessageRecord.source == source)
+
+        total = query.count()
+        messages = query.order_by(OmniMessageRecord.message_timestamp.desc()).offset(offset).limit(limit).all()
+
+        return {
+            "messages": [msg.to_dict(include_raw=include_raw) for msg in messages],
+            "total_count": total,
+            "page": offset // limit + 1,
+            "page_size": limit,
+            "has_more": offset + limit < total,
+            "instance_name": instance_name,
+            "chat_id": chat_id,
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing stored messages: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Batch Processing from omni_messages (Unified Store)
+# =============================================================================
+
+
+async def _run_omni_batch_processing(job_id: str, request_params: dict):
+    """Background task to batch process media from omni_messages."""
+    db = SessionLocal()
+    try:
+        # Update job to processing
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+        if not job:
+            logger.error(f"Job {job_id} not found")
+            return
+
+        job.status = "processing"
+        job.started_at = datetime_utcnow()
+        db.commit()
+
+        content_type = request_params.get("content_type", "audio")
+        instance_name = request_params.get("instance_name")
+        days_back = request_params.get("days_back", 30)
+        limit = request_params.get("limit", 100)
+        language = request_params.get("language", "pt")
+        force = request_params.get("force", False)
+
+        result = await media_processing_service.batch_reprocess_from_omni_messages(
+            instance_name=instance_name,
+            content_type=content_type,
+            days_back=days_back,
+            limit=limit,
+            language=language,
+            force=force,
+            db=db,
+            progress_callback=lambda item: _update_job_progress(db, job_id, item),
+        )
+
+        # Calculate totals
+        total_cost = Decimal("0")
+        total_tokens = 0
+        for r in result.get("results", []):
+            if r.get("cost_usd"):
+                total_cost += Decimal(str(r["cost_usd"]))
+            if r.get("tokens"):
+                total_tokens += r["tokens"]
+
+        # Update job as completed
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+        job.status = "completed"
+        job.completed_at = datetime_utcnow()
+        job.total_found = result.get("total_found", 0)
+        job.total_items = result.get("total", 0)
+        job.processed_items = result.get("processed", 0)
+        job.failed_items = result.get("failed", 0) + result.get("download_failed", 0)
+        job.skipped_items = result.get("already_processed", 0)
+        job.total_cost_usd = total_cost if total_cost > 0 else None
+        job.total_tokens = total_tokens if total_tokens > 0 else None
+        job.results_summary = json.dumps(
+            {
+                "download_failed": result.get("download_failed", 0),
+                "source": "omni_messages",
+            }
+        )
+        job.current_item = None
+        db.commit()
+
+        logger.info(f"Omni batch job {job_id} completed: {result.get('processed', 0)} processed")
+
+    except Exception as e:
+        logger.error(f"Error in omni batch job {job_id}: {e}", exc_info=True)
+        try:
+            job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime_utcnow()
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@router.post("/messages/stored/reprocess-batch")
+async def reprocess_from_omni_messages(
+    request: OmniMediaBatchRequest,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Batch reprocess media from the unified omni_messages table.
+
+    This processes media from ALL sources (webhook AND synced messages),
+    enabling media processing on historical messages imported from evo_Message.
+
+    Workflow:
+    1. Query omni_messages for media messages of the specified type
+    2. Download media files (if not already downloaded)
+    3. Process media (transcription, description, extraction)
+    4. Store results in omni_media_content and update media_status
+
+    If async_mode=True (default), returns immediately with job_id for progress polling.
+    """
+    try:
+        valid_types = {"audio", "image", "document"}
+        if request.content_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid content_type: {request.content_type}. Valid: {valid_types}",
+            )
+
+        if request.async_mode:
+            import uuid
+
+            job_id = str(uuid.uuid4())
+            job = BatchJob(
+                job_id=job_id,
+                job_type=f"omni_{request.content_type}_reprocess",
+                instance_name=request.instance_name,
+                request_params=json.dumps(
+                    {
+                        "content_type": request.content_type,
+                        "instance_name": request.instance_name,
+                        "days_back": request.days_back,
+                        "limit": request.limit,
+                        "language": request.language,
+                        "force": request.force,
+                        "source": "omni_messages",
+                    }
+                ),
+                status="pending",
+                total_items=0,
+                processed_items=0,
+                failed_items=0,
+                skipped_items=0,
+            )
+            db.add(job)
+            db.commit()
+
+            asyncio.create_task(
+                _run_omni_batch_processing(
+                    job_id,
+                    {
+                        "content_type": request.content_type,
+                        "instance_name": request.instance_name,
+                        "days_back": request.days_back,
+                        "limit": request.limit,
+                        "language": request.language,
+                        "force": request.force,
+                    },
+                )
+            )
+
+            return BatchJobResponse(
+                job_id=job_id,
+                job_type=f"omni_{request.content_type}_reprocess",
+                status="pending",
+                message=f"Processing {request.content_type} from omni_messages. Poll /batch-jobs/{job_id} for progress.",
+            )
+        else:
+            result = await media_processing_service.batch_reprocess_from_omni_messages(
+                instance_name=request.instance_name,
+                content_type=request.content_type,
+                days_back=request.days_back,
+                limit=request.limit,
+                language=request.language,
+                force=request.force,
+                db=db,
+            )
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in omni batch reprocess: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Continuous Sync Job Management
+# =============================================================================
+
+
+class SyncJobRequest(BaseModel):
+    """Request for starting/configuring sync job."""
+
+    instances: Optional[List[str]] = None  # None = all instances
+    interval_minutes: int = 5
+
+
+class DiscordImportRequest(BaseModel):
+    """Request for Discord history import."""
+
+    instance_name: str
+    guild_id: str
+    days_back: int = 7
+    max_messages_per_channel: int = 500
+    channel_ids: Optional[List[str]] = None  # None = all channels
+    skip_channels: Optional[List[str]] = None
+    async_mode: bool = True
+
+
+@router.post("/sync-job/start")
+async def start_sync(
+    request: SyncJobRequest,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Start the continuous message sync job.
+
+    This job periodically syncs new messages from evo_Message to omni_messages,
+    enabling media processing on all historical messages.
+    """
+    try:
+        status = await start_sync_job(
+            instances=request.instances,
+            interval_minutes=request.interval_minutes,
+        )
+        return {
+            "message": "Sync job started",
+            **status,
+        }
+    except Exception as e:
+        logger.error(f"Error starting sync job: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sync-job/stop")
+async def stop_sync(
+    api_key: str = Depends(verify_api_key),
+):
+    """Stop the continuous message sync job."""
+    try:
+        status = await stop_sync_job()
+        return {
+            "message": "Sync job stopped",
+            **status,
+        }
+    except Exception as e:
+        logger.error(f"Error stopping sync job: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sync-job/status")
+async def get_sync_status(
+    api_key: str = Depends(verify_api_key),
+):
+    """Get current status of the continuous sync job."""
+    try:
+        return get_sync_job_status()
+    except Exception as e:
+        logger.error(f"Error getting sync job status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Discord History Import
+# =============================================================================
+
+
+@router.post("/messages/import/discord")
+async def import_discord_history(
+    request: DiscordImportRequest,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Import message history from a Discord guild into omni_messages.
+
+    This fetches historical messages from Discord channels using the Discord API.
+    Requires the bot to be in the guild and have "Read Message History" permission.
+
+    Note: The bot must be running and connected to Discord for this to work.
+
+    If async_mode=True (default), returns immediately with job_id for progress polling.
+    """
+    try:
+        # Import here to avoid circular imports and check if Discord is available
+
+        # Get the Discord handler instance
+        from src.api.app import channel_registry
+
+        discord_handler = channel_registry.get_handler("discord")
+
+        if not discord_handler:
+            raise HTTPException(
+                status_code=400,
+                detail="Discord handler not available. Ensure Discord is enabled.",
+            )
+
+        # Check if the instance exists and is connected
+        if request.instance_name not in discord_handler._bot_instances:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Discord instance '{request.instance_name}' not found or not connected.",
+            )
+
+        bot_instance = discord_handler._bot_instances[request.instance_name]
+        if bot_instance.status != "connected":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Discord instance '{request.instance_name}' is not connected (status: {bot_instance.status}).",
+            )
+
+        # Find the guild
+        guild = None
+        for g in bot_instance.client.guilds:
+            if str(g.id) == request.guild_id:
+                guild = g
+                break
+
+        if not guild:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Guild {request.guild_id} not found. Ensure the bot is in this server.",
+            )
+
+        if request.async_mode:
+            # Create batch job record
+            import uuid
+
+            job_id = str(uuid.uuid4())
+            job = BatchJob(
+                job_id=job_id,
+                job_type="discord_import",
+                instance_name=request.instance_name,
+                request_params=json.dumps(
+                    {
+                        "instance_name": request.instance_name,
+                        "guild_id": request.guild_id,
+                        "guild_name": guild.name,
+                        "days_back": request.days_back,
+                        "max_messages_per_channel": request.max_messages_per_channel,
+                        "channel_ids": request.channel_ids,
+                        "skip_channels": request.skip_channels,
+                    }
+                ),
+                status="pending",
+                total_items=0,
+                processed_items=0,
+                failed_items=0,
+                skipped_items=0,
+            )
+            db.add(job)
+            db.commit()
+
+            # Schedule background processing
+            asyncio.create_task(
+                _run_discord_import(
+                    job_id=job_id,
+                    client=bot_instance.client,
+                    guild=guild,
+                    instance_name=request.instance_name,
+                    days_back=request.days_back,
+                    max_messages_per_channel=request.max_messages_per_channel,
+                    channel_ids=request.channel_ids,
+                    skip_channels=request.skip_channels,
+                )
+            )
+
+            return {
+                "job_id": job_id,
+                "job_type": "discord_import",
+                "status": "pending",
+                "instance_name": request.instance_name,
+                "guild_id": request.guild_id,
+                "guild_name": guild.name,
+                "message": f"Discord import started. Poll /batch-jobs/{job_id} for progress.",
+            }
+        else:
+            # Sync mode
+            from src.services.discord_import import DiscordImportService
+
+            service = DiscordImportService(db)
+            stats = await service.import_guild_history(
+                client=bot_instance.client,
+                guild=guild,
+                instance_name=request.instance_name,
+                days_back=request.days_back,
+                max_messages_per_channel=request.max_messages_per_channel,
+                channel_ids=request.channel_ids,
+                skip_channels=request.skip_channels,
+            )
+            return stats.to_dict()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in Discord import: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _run_discord_import(
+    job_id: str,
+    client,
+    guild,
+    instance_name: str,
+    days_back: int,
+    max_messages_per_channel: int,
+    channel_ids: Optional[List[str]],
+    skip_channels: Optional[List[str]],
+):
+    """Background task to import Discord history."""
+    db = SessionLocal()
+    try:
+        # Update job to processing
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+        if not job:
+            logger.error(f"Job {job_id} not found")
+            return
+
+        job.status = "processing"
+        job.started_at = datetime_utcnow()
+        db.commit()
+
+        # Run import
+        from src.services.discord_import import DiscordImportService
+
+        service = DiscordImportService(db)
+
+        def progress_callback(channel_name: str, imported: int):
+            try:
+                job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+                if job:
+                    job.current_item = f"#{channel_name}"
+                    job.processed_items = (job.processed_items or 0) + imported
+                    db.commit()
+            except Exception as e:
+                logger.warning(f"Failed to update Discord import progress: {e}")
+
+        stats = await service.import_guild_history(
+            client=client,
+            guild=guild,
+            instance_name=instance_name,
+            days_back=days_back,
+            max_messages_per_channel=max_messages_per_channel,
+            channel_ids=channel_ids,
+            skip_channels=skip_channels,
+            progress_callback=progress_callback,
+        )
+
+        # Update job as completed
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+        job.status = "completed"
+        job.completed_at = datetime_utcnow()
+        job.total_found = stats.total_found
+        job.total_items = stats.total_imported + stats.already_exists
+        job.processed_items = stats.total_imported
+        job.skipped_items = stats.already_exists
+        job.failed_items = stats.failed
+        job.results_summary = json.dumps(
+            {
+                "with_media": stats.with_media,
+                "channels_processed": stats.channels_processed,
+                "source": "discord_api",
+                "duration_seconds": (stats.completed_at - stats.started_at).total_seconds()
+                if stats.completed_at
+                else None,
+            }
+        )
+        job.current_item = None
+        db.commit()
+
+        logger.info(f"Discord import job {job_id} completed: {stats.to_dict()}")
+
+    except Exception as e:
+        logger.error(f"Error in Discord import job {job_id}: {e}", exc_info=True)
+        try:
+            job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime_utcnow()
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()

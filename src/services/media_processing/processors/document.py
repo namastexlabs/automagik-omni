@@ -49,7 +49,7 @@ Output the complete text content in markdown format."""
     def __init__(
         self,
         gemini_api_key: Optional[str] = None,
-        gemini_model: str = "gemini-2.0-flash",
+        gemini_model: str = "gemini-2.5-flash",
     ):
         super().__init__()
         self.gemini_api_key = gemini_api_key

@@ -436,3 +436,169 @@ class BatchJob(Base):
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
+
+
+class OmniMessageRecord(Base):
+    """
+    Unified message store that consolidates ALL messages from both webhooks and synced history.
+
+    This is the central message table that enables:
+    - Media processing on ALL messages (not just webhook-received)
+    - Reduced dependency on Evolution API for message queries
+    - Local message serving without Evolution API calls
+    - Full reprocessing capability via stored content_raw
+
+    Deduplication: Unique constraint on (instance_name, platform_message_id)
+    """
+
+    __tablename__ = "omni_messages"
+
+    # Primary key: composite format {instance}:{platform_message_id}
+    id = Column(String(512), primary_key=True)
+
+    # Instance and chat linkage
+    instance_name = Column(String(255), ForeignKey("omni_instance_configs.name"), nullable=False, index=True)
+    channel_type = Column(String(20), nullable=False)  # 'whatsapp', 'discord'
+    chat_id = Column(String(255), nullable=False)  # remoteJid for WhatsApp, channel_id for Discord
+
+    # Platform-specific identification
+    platform_message_id = Column(String(255), nullable=False)  # WhatsApp key.id, Discord message.id
+    platform_key = Column(Text)  # JSONB as Text: Full WhatsApp key object {id, remoteJid, fromMe, participant}
+
+    # Direction and sender
+    direction = Column(String(10), nullable=False)  # 'inbound', 'outbound'
+    sender_id = Column(String(255), nullable=True)  # JID or user ID
+    sender_name = Column(String(255), nullable=True)
+    is_from_me = Column(Boolean, default=False, nullable=False)
+
+    # Message content
+    message_type = Column(String(50), nullable=False)  # 'text', 'audio', 'image', 'video', 'document', etc.
+    content_text = Column(Text, nullable=True)  # Text content or caption
+    content_raw = Column(Text)  # JSONB as Text: Raw platform-specific message object (for reprocessing)
+
+    # Media information
+    has_media = Column(Boolean, default=False, nullable=False)
+    media_url = Column(Text, nullable=True)  # Original URL (may expire)
+    media_local_path = Column(Text, nullable=True)  # Local file path after download
+    media_mime_type = Column(String(100), nullable=True)
+    media_size_bytes = Column(Integer, nullable=True)
+    media_duration_seconds = Column(Integer, nullable=True)
+    media_key = Column(Text, nullable=True)  # WhatsApp encryption key (base64)
+    media_sha256 = Column(String(64), nullable=True)  # For deduplication
+    media_status = Column(
+        String(20), default="pending", nullable=False
+    )  # pending, downloaded, processed, failed, expired
+
+    # Context/threading
+    quoted_message_id = Column(String(255), nullable=True)
+    context_info = Column(Text)  # JSONB as Text
+
+    # Delivery status (WhatsApp)
+    delivery_status = Column(String(20), nullable=True)  # pending, sent, delivered, read, failed
+    status_updated_at = Column(DateTime, nullable=True)
+
+    # Source tracking (CRITICAL for this feature)
+    source = Column(String(20), nullable=False)  # 'webhook', 'sync', 'api'
+    sync_batch_id = Column(String(255), nullable=True)  # For tracking sync operations
+    trace_id = Column(String(255), nullable=True, index=True)  # Link to omni_message_traces if from webhook
+
+    # Timestamps
+    message_timestamp = Column(DateTime, nullable=False)  # Original message time
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+    synced_at = Column(DateTime, nullable=True)  # When imported from Evolution
+
+    def __repr__(self):
+        return f"<OmniMessageRecord(id='{self.id}', type='{self.message_type}', source='{self.source}')>"
+
+    def get_platform_key(self) -> Optional[Dict[str, Any]]:
+        """Parse platform_key - handles both JSONB (dict) and Text (string)."""
+        if not self.platform_key:
+            return None
+        # If already a dict (from JSONB column), return directly
+        if isinstance(self.platform_key, dict):
+            return self.platform_key
+        # If string, parse as JSON
+        try:
+            return json.loads(self.platform_key)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    def set_platform_key(self, key: Dict[str, Any]) -> None:
+        """Set platform_key as JSON string."""
+        self.platform_key = json.dumps(key, ensure_ascii=False) if key else None
+
+    def get_content_raw(self) -> Optional[Dict[str, Any]]:
+        """Parse content_raw - handles both JSONB (dict) and Text (string)."""
+        if not self.content_raw:
+            return None
+        if isinstance(self.content_raw, dict):
+            return self.content_raw
+        try:
+            return json.loads(self.content_raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    def set_content_raw(self, content: Dict[str, Any]) -> None:
+        """Set content_raw as JSON string."""
+        self.content_raw = json.dumps(content, ensure_ascii=False) if content else None
+
+    def get_context_info(self) -> Optional[Dict[str, Any]]:
+        """Parse context_info - handles both JSONB (dict) and Text (string)."""
+        if not self.context_info:
+            return None
+        if isinstance(self.context_info, dict):
+            return self.context_info
+        try:
+            return json.loads(self.context_info)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    def set_context_info(self, info: Dict[str, Any]) -> None:
+        """Set context_info as JSON string."""
+        self.context_info = json.dumps(info, ensure_ascii=False) if info else None
+
+    def to_dict(self, include_raw: bool = False) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        result = {
+            "id": self.id,
+            "instance_name": self.instance_name,
+            "channel_type": self.channel_type,
+            "chat_id": self.chat_id,
+            "platform_message_id": self.platform_message_id,
+            "platform_key": self.get_platform_key(),
+            "direction": self.direction,
+            "sender_id": self.sender_id,
+            "sender_name": self.sender_name,
+            "is_from_me": self.is_from_me,
+            "message_type": self.message_type,
+            "content_text": self.content_text,
+            "has_media": self.has_media,
+            "media_url": self.media_url,
+            "media_local_path": self.media_local_path,
+            "media_mime_type": self.media_mime_type,
+            "media_size_bytes": self.media_size_bytes,
+            "media_duration_seconds": self.media_duration_seconds,
+            "media_status": self.media_status,
+            "quoted_message_id": self.quoted_message_id,
+            "context_info": self.get_context_info(),
+            "delivery_status": self.delivery_status,
+            "status_updated_at": self.status_updated_at.isoformat() if self.status_updated_at else None,
+            "source": self.source,
+            "sync_batch_id": self.sync_batch_id,
+            "trace_id": self.trace_id,
+            "message_timestamp": self.message_timestamp.isoformat() if self.message_timestamp else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "synced_at": self.synced_at.isoformat() if self.synced_at else None,
+        }
+
+        if include_raw:
+            result["content_raw"] = self.get_content_raw()
+
+        return result
+
+    @classmethod
+    def generate_id(cls, instance_name: str, platform_message_id: str) -> str:
+        """Generate composite primary key."""
+        return f"{instance_name}:{platform_message_id}"

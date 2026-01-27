@@ -144,8 +144,8 @@ class WhatsAppMediaDecryptor:
         Decrypt WhatsApp media using the standard WhatsApp decryption algorithm.
 
         Based on the WhatsApp encryption specification:
-        1. Derive keys from media key using HKDF
-        2. Validate file integrity using HMAC
+        1. Derive keys from media key using HKDF-SHA256
+        2. Validate file integrity using HMAC over IV + ciphertext
         3. Decrypt using AES-256-CBC
         """
         try:
@@ -157,7 +157,7 @@ class WhatsAppMediaDecryptor:
             mac_from_file = encrypted_data[-10:]
             encrypted_content = encrypted_data[:-10]
 
-            # Derive keys using HKDF-like expansion
+            # Derive keys using HKDF-SHA256
             keys = self._expand_key(media_key, media_type)
             if not keys:
                 logger.error("Failed to derive encryption keys")
@@ -165,8 +165,8 @@ class WhatsAppMediaDecryptor:
 
             iv, cipher_key, mac_key = keys
 
-            # Verify MAC
-            if not self._verify_mac(encrypted_content, mac_key, mac_from_file):
+            # Verify MAC (WhatsApp calculates MAC over IV + ciphertext)
+            if not self._verify_mac(encrypted_content, mac_key, mac_from_file, iv):
                 logger.error("MAC verification failed - file may be corrupted")
                 return None
 
@@ -187,8 +187,10 @@ class WhatsAppMediaDecryptor:
         """
         Expand the media key using HKDF to derive IV, cipher key, and MAC key.
 
-        WhatsApp uses a specific key derivation based on the media type.
+        WhatsApp uses HKDF-SHA256 for key derivation based on the media type.
         """
+        import hmac
+
         try:
             # Create the info parameter for HKDF based on media type
             if media_type == self.MEDIA_TYPE_IMAGE:
@@ -203,24 +205,25 @@ class WhatsAppMediaDecryptor:
                 logger.error(f"Unknown media type: {media_type}")
                 return None
 
-            # Simplified HKDF expansion (WhatsApp uses a specific implementation)
-            # Step 1: Extract phase (use media_key as PRK)
-            prk = media_key
+            # HKDF-SHA256 implementation
+            # Step 1: Extract phase - use empty salt (WhatsApp standard)
+            # PRK = HMAC-SHA256(salt, IKM) where salt is empty/zeros
+            salt = b"\x00" * 32  # 32 zero bytes
+            prk = hmac.new(salt, media_key, hashlib.sha256).digest()
 
-            # Step 2: Expand phase to get 112 bytes total
-            # 16 bytes IV + 32 bytes cipher key + 32 bytes MAC key + 32 bytes extra
+            # Step 2: Expand phase using HMAC-SHA256
+            # Output: 16 bytes IV + 32 bytes cipher key + 32 bytes MAC key = 80 bytes needed
+            # We need 112 bytes total to match WhatsApp's implementation
             output_length = 112
             output = b""
+            prev_block = b""
             counter = 1
 
             while len(output) < output_length:
-                h = hashlib.sha256()
-                h.update(prk)
-                if counter > 1:
-                    h.update(output[-32:])  # Previous block
-                h.update(info)
-                h.update(counter.to_bytes(1, "big"))
-                output += h.digest()
+                # T(n) = HMAC-SHA256(PRK, T(n-1) || info || counter)
+                h = hmac.new(prk, prev_block + info + bytes([counter]), hashlib.sha256)
+                prev_block = h.digest()
+                output += prev_block
                 counter += 1
 
             # Extract the keys
@@ -237,13 +240,13 @@ class WhatsAppMediaDecryptor:
             logger.error(f"Key expansion failed: {e}")
             return None
 
-    def _verify_mac(self, encrypted_content: bytes, mac_key: bytes, expected_mac: bytes) -> bool:
-        """Verify the HMAC of the encrypted content."""
+    def _verify_mac(self, encrypted_content: bytes, mac_key: bytes, expected_mac: bytes, iv: bytes) -> bool:
+        """Verify the HMAC of the IV + encrypted content."""
         try:
             import hmac
 
-            # Calculate HMAC-SHA256 of the encrypted content
-            calculated_mac = hmac.new(mac_key, encrypted_content, hashlib.sha256).digest()
+            # Calculate HMAC-SHA256 of IV + encrypted content (WhatsApp includes IV in MAC)
+            calculated_mac = hmac.new(mac_key, iv + encrypted_content, hashlib.sha256).digest()
 
             # WhatsApp uses the first 10 bytes of the HMAC
             calculated_mac_truncated = calculated_mac[:10]

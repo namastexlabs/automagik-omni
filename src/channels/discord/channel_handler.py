@@ -15,7 +15,7 @@ from src.services.trace_service import TraceService
 from src.services.media_processing import media_processing_service
 from src.services.settings_service import settings_service
 from src.db.database import SessionLocal
-from src.utils.datetime_utils import utcnow
+from src.utils.datetime_utils import utcnow, datetime_utcnow
 
 # Lazy imports with dependency guards
 discord = LazyImport("discord", "discord")
@@ -522,6 +522,165 @@ class DiscordChannelHandler(ChannelHandler):
             logger.error(f"Error processing Discord attachments: {e}", exc_info=True)
             return None
 
+    def _save_to_omni_messages(
+        self,
+        message,
+        instance: InstanceConfig,
+        trace_context,
+    ) -> Optional[str]:
+        """
+        Save Discord message to omni_messages table for unified message store.
+
+        This enables:
+        - Unified message storage across all channels
+        - Media processing consistency
+        - Local message queries without external API calls
+
+        Args:
+            message: Discord message object
+            instance: Instance configuration
+            trace_context: Optional trace context
+
+        Returns:
+            The omni_message record ID if saved, None on error
+        """
+        try:
+            from src.db.trace_models import OmniMessageRecord
+
+            # Get platform message ID
+            platform_message_id = str(message.id)
+
+            # Determine message type and media info
+            has_media = bool(message.attachments)
+            message_type = "text"
+            media_url = None
+            media_mime_type = None
+            media_size = None
+
+            if message.attachments:
+                attachment = message.attachments[0]  # Primary attachment
+                content_type = attachment.content_type or ""
+                filename = attachment.filename.lower()
+
+                # Determine media type
+                if content_type.startswith("audio/") or any(
+                    filename.endswith(ext) for ext in [".mp3", ".ogg", ".wav", ".m4a"]
+                ):
+                    message_type = "audio"
+                elif content_type.startswith("image/") or any(
+                    filename.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+                ):
+                    message_type = "image"
+                elif content_type.startswith("video/") or any(
+                    filename.endswith(ext) for ext in [".mp4", ".mov", ".webm"]
+                ):
+                    message_type = "video"
+                elif content_type in ["application/pdf", "application/msword"] or any(
+                    filename.endswith(ext) for ext in [".pdf", ".doc", ".docx", ".txt"]
+                ):
+                    message_type = "document"
+
+                media_url = attachment.url
+                media_mime_type = content_type
+                media_size = attachment.size
+
+            # Determine chat ID
+            chat_id = str(message.channel.id)
+
+            # Create record ID
+            record_id = OmniMessageRecord.generate_id(instance.name, platform_message_id)
+
+            # Save to database
+            db_session = SessionLocal()
+            try:
+                # Check if exists
+                existing = db_session.query(OmniMessageRecord).filter(OmniMessageRecord.id == record_id).first()
+
+                if existing:
+                    # Update trace_id if not set
+                    if not existing.trace_id and trace_context:
+                        existing.trace_id = trace_context.trace_id
+                    existing.updated_at = datetime_utcnow()
+                    db_session.commit()
+                    logger.debug(f"Updated existing Discord omni_message: {record_id}")
+                    return record_id
+
+                # Create platform key for Discord
+                platform_key = {
+                    "id": platform_message_id,
+                    "channel_id": str(message.channel.id),
+                    "guild_id": str(message.guild.id) if message.guild else None,
+                    "author_id": str(message.author.id),
+                }
+
+                # Create raw content
+                content_raw = {
+                    "content": message.content,
+                    "attachments": [
+                        {
+                            "id": str(a.id),
+                            "filename": a.filename,
+                            "content_type": a.content_type,
+                            "size": a.size,
+                            "url": a.url,
+                        }
+                        for a in message.attachments
+                    ],
+                    "author": {
+                        "id": str(message.author.id),
+                        "name": message.author.name,
+                        "display_name": message.author.display_name,
+                    },
+                }
+
+                # Create record
+                record = OmniMessageRecord(
+                    id=record_id,
+                    instance_name=instance.name,
+                    channel_type="discord",
+                    chat_id=chat_id,
+                    platform_message_id=platform_message_id,
+                    direction="inbound",
+                    sender_id=str(message.author.id),
+                    sender_name=message.author.display_name or message.author.name,
+                    is_from_me=False,
+                    message_type=message_type,
+                    content_text=message.content,
+                    has_media=has_media,
+                    media_url=media_url,
+                    media_mime_type=media_mime_type,
+                    media_size_bytes=media_size,
+                    media_status="pending" if has_media else "pending",
+                    source="webhook",
+                    trace_id=trace_context.trace_id if trace_context else None,
+                    message_timestamp=message.created_at.replace(tzinfo=None),
+                    created_at=datetime_utcnow(),
+                    updated_at=datetime_utcnow(),
+                )
+
+                # Set JSON fields
+                record.set_platform_key(platform_key)
+                record.set_content_raw(content_raw)
+
+                db_session.add(record)
+                db_session.commit()
+
+                logger.info(
+                    f"Saved Discord message to omni_messages: {record_id} (type={message_type}, has_media={has_media})"
+                )
+                return record_id
+
+            except Exception as e:
+                logger.error(f"Error saving Discord message to omni_messages: {e}")
+                db_session.rollback()
+                return None
+            finally:
+                db_session.close()
+
+        except Exception as e:
+            logger.error(f"Error in Discord _save_to_omni_messages: {e}", exc_info=True)
+            return None
+
     async def _handle_message(self, message, instance: InstanceConfig, client) -> None:
         """Handle incoming Discord message with @mention detection."""
         try:
@@ -629,6 +788,19 @@ class DiscordChannelHandler(ChannelHandler):
                 if db_session:
                     db_session.close()
                     db_session = None
+
+            # ================= Save to Unified Message Store =================
+            # Now that we have trace_context, save to omni_messages
+            try:
+                omni_message_id = self._save_to_omni_messages(
+                    message=message,
+                    instance=instance,
+                    trace_context=trace_context,
+                )
+                if omni_message_id:
+                    logger.debug(f"Discord message saved to unified store: {omni_message_id}")
+            except Exception as e:
+                logger.warning(f"Failed to save Discord message to omni_messages (non-fatal): {e}")
 
             cached_agent_user_id = self._get_cached_agent_user_id(instance.name, str(message.author.id))
 
@@ -842,6 +1014,29 @@ class DiscordChannelHandler(ChannelHandler):
             async def on_message(message):
                 """Handle incoming Discord messages with @mention detection."""
                 await self._handle_message(message, instance, client)
+
+            @client.event
+            async def on_guild_join(guild):
+                """Handle bot joining a new guild - optionally import history."""
+                logger.info(f"Discord bot '{instance.name}' joined guild: {guild.name} ({guild.id})")
+
+                # Check if auto-import is enabled (can be configured per instance)
+                auto_import = getattr(instance, "discord_auto_import_history", False)
+                if auto_import:
+                    logger.info(f"Auto-importing Discord history for guild {guild.name}")
+                    try:
+                        from src.services.discord_import import import_discord_guild_on_connect
+
+                        stats = await import_discord_guild_on_connect(
+                            client=client,
+                            guild=guild,
+                            instance_name=instance.name,
+                            days_back=7,  # Default: last 7 days
+                            max_messages_per_channel=500,
+                        )
+                        logger.info(f"Discord history import complete: {stats}")
+                    except Exception as e:
+                        logger.error(f"Failed to auto-import Discord history: {e}", exc_info=True)
 
             # Start the bot in a background task
             async def run_bot():

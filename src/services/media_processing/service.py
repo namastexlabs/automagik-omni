@@ -45,6 +45,7 @@ class MediaProcessingService:
         self._audio_processor: Optional[AudioProcessor] = None
         self._image_processor: Optional[ImageProcessor] = None
         self._document_processor: Optional[DocumentProcessor] = None
+        self._video_processor = None  # type: ignore  # VideoProcessor, lazy init
         self._settings_loaded = False
 
     def _load_settings(self, db: Optional[Session] = None):
@@ -85,6 +86,15 @@ class MediaProcessingService:
                 gemini_api_key=gemini_key,  # Optional, for scanned PDF fallback
             )
             logger.info("DocumentProcessor initialized")
+
+            # Initialize video processor
+            if gemini_key:
+                from .processors.video import VideoProcessor
+
+                self._video_processor = VideoProcessor(
+                    gemini_api_key=gemini_key,
+                )
+                logger.info("VideoProcessor initialized")
 
             self._settings_loaded = True
 
@@ -1635,6 +1645,303 @@ class MediaProcessingService:
                     stats["results"].append(
                         {
                             "trace_id": trace.trace_id,
+                            "status": "error",
+                            "error": str(e),
+                        }
+                    )
+
+            return stats
+
+        finally:
+            if close_db:
+                db.close()
+
+    async def batch_reprocess_from_omni_messages(
+        self,
+        instance_name: Optional[str] = None,
+        content_type: str = "audio",  # 'audio', 'image', 'document'
+        days_back: int = 30,
+        limit: Optional[int] = 100,
+        language: str = "pt",
+        force: bool = False,
+        db: Optional[Session] = None,
+        progress_callback: Optional[callable] = None,
+    ) -> dict:
+        """
+        Batch reprocess media from omni_messages table.
+
+        This method queries the unified omni_messages table (which includes
+        both webhook and synced messages) and processes media that hasn't
+        been processed yet.
+
+        Args:
+            instance_name: Filter by instance (optional)
+            content_type: Type of content to process ('audio', 'image', 'document')
+            days_back: How many days back to look
+            limit: Maximum number of messages to process
+            language: Language code for transcription (audio only)
+            force: If True, reprocess even if already completed
+            progress_callback: Optional callback(current_item) for progress updates
+
+        Returns:
+            dict with processing stats
+        """
+        from src.db.trace_models import OmniMessageRecord
+        from src.services.media_download import MediaDownloadService
+
+        self._load_settings(db)
+
+        close_db = False
+        if db is None:
+            db_gen = get_db()
+            db = next(db_gen)
+            close_db = True
+
+        try:
+            cutoff_date = utcnow() - timedelta(days=days_back)
+
+            # Map content type to message types and content type
+            type_mapping = {
+                "audio": {
+                    "message_types": ["audio"],
+                    "media_content_type": "audio_transcript",
+                    "processor": self._audio_processor,
+                },
+                "image": {
+                    "message_types": ["image", "sticker"],  # Stickers are also images (WebP)
+                    "media_content_type": "image_description",
+                    "processor": self._image_processor,
+                },
+                "video": {
+                    "message_types": ["video"],
+                    "media_content_type": "video_description",
+                    "processor": self._video_processor,
+                },
+                "document": {
+                    "message_types": ["document"],
+                    "media_content_type": "document_content",
+                    "processor": self._document_processor,
+                },
+            }
+
+            config = type_mapping.get(content_type)
+            if not config:
+                return {"error": f"Unknown content type: {content_type}"}
+
+            if not config["processor"]:
+                return {"error": f"No processor configured for {content_type}"}
+
+            # Base query for all matching messages
+            base_query = db.query(OmniMessageRecord).filter(
+                and_(
+                    OmniMessageRecord.message_type.in_(config["message_types"]),
+                    OmniMessageRecord.has_media == True,  # noqa: E712
+                    OmniMessageRecord.message_timestamp >= cutoff_date,
+                )
+            )
+
+            if instance_name:
+                base_query = base_query.filter(OmniMessageRecord.instance_name == instance_name)
+
+            # Count total found BEFORE filtering
+            total_found = base_query.count()
+
+            # Count already processed
+            already_processed_count = (
+                db.query(MediaContent)
+                .filter(
+                    MediaContent.content_type == config["media_content_type"],
+                    MediaContent.status == "completed",
+                    MediaContent.original_message_id.in_(
+                        base_query.with_entities(OmniMessageRecord.platform_message_id)
+                    ),
+                )
+                .count()
+            )
+
+            # Get messages to process
+            query = base_query
+            if not force:
+                processed_ids_subq = (
+                    db.query(MediaContent.original_message_id)
+                    .filter(
+                        MediaContent.content_type == config["media_content_type"],
+                        MediaContent.status == "completed",
+                    )
+                    .scalar_subquery()
+                )
+                query = query.filter(~OmniMessageRecord.platform_message_id.in_(processed_ids_subq))
+
+            # Apply limit if specified
+            if limit and limit > 0:
+                query = query.limit(limit)
+            messages = query.all()
+
+            logger.info(
+                f"[omni_messages] Found {total_found} total {content_type} messages, "
+                f"{already_processed_count} already processed, {len(messages)} to process"
+            )
+
+            stats = {
+                "total_found": total_found,
+                "already_processed": already_processed_count,
+                "total": len(messages),
+                "processed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "download_failed": 0,
+                "results": [],
+                "source": "omni_messages",
+            }
+
+            # Initialize download service
+            download_service = MediaDownloadService(db)
+
+            for msg in messages:
+                try:
+                    if progress_callback:
+                        progress_callback(msg.id)
+
+                    # Step 1: Ensure media is downloaded
+                    if msg.media_status != "downloaded" or not msg.media_local_path:
+                        download_result = download_service.download_and_update(msg.id)
+                        if not download_result["success"]:
+                            stats["download_failed"] += 1
+                            stats["results"].append(
+                                {
+                                    "message_id": msg.id,
+                                    "status": "download_failed",
+                                    "error": download_result.get("error"),
+                                }
+                            )
+                            continue
+
+                        # Refresh message to get updated path
+                        db.refresh(msg)
+
+                    if not msg.media_local_path or not Path(msg.media_local_path).exists():
+                        stats["download_failed"] += 1
+                        stats["results"].append(
+                            {
+                                "message_id": msg.id,
+                                "status": "download_failed",
+                                "error": "Local file not found after download",
+                            }
+                        )
+                        continue
+
+                    # Step 2: Process the downloaded file
+                    file_path = Path(msg.media_local_path)
+
+                    if content_type == "audio":
+                        result = await config["processor"].process(
+                            file_path=file_path,
+                            mime_type=msg.media_mime_type or "audio/ogg",
+                            language=language,
+                            duration_seconds=msg.media_duration_seconds,
+                        )
+                    elif content_type == "image":
+                        result = await config["processor"].process(
+                            file_path=file_path,
+                            mime_type=msg.media_mime_type or "image/jpeg",
+                        )
+                    elif content_type == "video":
+                        result = await config["processor"].process(
+                            file_path=file_path,
+                            mime_type=msg.media_mime_type or "video/mp4",
+                        )
+                    elif content_type == "document":
+                        result = await config["processor"].process(
+                            file_path=file_path,
+                            mime_type=msg.media_mime_type or "application/pdf",
+                        )
+
+                    # Step 3: Store result
+                    if result.success:
+                        # Check if record exists
+                        existing = (
+                            db.query(MediaContent)
+                            .filter_by(
+                                instance_name=msg.instance_name,
+                                original_message_id=msg.platform_message_id,
+                                content_type=config["media_content_type"],
+                            )
+                            .first()
+                        )
+
+                        if existing:
+                            media_content = existing
+                        else:
+                            media_content = MediaContent(
+                                instance_name=msg.instance_name,
+                                channel_type=msg.channel_type,
+                                original_message_id=msg.platform_message_id,
+                                sender_id=msg.sender_id,
+                                content_type=config["media_content_type"],
+                                source_media_type=content_type,
+                                content="",
+                                media_mime_type=msg.media_mime_type,
+                                media_size_bytes=msg.media_size_bytes,
+                                media_duration_seconds=msg.media_duration_seconds,
+                                status="processing",
+                            )
+                            db.add(media_content)
+                            db.flush()
+
+                        # Update with result
+                        media_content.content = result.content or ""
+                        media_content.content_format = result.content_format
+                        media_content.processor_name = result.processor_name
+                        media_content.processor_model = result.processor_model
+                        media_content.processing_time_ms = result.processing_time_ms
+                        media_content.confidence_score = result.confidence_score
+                        media_content.input_tokens = result.input_tokens
+                        media_content.output_tokens = result.output_tokens
+                        media_content.total_tokens = result.total_tokens
+                        media_content.cost_input_usd = result.cost_input_usd
+                        media_content.cost_output_usd = result.cost_output_usd
+                        media_content.cost_total_usd = result.cost_total_usd
+                        media_content.pricing_model = result.pricing_model
+                        media_content.pricing_rate_input = result.pricing_rate_input
+                        media_content.pricing_rate_output = result.pricing_rate_output
+                        media_content.status = "completed"
+                        media_content.processed_at = utcnow()
+
+                        # Update omni_message status
+                        msg.media_status = "processed"
+                        msg.updated_at = utcnow()
+
+                        db.commit()
+
+                        stats["processed"] += 1
+                        stats["results"].append(
+                            {
+                                "message_id": msg.id,
+                                "status": "completed",
+                                "content_preview": result.content[:100] if result.content else "",
+                                "cost_usd": float(result.cost_total_usd) if result.cost_total_usd else None,
+                                "tokens": result.total_tokens,
+                                "source": msg.source,  # Track if from webhook or sync
+                            }
+                        )
+
+                        logger.info(f"Processed {content_type} from omni_messages: {msg.id}")
+                    else:
+                        stats["failed"] += 1
+                        stats["results"].append(
+                            {
+                                "message_id": msg.id,
+                                "status": "failed",
+                                "error": result.error_message,
+                            }
+                        )
+
+                except Exception as e:
+                    logger.error(f"Error processing omni_message {msg.id}: {e}", exc_info=True)
+                    stats["failed"] += 1
+                    stats["results"].append(
+                        {
+                            "message_id": msg.id,
                             "status": "error",
                             "error": str(e),
                         }

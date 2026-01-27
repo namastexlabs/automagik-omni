@@ -21,7 +21,8 @@ from src.services.user_service import user_service
 from src.channels.whatsapp.audio_transcriber import AudioTranscriptionService
 from src.services.media_processing import media_processing_service
 from src.services.settings_service import settings_service
-from src.utils.datetime_utils import now
+from src.utils.datetime_utils import now, datetime_utcnow
+from datetime import datetime
 
 # Remove the circular import
 # from src.channels.whatsapp.client import whatsapp_client, PresenceUpdater
@@ -678,6 +679,222 @@ class WhatsAppMessageHandler:
             logger.error(f"Error processing media content: {e}", exc_info=True)
             return None
 
+    def _save_to_omni_messages(
+        self,
+        message: Dict[str, Any],
+        instance_config,
+        trace_context,
+        message_type: str,
+    ) -> Optional[str]:
+        """
+        Save incoming webhook message to omni_messages table for unified message store.
+
+        This enables:
+        - Media processing on ALL messages (including historical sync)
+        - Reduced dependency on Evolution API for message queries
+        - Local message serving without Evolution API calls
+
+        Args:
+            message: The WhatsApp webhook message data
+            instance_config: Instance configuration
+            trace_context: TraceContext for message lifecycle tracking
+            message_type: Detected message type (text, audio, image, etc.)
+
+        Returns:
+            The omni_message record ID if saved, None on error
+        """
+        try:
+            from src.db.database import SessionLocal
+            from src.db.trace_models import OmniMessageRecord
+
+            # Extract message data
+            data = message.get("data", {})
+            key_data = data.get("key", {})
+            message_obj = data.get("message", {})
+            context_info = data.get("contextInfo", {})
+
+            # Get platform message ID
+            platform_message_id = key_data.get("id")
+            if not platform_message_id:
+                logger.debug("No message ID in webhook, skipping omni_messages save")
+                return None
+
+            # Get instance name
+            instance_name = instance_config.name if instance_config else "default"
+
+            # Determine chat ID and sender
+            chat_id = key_data.get("remoteJid", "")
+            is_from_me = key_data.get("fromMe", False)
+            sender_id = key_data.get("participant") or (None if is_from_me else key_data.get("remoteJid"))
+            sender_name = data.get("pushName", "")
+
+            # Map message type to omni format
+            type_map = {
+                "text": "text",
+                "conversation": "text",
+                "extendedTextMessage": "text",
+                "audioMessage": "audio",
+                "audio": "audio",
+                "voice": "audio",
+                "ptt": "audio",
+                "imageMessage": "image",
+                "image": "image",
+                "videoMessage": "video",
+                "video": "video",
+                "documentMessage": "document",
+                "document": "document",
+                "stickerMessage": "sticker",
+                "contactMessage": "contact",
+                "locationMessage": "location",
+                "reactionMessage": "reaction",
+            }
+            omni_type = type_map.get(message_type, "unknown")
+
+            # Extract text content
+            text_content = None
+            if message_type in ["text", "conversation"]:
+                text_content = message_obj.get("conversation")
+            elif message_type == "extendedTextMessage":
+                text_content = message_obj.get("extendedTextMessage", {}).get("text")
+            else:
+                # For media messages, get caption
+                for media_key in ["audioMessage", "imageMessage", "videoMessage", "documentMessage"]:
+                    if media_key in message_obj:
+                        text_content = message_obj[media_key].get("caption")
+                        break
+
+            # Determine if has media
+            has_media = omni_type in ["audio", "image", "video", "document", "sticker"]
+
+            # Extract media info
+            media_url = None
+            media_key = None
+            media_mime_type = None
+            media_size = None
+            media_duration = None
+            media_sha256 = None
+
+            if has_media:
+                # Check for mediaUrl at message level first (Evolution processed)
+                media_url = message_obj.get("mediaUrl")
+
+                for media_key_name in [
+                    "audioMessage",
+                    "imageMessage",
+                    "videoMessage",
+                    "documentMessage",
+                    "stickerMessage",
+                ]:
+                    if media_key_name in message_obj:
+                        media_data = message_obj[media_key_name]
+                        if not media_url:
+                            media_url = media_data.get("url")
+                        media_key = media_data.get("mediaKey")
+                        media_mime_type = media_data.get("mimetype")
+                        # Handle fileLength which can be int or {low, high, unsigned}
+                        file_length = media_data.get("fileLength")
+                        if isinstance(file_length, dict):
+                            media_size = file_length.get("low")
+                        elif isinstance(file_length, int):
+                            media_size = file_length
+                        # Duration for audio/video
+                        seconds = media_data.get("seconds")
+                        if seconds:
+                            if isinstance(seconds, dict):
+                                media_duration = seconds.get("low")
+                            else:
+                                media_duration = seconds
+                        # SHA256 for deduplication
+                        media_sha256 = media_data.get("fileSha256")
+                        if media_sha256 and len(media_sha256) > 64:
+                            media_sha256 = media_sha256[:64]
+                        break
+
+            # Extract quoted message ID
+            quoted_message_id = context_info.get("stanzaId") if context_info else None
+
+            # Get message timestamp
+            msg_timestamp = data.get("messageTimestamp")
+            if msg_timestamp:
+                if isinstance(msg_timestamp, (int, float)):
+                    msg_timestamp = datetime.utcfromtimestamp(msg_timestamp)
+                else:
+                    msg_timestamp = datetime_utcnow()
+            else:
+                msg_timestamp = datetime_utcnow()
+
+            # Create record ID
+            record_id = OmniMessageRecord.generate_id(instance_name, platform_message_id)
+
+            # Save to database
+            db_session = SessionLocal()
+            try:
+                # Check if exists (upsert logic)
+                existing = db_session.query(OmniMessageRecord).filter(OmniMessageRecord.id == record_id).first()
+
+                if existing:
+                    # Update only specific fields (don't overwrite content_raw)
+                    if not existing.trace_id and trace_context:
+                        existing.trace_id = trace_context.trace_id
+                    existing.updated_at = datetime_utcnow()
+                    db_session.commit()
+                    logger.debug(f"Updated existing omni_message: {record_id}")
+                    return record_id
+
+                # Create new record
+                record = OmniMessageRecord(
+                    id=record_id,
+                    instance_name=instance_name,
+                    channel_type="whatsapp",
+                    chat_id=chat_id,
+                    platform_message_id=platform_message_id,
+                    direction="outbound" if is_from_me else "inbound",
+                    sender_id=sender_id,
+                    sender_name=sender_name,
+                    is_from_me=is_from_me,
+                    message_type=omni_type,
+                    content_text=text_content,
+                    has_media=has_media,
+                    media_url=media_url,
+                    media_key=media_key,
+                    media_mime_type=media_mime_type,
+                    media_size_bytes=media_size,
+                    media_duration_seconds=media_duration,
+                    media_sha256=media_sha256,
+                    media_status="pending" if has_media else "pending",
+                    quoted_message_id=quoted_message_id,
+                    source="webhook",
+                    trace_id=trace_context.trace_id if trace_context else None,
+                    message_timestamp=msg_timestamp,
+                    created_at=datetime_utcnow(),
+                    updated_at=datetime_utcnow(),
+                )
+
+                # Set JSON fields
+                record.set_platform_key(key_data)
+                record.set_content_raw(message_obj)
+                if context_info:
+                    record.set_context_info(context_info)
+
+                db_session.add(record)
+                db_session.commit()
+
+                logger.info(
+                    f"Saved webhook message to omni_messages: {record_id} (type={omni_type}, has_media={has_media})"
+                )
+                return record_id
+
+            except Exception as e:
+                logger.error(f"Error saving to omni_messages: {e}")
+                db_session.rollback()
+                return None
+            finally:
+                db_session.close()
+
+        except Exception as e:
+            logger.error(f"Error in _save_to_omni_messages: {e}", exc_info=True)
+            return None
+
     def _process_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
         """
         Process a WhatsApp message.
@@ -744,6 +961,21 @@ class WhatsAppMessageHandler:
             if not (is_text_message or is_audio_message or is_media_message):
                 logger.info(f"Ignoring message of type {message_type} - only handling text, media and audio messages")
                 return
+
+            # ================= Save to Unified Message Store =================
+            # Save to omni_messages for unified storage and media processing
+            try:
+                omni_message_id = self._save_to_omni_messages(
+                    message=message,
+                    instance_config=instance_config,
+                    trace_context=trace_context,
+                    message_type=message_type,
+                )
+                if omni_message_id:
+                    logger.debug(f"Message saved to unified store: {omni_message_id}")
+            except Exception as e:
+                # Don't fail message processing if omni save fails
+                logger.warning(f"Failed to save to omni_messages (non-fatal): {e}")
 
             # Start showing typing indicator immediately
             # Use evolution_api_sender for presence updates (RabbitMQ disabled)

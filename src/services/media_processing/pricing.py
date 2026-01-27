@@ -185,12 +185,17 @@ PRICING_REGISTRY: dict[str, PricingRate] = {
     "openai_whisper:whisper-1": OPENAI_WHISPER,
     "openai_whisper:gpt-4o-transcribe": OPENAI_GPT4O_TRANSCRIBE,
     "openai_whisper:gpt-4o-mini-transcribe": OPENAI_GPT4O_MINI_TRANSCRIBE,
-    # Gemini Vision
+    # Gemini Vision (images)
     "gemini_vision:gemini-2.0-flash": GEMINI_2_0_FLASH,
     "gemini_vision:gemini-2.0-flash-exp": GEMINI_2_0_FLASH,  # Alias
     "gemini_vision:gemini-2.5-flash": GEMINI_2_5_FLASH,
     "gemini_vision:gemini-flash-lite": GEMINI_FLASH_LITE,
     "gemini_vision:gemini-2.5-pro": GEMINI_2_5_PRO,
+    # Gemini Video (same pricing as vision)
+    "gemini_video:gemini-2.0-flash": GEMINI_2_0_FLASH,
+    "gemini_video:gemini-2.5-flash": GEMINI_2_5_FLASH,
+    "gemini_video:gemini-flash-lite": GEMINI_FLASH_LITE,
+    "gemini_video:gemini-2.5-pro": GEMINI_2_5_PRO,
     # PyMuPDF (local, no cost)
     "pymupdf:local": PricingRate(
         model_id="local",
