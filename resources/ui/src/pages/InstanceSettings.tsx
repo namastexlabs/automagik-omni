@@ -40,6 +40,11 @@ import {
   SplitSquareVertical,
   User,
   AlertCircle,
+  Settings,
+  Phone,
+  Eye,
+  Users,
+  History,
 } from 'lucide-react';
 import { WhatsAppIcon, DiscordIcon } from '@/components/icons/BrandIcons';
 
@@ -67,6 +72,18 @@ export default function InstanceSettings() {
     message_debounce_seconds: 0,
     disable_username_prefix: false,
   });
+
+  // Behavior form (WhatsApp Evolution settings)
+  const [behaviorForm, setBehaviorForm] = useState({
+    rejectCall: false,
+    msgCall: '',
+    groupsIgnore: false,
+    alwaysOnline: false,
+    readMessages: false,
+    readStatus: false,
+    syncFullHistory: false,
+  });
+  const [behaviorHasChanges, setBehaviorHasChanges] = useState(false);
 
   // Fetch instance
   const { data: instance, isLoading: instanceLoading } = useQuery<InstanceConfig>({
@@ -97,6 +114,13 @@ export default function InstanceSettings() {
     refetchInterval: showQR ? 5000 : false,
   });
 
+  // Fetch Evolution settings (WhatsApp only)
+  const { data: evolutionSettings, isLoading: settingsLoading } = useQuery({
+    queryKey: ['evolution-settings', instanceName],
+    queryFn: () => api.whatsappWeb.getSettings(instanceName!),
+    enabled: !!instanceName && instance?.channel_type === 'whatsapp',
+  });
+
   // Initialize form when instance loads
   useEffect(() => {
     if (instance) {
@@ -117,6 +141,22 @@ export default function InstanceSettings() {
       setHasChanges(false);
     }
   }, [instance]);
+
+  // Initialize behavior form when Evolution settings load
+  useEffect(() => {
+    if (evolutionSettings) {
+      setBehaviorForm({
+        rejectCall: evolutionSettings.rejectCall ?? false,
+        msgCall: evolutionSettings.msgCall ?? '',
+        groupsIgnore: evolutionSettings.groupsIgnore ?? false,
+        alwaysOnline: evolutionSettings.alwaysOnline ?? false,
+        readMessages: evolutionSettings.readMessages ?? false,
+        readStatus: evolutionSettings.readStatus ?? false,
+        syncFullHistory: evolutionSettings.syncFullHistory ?? false,
+      });
+      setBehaviorHasChanges(false);
+    }
+  }, [evolutionSettings]);
 
   // Mutations
   const saveMutation = useMutation({
@@ -150,6 +190,16 @@ export default function InstanceSettings() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const saveBehaviorMutation = useMutation({
+    mutationFn: (data: typeof behaviorForm) => api.whatsappWeb.setSettings(instanceName!, data),
+    onSuccess: () => {
+      toast.success('Behavior settings saved');
+      setBehaviorHasChanges(false);
+      queryClient.invalidateQueries({ queryKey: ['evolution-settings', instanceName] });
+    },
+    onError: (err: Error) => toast.error(err.message || 'Failed to save behavior settings'),
+  });
+
   // Helpers
   const updateAgentForm = <K extends keyof typeof agentForm>(key: K, value: (typeof agentForm)[K]) => {
     setAgentForm((prev) => ({ ...prev, [key]: value }));
@@ -159,6 +209,11 @@ export default function InstanceSettings() {
   const updateMessagesForm = <K extends keyof typeof messagesForm>(key: K, value: (typeof messagesForm)[K]) => {
     setMessagesForm((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
+  };
+
+  const updateBehaviorForm = <K extends keyof typeof behaviorForm>(key: K, value: (typeof behaviorForm)[K]) => {
+    setBehaviorForm((prev) => ({ ...prev, [key]: value }));
+    setBehaviorHasChanges(true);
   };
 
   const handleSave = () => {
@@ -245,7 +300,7 @@ export default function InstanceSettings() {
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+              <TabsList className={`grid w-full ${instance?.channel_type === 'whatsapp' ? 'grid-cols-5 max-w-3xl' : 'grid-cols-3 max-w-xl'}`}>
                 <TabsTrigger value="connection" className="flex items-center gap-2">
                   <Wifi className="h-4 w-4" />
                   Connection
@@ -258,6 +313,12 @@ export default function InstanceSettings() {
                   <MessageSquare className="h-4 w-4" />
                   Messages
                 </TabsTrigger>
+                {instance?.channel_type === 'whatsapp' && (
+                  <TabsTrigger value="behavior" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Behavior
+                  </TabsTrigger>
+                )}
                 {instance?.channel_type === 'whatsapp' && (
                   <TabsTrigger value="webhooks" className="flex items-center gap-2">
                     <Webhook className="h-4 w-4" />
@@ -551,6 +612,166 @@ export default function InstanceSettings() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              {/* Behavior Tab (WhatsApp only - Evolution API settings) */}
+              {instance?.channel_type === 'whatsapp' && (
+                <TabsContent value="behavior" className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Settings className="h-5 w-5" />
+                        WhatsApp Behavior
+                      </CardTitle>
+                      <CardDescription>Configure WhatsApp-specific behavior and automation settings</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {settingsLoading ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : (
+                        <>
+                          {/* Call Settings */}
+                          <div className="space-y-4 p-4 border rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <div className="flex-1 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <Label htmlFor="rejectCall">Auto-reject incoming calls</Label>
+                                    <p className="text-sm text-muted-foreground">Automatically reject all incoming calls</p>
+                                  </div>
+                                  <Switch
+                                    id="rejectCall"
+                                    checked={behaviorForm.rejectCall}
+                                    onCheckedChange={(checked) => updateBehaviorForm('rejectCall', checked)}
+                                  />
+                                </div>
+                                {behaviorForm.rejectCall && (
+                                  <div className="pl-4 border-l-2 space-y-2">
+                                    <Label htmlFor="msgCall" className="text-xs text-muted-foreground">
+                                      Rejection message
+                                    </Label>
+                                    <Input
+                                      id="msgCall"
+                                      placeholder="Sorry, I can't take calls right now"
+                                      value={behaviorForm.msgCall}
+                                      onChange={(e) => updateBehaviorForm('msgCall', e.target.value)}
+                                      className="h-9"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Presence Settings */}
+                          <div className="space-y-4 p-4 border rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-start gap-3">
+                                <Eye className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <Label htmlFor="alwaysOnline">Always show as online</Label>
+                                  <p className="text-sm text-muted-foreground">Keep your status as "online" at all times</p>
+                                </div>
+                              </div>
+                              <Switch
+                                id="alwaysOnline"
+                                checked={behaviorForm.alwaysOnline}
+                                onCheckedChange={(checked) => updateBehaviorForm('alwaysOnline', checked)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Message Settings */}
+                          <div className="space-y-4 p-4 border rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <MessageSquare className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <div className="flex-1 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <Label htmlFor="readMessages">Auto-read messages</Label>
+                                    <p className="text-sm text-muted-foreground">Automatically mark messages as read</p>
+                                  </div>
+                                  <Switch
+                                    id="readMessages"
+                                    checked={behaviorForm.readMessages}
+                                    onCheckedChange={(checked) => updateBehaviorForm('readMessages', checked)}
+                                  />
+                                </div>
+                                <Separator />
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <Label htmlFor="readStatus">Auto-read status updates</Label>
+                                    <p className="text-sm text-muted-foreground">Automatically view status/stories from contacts</p>
+                                  </div>
+                                  <Switch
+                                    id="readStatus"
+                                    checked={behaviorForm.readStatus}
+                                    onCheckedChange={(checked) => updateBehaviorForm('readStatus', checked)}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Group Settings */}
+                          <div className="space-y-4 p-4 border rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-start gap-3">
+                                <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <Label htmlFor="groupsIgnore">Ignore group messages</Label>
+                                  <p className="text-sm text-muted-foreground">Don't process messages from group chats</p>
+                                </div>
+                              </div>
+                              <Switch
+                                id="groupsIgnore"
+                                checked={behaviorForm.groupsIgnore}
+                                onCheckedChange={(checked) => updateBehaviorForm('groupsIgnore', checked)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Sync Settings */}
+                          <div className="space-y-4 p-4 border rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-start gap-3">
+                                <History className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <Label htmlFor="syncFullHistory">Sync full message history</Label>
+                                  <p className="text-sm text-muted-foreground">Download complete message history on connection</p>
+                                </div>
+                              </div>
+                              <Switch
+                                id="syncFullHistory"
+                                checked={behaviorForm.syncFullHistory}
+                                onCheckedChange={(checked) => updateBehaviorForm('syncFullHistory', checked)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Save Button */}
+                          {behaviorHasChanges && (
+                            <Button
+                              className="w-full"
+                              onClick={() => saveBehaviorMutation.mutate(behaviorForm)}
+                              disabled={saveBehaviorMutation.isPending}
+                            >
+                              {saveBehaviorMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Save className="h-4 w-4 mr-2" />
+                              )}
+                              Save Behavior Settings
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
 
               {/* Webhooks Tab (WhatsApp only) */}
               {instance?.channel_type === 'whatsapp' && (

@@ -43,7 +43,7 @@ export function SettingsSheet({ instanceName, open, onOpenChange }: SettingsShee
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', instanceName],
-    queryFn: () => api.evolution.getSettings(instanceName),
+    queryFn: () => api.whatsappWeb.getSettings(instanceName),
     enabled: open,
   });
 
@@ -63,7 +63,7 @@ export function SettingsSheet({ instanceName, open, onOpenChange }: SettingsShee
   }, [settings]);
 
   const saveMutation = useMutation({
-    mutationFn: (data: SettingsForm) => api.evolution.setSettings(instanceName, data),
+    mutationFn: (data: SettingsForm) => api.whatsappWeb.setSettings(instanceName, data),
     onSuccess: () => {
       toast.success('Settings saved');
       setHasChanges(false);
