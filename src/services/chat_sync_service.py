@@ -150,7 +150,8 @@ class ChatSyncService:
                     c."remoteJid" as chat_id,
                     c.name,
                     c."unreadMessages" as unread_count,
-                    c.id as evo_id
+                    c.id as evo_id,
+                    c."updatedAt" as updated_at
                 FROM "evo_Chat" c
                 WHERE c."instanceId" = :instance_id
             """),
@@ -164,6 +165,7 @@ class ChatSyncService:
                 "name": row.name if row.name and row.name != "None" else None,
                 "unread_count": row.unread_count or 0,
                 "evo_id": row.evo_id,
+                "updated_at": row.updated_at,  # Last message timestamp from Evolution
             }
 
         return chats
@@ -337,6 +339,16 @@ class ChatSyncService:
         # Get last message preview
         preview = self._get_last_message_preview(instance_name, chat_id)
 
+        # Determine best last_message_at: prefer more recent of evo_data or msg_data
+        evo_updated = evo_data.get("updated_at")  # From evo_Chat.updatedAt
+        msg_updated = msg_data.get("last_message_at")  # From omni_messages
+
+        # Use the most recent timestamp
+        if evo_updated and msg_updated:
+            last_message_at = max(evo_updated, msg_updated)
+        else:
+            last_message_at = evo_updated or msg_updated
+
         # Check if record exists
         existing = self.db.query(OmniChatRecord).filter(OmniChatRecord.id == record_id).first()
 
@@ -345,7 +357,7 @@ class ChatSyncService:
             existing.name = name
             existing.canonical_chat_id = canonical_id
             existing.message_count = msg_data.get("message_count", 0)
-            existing.last_message_at = msg_data.get("last_message_at")
+            existing.last_message_at = last_message_at
             existing.last_message_preview = preview
             existing.unread_count = evo_data.get("unread_count", 0)
             existing.synced_at = datetime_utcnow()
@@ -373,7 +385,7 @@ class ChatSyncService:
                 chat_type=chat_type,
                 avatar_url=avatar_url,
                 message_count=msg_data.get("message_count", 0),
-                last_message_at=msg_data.get("last_message_at"),
+                last_message_at=last_message_at,
                 last_message_preview=preview,
                 unread_count=evo_data.get("unread_count", 0),
                 evo_chat_id=evo_data.get("evo_id"),
