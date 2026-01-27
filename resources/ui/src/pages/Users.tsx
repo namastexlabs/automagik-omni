@@ -121,11 +121,20 @@ const UserCard = ({
                   </span>
                 </div>
                 <div className="mt-1 text-xs text-amber-600 dark:text-amber-500">
-                  {potentialMatches.slice(0, 3).map((m) => (
-                    <div key={m.id} className="truncate">
-                      "{m.display_name}" on {m.external_ids?.[0]?.provider || 'other channel'}
-                    </div>
-                  ))}
+                  {potentialMatches.slice(0, 3).map((m) => {
+                    // Determine what to show: provider if different, or instance/phone
+                    const provider = m.external_ids?.[0]?.provider;
+                    const identifier = provider
+                      ? provider
+                      : m.instance_name !== user.instance_name
+                        ? m.instance_name
+                        : m.phone_number || 'other account';
+                    return (
+                      <div key={m.id} className="truncate">
+                        "{m.display_name}" ({identifier})
+                      </div>
+                    );
+                  })}
                   {potentialMatches.length > 3 && (
                     <div className="text-muted-foreground">+{potentialMatches.length - 3} more</div>
                   )}
@@ -390,20 +399,41 @@ const UserDetailPanel = ({
 };
 
 // Potential match finding algorithm (conservative)
+// Finds users who might be the same person across different channels/instances
 function findPotentialMatches(user: User, allUsers: User[]): User[] {
   const matches: User[] = [];
-  const userProviders = new Set(user.external_ids?.map((e) => e.provider) || []);
   const userName = (user.display_name || '').toLowerCase().trim();
 
   if (!userName || userName === 'unknown user') return [];
 
+  // Get user's providers (channels)
+  const userProviders = new Set(user.external_ids?.map((e) => e.provider) || []);
+  // If no external_ids, infer from instance (WhatsApp if has whatsapp_jid)
+  if (userProviders.size === 0 && user.whatsapp_jid) {
+    userProviders.add('whatsapp');
+  }
+
   for (const other of allUsers) {
     if (other.id === user.id) continue;
 
-    // Skip if same providers (likely same person already)
+    // Skip if same instance AND same phone (definitely same user record)
+    if (user.instance_name === other.instance_name && user.phone_number === other.phone_number) {
+      continue;
+    }
+
+    // Get other's providers
     const otherProviders = new Set(other.external_ids?.map((e) => e.provider) || []);
-    const hasOverlap = [...userProviders].some((p) => otherProviders.has(p));
-    if (hasOverlap) continue;
+    if (otherProviders.size === 0 && other.whatsapp_jid) {
+      otherProviders.add('whatsapp');
+    }
+
+    // For cross-channel matching, prefer users on DIFFERENT channels
+    // For same channel, only match if different instances (could be same person with different accounts)
+    const sameChannel = [...userProviders].some((p) => otherProviders.has(p));
+    const sameInstance = user.instance_name === other.instance_name;
+
+    // Skip if same channel AND same instance (would be duplicate records, not cross-channel)
+    if (sameChannel && sameInstance) continue;
 
     const otherName = (other.display_name || '').toLowerCase().trim();
     if (!otherName || otherName === 'unknown user') continue;

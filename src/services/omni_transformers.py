@@ -59,16 +59,38 @@ class WhatsAppTransformer:
                 channel_type=ChannelType.WHATSAPP,
                 instance_name=instance_name,
             )
+
+        # Get contact ID (remoteJid)
+        contact_id = whatsapp_contact.get("id") or whatsapp_contact.get("remoteJid") or ""
+
+        # Resolve name: pushName > name > extract from JID
+        name = whatsapp_contact.get("pushName") or whatsapp_contact.get("name")
+        if not name or name == "Unknown":
+            # Extract phone number from JID as fallback
+            if contact_id.endswith("@s.whatsapp.net"):
+                name = contact_id.replace("@s.whatsapp.net", "")
+            elif contact_id.endswith("@lid"):
+                name = contact_id  # LID format, keep as-is
+            else:
+                name = contact_id or "Unknown"
+
+        # Get avatar URL - Evolution uses profilePicUrl (not profilePictureUrl)
+        avatar_url = (
+            whatsapp_contact.get("profilePicUrl")
+            or whatsapp_contact.get("profilePictureUrl")
+            or whatsapp_contact.get("profilePic")
+        )
+
         return OmniContact(
-            id=whatsapp_contact.get("id") or "",
-            name=whatsapp_contact.get("pushName") or whatsapp_contact.get("name") or "Unknown",
+            id=contact_id,
+            name=name,
             channel_type=ChannelType.WHATSAPP,
             instance_name=instance_name,
-            avatar_url=whatsapp_contact.get("profilePictureUrl"),
+            avatar_url=avatar_url,
             is_verified=whatsapp_contact.get("isVerified"),
             is_business=whatsapp_contact.get("isBusiness"),
             channel_data={
-                "phone_number": (whatsapp_contact.get("id") or "").replace("@c.us", ""),
+                "phone_number": contact_id.replace("@s.whatsapp.net", "").replace("@c.us", ""),
                 "is_contact": whatsapp_contact.get("isMyContact", False),
                 "presence": whatsapp_contact.get("presence"),
                 "whatsapp_name": whatsapp_contact.get("name"),

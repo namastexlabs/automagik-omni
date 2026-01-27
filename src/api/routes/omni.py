@@ -120,6 +120,7 @@ def _get_chats_from_local(
                 is_archived=record.is_archived,
                 is_pinned=record.is_pinned,
                 unread_count=record.unread_count,
+                avatar_url=record.avatar_url,
                 skip_media_processing=record.skip_media_processing,
                 processing_note=record.processing_note,
                 last_message_at=record.last_message_at,
