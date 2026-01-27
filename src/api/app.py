@@ -344,10 +344,26 @@ async def lifespan(app: FastAPI):
     # Application ready - instances will be created via API endpoints
     logger.info("API ready - use /api/v1/instances to create instances")
 
+    # Start continuous sync job for chat and message data
+    from src.services.sync_job import start_sync_job, stop_sync_job
+
+    try:
+        await start_sync_job(interval_minutes=2)  # Sync every 2 minutes
+        logger.info("🔄 Background sync job started (interval: 2 min)")
+    except Exception as e:
+        logger.warning(f"Failed to start background sync job: {e}")
+
     yield
 
     # Shutdown (cleanup if needed)
     logger.info("Shutting down application...")
+
+    # Stop background sync job
+    try:
+        await stop_sync_job()
+        logger.info("Background sync job stopped")
+    except Exception as e:
+        logger.warning(f"Error stopping sync job: {e}")
 
 
 # Create FastAPI app with authentication configuration

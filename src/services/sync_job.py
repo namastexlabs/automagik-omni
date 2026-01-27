@@ -22,6 +22,7 @@ from sqlalchemy import func
 from src.db.database import SessionLocal
 from src.db.trace_models import OmniMessageRecord
 from src.services.message_import import MessageImportService
+from src.services.chat_sync_service import ChatSyncService
 from src.utils.datetime_utils import datetime_utcnow
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,10 @@ class SyncJobMetrics:
         self.last_sync_duration_seconds: float = 0
         self.last_sync_imported: int = 0
         self.last_sync_skipped: int = 0
+        self.last_chats_synced: int = 0
         self.total_syncs: int = 0
         self.total_imported: int = 0
+        self.total_chats_synced: int = 0
         self.total_errors: int = 0
         self.is_running: bool = False
         self.started_at: Optional[datetime] = None
@@ -47,8 +50,10 @@ class SyncJobMetrics:
             "last_sync_duration_seconds": self.last_sync_duration_seconds,
             "last_sync_imported": self.last_sync_imported,
             "last_sync_skipped": self.last_sync_skipped,
+            "last_chats_synced": self.last_chats_synced,
             "total_syncs": self.total_syncs,
             "total_imported": self.total_imported,
+            "total_chats_synced": self.total_chats_synced,
             "total_errors": self.total_errors,
             "is_running": self.is_running,
             "started_at": self.started_at.isoformat() if self.started_at else None,
@@ -162,13 +167,19 @@ class ContinuousSyncJob:
 
             total_imported = 0
             total_skipped = 0
+            total_chats = 0
             start_time = datetime_utcnow()
 
             for instance_name in instances:
                 try:
-                    stats = await self._sync_instance(db, instance_name, days_back)
-                    total_imported += stats.get("total_imported", 0)
-                    total_skipped += stats.get("already_exists", 0)
+                    # Sync chats first (fast, always do this)
+                    chat_stats = await self._sync_chats(db, instance_name)
+                    total_chats += chat_stats.get("synced", 0) + chat_stats.get("updated", 0)
+
+                    # Sync messages
+                    msg_stats = await self._sync_instance(db, instance_name, days_back)
+                    total_imported += msg_stats.get("total_imported", 0)
+                    total_skipped += msg_stats.get("already_exists", 0)
                 except Exception as e:
                     logger.error(f"Error syncing instance {instance_name}: {e}")
                     self.metrics.total_errors += 1
@@ -179,19 +190,30 @@ class ContinuousSyncJob:
             self.metrics.last_sync_duration_seconds = (end_time - start_time).total_seconds()
             self.metrics.last_sync_imported = total_imported
             self.metrics.last_sync_skipped = total_skipped
+            self.metrics.last_chats_synced = total_chats
             self.metrics.total_syncs += 1
             self.metrics.total_imported += total_imported
+            self.metrics.total_chats_synced += total_chats
 
             logger.info(
-                f"Sync complete: {total_imported} imported, {total_skipped} skipped "
+                f"Sync complete: {total_chats} chats, {total_imported} msgs imported, {total_skipped} skipped "
                 f"in {self.metrics.last_sync_duration_seconds:.1f}s"
             )
 
         finally:
             db.close()
 
+    async def _sync_chats(self, db: SQLAlchemySession, instance_name: str) -> Dict[str, Any]:
+        """Sync chats for an instance."""
+        try:
+            service = ChatSyncService(db)
+            return service.sync_chats_for_instance(instance_name)
+        except Exception as e:
+            logger.error(f"Error syncing chats for {instance_name}: {e}")
+            return {"synced": 0, "updated": 0, "errors": 1}
+
     async def _sync_instance(self, db: SQLAlchemySession, instance_name: str, days_back: int) -> Dict[str, Any]:
-        """Sync a single instance."""
+        """Sync messages for a single instance."""
         # Get last sync timestamp for this instance
         last_sync = (
             db.query(func.max(OmniMessageRecord.synced_at))
