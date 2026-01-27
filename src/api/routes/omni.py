@@ -78,6 +78,11 @@ def _get_chats_from_local(
 
     Uses pre-synced chat metadata for fast queries.
     Run chat_sync_service.sync_chats_for_instance() to populate/refresh data.
+
+    Deduplication: WhatsApp has two JID formats for the same contact:
+    - @lid (Linked ID) - new multi-device format
+    - @s.whatsapp.net (phone number) - traditional format
+    We prefer phone number format and filter out @lid when both exist for same contact name.
     """
     # Build query from omni_chats table
     query = db.query(OmniChatRecord).filter(
@@ -89,13 +94,34 @@ def _get_chats_from_local(
     if chat_type_filter:
         query = query.filter(OmniChatRecord.chat_type == chat_type_filter)
 
-    # Get total count
-    total_count = query.count()
+    # Get all matching records (we'll deduplicate in Python for simplicity)
+    all_records = query.order_by(desc(OmniChatRecord.last_message_at)).all()
 
-    # Apply pagination and ordering by last message
-    chat_records = (
-        query.order_by(desc(OmniChatRecord.last_message_at)).offset((page - 1) * page_size).limit(page_size).all()
-    )
+    # Deduplicate: prefer @s.whatsapp.net over @lid for same contact name
+    # First pass: collect names that have phone number entries
+    phone_number_names = set()
+    for record in all_records:
+        if record.chat_id and "@s.whatsapp.net" in record.chat_id:
+            if record.name:
+                phone_number_names.add(record.name)
+
+    # Second pass: filter out @lid entries when phone number entry exists for same name
+    deduplicated_records = []
+    for record in all_records:
+        is_lid = record.chat_id and "@lid" in record.chat_id
+        has_phone_entry = record.name in phone_number_names
+
+        # Skip @lid entries if we have a phone number entry for this contact
+        if is_lid and has_phone_entry:
+            continue
+
+        deduplicated_records.append(record)
+
+    # Apply pagination to deduplicated results
+    total_count = len(deduplicated_records)
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    chat_records = deduplicated_records[start_idx:end_idx]
 
     # Convert to OmniChat objects
     chats = []
