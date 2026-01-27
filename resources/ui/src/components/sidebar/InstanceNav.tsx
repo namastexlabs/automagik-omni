@@ -1,27 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-  ChevronDown,
-  ChevronRight,
-  Activity,
-  Settings,
-  Webhook,
-  Radio,
-  Server,
-  Loader2,
-  Bot,
-  Plus,
-  ExternalLink,
-  type LucideIcon,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Activity, Loader2, Plus } from 'lucide-react';
 import { cn, api } from '@/lib';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { SettingsSheet } from '@/components/sheets/SettingsSheet';
-import { WebhookSheet } from '@/components/sheets/WebhookSheet';
-import { WebSocketSheet } from '@/components/sheets/WebSocketSheet';
-import { RabbitMQSheet } from '@/components/sheets/RabbitMQSheet';
-import { DiscordBotSettingsSheet } from '@/components/sheets/DiscordBotSettingsSheet';
 import { DiscordIcon, WhatsAppIcon, SlackIcon } from '@/components/icons/BrandIcons';
 import type { InstanceConfig } from '@/lib';
 
@@ -103,28 +85,6 @@ interface InstanceNavProps {
   onNavigate?: () => void;
 }
 
-type SheetType = 'settings' | 'webhook' | 'websocket' | 'rabbitmq' | 'bot-settings' | null;
-
-// Channel-specific sub-items for quick access (advanced settings not in main page)
-interface SubItemConfig {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-const CHANNEL_SUB_ITEMS: Record<'whatsapp' | 'discord' | 'slack', SubItemConfig[]> = {
-  whatsapp: [
-    { id: 'settings', label: 'WhatsApp Behavior', icon: Settings },
-    { id: 'webhook', label: 'Webhook', icon: Webhook },
-    { id: 'websocket', label: 'WebSocket', icon: Radio },
-    { id: 'rabbitmq', label: 'RabbitMQ', icon: Server },
-  ],
-  discord: [
-    { id: 'bot-settings', label: 'Bot Settings', icon: Bot },
-  ],
-  slack: [],
-};
-
 // Channel type icons and colors (using brand SVG icons)
 const CHANNEL_ICON_CONFIG: Record<string, { color: string }> = {
   whatsapp: { color: 'text-[#25D366]' },
@@ -134,12 +94,6 @@ const CHANNEL_ICON_CONFIG: Record<string, { color: string }> = {
 
 export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavProps) {
   const navigate = useNavigate();
-  const [expandedInstances, setExpandedInstances] = useState<Record<string, boolean>>({});
-  const [activeSheet, setActiveSheet] = useState<{
-    type: SheetType;
-    instanceName: string;
-    channelType: 'whatsapp' | 'discord' | 'slack';
-  } | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const { data: instances, isLoading } = useQuery<InstanceConfig[]>({
@@ -148,31 +102,9 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
     refetchInterval: 15000, // Refresh every 15 seconds to keep status current
   });
 
-  const toggleInstance = (e: React.MouseEvent, instanceName: string) => {
-    e.stopPropagation();
-    setExpandedInstances((prev) => ({
-      ...prev,
-      [instanceName]: !prev[instanceName],
-    }));
-  };
-
   const navigateToInstance = (instanceName: string) => {
     navigate(`/instances/${instanceName}`);
     onNavigate?.();
-  };
-
-  const openSheet = (type: SheetType, instanceName: string, channelType: 'whatsapp' | 'discord' | 'slack') => {
-    setActiveSheet({ type, instanceName, channelType });
-  };
-
-  const closeSheet = () => {
-    setActiveSheet(null);
-  };
-
-  // Get sub-items for a specific channel type
-  const getSubItems = (channelType: string): SubItemConfig[] => {
-    const type = channelType as keyof typeof CHANNEL_SUB_ITEMS;
-    return CHANNEL_SUB_ITEMS[type] || CHANNEL_SUB_ITEMS.whatsapp;
   };
 
   // Get channel icon component (brand SVG icons)
@@ -230,117 +162,33 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           ) : instances && instances.length > 0 ? (
-            instances.map((instance) => {
-              const subItems = getSubItems(instance.channel_type || 'whatsapp');
-              const hasSubItems = subItems.length > 0;
-
-              return (
-                <div key={instance.name}>
-                  {/* Instance Name - click navigates to settings page */}
-                  <div
-                    className={cn(
-                      'group flex w-full items-center space-x-2 rounded-lg px-3 py-2 text-sm transition-all duration-200',
-                      'text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer',
-                    )}
-                  >
-                    {hasSubItems ? (
-                      <button
-                        onClick={(e) => toggleInstance(e, instance.name)}
-                        className="hover:bg-muted rounded p-0.5"
-                      >
-                        {expandedInstances[instance.name] ? (
-                          <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                        )}
-                      </button>
-                    ) : (
-                      <div className="w-4" />
-                    )}
-                    <button
-                      onClick={() => navigateToInstance(instance.name)}
-                      className="flex flex-1 items-center space-x-2 text-left"
-                    >
-                      {getChannelIcon(instance.channel_type || 'whatsapp')}
-                      <span className="flex-1 truncate">{instance.name}</span>
-                      <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50" />
-                    </button>
-                    <span
-                      className={cn('h-2 w-2 rounded-full', {
-                        'bg-green-500': getInstanceConnectionStatus(instance) === 'connected',
-                        'bg-yellow-500 animate-pulse': getInstanceConnectionStatus(instance) === 'connecting',
-                        'bg-red-500':
-                          getInstanceConnectionStatus(instance) === 'disconnected' ||
-                          getInstanceConnectionStatus(instance) === 'error',
-                        'bg-gray-400': getInstanceConnectionStatus(instance) === 'unknown',
-                      })}
-                    />
-                  </div>
-
-                  {/* Sub-items - only advanced/integration sheets */}
-                  {hasSubItems && expandedInstances[instance.name] && (
-                    <div className="ml-5 space-y-0.5">
-                      {subItems.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() =>
-                            openSheet(item.id as SheetType, instance.name, instance.channel_type || 'whatsapp')
-                          }
-                          className={cn(
-                            'flex w-full items-center space-x-2 rounded-lg px-3 py-1.5 text-xs transition-all duration-200',
-                            'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                          )}
-                        >
-                          <item.icon className="h-3.5 w-3.5" />
-                          <span>{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            instances.map((instance) => (
+              <button
+                key={instance.name}
+                onClick={() => navigateToInstance(instance.name)}
+                className={cn(
+                  'group flex w-full items-center space-x-2 rounded-lg px-3 py-2 text-sm transition-all duration-200',
+                  'text-foreground hover:bg-accent hover:text-accent-foreground',
+                )}
+              >
+                {getChannelIcon(instance.channel_type || 'whatsapp')}
+                <span className="flex-1 text-left truncate">{instance.name}</span>
+                <span
+                  className={cn('h-2 w-2 rounded-full', {
+                    'bg-green-500': getInstanceConnectionStatus(instance) === 'connected',
+                    'bg-yellow-500 animate-pulse': getInstanceConnectionStatus(instance) === 'connecting',
+                    'bg-red-500':
+                      getInstanceConnectionStatus(instance) === 'disconnected' ||
+                      getInstanceConnectionStatus(instance) === 'error',
+                    'bg-gray-400': getInstanceConnectionStatus(instance) === 'unknown',
+                  })}
+                />
+              </button>
+            ))
           ) : (
             <p className="px-3 py-2 text-xs text-muted-foreground">No instances</p>
           )}
         </div>
-      )}
-
-      {/* Sheets - only advanced/integration settings */}
-      {activeSheet?.type === 'settings' && (
-        <SettingsSheet
-          instanceName={activeSheet.instanceName}
-          open={true}
-          onOpenChange={(open) => !open && closeSheet()}
-        />
-      )}
-      {activeSheet?.type === 'webhook' && (
-        <WebhookSheet
-          instanceName={activeSheet.instanceName}
-          open={true}
-          onOpenChange={(open) => !open && closeSheet()}
-        />
-      )}
-      {activeSheet?.type === 'websocket' && (
-        <WebSocketSheet
-          instanceName={activeSheet.instanceName}
-          open={true}
-          onOpenChange={(open) => !open && closeSheet()}
-        />
-      )}
-      {activeSheet?.type === 'rabbitmq' && (
-        <RabbitMQSheet
-          instanceName={activeSheet.instanceName}
-          open={true}
-          onOpenChange={(open) => !open && closeSheet()}
-        />
-      )}
-      {activeSheet?.type === 'bot-settings' && (
-        <DiscordBotSettingsSheet
-          instanceName={activeSheet.instanceName}
-          open={true}
-          onOpenChange={(open) => !open && closeSheet()}
-        />
       )}
 
       {/* Create Instance Dialog */}

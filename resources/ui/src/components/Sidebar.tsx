@@ -12,7 +12,6 @@ import {
   Plug,
   Layers,
   UserCog,
-  Cable,
 } from 'lucide-react';
 import { InstanceNav } from './sidebar/InstanceNav';
 
@@ -23,7 +22,6 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Connections', href: '/instances', icon: Cable },
   { name: 'Chats', href: '/chats', icon: MessageSquare },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Users', href: '/users', icon: UserCog },
