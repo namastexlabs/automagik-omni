@@ -19,6 +19,7 @@ import type {
   PaginatedResponse,
   SettingHistoryEntry,
   SettingEntry,
+  User,
 } from './types';
 
 const API_KEY_STORAGE_KEY = 'omni_api_key';
@@ -1712,6 +1713,61 @@ export const api = {
       if (params?.content_type) queryParams.append('content_type', params.content_type);
       const query = queryParams.toString();
       return apiRequest(`/media-content/${messageId}${query ? `?${query}` : ''}`);
+    },
+  },
+
+  // Users API
+  users: {
+    async list(params?: {
+      instance_name?: string;
+      provider?: string;
+      limit?: number;
+      offset?: number;
+    }): Promise<{
+      users: User[];
+      total: number;
+      limit: number;
+      offset: number;
+    }> {
+      const queryParams = new URLSearchParams();
+      if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
+      if (params?.provider) queryParams.append('provider', params.provider);
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.offset) queryParams.append('offset', params.offset.toString());
+      const query = queryParams.toString();
+      return apiRequest(`/users${query ? `?${query}` : ''}`);
+    },
+
+    async get(userId: string): Promise<User> {
+      return apiRequest(`/users/${userId}`);
+    },
+
+    async link(
+      userId: string,
+      data: { provider: string; external_id: string; instance_name?: string }
+    ): Promise<User> {
+      return apiRequest(`/users/${userId}/link`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async merge(targetUserId: string, sourceUserId: string): Promise<{
+      target_user_id: string;
+      source_user_id: string;
+      external_ids_transferred: number;
+      message_count_added: number;
+    }> {
+      return apiRequest(`/users/${targetUserId}/merge`, {
+        method: 'POST',
+        body: JSON.stringify({ source_user_id: sourceUserId }),
+      });
+    },
+
+    async delete(userId: string): Promise<{ message: string }> {
+      return apiRequest(`/users/${userId}`, {
+        method: 'DELETE',
+      });
     },
   },
 };

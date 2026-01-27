@@ -625,3 +625,27 @@ export interface ProviderTeam {
   name?: string | null;
   description?: string | null;
 }
+
+// User Management Types
+export interface UserExternalId {
+  id: number;
+  provider: string;
+  external_id: string;
+  instance_name?: string | null;
+  created_at?: string | null;
+}
+
+export interface User {
+  id: string;
+  phone_number: string;
+  whatsapp_jid: string;
+  instance_name: string;
+  display_name?: string | null;
+  last_session_name_interaction?: string | null;
+  last_agent_user_id?: string | null;
+  last_seen_at?: string | null;
+  message_count?: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+  external_ids?: UserExternalId[];
+}

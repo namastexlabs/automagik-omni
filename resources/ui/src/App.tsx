@@ -24,6 +24,7 @@ import WhatsAppService from './pages/services/WhatsAppService';
 import DiscordService from './pages/services/DiscordService';
 import Mcp from './pages/Mcp';
 import BatchJobs from './pages/BatchJobs';
+import Users from './pages/Users';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -224,6 +225,16 @@ function App() {
                   <SetupGuard>
                     <ProtectedRoute>
                       <BatchJobs />
+                    </ProtectedRoute>
+                  </SetupGuard>
+                }
+              />
+              <Route
+                path="/users"
+                element={
+                  <SetupGuard>
+                    <ProtectedRoute>
+                      <Users />
                     </ProtectedRoute>
                   </SetupGuard>
                 }
