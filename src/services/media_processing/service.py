@@ -21,7 +21,7 @@ import httpx
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from src.db.trace_models import MediaContent, MessageTrace, TracePayload
+from src.db.trace_models import MediaContent, MessageTrace, TracePayload, OmniMessageRecord, OmniChatRecord
 from src.db.database import get_db
 from src.services.settings_service import settings_service
 from src.utils.datetime_utils import utcnow
@@ -784,6 +784,32 @@ class MediaProcessingService:
             if instance_name:
                 base_query = base_query.filter(MessageTrace.instance_name == instance_name)
 
+            # Get chat_ids with skip_media_processing=True for filtering
+            skipped_chat_ids_subq = db.query(OmniChatRecord.chat_id).filter(
+                OmniChatRecord.skip_media_processing == True,  # noqa: E712
+            )
+            if instance_name:
+                skipped_chat_ids_subq = skipped_chat_ids_subq.filter(OmniChatRecord.instance_name == instance_name)
+            skipped_chat_ids = [r[0] for r in skipped_chat_ids_subq.all()]
+
+            # Filter out traces from skipped chats (via OmniMessageRecord link)
+            skipped_count = 0
+            if skipped_chat_ids:
+                # Get trace_ids that belong to skipped chats
+                skipped_trace_ids_subq = (
+                    db.query(OmniMessageRecord.trace_id)
+                    .filter(
+                        OmniMessageRecord.trace_id.isnot(None),
+                        OmniMessageRecord.chat_id.in_(skipped_chat_ids),
+                    )
+                    .scalar_subquery()
+                )
+                # Count how many we're skipping due to chat flag
+                skipped_count = base_query.filter(MessageTrace.trace_id.in_(skipped_trace_ids_subq)).count()
+                # Exclude from base query
+                base_query = base_query.filter(~MessageTrace.trace_id.in_(skipped_trace_ids_subq))
+                logger.info(f"Excluding {skipped_count} audio traces from {len(skipped_chat_ids)} skipped chats")
+
             # Count total found BEFORE filtering (for visibility)
             total_found = base_query.count()
 
@@ -817,12 +843,14 @@ class MediaProcessingService:
             traces = query.all()
 
             logger.info(
-                f"Found {total_found} total audio traces, {already_processed_count} already processed, {len(traces)} to process"
+                f"Found {total_found} total audio traces, {already_processed_count} already processed, "
+                f"{skipped_count} skipped (chat flag), {len(traces)} to process"
             )
 
             stats = {
                 "total_found": total_found,  # All matching traces
                 "already_processed": already_processed_count,  # Skipped (have MediaContent)
+                "skipped_chats": skipped_count,  # Skipped due to skip_media_processing flag
                 "total": len(traces),  # To be processed this run
                 "processed": 0,
                 "failed": 0,
@@ -1104,6 +1132,29 @@ class MediaProcessingService:
             if instance_name:
                 base_query = base_query.filter(MessageTrace.instance_name == instance_name)
 
+            # Get chat_ids with skip_media_processing=True for filtering
+            skipped_chat_ids_subq = db.query(OmniChatRecord.chat_id).filter(
+                OmniChatRecord.skip_media_processing == True,  # noqa: E712
+            )
+            if instance_name:
+                skipped_chat_ids_subq = skipped_chat_ids_subq.filter(OmniChatRecord.instance_name == instance_name)
+            skipped_chat_ids = [r[0] for r in skipped_chat_ids_subq.all()]
+
+            # Filter out traces from skipped chats (via OmniMessageRecord link)
+            skipped_count = 0
+            if skipped_chat_ids:
+                skipped_trace_ids_subq = (
+                    db.query(OmniMessageRecord.trace_id)
+                    .filter(
+                        OmniMessageRecord.trace_id.isnot(None),
+                        OmniMessageRecord.chat_id.in_(skipped_chat_ids),
+                    )
+                    .scalar_subquery()
+                )
+                skipped_count = base_query.filter(MessageTrace.trace_id.in_(skipped_trace_ids_subq)).count()
+                base_query = base_query.filter(~MessageTrace.trace_id.in_(skipped_trace_ids_subq))
+                logger.info(f"Excluding {skipped_count} image traces from {len(skipped_chat_ids)} skipped chats")
+
             # Count total found BEFORE filtering (for visibility)
             total_found = base_query.count()
 
@@ -1137,12 +1188,14 @@ class MediaProcessingService:
             traces = query.all()
 
             logger.info(
-                f"Found {total_found} total image traces, {already_processed_count} already processed, {len(traces)} to process"
+                f"Found {total_found} total image traces, {already_processed_count} already processed, "
+                f"{skipped_count} skipped (chat flag), {len(traces)} to process"
             )
 
             stats = {
                 "total_found": total_found,
                 "already_processed": already_processed_count,
+                "skipped_chats": skipped_count,
                 "total": len(traces),
                 "processed": 0,
                 "failed": 0,
@@ -1559,6 +1612,29 @@ class MediaProcessingService:
             if instance_name:
                 base_query = base_query.filter(MessageTrace.instance_name == instance_name)
 
+            # Get chat_ids with skip_media_processing=True for filtering
+            skipped_chat_ids_subq = db.query(OmniChatRecord.chat_id).filter(
+                OmniChatRecord.skip_media_processing == True,  # noqa: E712
+            )
+            if instance_name:
+                skipped_chat_ids_subq = skipped_chat_ids_subq.filter(OmniChatRecord.instance_name == instance_name)
+            skipped_chat_ids = [r[0] for r in skipped_chat_ids_subq.all()]
+
+            # Filter out traces from skipped chats (via OmniMessageRecord link)
+            skipped_count = 0
+            if skipped_chat_ids:
+                skipped_trace_ids_subq = (
+                    db.query(OmniMessageRecord.trace_id)
+                    .filter(
+                        OmniMessageRecord.trace_id.isnot(None),
+                        OmniMessageRecord.chat_id.in_(skipped_chat_ids),
+                    )
+                    .scalar_subquery()
+                )
+                skipped_count = base_query.filter(MessageTrace.trace_id.in_(skipped_trace_ids_subq)).count()
+                base_query = base_query.filter(~MessageTrace.trace_id.in_(skipped_trace_ids_subq))
+                logger.info(f"Excluding {skipped_count} document traces from {len(skipped_chat_ids)} skipped chats")
+
             # Count total found BEFORE filtering (for visibility)
             total_found = base_query.count()
 
@@ -1592,12 +1668,14 @@ class MediaProcessingService:
             traces = query.all()
 
             logger.info(
-                f"Found {total_found} total document traces, {already_processed_count} already processed, {len(traces)} to process"
+                f"Found {total_found} total document traces, {already_processed_count} already processed, "
+                f"{skipped_count} skipped (chat flag), {len(traces)} to process"
             )
 
             stats = {
                 "total_found": total_found,
                 "already_processed": already_processed_count,
+                "skipped_chats": skipped_count,
                 "total": len(traces),
                 "processed": 0,
                 "failed": 0,

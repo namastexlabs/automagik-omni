@@ -585,6 +585,50 @@ export const api = {
       const query = queryParams.toString();
       return apiRequest(`/instances/${instanceId}/chats${query ? `?${query}` : ''}`);
     },
+
+    async toggleProcessing(
+      instanceName: string,
+      chatId: string,
+      skipMediaProcessing: boolean,
+      processingNote?: string,
+    ): Promise<{
+      chat_id: string;
+      instance_name: string;
+      skip_media_processing: boolean;
+      processing_note: string | null;
+      name: string;
+      chat_type: string;
+    }> {
+      const queryParams = new URLSearchParams();
+      queryParams.append('skip_media_processing', skipMediaProcessing.toString());
+      if (processingNote) queryParams.append('processing_note', processingNote);
+      return apiRequest(`/instances/${instanceName}/chats/${encodeURIComponent(chatId)}/processing?${queryParams}`, {
+        method: 'PATCH',
+      });
+    },
+
+    async bulkToggleProcessing(
+      instanceName: string,
+      chatIds: string[],
+      skipMediaProcessing: boolean,
+      processingNote?: string,
+    ): Promise<{
+      instance_name: string;
+      skip_media_processing: boolean;
+      processing_note: string | null;
+      updated_count: number;
+      updated_chat_ids: string[];
+      not_found_count: number;
+      not_found_chat_ids: string[];
+    }> {
+      const queryParams = new URLSearchParams();
+      chatIds.forEach((id) => queryParams.append('chat_ids', id));
+      queryParams.append('skip_media_processing', skipMediaProcessing.toString());
+      if (processingNote) queryParams.append('processing_note', processingNote);
+      return apiRequest(`/instances/${instanceName}/chats/processing/bulk?${queryParams}`, {
+        method: 'PATCH',
+      });
+    },
   },
 
   // Legacy flat methods for backward compatibility

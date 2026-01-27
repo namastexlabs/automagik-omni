@@ -545,6 +545,8 @@ export interface OmniChat {
   description?: string | null;
   avatar_url?: string | null;
   unread_count?: number | null;
+  skip_media_processing?: boolean;
+  processing_note?: string | null;
   channel_data?: Record<string, unknown>;
   created_at?: string | null;
   last_message_at?: string | null;

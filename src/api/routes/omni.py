@@ -120,6 +120,8 @@ def _get_chats_from_local(
                 is_archived=record.is_archived,
                 is_pinned=record.is_pinned,
                 unread_count=record.unread_count,
+                skip_media_processing=record.skip_media_processing,
+                processing_note=record.processing_note,
                 last_message_at=record.last_message_at,
                 channel_data={
                     "message_count": record.message_count,
@@ -804,3 +806,114 @@ async def validate_recipients(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to validate recipients: {str(e)}",
         )
+
+
+@router.patch(
+    "/instances/{instance_name}/chats/{chat_id}/processing",
+    summary="Toggle Chat Media Processing",
+    description="Enable or disable media processing (transcription, image analysis) for a specific chat",
+)
+async def toggle_chat_processing(
+    instance_name: str,
+    chat_id: str,
+    skip_media_processing: bool = Query(..., description="Set to true to disable processing, false to enable"),
+    processing_note: Optional[str] = Query(
+        None, description="Optional note explaining why (e.g., 'Promotions', 'News channel')"
+    ),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Toggle media processing for a chat.
+
+    When skip_media_processing is true:
+    - Audio messages won't be transcribed
+    - Images won't be analyzed
+    - Documents won't be processed
+    - Chat will be excluded from batch processing jobs
+
+    Useful for promotional groups, news channels, or other high-volume
+    chats where media processing isn't needed.
+    """
+    from src.utils.datetime_utils import datetime_utcnow
+
+    # Find the chat record
+    record_id = OmniChatRecord.generate_id(instance_name, chat_id)
+    chat_record = db.query(OmniChatRecord).filter(OmniChatRecord.id == record_id).first()
+
+    if not chat_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chat {chat_id} not found for instance {instance_name}",
+        )
+
+    # Update the flags
+    chat_record.skip_media_processing = skip_media_processing
+    chat_record.processing_note = processing_note
+    chat_record.updated_at = datetime_utcnow()
+
+    db.commit()
+    db.refresh(chat_record)
+
+    logger.info(
+        f"Updated chat processing for {instance_name}/{chat_id}: skip={skip_media_processing}, note='{processing_note}'"
+    )
+
+    return {
+        "chat_id": chat_id,
+        "instance_name": instance_name,
+        "skip_media_processing": chat_record.skip_media_processing,
+        "processing_note": chat_record.processing_note,
+        "name": chat_record.name,
+        "chat_type": chat_record.chat_type,
+    }
+
+
+@router.patch(
+    "/instances/{instance_name}/chats/processing/bulk",
+    summary="Bulk Toggle Chat Processing",
+    description="Enable or disable media processing for multiple chats at once",
+)
+async def bulk_toggle_chat_processing(
+    instance_name: str,
+    chat_ids: List[str] = Query(..., description="List of chat IDs to update"),
+    skip_media_processing: bool = Query(..., description="Set to true to disable processing, false to enable"),
+    processing_note: Optional[str] = Query(None, description="Optional note explaining why"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Bulk toggle media processing for multiple chats.
+
+    Useful for quickly muting all promotional groups or news channels.
+    """
+    from src.utils.datetime_utils import datetime_utcnow
+
+    updated = []
+    not_found = []
+
+    for chat_id in chat_ids:
+        record_id = OmniChatRecord.generate_id(instance_name, chat_id)
+        chat_record = db.query(OmniChatRecord).filter(OmniChatRecord.id == record_id).first()
+
+        if chat_record:
+            chat_record.skip_media_processing = skip_media_processing
+            chat_record.processing_note = processing_note
+            chat_record.updated_at = datetime_utcnow()
+            updated.append(chat_id)
+        else:
+            not_found.append(chat_id)
+
+    db.commit()
+
+    logger.info(f"Bulk updated chat processing for {instance_name}: {len(updated)} updated, {len(not_found)} not found")
+
+    return {
+        "instance_name": instance_name,
+        "skip_media_processing": skip_media_processing,
+        "processing_note": processing_note,
+        "updated_count": len(updated),
+        "updated_chat_ids": updated,
+        "not_found_count": len(not_found),
+        "not_found_chat_ids": not_found,
+    }

@@ -78,6 +78,10 @@ class OmniChat(BaseModel):
     avatar_url: Optional[str] = Field(None, description="Chat avatar/icon URL")
     unread_count: Optional[int] = Field(None, description="Unread message count")
 
+    # Media processing settings
+    skip_media_processing: bool = Field(False, description="Skip media processing for this chat")
+    processing_note: Optional[str] = Field(None, description="Note explaining why processing is skipped")
+
     # Channel-specific data
     channel_data: Dict[str, Any] = Field(default_factory=dict, description="Channel-specific chat data")
 

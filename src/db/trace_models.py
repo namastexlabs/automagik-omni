@@ -695,6 +695,10 @@ class OmniChatRecord(Base):
     evo_chat_id = Column(String(255), nullable=True)  # Link to evo_Chat.id
     synced_at = Column(DateTime, nullable=True)
 
+    # Media processing settings
+    skip_media_processing = Column(Boolean, default=False, nullable=False)  # Exclude from transcription/batch
+    processing_note = Column(String(255), nullable=True)  # Why it's skipped ("Promotions", "News", etc.)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
