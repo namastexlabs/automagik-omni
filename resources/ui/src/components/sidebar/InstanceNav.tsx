@@ -12,8 +12,9 @@ type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'error' | 
 /**
  * Normalize the connection status from various fields in InstanceConfig
  * Priority: connection_status field > channel-specific status fields
+ * @param isDiscordServiceRunning - Whether the Discord service is running (from gateway channels)
  */
-function getInstanceConnectionStatus(instance: InstanceConfig): ConnectionStatus {
+function getInstanceConnectionStatus(instance: InstanceConfig, isDiscordServiceRunning?: boolean): ConnectionStatus {
   // First, check the connection_status field from the API (most authoritative)
   if (instance.connection_status) {
     const status = instance.connection_status.toLowerCase();
@@ -39,9 +40,15 @@ function getInstanceConnectionStatus(instance: InstanceConfig): ConnectionStatus
   const channelType = instance.channel_type || 'whatsapp';
 
   if (channelType === 'discord') {
-    // For Discord: token configured = "configured but not connected" (gray)
-    // We can't know if it's actually connected without the service status
-    // So show gray/unknown - user should check Discord service page
+    // For Discord: check if service is running (from gateway channels)
+    if (isDiscordServiceRunning !== undefined) {
+      if (instance.has_discord_bot_token && isDiscordServiceRunning) {
+        return 'connected';
+      } else if (instance.has_discord_bot_token && !isDiscordServiceRunning) {
+        return 'disconnected';
+      }
+    }
+    // Fallback: token configured but service status unknown
     return instance.has_discord_bot_token ? 'unknown' : 'disconnected';
   }
 
@@ -101,6 +108,16 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
     queryFn: () => api.instances.list({ limit: 100, include_live_status: true }),
     refetchInterval: 15000, // Refresh every 15 seconds to keep status current
   });
+
+  // Query gateway channels for Discord service status
+  const { data: channelsData } = useQuery({
+    queryKey: ['gateway-channels'],
+    queryFn: () => api.gateway.getChannels(),
+    refetchInterval: 15000,
+  });
+
+  const discordChannel = channelsData?.channels?.find((c: { name: string }) => c.name === 'discord');
+  const isDiscordRunning = discordChannel?.running || false;
 
   const navigateToInstance = (instanceName: string) => {
     navigate(`/instances/${instanceName}`);
@@ -175,12 +192,13 @@ export function InstanceNav({ isExpanded, onToggle, onNavigate }: InstanceNavPro
                 <span className="flex-1 text-left truncate">{instance.name}</span>
                 <span
                   className={cn('h-2 w-2 rounded-full', {
-                    'bg-green-500': getInstanceConnectionStatus(instance) === 'connected',
-                    'bg-yellow-500 animate-pulse': getInstanceConnectionStatus(instance) === 'connecting',
+                    'bg-green-500': getInstanceConnectionStatus(instance, isDiscordRunning) === 'connected',
+                    'bg-yellow-500 animate-pulse':
+                      getInstanceConnectionStatus(instance, isDiscordRunning) === 'connecting',
                     'bg-red-500':
-                      getInstanceConnectionStatus(instance) === 'disconnected' ||
-                      getInstanceConnectionStatus(instance) === 'error',
-                    'bg-gray-400': getInstanceConnectionStatus(instance) === 'unknown',
+                      getInstanceConnectionStatus(instance, isDiscordRunning) === 'disconnected' ||
+                      getInstanceConnectionStatus(instance, isDiscordRunning) === 'error',
+                    'bg-gray-400': getInstanceConnectionStatus(instance, isDiscordRunning) === 'unknown',
                   })}
                 />
               </button>

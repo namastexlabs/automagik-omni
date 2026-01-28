@@ -5,6 +5,7 @@ Provides multi-tenant Discord bot management with proper lifecycle control.
 
 import logging
 import asyncio
+import os
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from src.channels.base import ChannelHandler, QRCodeResponse, ConnectionStatus
@@ -1126,37 +1127,65 @@ class DiscordChannelHandler(ChannelHandler):
             )
 
     async def get_status(self, instance: InstanceConfig) -> ConnectionStatus:
-        """Get Discord bot connection status."""
+        """Get Discord bot connection status via IPC socket."""
         try:
-            if instance.name not in self._bot_instances:
+            # Query the Discord service manager via Unix socket
+            from src.ipc_config import IPCConfig
+            import aiohttp
+
+            socket_path = IPCConfig.get_socket_path("discord", instance.name)
+
+            # Check if socket exists
+            if not os.path.exists(socket_path):
+                logger.debug(f"Discord socket not found for '{instance.name}' at {socket_path}")
                 return ConnectionStatus(
                     instance_name=instance.name,
                     channel_type="discord",
-                    status="not_found",
+                    status="disconnected",
+                    channel_data={"message": "Discord service not running for this instance"},
                 )
-            bot_instance = self._bot_instances[instance.name]
 
-            # Get additional connection info
-            channel_data = {
-                "invite_url": bot_instance.invite_url,
-                "error_message": bot_instance.error_message,
-            }
+            # Query status via Unix socket
+            connector = aiohttp.UnixConnector(path=socket_path)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.get("http://localhost/status", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        status = data.get("status", "unknown")
+                        # Map status to standard values
+                        if status == "connected":
+                            status = "connected"
+                        elif status in ("starting", "connecting"):
+                            status = "connecting"
+                        elif status in ("disconnected", "error"):
+                            status = "disconnected"
 
-            # Add bot-specific data if connected
-            if bot_instance.status == "connected" and bot_instance.client.user:
-                channel_data.update(
-                    {
-                        "bot_username": str(bot_instance.client.user),
-                        "bot_id": bot_instance.client.user.id,
-                        "guild_count": len(bot_instance.client.guilds),
-                        "guilds": [{"id": guild.id, "name": guild.name} for guild in bot_instance.client.guilds],
-                    }
-                )
+                        return ConnectionStatus(
+                            instance_name=instance.name,
+                            channel_type="discord",
+                            status=status,
+                            channel_data={
+                                "guild_count": data.get("guild_count", 0),
+                                "user_count": data.get("user_count", 0),
+                                "latency_ms": data.get("latency_ms", 0),
+                                "uptime": data.get("uptime"),
+                            },
+                        )
+                    else:
+                        return ConnectionStatus(
+                            instance_name=instance.name,
+                            channel_type="discord",
+                            status="error",
+                            channel_data={"message": f"IPC status returned {resp.status}"},
+                        )
+
+        except aiohttp.ClientError as e:
+            logger.debug(f"Cannot connect to Discord IPC socket for '{instance.name}': {e}")
             return ConnectionStatus(
                 instance_name=instance.name,
                 channel_type="discord",
-                status=bot_instance.status,
-                channel_data=channel_data,
+                status="disconnected",
+                channel_data={"message": "Cannot connect to Discord service"},
             )
         except Exception as e:
             logger.error(f"Failed to get Discord bot status: {e}")
