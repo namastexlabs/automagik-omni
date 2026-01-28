@@ -24,34 +24,75 @@ function groupReactionsByEmoji(reactions: OmniMessageReaction[]): Record<string,
 }
 
 // Render text with highlighted @mentions
-function TextWithMentions({ text, className }: { text: string; className?: string }) {
-  // Match @mentions (word characters, spaces in names, or phone numbers with +)
-  const mentionRegex = /(@[\w\s+]+?)(?=\s|$|[.,!?;:])/g;
+function TextWithMentions({
+  text,
+  mentions,
+  className,
+}: {
+  text: string;
+  mentions?: Array<{ jid: string; name?: string | null; phone?: string | null }>;
+  className?: string;
+}) {
+  // If we have mentions data, use exact matching on resolved names
+  if (mentions && mentions.length > 0) {
+    // Build list of mention strings to highlight (e.g., "@Gustavo Batista", "@+5511...")
+    const mentionStrings = mentions
+      .map((m) => {
+        if (m.name) return `@${m.name}`;
+        if (m.phone) return `@+${m.phone}`;
+        // Fallback to JID without domain
+        const jidId = m.jid.split('@')[0];
+        return `@${jidId}`;
+      })
+      .filter(Boolean);
 
-  const parts: (string | JSX.Element)[] = [];
-  let lastIndex = 0;
-  let match;
-
-  while ((match = mentionRegex.exec(text)) !== null) {
-    // Add text before the mention
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+    if (mentionStrings.length === 0) {
+      return <span className={className}>{text}</span>;
     }
-    // Add the styled mention
-    parts.push(
-      <span key={match.index} className="font-semibold text-primary">
-        {match[0]}
-      </span>,
+
+    // Create regex pattern from mention strings (escape special chars)
+    const escapedMentions = mentionStrings.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const mentionRegex = new RegExp(`(${escapedMentions.join('|')})`, 'g');
+
+    const parts = text.split(mentionRegex);
+
+    return (
+      <span className={className}>
+        {parts.map((part, i) =>
+          mentionStrings.includes(part) ? (
+            <span key={i} className="font-semibold text-primary">
+              {part}
+            </span>
+          ) : (
+            part
+          ),
+        )}
+      </span>
     );
-    lastIndex = match.index + match[0].length;
   }
 
-  // Add remaining text after last mention
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+  // Fallback: simple regex for @mentions (capitalized words)
+  const fallbackRegex = /@[A-Z][a-zA-ZÀ-ÿ]*(?:\s+[A-Z][a-zA-ZÀ-ÿ]*)*/g;
+  const parts = text.split(fallbackRegex);
+  const matches = text.match(fallbackRegex) || [];
+
+  if (matches.length === 0) {
+    return <span className={className}>{text}</span>;
   }
 
-  return <span className={className}>{parts.length > 0 ? parts : text}</span>;
+  const result: (string | JSX.Element)[] = [];
+  parts.forEach((part, i) => {
+    result.push(part);
+    if (matches[i]) {
+      result.push(
+        <span key={i} className="font-semibold text-primary">
+          {matches[i]}
+        </span>,
+      );
+    }
+  });
+
+  return <span className={className}>{result}</span>;
 }
 
 export function MessageBubble({ message, instanceName, showAvatar = false }: MessageBubbleProps) {
@@ -112,7 +153,7 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
         {/* Text only message */}
         {content.type === 'text' && content.text && (
           <p className="text-sm whitespace-pre-wrap break-words text-foreground">
-            <TextWithMentions text={content.text} />
+            <TextWithMentions text={content.text} mentions={message.mentions} />
           </p>
         )}
 
@@ -227,7 +268,7 @@ function ImageMessage({
       )}
       {caption && (
         <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
-          <TextWithMentions text={caption} />
+          <TextWithMentions text={caption} mentions={message.mentions} />
         </p>
       )}
     </div>
@@ -279,7 +320,7 @@ function VideoMessage({
       )}
       {caption && (
         <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
-          <TextWithMentions text={caption} />
+          <TextWithMentions text={caption} mentions={message.mentions} />
         </p>
       )}
     </div>
