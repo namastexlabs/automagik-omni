@@ -168,7 +168,7 @@ function parseSubprocessConfig(payload: unknown): SubprocessConfig {
 
 export class ProcessManager {
   private processes: Map<string, ManagedProcess> = new Map();
-  private portRegistry: PortRegistry;
+  public portRegistry: PortRegistry;
   private config: ProcessConfig;
   private shuttingDown = false;
   // Circuit breaker state

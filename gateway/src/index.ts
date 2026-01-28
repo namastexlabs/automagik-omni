@@ -250,7 +250,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
               const url = `http://127.0.0.1:${pythonPort}/api/v1/_internal/channel-startup-info`;
               const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
               if (response.ok) {
-                channelInfo = await response.json();
+                channelInfo = (await response.json()) as typeof channelInfo;
                 console.log('[Gateway] Channel startup info:', JSON.stringify(channelInfo, null, 2));
                 break;
               }
