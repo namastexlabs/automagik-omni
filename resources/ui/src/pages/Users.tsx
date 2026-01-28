@@ -27,13 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { api, formatDateTime } from '@/lib';
@@ -199,9 +193,7 @@ const UserDetailPanel = ({
                           <div>
                             <ChannelBadge provider={ext.provider} />
                             <p className="text-sm mt-1 font-mono">{ext.external_id}</p>
-                            {ext.instance_name && (
-                              <p className="text-xs text-muted-foreground">{ext.instance_name}</p>
-                            )}
+                            {ext.instance_name && <p className="text-xs text-muted-foreground">{ext.instance_name}</p>}
                           </div>
                         </div>
                       </Card>
@@ -241,11 +233,7 @@ const UserDetailPanel = ({
 
               {/* Actions */}
               <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => setIsMergeDialogOpen(true)}
-                >
+                <Button variant="outline" className="w-full justify-start" onClick={() => setIsMergeDialogOpen(true)}>
                   <GitMerge className="h-4 w-4 mr-2" />
                   Merge with Another User
                 </Button>
@@ -443,7 +431,8 @@ function findPotentialMatches(user: User, allUsers: User[]): User[] {
     // 2. Name starts with same 5+ characters
     // 3. Name contains the other as a substring (if both > 4 chars)
     const isExactMatch = userName === otherName;
-    const startsWithSame = userName.length >= 5 && otherName.length >= 5 && userName.slice(0, 5) === otherName.slice(0, 5);
+    const startsWithSame =
+      userName.length >= 5 && otherName.length >= 5 && userName.slice(0, 5) === otherName.slice(0, 5);
     const isSubstring =
       userName.length > 4 && otherName.length > 4 && (userName.includes(otherName) || otherName.includes(userName));
 

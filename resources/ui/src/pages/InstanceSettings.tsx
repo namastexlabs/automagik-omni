@@ -15,13 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { api } from '@/lib';
 import type { InstanceConfig, InstanceUpdateRequest, AgentProvider } from '@/lib';
@@ -306,7 +300,11 @@ export default function InstanceSettings() {
           actions={
             hasChanges ? (
               <Button onClick={handleSave} disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                {saveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
                 Save Changes
               </Button>
             ) : null
@@ -322,7 +320,9 @@ export default function InstanceSettings() {
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className={`grid w-full ${instance?.channel_type === 'whatsapp' ? 'grid-cols-5 max-w-3xl' : 'grid-cols-3 max-w-xl'}`}>
+              <TabsList
+                className={`grid w-full ${instance?.channel_type === 'whatsapp' ? 'grid-cols-5 max-w-3xl' : 'grid-cols-3 max-w-xl'}`}
+              >
                 <TabsTrigger value="connection" className="flex items-center gap-2">
                   <Wifi className="h-4 w-4" />
                   Connection
@@ -354,11 +354,17 @@ export default function InstanceSettings() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      {isConnected ? <Wifi className="h-5 w-5 text-green-500" /> : <WifiOff className="h-5 w-5 text-red-500" />}
+                      {isConnected ? (
+                        <Wifi className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <WifiOff className="h-5 w-5 text-red-500" />
+                      )}
                       Connection Status
                     </CardTitle>
                     <CardDescription>
-                      {instance?.channel_type === 'discord' ? 'Discord bot connection status' : 'WhatsApp Web connection status'}
+                      {instance?.channel_type === 'discord'
+                        ? 'Discord bot connection status'
+                        : 'WhatsApp Web connection status'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -373,7 +379,9 @@ export default function InstanceSettings() {
                         </Avatar>
                         <div>
                           <p className="font-medium">{instance?.profile_name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">{instance?.owner_jid?.replace('@s.whatsapp.net', '')}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {instance?.owner_jid?.replace('@s.whatsapp.net', '')}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -406,7 +414,11 @@ export default function InstanceSettings() {
                         onClick={() => restartMutation.mutate()}
                         disabled={restartMutation.isPending}
                       >
-                        {restartMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                        {restartMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
                         Restart
                       </Button>
                       {isConnected && (
@@ -416,7 +428,11 @@ export default function InstanceSettings() {
                           onClick={() => logoutMutation.mutate()}
                           disabled={logoutMutation.isPending}
                         >
-                          {logoutMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
+                          {logoutMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <LogOut className="h-4 w-4 mr-2" />
+                          )}
                           Logout
                         </Button>
                       )}
@@ -467,7 +483,9 @@ export default function InstanceSettings() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">Use shared credentials from a provider or configure manually</p>
+                        <p className="text-xs text-muted-foreground">
+                          Use shared credentials from a provider or configure manually
+                        </p>
                       </div>
                     )}
 
@@ -616,7 +634,12 @@ export default function InstanceSettings() {
                                   min={1}
                                   max={600}
                                   value={messagesForm.message_debounce_seconds}
-                                  onChange={(e) => updateMessagesForm('message_debounce_seconds', Math.min(600, Math.max(1, parseInt(e.target.value) || 1)))}
+                                  onChange={(e) =>
+                                    updateMessagesForm(
+                                      'message_debounce_seconds',
+                                      Math.min(600, Math.max(1, parseInt(e.target.value) || 1)),
+                                    )
+                                  }
                                   className="w-20"
                                 />
                               </div>
@@ -626,7 +649,10 @@ export default function InstanceSettings() {
                           {messagesForm.message_debounce_mode === 'randomized' && (
                             <div className="pl-4 border-l-2 space-y-4">
                               <div className="space-y-3">
-                                <Label>Min delay: {(messagesForm.message_debounce_min_ms / 1000).toFixed(1)}s ({messagesForm.message_debounce_min_ms}ms)</Label>
+                                <Label>
+                                  Min delay: {(messagesForm.message_debounce_min_ms / 1000).toFixed(1)}s (
+                                  {messagesForm.message_debounce_min_ms}ms)
+                                </Label>
                                 <div className="flex items-center gap-4">
                                   <Slider
                                     value={[messagesForm.message_debounce_min_ms]}
@@ -641,13 +667,21 @@ export default function InstanceSettings() {
                                     min={0}
                                     max={600000}
                                     value={messagesForm.message_debounce_min_ms}
-                                    onChange={(e) => updateMessagesForm('message_debounce_min_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    onChange={(e) =>
+                                      updateMessagesForm(
+                                        'message_debounce_min_ms',
+                                        Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)),
+                                      )
+                                    }
                                     className="w-24"
                                   />
                                 </div>
                               </div>
                               <div className="space-y-3">
-                                <Label>Max delay: {(messagesForm.message_debounce_max_ms / 1000).toFixed(1)}s ({messagesForm.message_debounce_max_ms}ms)</Label>
+                                <Label>
+                                  Max delay: {(messagesForm.message_debounce_max_ms / 1000).toFixed(1)}s (
+                                  {messagesForm.message_debounce_max_ms}ms)
+                                </Label>
                                 <div className="flex items-center gap-4">
                                   <Slider
                                     value={[messagesForm.message_debounce_max_ms]}
@@ -662,7 +696,12 @@ export default function InstanceSettings() {
                                     min={0}
                                     max={600000}
                                     value={messagesForm.message_debounce_max_ms}
-                                    onChange={(e) => updateMessagesForm('message_debounce_max_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    onChange={(e) =>
+                                      updateMessagesForm(
+                                        'message_debounce_max_ms',
+                                        Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)),
+                                      )
+                                    }
                                     className="w-24"
                                   />
                                 </div>
@@ -723,7 +762,10 @@ export default function InstanceSettings() {
 
                           {messagesForm.message_split_delay_mode === 'fixed' && (
                             <div className="space-y-3">
-                              <Label>Delay: {(messagesForm.message_split_delay_fixed_ms / 1000).toFixed(1)}s ({messagesForm.message_split_delay_fixed_ms}ms)</Label>
+                              <Label>
+                                Delay: {(messagesForm.message_split_delay_fixed_ms / 1000).toFixed(1)}s (
+                                {messagesForm.message_split_delay_fixed_ms}ms)
+                              </Label>
                               <div className="flex items-center gap-4">
                                 <Slider
                                   value={[messagesForm.message_split_delay_fixed_ms]}
@@ -738,7 +780,12 @@ export default function InstanceSettings() {
                                   min={0}
                                   max={600000}
                                   value={messagesForm.message_split_delay_fixed_ms}
-                                  onChange={(e) => updateMessagesForm('message_split_delay_fixed_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                  onChange={(e) =>
+                                    updateMessagesForm(
+                                      'message_split_delay_fixed_ms',
+                                      Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)),
+                                    )
+                                  }
                                   className="w-24"
                                 />
                               </div>
@@ -748,7 +795,10 @@ export default function InstanceSettings() {
                           {messagesForm.message_split_delay_mode === 'randomized' && (
                             <div className="space-y-4">
                               <div className="space-y-3">
-                                <Label>Min delay: {(messagesForm.message_split_delay_min_ms / 1000).toFixed(1)}s ({messagesForm.message_split_delay_min_ms}ms)</Label>
+                                <Label>
+                                  Min delay: {(messagesForm.message_split_delay_min_ms / 1000).toFixed(1)}s (
+                                  {messagesForm.message_split_delay_min_ms}ms)
+                                </Label>
                                 <div className="flex items-center gap-4">
                                   <Slider
                                     value={[messagesForm.message_split_delay_min_ms]}
@@ -763,13 +813,21 @@ export default function InstanceSettings() {
                                     min={0}
                                     max={600000}
                                     value={messagesForm.message_split_delay_min_ms}
-                                    onChange={(e) => updateMessagesForm('message_split_delay_min_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    onChange={(e) =>
+                                      updateMessagesForm(
+                                        'message_split_delay_min_ms',
+                                        Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)),
+                                      )
+                                    }
                                     className="w-24"
                                   />
                                 </div>
                               </div>
                               <div className="space-y-3">
-                                <Label>Max delay: {(messagesForm.message_split_delay_max_ms / 1000).toFixed(1)}s ({messagesForm.message_split_delay_max_ms}ms)</Label>
+                                <Label>
+                                  Max delay: {(messagesForm.message_split_delay_max_ms / 1000).toFixed(1)}s (
+                                  {messagesForm.message_split_delay_max_ms}ms)
+                                </Label>
                                 <div className="flex items-center gap-4">
                                   <Slider
                                     value={[messagesForm.message_split_delay_max_ms]}
@@ -784,7 +842,12 @@ export default function InstanceSettings() {
                                     min={0}
                                     max={600000}
                                     value={messagesForm.message_split_delay_max_ms}
-                                    onChange={(e) => updateMessagesForm('message_split_delay_max_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    onChange={(e) =>
+                                      updateMessagesForm(
+                                        'message_split_delay_max_ms',
+                                        Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)),
+                                      )
+                                    }
                                     className="w-24"
                                   />
                                 </div>
@@ -803,8 +866,8 @@ export default function InstanceSettings() {
                           <div>
                             <Label htmlFor="username_prefix">Disable Username Prefix</Label>
                             <p className="text-sm text-muted-foreground">
-                              Don't prepend [username]: to messages sent to the agent.
-                              Enable this if your agent handles user identification differently.
+                              Don't prepend [username]: to messages sent to the agent. Enable this if your agent handles
+                              user identification differently.
                             </p>
                           </div>
                         </div>
@@ -845,7 +908,9 @@ export default function InstanceSettings() {
                                 <div className="flex items-center justify-between">
                                   <div>
                                     <Label htmlFor="rejectCall">Auto-reject incoming calls</Label>
-                                    <p className="text-sm text-muted-foreground">Automatically reject all incoming calls</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      Automatically reject all incoming calls
+                                    </p>
                                   </div>
                                   <Switch
                                     id="rejectCall"
@@ -878,7 +943,9 @@ export default function InstanceSettings() {
                                 <Eye className="h-5 w-5 text-muted-foreground mt-0.5" />
                                 <div>
                                   <Label htmlFor="alwaysOnline">Always show as online</Label>
-                                  <p className="text-sm text-muted-foreground">Keep your status as "online" at all times</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Keep your status as "online" at all times
+                                  </p>
                                 </div>
                               </div>
                               <Switch
@@ -909,7 +976,9 @@ export default function InstanceSettings() {
                                 <div className="flex items-center justify-between">
                                   <div>
                                     <Label htmlFor="readStatus">Auto-read status updates</Label>
-                                    <p className="text-sm text-muted-foreground">Automatically view status/stories from contacts</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      Automatically view status/stories from contacts
+                                    </p>
                                   </div>
                                   <Switch
                                     id="readStatus"
@@ -928,7 +997,9 @@ export default function InstanceSettings() {
                                 <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
                                 <div>
                                   <Label htmlFor="groupsIgnore">Ignore group messages</Label>
-                                  <p className="text-sm text-muted-foreground">Don't process messages from group chats</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Don't process messages from group chats
+                                  </p>
                                 </div>
                               </div>
                               <Switch
@@ -946,7 +1017,9 @@ export default function InstanceSettings() {
                                 <History className="h-5 w-5 text-muted-foreground mt-0.5" />
                                 <div>
                                   <Label htmlFor="syncFullHistory">Sync full message history</Label>
-                                  <p className="text-sm text-muted-foreground">Download complete message history on connection</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Download complete message history on connection
+                                  </p>
                                 </div>
                               </div>
                               <Switch
@@ -992,8 +1065,8 @@ export default function InstanceSettings() {
                     </CardHeader>
                     <CardContent>
                       <p className="text-muted-foreground">
-                        Webhook configuration is managed through the Evolution API settings.
-                        Use the sidebar to access individual webhook configurations.
+                        Webhook configuration is managed through the Evolution API settings. Use the sidebar to access
+                        individual webhook configurations.
                       </p>
                       {/* TODO: Could inline webhook config here in future */}
                     </CardContent>

@@ -16,20 +16,21 @@ interface ChatLayoutProps {
 function parseUtcTimestamp(timestamp: string | null | undefined): number | undefined {
   if (!timestamp) return undefined;
   // If no timezone info, treat as UTC by appending Z
-  const normalized = timestamp.endsWith('Z') || timestamp.includes('+') || timestamp.includes('-', 10)
-    ? timestamp
-    : timestamp + 'Z';
+  const normalized =
+    timestamp.endsWith('Z') || timestamp.includes('+') || timestamp.includes('-', 10) ? timestamp : timestamp + 'Z';
   const date = new Date(normalized);
   return isNaN(date.getTime()) ? undefined : Math.floor(date.getTime() / 1000);
 }
 
 // Transform OmniChat to EvolutionChat format for compatibility with ChatList/ChatListItem
 function transformOmniChatToEvolution(chat: OmniChatsResponse['chats'][0]): EvolutionChat {
-  const channelData = chat.channel_data as {
-    last_message_preview?: string;
-    message_count?: number;
-    contact_phone?: string;
-  } | undefined;
+  const channelData = chat.channel_data as
+    | {
+        last_message_preview?: string;
+        message_count?: number;
+        contact_phone?: string;
+      }
+    | undefined;
 
   // Parse timestamp as UTC
   const messageTimestamp = parseUtcTimestamp(chat.last_message_at);
@@ -43,10 +44,12 @@ function transformOmniChatToEvolution(chat: OmniChatsResponse['chats'][0]): Evol
     unreadCount: chat.unread_count || 0,
     isGroup: chat.chat_type === 'group',
     // Create a lastMessage structure for preview and timestamp
-    lastMessage: channelData?.last_message_preview ? {
-      messageTimestamp,
-      message: { conversation: channelData.last_message_preview },
-    } : undefined,
+    lastMessage: channelData?.last_message_preview
+      ? {
+          messageTimestamp,
+          message: { conversation: channelData.last_message_preview },
+        }
+      : undefined,
     updatedAt: chat.last_message_at || undefined,
   } as EvolutionChat;
 }

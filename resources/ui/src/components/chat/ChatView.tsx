@@ -119,9 +119,7 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
 
   // Flatten all pages into single array, reverse for display (oldest first)
   // Messages come pre-sorted (newest first from API), with reactions pre-attached
-  const sortedMessages: OmniMessage[] = (messagesData?.pages ?? [])
-    .flatMap((page) => page.messages)
-    .reverse();
+  const sortedMessages: OmniMessage[] = (messagesData?.pages ?? []).flatMap((page) => page.messages).reverse();
 
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {

@@ -166,7 +166,8 @@ export default function BatchJobs() {
   };
 
   const runningJobs = jobs?.filter((j) => j.status === 'pending' || j.status === 'processing') ?? [];
-  const completedJobs = jobs?.filter((j) => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled') ?? [];
+  const completedJobs =
+    jobs?.filter((j) => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled') ?? [];
 
   return (
     <DashboardLayout>
@@ -423,13 +424,21 @@ export default function BatchJobs() {
                             <TableCell className="text-sm">{job.instance_name || 'All'}</TableCell>
                             <TableCell>
                               <div className="flex gap-1">
-                                {types.includes('audio') && <FileAudio className="h-4 w-4 text-blue-500" title="Audio" />}
-                                {types.includes('image') && <FileImage className="h-4 w-4 text-green-500" title="Image" />}
-                                {types.includes('document') && <FileText className="h-4 w-4 text-orange-500" title="Document" />}
+                                {types.includes('audio') && (
+                                  <FileAudio className="h-4 w-4 text-blue-500" title="Audio" />
+                                )}
+                                {types.includes('image') && (
+                                  <FileImage className="h-4 w-4 text-green-500" title="Image" />
+                                )}
+                                {types.includes('document') && (
+                                  <FileText className="h-4 w-4 text-orange-500" title="Document" />
+                                )}
                                 {types.length === 0 && <span className="text-muted-foreground text-xs">-</span>}
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm">{params?.days_back ? `${params.days_back}d` : '-'}</TableCell>
+                            <TableCell className="text-sm">
+                              {params?.days_back ? `${params.days_back}d` : '-'}
+                            </TableCell>
                             <TableCell>{getStatusBadge(job.status)}</TableCell>
                             <TableCell>
                               <div className="text-sm space-y-0.5">
@@ -452,7 +461,9 @@ export default function BatchJobs() {
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm">{formatDuration(job.started_at, job.completed_at)}</TableCell>
+                            <TableCell className="text-sm">
+                              {formatDuration(job.started_at, job.completed_at)}
+                            </TableCell>
                             <TableCell>
                               {job.total_cost_usd !== null && job.total_cost_usd > 0 ? (
                                 <span className="flex items-center gap-1 text-sm">

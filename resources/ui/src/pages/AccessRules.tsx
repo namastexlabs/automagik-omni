@@ -331,7 +331,9 @@ export default function AccessRules() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{formatDateTime(rule.created_at)}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {formatDateTime(rule.created_at)}
+                          </TableCell>
                           <TableCell>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>

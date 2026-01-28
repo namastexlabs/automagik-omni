@@ -384,15 +384,16 @@ export default function Settings() {
                       <Card key={category} className="border-border elevation-md">
                         <CardHeader>
                           <CardTitle className="capitalize">
-                          {category === 'media_processing' ? 'Media Processing' : category.replace(/_/g, ' ')}
-                        </CardTitle>
+                            {category === 'media_processing' ? 'Media Processing' : category.replace(/_/g, ' ')}
+                          </CardTitle>
                           <CardDescription>
                             {category === 'integration' && 'External service configuration'}
                             {category === 'limits' && 'System limits and quotas'}
                             {category === 'features' && 'Feature toggles'}
                             {category === 'general' && 'General system settings'}
                             {category === 'security' && 'Security and authentication settings'}
-                            {category === 'media_processing' && 'API keys and settings for audio transcription and image description'}
+                            {category === 'media_processing' &&
+                              'API keys and settings for audio transcription and image description'}
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">

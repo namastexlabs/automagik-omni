@@ -1,6 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon, Phone, UserCircle } from 'lucide-react';
+import {
+  Check,
+  CheckCheck,
+  Clock,
+  User,
+  Play,
+  Pause,
+  Mic,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Phone,
+  UserCircle,
+} from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, api, formatTimeFromTimestamp } from '@/lib';
 import type { OmniMessage, OmniMessageReaction, OmniMediaContent, EvolutionMessage } from '@/lib';
@@ -111,9 +124,7 @@ function QuotedMessage({
         isFromMe ? 'border-primary/60 bg-primary/10' : 'border-muted-foreground/40 bg-muted/50',
       )}
     >
-      {quotedSenderName && (
-        <p className="font-medium text-primary truncate">{quotedSenderName}</p>
-      )}
+      {quotedSenderName && <p className="font-medium text-primary truncate">{quotedSenderName}</p>}
       <p className="text-muted-foreground line-clamp-2">{getQuotedContent()}</p>
     </div>
   );
@@ -482,11 +493,7 @@ function VideoMessage({
           </div>
         </div>
       ) : (
-        <video
-          src={videoSrc || ''}
-          controls
-          className="rounded-lg max-w-full max-h-80"
-        />
+        <video src={videoSrc || ''} controls className="rounded-lg max-w-full max-h-80" />
       )}
       {caption && (
         <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
@@ -672,11 +679,7 @@ function DocumentMessage({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{filename || 'Document'}</p>
-        {fileSize && (
-          <p className="text-xs text-muted-foreground">
-            {(fileSize / 1024).toFixed(1)} KB
-          </p>
-        )}
+        {fileSize && <p className="text-xs text-muted-foreground">{(fileSize / 1024).toFixed(1)} KB</p>}
       </div>
       {loading ? (
         <div className="w-5 h-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
@@ -763,19 +766,12 @@ function MediaContentDisplay({
         <span className="text-xs">{icon}</span>
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{label}</span>
         {mediaContent.processor_name && (
-          <span className="text-[9px] text-muted-foreground/60 ml-auto">
-            via {mediaContent.processor_name}
-          </span>
+          <span className="text-[9px] text-muted-foreground/60 ml-auto">via {mediaContent.processor_name}</span>
         )}
       </div>
-      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-        {displayContent}
-      </p>
+      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{displayContent}</p>
       {isLong && (
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="text-[10px] text-primary hover:underline mt-1"
-        >
+        <button onClick={() => setIsExpanded(!isExpanded)} className="text-[10px] text-primary hover:underline mt-1">
           {isExpanded ? 'Show less' : 'Show more'}
         </button>
       )}

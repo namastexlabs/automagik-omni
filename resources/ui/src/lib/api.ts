@@ -80,11 +80,11 @@ export interface BatchJob {
   instance_name: string | null;
   request_params: BatchJobRequestParams | null;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-  total_found: number;  // All items matching criteria
-  total_items: number;  // Items to process (after filtering)
+  total_found: number; // All items matching criteria
+  total_items: number; // Items to process (after filtering)
   processed_items: number;
   failed_items: number;
-  skipped_items: number;  // Already processed (had MediaContent)
+  skipped_items: number; // Already processed (had MediaContent)
   current_item: string | null;
   progress_percent: number;
   total_cost_usd: number | null;
@@ -1729,11 +1729,7 @@ export const api = {
 
   // Batch Jobs API
   batchJobs: {
-    async list(params?: {
-      instance_name?: string;
-      status?: string;
-      limit?: number;
-    }): Promise<BatchJob[]> {
+    async list(params?: { instance_name?: string; status?: string; limit?: number }): Promise<BatchJob[]> {
       const queryParams = new URLSearchParams();
       if (params?.instance_name) queryParams.append('instance_name', params.instance_name);
       if (params?.status) queryParams.append('status_filter', params.status);
@@ -1809,12 +1805,7 @@ export const api = {
 
   // Users API
   users: {
-    async list(params?: {
-      instance_name?: string;
-      provider?: string;
-      limit?: number;
-      offset?: number;
-    }): Promise<{
+    async list(params?: { instance_name?: string; provider?: string; limit?: number; offset?: number }): Promise<{
       users: User[];
       total: number;
       limit: number;
@@ -1833,17 +1824,17 @@ export const api = {
       return apiRequest(`/users/${userId}`);
     },
 
-    async link(
-      userId: string,
-      data: { provider: string; external_id: string; instance_name?: string }
-    ): Promise<User> {
+    async link(userId: string, data: { provider: string; external_id: string; instance_name?: string }): Promise<User> {
       return apiRequest(`/users/${userId}/link`, {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async merge(targetUserId: string, sourceUserId: string): Promise<{
+    async merge(
+      targetUserId: string,
+      sourceUserId: string,
+    ): Promise<{
       target_user_id: string;
       source_user_id: string;
       external_ids_transferred: number;
