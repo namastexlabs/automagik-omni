@@ -23,6 +23,37 @@ function groupReactionsByEmoji(reactions: OmniMessageReaction[]): Record<string,
   );
 }
 
+// Render text with highlighted @mentions
+function TextWithMentions({ text, className }: { text: string; className?: string }) {
+  // Match @mentions (word characters, spaces in names, or phone numbers with +)
+  const mentionRegex = /(@[\w\s+]+?)(?=\s|$|[.,!?;:])/g;
+
+  const parts: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    // Add the styled mention
+    parts.push(
+      <span key={match.index} className="font-semibold text-primary">
+        {match[0]}
+      </span>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last mention
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <span className={className}>{parts.length > 0 ? parts : text}</span>;
+}
+
 export function MessageBubble({ message, instanceName, showAvatar = false }: MessageBubbleProps) {
   const isFromMe = message.is_from_me;
   const content = getOmniMessageContent(message);
@@ -80,7 +111,9 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
 
         {/* Text only message */}
         {content.type === 'text' && content.text && (
-          <p className="text-sm whitespace-pre-wrap break-words text-foreground">{content.text}</p>
+          <p className="text-sm whitespace-pre-wrap break-words text-foreground">
+            <TextWithMentions text={content.text} />
+          </p>
         )}
 
         {/* Location message */}
@@ -192,7 +225,11 @@ function ImageMessage({
           onClick={() => imageSrc && window.open(imageSrc, '_blank')}
         />
       )}
-      {caption && <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">{caption}</p>}
+      {caption && (
+        <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
+          <TextWithMentions text={caption} />
+        </p>
+      )}
     </div>
   );
 }
@@ -240,7 +277,11 @@ function VideoMessage({
           className="rounded-lg max-w-full max-h-80"
         />
       )}
-      {caption && <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">{caption}</p>}
+      {caption && (
+        <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
+          <TextWithMentions text={caption} />
+        </p>
+      )}
     </div>
   );
 }
