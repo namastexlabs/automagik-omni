@@ -821,6 +821,14 @@ class WhatsAppMessageHandler:
                 text_content = message_obj.get("conversation")
             elif message_type == "extendedTextMessage":
                 text_content = message_obj.get("extendedTextMessage", {}).get("text")
+            elif "contactMessage" in message_obj:
+                # For contact cards, store the display name
+                contact = message_obj["contactMessage"]
+                text_content = contact.get("displayName", "Contact")
+            elif "locationMessage" in message_obj:
+                # For location, store name/address or coordinates
+                location = message_obj["locationMessage"]
+                text_content = location.get("name") or location.get("address") or "Location shared"
             else:
                 # For media messages, get caption
                 for media_key in ["audioMessage", "imageMessage", "videoMessage", "documentMessage"]:
@@ -1830,6 +1838,41 @@ class WhatsAppMessageHandler:
 
                 elif "documentMessage" in message_obj:
                     return message_obj["documentMessage"].get("caption", "")
+
+                # Check for contact card message
+                elif "contactMessage" in message_obj:
+                    contact = message_obj["contactMessage"]
+                    display_name = contact.get("displayName", "Unknown Contact")
+                    vcard = contact.get("vcard", "")
+
+                    # Parse phone number from vcard
+                    phone = None
+                    if vcard:
+                        import re
+
+                        tel_match = re.search(r"TEL[^:]*:([+\d\s-]+)", vcard)
+                        if tel_match:
+                            phone = tel_match.group(1).strip()
+
+                    if phone:
+                        return f"[Contact Card Shared]\nName: {display_name}\nPhone: {phone}"
+                    else:
+                        return f"[Contact Card Shared]\nName: {display_name}"
+
+                # Check for location message
+                elif "locationMessage" in message_obj:
+                    location = message_obj["locationMessage"]
+                    lat = location.get("degreesLatitude", 0)
+                    lon = location.get("degreesLongitude", 0)
+                    name = location.get("name", "")
+                    address = location.get("address", "")
+
+                    location_text = f"[Location Shared]\nCoordinates: {lat}, {lon}"
+                    if name:
+                        location_text += f"\nName: {name}"
+                    if address:
+                        location_text += f"\nAddress: {address}"
+                    return location_text
 
             # If we have raw text content directly in the data
             if "body" in data:

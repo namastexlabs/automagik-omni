@@ -381,6 +381,25 @@ def _resolve_sender_name(
     return None
 
 
+def _build_channel_data(record: "OmniMessageRecord") -> dict:
+    """
+    Build channel_data dict for OmniMessage response.
+    Includes additional data for specific message types like contacts.
+    """
+    data = {
+        "source": record.source,
+        "canonical_chat_id": record.canonical_chat_id,
+    }
+
+    # For contact messages, include the vcard data
+    if record.message_type == "contact":
+        content_raw = record.get_content_raw()
+        if content_raw and "contactMessage" in content_raw:
+            data["contactMessage"] = content_raw["contactMessage"]
+
+    return data
+
+
 def _get_messages_from_local(
     db: Session,
     instance_name: str,
@@ -570,10 +589,7 @@ def _get_messages_from_local(
                 timestamp=record.message_timestamp,
                 channel_type=ChannelType(channel_type),
                 instance_name=instance_name,
-                channel_data={
-                    "source": record.source,
-                    "canonical_chat_id": record.canonical_chat_id,
-                },
+                channel_data=_build_channel_data(record),
             )
         )
 

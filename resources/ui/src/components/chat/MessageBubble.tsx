@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon } from 'lucide-react';
+import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon, Phone, UserCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, api, formatTimeFromTimestamp } from '@/lib';
 import type { OmniMessage, OmniMessageReaction, OmniMediaContent, EvolutionMessage } from '@/lib';
@@ -115,6 +115,50 @@ function QuotedMessage({
         <p className="font-medium text-primary truncate">{quotedSenderName}</p>
       )}
       <p className="text-muted-foreground line-clamp-2">{getQuotedContent()}</p>
+    </div>
+  );
+}
+
+// Contact Card component for displaying shared contacts
+function ContactCard({ message }: { message: OmniMessage }) {
+  // Parse vcard from channel_data or content_raw
+  const parseVCard = () => {
+    const channelData = message.channel_data as Record<string, unknown> | undefined;
+    const contactMsg = channelData?.contactMessage as { vcard?: string; displayName?: string } | undefined;
+
+    if (!contactMsg?.vcard) {
+      return { name: message.text || 'Contact', phone: null };
+    }
+
+    const vcard = contactMsg.vcard;
+
+    // Extract name from FN field
+    const fnMatch = vcard.match(/FN:(.+)/);
+    const name = fnMatch ? fnMatch[1].trim() : contactMsg.displayName || message.text || 'Contact';
+
+    // Extract phone from TEL field (handles various formats)
+    const telMatch = vcard.match(/TEL[^:]*:([+\d\s-]+)/);
+    const phone = telMatch ? telMatch[1].trim() : null;
+
+    return { name, phone };
+  };
+
+  const { name, phone } = parseVCard();
+
+  return (
+    <div className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg min-w-[200px]">
+      <div className="flex-shrink-0 w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+        <UserCircle className="h-6 w-6 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate">{name}</p>
+        {phone && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Phone className="h-3 w-3" />
+            {phone}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -295,11 +339,7 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
         )}
 
         {/* Contact message */}
-        {content.type === 'contact' && (
-          <div className="text-sm">
-            <p className="text-foreground">{content.text}</p>
-          </div>
-        )}
+        {content.type === 'contact' && <ContactCard message={message} />}
 
         {/* Unsupported */}
         {content.type === 'unsupported' && <p className="text-sm text-muted-foreground italic">{content.text}</p>}
