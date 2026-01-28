@@ -236,7 +236,12 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
         // Query Python API to check which channels have active instances
         // If Python isn't ready yet, fall back to starting enabled channels
         const pythonPort = processManager.portRegistry.getPort('python');
-        let channelInfo: { evolution_needed?: boolean; discord_needed?: boolean; evolution_reason?: string; discord_reason?: string } | null = null;
+        let channelInfo: {
+          evolution_needed?: boolean;
+          discord_needed?: boolean;
+          evolution_reason?: string;
+          discord_reason?: string;
+        } | null = null;
 
         if (pythonPort) {
           // Retry a few times - Python may still be starting
