@@ -78,8 +78,19 @@ export interface InstanceConfig {
   // Additional features
   enable_auto_split?: boolean;
 
-  // Message debounce configuration
+  // Message debounce configuration (legacy field)
   message_debounce_seconds?: number;
+
+  // Randomized debounce configuration
+  message_debounce_mode?: 'disabled' | 'fixed' | 'randomized';
+  message_debounce_min_ms?: number;
+  message_debounce_max_ms?: number;
+
+  // Split message delay configuration
+  message_split_delay_mode?: 'disabled' | 'fixed' | 'randomized';
+  message_split_delay_fixed_ms?: number;
+  message_split_delay_min_ms?: number;
+  message_split_delay_max_ms?: number;
 
   // Disable username prefix on messages to agent
   disable_username_prefix?: boolean;
@@ -140,6 +151,13 @@ export interface InstanceUpdateRequest {
   agent_stream_mode?: boolean;
   enable_auto_split?: boolean;
   message_debounce_seconds?: number;
+  message_debounce_mode?: 'disabled' | 'fixed' | 'randomized';
+  message_debounce_min_ms?: number;
+  message_debounce_max_ms?: number;
+  message_split_delay_mode?: 'disabled' | 'fixed' | 'randomized';
+  message_split_delay_fixed_ms?: number;
+  message_split_delay_min_ms?: number;
+  message_split_delay_max_ms?: number;
   disable_username_prefix?: boolean;
 }
 

@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { api } from '@/lib';
 import type { InstanceConfig, InstanceUpdateRequest, AgentProvider } from '@/lib';
 import {
@@ -70,6 +71,13 @@ export default function InstanceSettings() {
   const [messagesForm, setMessagesForm] = useState({
     enable_auto_split: true,
     message_debounce_seconds: 0,
+    message_debounce_mode: 'disabled' as 'disabled' | 'fixed' | 'randomized',
+    message_debounce_min_ms: 0,
+    message_debounce_max_ms: 0,
+    message_split_delay_mode: 'randomized' as 'disabled' | 'fixed' | 'randomized',
+    message_split_delay_fixed_ms: 0,
+    message_split_delay_min_ms: 300,
+    message_split_delay_max_ms: 1000,
     disable_username_prefix: false,
   });
 
@@ -136,6 +144,13 @@ export default function InstanceSettings() {
       setMessagesForm({
         enable_auto_split: instance.enable_auto_split ?? true,
         message_debounce_seconds: instance.message_debounce_seconds ?? 0,
+        message_debounce_mode: instance.message_debounce_mode ?? 'disabled',
+        message_debounce_min_ms: instance.message_debounce_min_ms ?? 0,
+        message_debounce_max_ms: instance.message_debounce_max_ms ?? 0,
+        message_split_delay_mode: instance.message_split_delay_mode ?? 'randomized',
+        message_split_delay_fixed_ms: instance.message_split_delay_fixed_ms ?? 0,
+        message_split_delay_min_ms: instance.message_split_delay_min_ms ?? 300,
+        message_split_delay_max_ms: instance.message_split_delay_max_ms ?? 1000,
         disable_username_prefix: instance.disable_username_prefix ?? false,
       });
       setHasChanges(false);
@@ -226,6 +241,13 @@ export default function InstanceSettings() {
       // Messages config
       enable_auto_split: messagesForm.enable_auto_split,
       message_debounce_seconds: messagesForm.message_debounce_seconds,
+      message_debounce_mode: messagesForm.message_debounce_mode,
+      message_debounce_min_ms: messagesForm.message_debounce_min_ms,
+      message_debounce_max_ms: messagesForm.message_debounce_max_ms,
+      message_split_delay_mode: messagesForm.message_split_delay_mode,
+      message_split_delay_fixed_ms: messagesForm.message_split_delay_fixed_ms,
+      message_split_delay_min_ms: messagesForm.message_split_delay_min_ms,
+      message_split_delay_max_ms: messagesForm.message_split_delay_max_ms,
       disable_username_prefix: messagesForm.disable_username_prefix,
     };
 
@@ -550,21 +572,103 @@ export default function InstanceSettings() {
                     <div className="space-y-4 p-4 border rounded-lg">
                       <div className="flex items-start gap-3">
                         <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div className="flex-1 space-y-2">
-                          <Label htmlFor="debounce">Message Debounce (seconds)</Label>
-                          <Input
-                            id="debounce"
-                            type="number"
-                            min={0}
-                            max={300}
-                            value={messagesForm.message_debounce_seconds}
-                            onChange={(e) => updateMessagesForm('message_debounce_seconds', parseInt(e.target.value) || 0)}
-                            className="w-32"
-                          />
-                          <p className="text-sm text-muted-foreground">
-                            Wait this many seconds to collect multiple messages before sending to the agent.
-                            Useful for users who send many short messages. Set to 0 to disable.
-                          </p>
+                        <div className="flex-1 space-y-4">
+                          <div>
+                            <Label>Message Debounce</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Wait before sending messages to the agent to collect multiple rapid messages.
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="debounce_mode">Mode</Label>
+                            <Select
+                              value={messagesForm.message_debounce_mode}
+                              onValueChange={(val: 'disabled' | 'fixed' | 'randomized') => {
+                                updateMessagesForm('message_debounce_mode', val);
+                              }}
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="disabled">Disabled (instant)</SelectItem>
+                                <SelectItem value="fixed">Fixed delay</SelectItem>
+                                <SelectItem value="randomized">Randomized delay</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {messagesForm.message_debounce_mode === 'fixed' && (
+                            <div className="pl-4 border-l-2 space-y-3">
+                              <Label>Delay (seconds): {messagesForm.message_debounce_seconds}s</Label>
+                              <div className="flex items-center gap-4">
+                                <Slider
+                                  value={[messagesForm.message_debounce_seconds]}
+                                  onValueChange={([val]) => updateMessagesForm('message_debounce_seconds', val)}
+                                  min={1}
+                                  max={600}
+                                  step={1}
+                                  className="flex-1"
+                                />
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={600}
+                                  value={messagesForm.message_debounce_seconds}
+                                  onChange={(e) => updateMessagesForm('message_debounce_seconds', Math.min(600, Math.max(1, parseInt(e.target.value) || 1)))}
+                                  className="w-20"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {messagesForm.message_debounce_mode === 'randomized' && (
+                            <div className="pl-4 border-l-2 space-y-4">
+                              <div className="space-y-3">
+                                <Label>Min delay: {(messagesForm.message_debounce_min_ms / 1000).toFixed(1)}s ({messagesForm.message_debounce_min_ms}ms)</Label>
+                                <div className="flex items-center gap-4">
+                                  <Slider
+                                    value={[messagesForm.message_debounce_min_ms]}
+                                    onValueChange={([val]) => updateMessagesForm('message_debounce_min_ms', val)}
+                                    min={0}
+                                    max={600000}
+                                    step={100}
+                                    className="flex-1"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={600000}
+                                    value={messagesForm.message_debounce_min_ms}
+                                    onChange={(e) => updateMessagesForm('message_debounce_min_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    className="w-24"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-3">
+                                <Label>Max delay: {(messagesForm.message_debounce_max_ms / 1000).toFixed(1)}s ({messagesForm.message_debounce_max_ms}ms)</Label>
+                                <div className="flex items-center gap-4">
+                                  <Slider
+                                    value={[messagesForm.message_debounce_max_ms]}
+                                    onValueChange={([val]) => updateMessagesForm('message_debounce_max_ms', val)}
+                                    min={0}
+                                    max={600000}
+                                    step={100}
+                                    className="flex-1"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={600000}
+                                    value={messagesForm.message_debounce_max_ms}
+                                    onChange={(e) => updateMessagesForm('message_debounce_max_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    className="w-24"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -577,7 +681,7 @@ export default function InstanceSettings() {
                           <div>
                             <Label htmlFor="auto_split">Auto-split Long Messages</Label>
                             <p className="text-sm text-muted-foreground">
-                              Automatically split agent responses that exceed the platform's message limit
+                              Automatically split agent responses on double newlines (\\n\\n)
                             </p>
                           </div>
                         </div>
@@ -587,6 +691,108 @@ export default function InstanceSettings() {
                           onCheckedChange={(checked) => updateMessagesForm('enable_auto_split', checked)}
                         />
                       </div>
+
+                      {/* Split Message Delay */}
+                      {messagesForm.enable_auto_split && (
+                        <div className="mt-4 pl-8 space-y-4 border-l-2 ml-2">
+                          <div>
+                            <Label className="text-sm">Delay Between Split Messages</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Time to wait between sending each split message part (for human-like pacing)
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="split_mode">Mode</Label>
+                            <Select
+                              value={messagesForm.message_split_delay_mode}
+                              onValueChange={(val: 'disabled' | 'fixed' | 'randomized') => {
+                                updateMessagesForm('message_split_delay_mode', val);
+                              }}
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="disabled">Disabled (instant)</SelectItem>
+                                <SelectItem value="fixed">Fixed delay</SelectItem>
+                                <SelectItem value="randomized">Randomized (human-like)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {messagesForm.message_split_delay_mode === 'fixed' && (
+                            <div className="space-y-3">
+                              <Label>Delay: {(messagesForm.message_split_delay_fixed_ms / 1000).toFixed(1)}s ({messagesForm.message_split_delay_fixed_ms}ms)</Label>
+                              <div className="flex items-center gap-4">
+                                <Slider
+                                  value={[messagesForm.message_split_delay_fixed_ms]}
+                                  onValueChange={([val]) => updateMessagesForm('message_split_delay_fixed_ms', val)}
+                                  min={0}
+                                  max={600000}
+                                  step={100}
+                                  className="flex-1"
+                                />
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={600000}
+                                  value={messagesForm.message_split_delay_fixed_ms}
+                                  onChange={(e) => updateMessagesForm('message_split_delay_fixed_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                  className="w-24"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {messagesForm.message_split_delay_mode === 'randomized' && (
+                            <div className="space-y-4">
+                              <div className="space-y-3">
+                                <Label>Min delay: {(messagesForm.message_split_delay_min_ms / 1000).toFixed(1)}s ({messagesForm.message_split_delay_min_ms}ms)</Label>
+                                <div className="flex items-center gap-4">
+                                  <Slider
+                                    value={[messagesForm.message_split_delay_min_ms]}
+                                    onValueChange={([val]) => updateMessagesForm('message_split_delay_min_ms', val)}
+                                    min={0}
+                                    max={600000}
+                                    step={100}
+                                    className="flex-1"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={600000}
+                                    value={messagesForm.message_split_delay_min_ms}
+                                    onChange={(e) => updateMessagesForm('message_split_delay_min_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    className="w-24"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-3">
+                                <Label>Max delay: {(messagesForm.message_split_delay_max_ms / 1000).toFixed(1)}s ({messagesForm.message_split_delay_max_ms}ms)</Label>
+                                <div className="flex items-center gap-4">
+                                  <Slider
+                                    value={[messagesForm.message_split_delay_max_ms]}
+                                    onValueChange={([val]) => updateMessagesForm('message_split_delay_max_ms', val)}
+                                    min={0}
+                                    max={600000}
+                                    step={100}
+                                    className="flex-1"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={600000}
+                                    value={messagesForm.message_split_delay_max_ms}
+                                    onChange={(e) => updateMessagesForm('message_split_delay_max_ms', Math.min(600000, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    className="w-24"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Username Prefix */}

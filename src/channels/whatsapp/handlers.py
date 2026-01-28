@@ -6,6 +6,7 @@ Uses the Automagik API for user and session management.
 
 import hashlib
 import logging
+import random
 import threading
 import time
 from typing import Dict, Any, Optional, List
@@ -80,14 +81,86 @@ class WhatsAppMessageHandler:
             return data["key"]["remoteJid"]
         return message.get("sender", "unknown")
 
-    def _buffer_message(self, message: Dict[str, Any], instance_config, trace_context, debounce_seconds: int):
+    def _calculate_debounce_delay(self, instance_config) -> float:
+        """Calculate actual debounce delay in seconds based on instance configuration.
+
+        Supports three modes:
+        1. 'disabled' -> Returns 0 (instant, no delay)
+        2. 'fixed' -> Returns legacy message_debounce_seconds value
+        3. 'randomized' -> Returns random value between min_ms and max_ms (in seconds)
+
+        Falls back to legacy message_debounce_seconds for backward compatibility.
+
+        Args:
+            instance_config: InstanceConfig object with debounce settings
+
+        Returns:
+            float: Delay in seconds (0.0 = no delay/disabled)
+        """
+        if not instance_config:
+            return 0.0
+
+        mode = getattr(instance_config, "message_debounce_mode", "disabled")
+        instance_name = getattr(instance_config, "name", "unknown")
+
+        try:
+            if mode == "disabled":
+                # Instant mode - zero delay
+                logger.debug(f"Debounce disabled (instant mode) for instance: {instance_name}")
+                return 0.0
+
+            elif mode == "fixed":
+                # Use legacy message_debounce_seconds field
+                fixed_seconds = getattr(instance_config, "message_debounce_seconds", 0)
+                if fixed_seconds > 0:
+                    logger.info(
+                        f"Using fixed debounce delay for instance {instance_name}: {fixed_seconds}s (mode={mode})"
+                    )
+                    return float(fixed_seconds)
+                return 0.0
+
+            elif mode == "randomized":
+                min_ms = getattr(instance_config, "message_debounce_min_ms", 0)
+                max_ms = getattr(instance_config, "message_debounce_max_ms", 0)
+
+                if min_ms > 0 and max_ms >= min_ms:
+                    delay_ms = random.uniform(min_ms, max_ms)
+                    delay_sec = delay_ms / 1000.0
+                    logger.info(
+                        f"Using randomized debounce delay for instance {instance_name}: "
+                        f"{delay_ms:.1f}ms ({delay_sec:.3f}s), range={min_ms}-{max_ms}ms"
+                    )
+                    return delay_sec
+                else:
+                    logger.warning(
+                        f"Invalid randomized debounce range for instance {instance_name}: "
+                        f"min={min_ms}ms, max={max_ms}ms. Falling back to disabled."
+                    )
+                    return 0.0
+
+            else:
+                # Unknown mode - check for legacy debounce_seconds
+                legacy_seconds = getattr(instance_config, "message_debounce_seconds", 0)
+                if legacy_seconds > 0:
+                    logger.info(
+                        f"Using legacy debounce for instance {instance_name}: {legacy_seconds}s (unknown mode='{mode}')"
+                    )
+                    return float(legacy_seconds)
+                logger.warning(f"Unknown debounce mode '{mode}' for instance {instance_name}, defaulting to disabled")
+                return 0.0
+
+        except Exception as e:
+            logger.error(f"Error calculating debounce delay for instance {instance_name}: {e}")
+            return 0.0  # Fail gracefully to instant mode
+
+    def _buffer_message(self, message: Dict[str, Any], instance_config, trace_context, debounce_seconds: float):
         """Buffer a message and start/restart the debounce timer.
 
         Args:
             message: The WhatsApp message data
             instance_config: Instance configuration
             trace_context: TraceContext for message lifecycle tracking
-            debounce_seconds: Number of seconds to wait before flushing
+            debounce_seconds: Delay in seconds (float for millisecond precision) before flushing
         """
         instance_name = instance_config.name if instance_config else "default"
         user_key = self._get_user_key(message)
@@ -210,14 +283,20 @@ class WhatsAppMessageHandler:
         }
 
     def handle_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
-        """Queue a message for processing, with optional debounce buffering."""
-        # Check if debounce is enabled for this instance
-        debounce_seconds = getattr(instance_config, "message_debounce_seconds", 0) if instance_config else 0
+        """Queue a message for processing, with optional debounce buffering.
+
+        Debounce delay is determined by instance configuration:
+        - mode='disabled' -> Process immediately (default)
+        - mode='fixed' -> Apply legacy message_debounce_seconds delay
+        - mode='randomized' -> Apply random delay between min_ms and max_ms
+        """
+        # Calculate debounce delay based on mode and configuration
+        debounce_seconds = self._calculate_debounce_delay(instance_config)
 
         if debounce_seconds > 0:
             # Buffer the message with debounce
             self._buffer_message(message, instance_config, trace_context, debounce_seconds)
-            logger.debug(f"Message buffered for debounce ({debounce_seconds}s): {message.get('event')}")
+            logger.debug(f"Message buffered for debounce ({debounce_seconds:.3f}s): {message.get('event')}")
         else:
             # No debounce - queue directly
             message_with_config = {

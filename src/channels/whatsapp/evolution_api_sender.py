@@ -195,6 +195,81 @@ class EvolutionApiSender:
 
         return any(media_type in message_obj for media_type in media_types)
 
+    def _calculate_split_message_delay(self) -> float:
+        """Calculate delay in seconds between split message parts.
+
+        Supports three modes:
+        1. 'disabled' -> Returns 0 (instant, no delay between parts)
+        2. 'fixed' -> Returns fixed_ms / 1000 (deterministic delay)
+        3. 'randomized' -> Returns random value between min_ms and max_ms (default, human-like)
+
+        Default behavior preserves existing 0.3-1.0s random delays for backward compatibility.
+
+        Returns:
+            float: Delay in seconds (0.0 = no delay/disabled)
+        """
+        if not self.config:
+            # No config available - use legacy default behavior (0.3-1.0s)
+            delay = random.uniform(0.3, 1.0)
+            logger.debug(f"No config available, using legacy split delay: {delay:.3f}s")
+            return delay
+
+        mode = getattr(self.config, "message_split_delay_mode", "randomized")
+        instance_name = getattr(self.config, "name", "unknown")
+
+        try:
+            if mode == "disabled":
+                # Instant mode - zero delay between split messages
+                logger.debug(f"Split message delay disabled (instant mode) for instance: {instance_name}")
+                return 0.0
+
+            elif mode == "fixed":
+                fixed_ms = getattr(self.config, "message_split_delay_fixed_ms", 0)
+                if fixed_ms > 0:
+                    delay_sec = fixed_ms / 1000.0
+                    logger.info(
+                        f"Using fixed split message delay for instance {instance_name}: {fixed_ms}ms ({delay_sec:.3f}s)"
+                    )
+                    return delay_sec
+                # Fixed mode but no value - fall through to randomized default
+                logger.warning(
+                    f"Fixed mode but message_split_delay_fixed_ms=0 for instance {instance_name}, "
+                    f"falling back to randomized default"
+                )
+                mode = "randomized"
+
+            if mode == "randomized":
+                min_ms = getattr(self.config, "message_split_delay_min_ms", 300)
+                max_ms = getattr(self.config, "message_split_delay_max_ms", 1000)
+
+                # Ensure valid range (defaults preserve original 0.3-1.0s behavior)
+                if min_ms <= 0:
+                    min_ms = 300
+                if max_ms <= 0 or max_ms < min_ms:
+                    max_ms = max(min_ms, 1000)
+
+                delay_ms = random.uniform(min_ms, max_ms)
+                delay_sec = delay_ms / 1000.0
+                logger.info(
+                    f"Using randomized split message delay for instance {instance_name}: "
+                    f"{delay_ms:.1f}ms ({delay_sec:.3f}s), range={min_ms}-{max_ms}ms"
+                )
+                return delay_sec
+
+            else:
+                # Unknown mode - use default randomized behavior
+                delay = random.uniform(0.3, 1.0)
+                logger.warning(
+                    f"Unknown split delay mode '{mode}' for instance {instance_name}, "
+                    f"using default randomized delay: {delay:.3f}s"
+                )
+                return delay
+
+        except Exception as e:
+            logger.error(f"Error calculating split message delay for instance {instance_name}: {e}")
+            # Fail gracefully to default randomized behavior
+            return random.uniform(0.3, 1.0)
+
     def _send_split_messages(
         self,
         recipient: str,
@@ -204,7 +279,12 @@ class EvolutionApiSender:
         mentions_everyone: bool = False,
     ) -> bool:
         """
-        Send text as multiple messages split by \\n\\n with random delays.
+        Send text as multiple messages split by \\n\\n with configurable delays.
+
+        Delay behavior is controlled by instance configuration:
+        - mode='disabled' -> No delay between parts (instant)
+        - mode='fixed' -> Fixed delay in milliseconds
+        - mode='randomized' -> Random delay between min_ms and max_ms (default, human-like)
 
         Args:
             recipient: WhatsApp ID of the recipient
@@ -223,7 +303,8 @@ class EvolutionApiSender:
             # No actual split needed
             return self._send_single_message(recipient, text, quoted_message, mentioned, mentions_everyone)
 
-        logger.info(f"Splitting message into {len(parts)} parts")
+        instance_name = getattr(self.config, "name", "unknown") if self.config else "unknown"
+        logger.info(f"Splitting message into {len(parts)} parts for instance {instance_name}")
 
         success_count = 0
         for i, part in enumerate(parts):
@@ -242,15 +323,21 @@ class EvolutionApiSender:
                 mention_everyone_for_this_part,
             ):
                 success_count += 1
+                logger.debug(f"Split message part {i + 1}/{len(parts)} sent successfully")
+            else:
+                logger.warning(f"Split message part {i + 1}/{len(parts)} failed to send")
 
-            # Add random delay between messages (except for the last one)
+            # Add configurable delay between messages (except for the last one)
             if i < len(parts) - 1:
-                delay = random.uniform(0.3, 1.0)  # 300ms to 1000ms
-                logger.info(f"Waiting {delay:.3f}s before sending next message part")
-                time.sleep(delay)
+                delay = self._calculate_split_message_delay()
+                if delay > 0:
+                    logger.info(f"Waiting {delay:.3f}s before sending next message part ({i + 2}/{len(parts)})")
+                    time.sleep(delay)
 
         success = success_count == len(parts)
-        logger.info(f"Split message result: {success_count}/{len(parts)} parts sent successfully")
+        logger.info(
+            f"Split message result for instance {instance_name}: {success_count}/{len(parts)} parts sent successfully"
+        )
         return success
 
     def _send_single_message(

@@ -43,6 +43,9 @@ def get_instance_by_name(instance_name: str, db: Session = Depends(get_database)
     """
     Get instance configuration by name.
 
+    Always returns fresh data from the database to ensure config changes
+    take effect immediately without API restart.
+
     Args:
         instance_name: Name of the instance
         db: Database session
@@ -59,6 +62,9 @@ def get_instance_by_name(instance_name: str, db: Session = Depends(get_database)
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Instance '{instance_name}' not found",
         )
+    # Force refresh from database to get latest values
+    # This ensures config changes take effect immediately without API restart
+    db.refresh(instance)
     return instance
 
 

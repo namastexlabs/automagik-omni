@@ -121,8 +121,22 @@ class InstanceConfig(Base):
     # Message splitting control
     enable_auto_split = Column(Boolean, default=True, nullable=False)  # Auto-split messages on \n\n
 
-    # Message debounce configuration
+    # Message debounce configuration (legacy field - kept for backward compatibility)
     message_debounce_seconds = Column(Integer, default=0, nullable=False)  # 0 = disabled
+
+    # Randomized debounce configuration (new fields)
+    # Mode: "disabled" (instant), "fixed" (use legacy seconds), "randomized" (min-max ms range)
+    message_debounce_mode = Column(String(20), default="disabled", nullable=False)
+    message_debounce_min_ms = Column(Integer, default=0, nullable=False)  # Min delay in milliseconds
+    message_debounce_max_ms = Column(Integer, default=0, nullable=False)  # Max delay in milliseconds
+
+    # Split message delay configuration
+    # Mode: "disabled" (instant), "fixed" (fixed_ms), "randomized" (min-max ms range)
+    # Default: "randomized" with 300-1000ms to preserve existing 0.3-1.0s behavior
+    message_split_delay_mode = Column(String(20), default="randomized", nullable=False)
+    message_split_delay_fixed_ms = Column(Integer, default=0, nullable=False)  # Fixed delay in ms
+    message_split_delay_min_ms = Column(Integer, default=300, nullable=False)  # Min delay in ms (default: 300)
+    message_split_delay_max_ms = Column(Integer, default=1000, nullable=False)  # Max delay in ms (default: 1000)
 
     # Disable username prefix on messages to agent
     disable_username_prefix = Column(Boolean, default=False, nullable=False)

@@ -103,12 +103,54 @@ class InstanceConfigCreate(BaseModel):
         description="Enable automatic message splitting on \\n\\n (WhatsApp: full control, Discord: preference only)",
     )
 
-    # Message debounce configuration
+    # Message debounce configuration (legacy field - kept for backward compatibility)
     message_debounce_seconds: Optional[int] = Field(
         default=0,
         ge=0,
         le=300,
-        description="Buffer incoming messages for this duration before sending to agent (0 = disabled)",
+        description="[LEGACY] Buffer incoming messages for this duration before sending to agent (0 = disabled). Use mode/min_ms/max_ms for new configurations.",
+    )
+
+    # Randomized debounce configuration
+    message_debounce_mode: Optional[str] = Field(
+        default="disabled",
+        description="Debounce mode: 'disabled' (instant), 'fixed' (use legacy seconds), 'randomized' (min-max ms range)",
+    )
+    message_debounce_min_ms: Optional[int] = Field(
+        default=0,
+        ge=0,
+        le=300000,
+        description="Minimum debounce delay in milliseconds (used when mode='randomized')",
+    )
+    message_debounce_max_ms: Optional[int] = Field(
+        default=0,
+        ge=0,
+        le=300000,
+        description="Maximum debounce delay in milliseconds (used when mode='randomized', must be >= min_ms)",
+    )
+
+    # Split message delay configuration
+    message_split_delay_mode: Optional[str] = Field(
+        default="randomized",
+        description="Delay mode between split messages: 'disabled' (instant), 'fixed' (fixed_ms), 'randomized' (min-max ms, default)",
+    )
+    message_split_delay_fixed_ms: Optional[int] = Field(
+        default=0,
+        ge=0,
+        le=10000,
+        description="Fixed delay in milliseconds between split messages (used when mode='fixed')",
+    )
+    message_split_delay_min_ms: Optional[int] = Field(
+        default=300,
+        ge=0,
+        le=10000,
+        description="Minimum delay in milliseconds between split messages (default: 300ms)",
+    )
+    message_split_delay_max_ms: Optional[int] = Field(
+        default=1000,
+        ge=0,
+        le=10000,
+        description="Maximum delay in milliseconds between split messages (default: 1000ms, must be >= min_ms)",
     )
 
     # Disable username prefix on messages to agent
@@ -116,6 +158,39 @@ class InstanceConfigCreate(BaseModel):
         default=False,
         description="Don't prepend [username]: to messages sent to agent",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_timing_config(cls, data: Any) -> Any:
+        """Validate debounce and split delay configurations."""
+        if isinstance(data, dict):
+            # Validate debounce mode
+            debounce_mode = data.get("message_debounce_mode", "disabled")
+            if debounce_mode not in ("disabled", "fixed", "randomized"):
+                raise ValueError(
+                    f"Invalid debounce mode '{debounce_mode}'. Must be 'disabled', 'fixed', or 'randomized'."
+                )
+
+            if debounce_mode == "randomized":
+                min_ms = data.get("message_debounce_min_ms", 0)
+                max_ms = data.get("message_debounce_max_ms", 0)
+                if min_ms > 0 and max_ms > 0 and max_ms < min_ms:
+                    raise ValueError("message_debounce_max_ms must be >= message_debounce_min_ms")
+
+            # Validate split delay mode
+            split_mode = data.get("message_split_delay_mode", "randomized")
+            if split_mode not in ("disabled", "fixed", "randomized"):
+                raise ValueError(
+                    f"Invalid split delay mode '{split_mode}'. Must be 'disabled', 'fixed', or 'randomized'."
+                )
+
+            if split_mode == "randomized":
+                min_ms = data.get("message_split_delay_min_ms", 300)
+                max_ms = data.get("message_split_delay_max_ms", 1000)
+                if max_ms < min_ms:
+                    raise ValueError("message_split_delay_max_ms must be >= message_split_delay_min_ms")
+
+        return data
 
     @model_validator(mode="before")
     @classmethod
@@ -181,11 +256,55 @@ class InstanceConfigUpdate(BaseModel):
     # Message splitting control
     enable_auto_split: Optional[bool] = None
 
-    # Message debounce configuration
+    # Message debounce configuration (legacy field - kept for backward compatibility)
     message_debounce_seconds: Optional[int] = Field(default=None, ge=0, le=300)
+
+    # Randomized debounce configuration
+    message_debounce_mode: Optional[str] = Field(default=None)
+    message_debounce_min_ms: Optional[int] = Field(default=None, ge=0, le=300000)
+    message_debounce_max_ms: Optional[int] = Field(default=None, ge=0, le=300000)
+
+    # Split message delay configuration
+    message_split_delay_mode: Optional[str] = Field(default=None)
+    message_split_delay_fixed_ms: Optional[int] = Field(default=None, ge=0, le=10000)
+    message_split_delay_min_ms: Optional[int] = Field(default=None, ge=0, le=10000)
+    message_split_delay_max_ms: Optional[int] = Field(default=None, ge=0, le=10000)
 
     # Disable username prefix on messages to agent
     disable_username_prefix: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_timing_config(cls, data: Any) -> Any:
+        """Validate debounce and split delay configurations when updating."""
+        if isinstance(data, dict):
+            # Validate debounce mode if provided
+            debounce_mode = data.get("message_debounce_mode")
+            if debounce_mode is not None and debounce_mode not in ("disabled", "fixed", "randomized"):
+                raise ValueError(
+                    f"Invalid debounce mode '{debounce_mode}'. Must be 'disabled', 'fixed', or 'randomized'."
+                )
+
+            # Validate debounce range if both provided
+            min_ms = data.get("message_debounce_min_ms")
+            max_ms = data.get("message_debounce_max_ms")
+            if min_ms is not None and max_ms is not None and max_ms < min_ms:
+                raise ValueError("message_debounce_max_ms must be >= message_debounce_min_ms")
+
+            # Validate split delay mode if provided
+            split_mode = data.get("message_split_delay_mode")
+            if split_mode is not None and split_mode not in ("disabled", "fixed", "randomized"):
+                raise ValueError(
+                    f"Invalid split delay mode '{split_mode}'. Must be 'disabled', 'fixed', or 'randomized'."
+                )
+
+            # Validate split delay range if both provided
+            split_min = data.get("message_split_delay_min_ms")
+            split_max = data.get("message_split_delay_max_ms")
+            if split_min is not None and split_max is not None and split_max < split_min:
+                raise ValueError("message_split_delay_max_ms must be >= message_split_delay_min_ms")
+
+        return data
 
 
 class WhatsAppWebStatusInfo(BaseModel):
@@ -250,8 +369,19 @@ class InstanceConfigResponse(BaseModel):
     # Message splitting control
     enable_auto_split: Optional[bool] = None
 
-    # Message debounce configuration
+    # Message debounce configuration (legacy field)
     message_debounce_seconds: Optional[int] = None
+
+    # Randomized debounce configuration
+    message_debounce_mode: Optional[str] = None
+    message_debounce_min_ms: Optional[int] = None
+    message_debounce_max_ms: Optional[int] = None
+
+    # Split message delay configuration
+    message_split_delay_mode: Optional[str] = None
+    message_split_delay_fixed_ms: Optional[int] = None
+    message_split_delay_min_ms: Optional[int] = None
+    message_split_delay_max_ms: Optional[int] = None
 
     # Disable username prefix on messages to agent
     disable_username_prefix: Optional[bool] = None
@@ -512,6 +642,13 @@ async def list_instances(
             "updated_at": instance.updated_at,
             "enable_auto_split": instance.enable_auto_split,
             "message_debounce_seconds": getattr(instance, "message_debounce_seconds", 0),
+            "message_debounce_mode": getattr(instance, "message_debounce_mode", "disabled"),
+            "message_debounce_min_ms": getattr(instance, "message_debounce_min_ms", 0),
+            "message_debounce_max_ms": getattr(instance, "message_debounce_max_ms", 0),
+            "message_split_delay_mode": getattr(instance, "message_split_delay_mode", "randomized"),
+            "message_split_delay_fixed_ms": getattr(instance, "message_split_delay_fixed_ms", 0),
+            "message_split_delay_min_ms": getattr(instance, "message_split_delay_min_ms", 300),
+            "message_split_delay_max_ms": getattr(instance, "message_split_delay_max_ms", 1000),
             "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
             # SECURITY FIX: Use boolean indicator instead of exposing token
             "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
@@ -627,6 +764,13 @@ async def get_instance(
         "updated_at": instance.updated_at,
         "enable_auto_split": instance.enable_auto_split,
         "message_debounce_seconds": getattr(instance, "message_debounce_seconds", 0),
+        "message_debounce_mode": getattr(instance, "message_debounce_mode", "disabled"),
+        "message_debounce_min_ms": getattr(instance, "message_debounce_min_ms", 0),
+        "message_debounce_max_ms": getattr(instance, "message_debounce_max_ms", 0),
+        "message_split_delay_mode": getattr(instance, "message_split_delay_mode", "randomized"),
+        "message_split_delay_fixed_ms": getattr(instance, "message_split_delay_fixed_ms", 0),
+        "message_split_delay_min_ms": getattr(instance, "message_split_delay_min_ms", 300),
+        "message_split_delay_max_ms": getattr(instance, "message_split_delay_max_ms", 1000),
         "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
         # SECURITY FIX: Use boolean indicator instead of exposing token
         "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
