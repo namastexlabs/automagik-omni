@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, api, formatTimeFromTimestamp } from '@/lib';
 import type { OmniMessage, OmniMessageReaction, OmniMediaContent, EvolutionMessage } from '@/lib';
 
@@ -20,6 +21,101 @@ function groupReactionsByEmoji(reactions: OmniMessageReaction[]): Record<string,
       return acc;
     },
     {} as Record<string, OmniMessageReaction[]>,
+  );
+}
+
+// Sender Avatar component with profile picture fetching
+function SenderAvatar({
+  instanceName,
+  senderId,
+  senderName,
+}: {
+  instanceName: string;
+  senderId: string;
+  senderName?: string | null;
+}) {
+  // Fetch profile picture with caching (stale for 5 minutes)
+  const { data: profileData } = useQuery({
+    queryKey: ['profile-picture', instanceName, senderId],
+    queryFn: () => api.omni.getProfilePicture(instanceName, senderId),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes cache
+    retry: false, // Don't retry on failure
+    refetchOnWindowFocus: false,
+  });
+
+  const profilePictureUrl = profileData?.profile_picture_url;
+
+  return (
+    <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
+      {profilePictureUrl && <AvatarImage src={profilePictureUrl} alt={senderName || 'User'} />}
+      <AvatarFallback className="text-xs bg-primary/20">
+        {senderName?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
+// Quoted/Reply message display component
+function QuotedMessage({
+  quotedText,
+  quotedSenderName,
+  quotedMessageType,
+  isFromMe,
+}: {
+  quotedText?: string | null;
+  quotedSenderName?: string | null;
+  quotedMessageType?: string | null;
+  isFromMe: boolean;
+}) {
+  // Determine what to display based on message type
+  const getQuotedContent = () => {
+    if (quotedText) {
+      // Truncate long text
+      const truncated = quotedText.length > 100 ? quotedText.slice(0, 100) + '...' : quotedText;
+      return truncated;
+    }
+    // Show placeholder for media types
+    switch (quotedMessageType) {
+      case 'imageMessage':
+      case 'image':
+        return '📷 Photo';
+      case 'videoMessage':
+      case 'video':
+        return '🎬 Video';
+      case 'audioMessage':
+      case 'audio':
+      case 'ptt':
+        return '🎤 Audio';
+      case 'documentMessage':
+      case 'document':
+        return '📄 Document';
+      case 'stickerMessage':
+      case 'sticker':
+        return '🏷️ Sticker';
+      case 'locationMessage':
+      case 'location':
+        return '📍 Location';
+      case 'contactMessage':
+      case 'contact':
+        return '👤 Contact';
+      default:
+        return 'Message';
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        'border-l-2 pl-2 mb-1.5 text-xs rounded-r',
+        isFromMe ? 'border-primary/60 bg-primary/10' : 'border-muted-foreground/40 bg-muted/50',
+      )}
+    >
+      {quotedSenderName && (
+        <p className="font-medium text-primary truncate">{quotedSenderName}</p>
+      )}
+      <p className="text-muted-foreground line-clamp-2">{getQuotedContent()}</p>
+    </div>
   );
 }
 
@@ -140,11 +236,7 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
     <div className={cn('flex gap-2 mb-1 items-start', isFromMe ? 'justify-end' : 'justify-start')}>
       {/* Avatar for group messages (not from me) */}
       {showAvatar && !isFromMe && (
-        <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
-          <AvatarFallback className="text-xs bg-primary/20">
-            {senderName?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
-          </AvatarFallback>
-        </Avatar>
+        <SenderAvatar instanceName={instanceName} senderId={message.sender_id} senderName={senderName} />
       )}
 
       <div
@@ -157,6 +249,16 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
         {/* Sender name in groups */}
         {showAvatar && !isFromMe && senderName && (
           <p className="text-xs font-medium mb-0.5 text-primary">{senderName}</p>
+        )}
+
+        {/* Quoted/Reply message */}
+        {message.is_reply && (
+          <QuotedMessage
+            quotedText={message.quoted_text}
+            quotedSenderName={message.quoted_sender_name}
+            quotedMessageType={message.quoted_message_type}
+            isFromMe={isFromMe}
+          />
         )}
 
         {/* Media content */}

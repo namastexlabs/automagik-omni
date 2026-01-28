@@ -551,6 +551,11 @@ export interface OmniMessage {
   is_forwarded: boolean;
   is_reply: boolean;
   reply_to_message_id?: string | null;
+  // Quoted message details (populated when is_reply=true)
+  quoted_text?: string | null;
+  quoted_sender_id?: string | null;
+  quoted_sender_name?: string | null;
+  quoted_message_type?: string | null;
   reactions?: OmniMessageReaction[];
   media_content?: OmniMediaContent | null;
   delivery_status: MessageDeliveryStatus;

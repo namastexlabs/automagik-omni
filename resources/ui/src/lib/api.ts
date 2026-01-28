@@ -1524,6 +1524,18 @@ export const api = {
     ): Promise<{ base64: string; mimetype: string; fileName?: string; media_status: string; source: string }> {
       return apiRequest(`/instances/${instanceName}/messages/${messageId}/media`);
     },
+
+    /**
+     * Get profile picture URL for a WhatsApp user.
+     * Results should be cached client-side to avoid repeated API calls.
+     */
+    async getProfilePicture(
+      instanceName: string,
+      jid: string,
+    ): Promise<{ jid: string; profile_picture_url: string | null; source: string }> {
+      const encodedJid = encodeURIComponent(jid);
+      return apiRequest(`/instances/${instanceName}/profile-picture/${encodedJid}`);
+    },
   },
 
   // Access Rules API

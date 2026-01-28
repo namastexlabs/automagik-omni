@@ -200,6 +200,12 @@ class OmniMessage(BaseModel):
     is_reply: bool = Field(False, description="Whether message is a reply")
     reply_to_message_id: Optional[str] = Field(None, description="ID of message being replied to")
 
+    # Quoted message details (populated when is_reply=True)
+    quoted_text: Optional[str] = Field(None, description="Text content of the quoted message")
+    quoted_sender_id: Optional[str] = Field(None, description="Sender JID of the quoted message")
+    quoted_sender_name: Optional[str] = Field(None, description="Sender name of the quoted message")
+    quoted_message_type: Optional[str] = Field(None, description="Type of the quoted message (text, image, etc.)")
+
     # Reactions (attached to this message)
     reactions: List["MessageReaction"] = Field(default_factory=list, description="Emoji reactions on this message")
 
@@ -506,3 +512,11 @@ class MediaResponse(BaseModel):
     fileName: Optional[str] = Field(None, description="Original file name if available")
     media_status: str = Field(..., description="Media status: downloaded, pending, failed, expired")
     source: str = Field(..., description="Where media was retrieved from: local, evolution")
+
+
+class ProfilePictureResponse(BaseModel):
+    """Response model for profile picture endpoint."""
+
+    jid: str = Field(..., description="The JID of the user")
+    profile_picture_url: Optional[str] = Field(None, description="URL of the profile picture, null if not available")
+    source: str = Field(..., description="Where data was retrieved from: local, evolution")

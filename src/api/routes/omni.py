@@ -27,6 +27,7 @@ from src.api.schemas.omni import (
     RecipientValidationResult,
     RecipientProfile,
     MediaResponse,
+    ProfilePictureResponse,
 )
 from src.services.chat_id_resolver import ChatIdResolver
 from src.db.models import InstanceConfig
@@ -317,6 +318,69 @@ def _resolve_mentions(
     return text_display, mentions
 
 
+def _resolve_sender_name(
+    db: Session,
+    instance_name: str,
+    jid: str,
+) -> Optional[str]:
+    """
+    Resolve a JID to a display name.
+
+    Args:
+        db: Database session
+        instance_name: Instance name
+        jid: The WhatsApp JID to resolve
+
+    Returns:
+        Display name if found, None otherwise
+    """
+    from src.db.trace_models import ChatIdMapping, OmniMessageRecord
+
+    if not jid:
+        return None
+
+    # 1. Check ChatIdMapping for LID → phone mappings
+    if "@lid" in jid:
+        mapping = (
+            db.query(ChatIdMapping)
+            .filter(
+                ChatIdMapping.instance_name == instance_name,
+                ChatIdMapping.alternate_chat_id == jid,
+            )
+            .first()
+        )
+        if mapping and mapping.contact_name:
+            return mapping.contact_name
+
+    # 2. Check for phone format
+    if "@s.whatsapp.net" in jid:
+        mapping = (
+            db.query(ChatIdMapping)
+            .filter(
+                ChatIdMapping.instance_name == instance_name,
+                ChatIdMapping.canonical_chat_id == jid,
+            )
+            .first()
+        )
+        if mapping and mapping.contact_name:
+            return mapping.contact_name
+
+    # 3. Try to find from sender in messages
+    sender_msg = (
+        db.query(OmniMessageRecord.sender_name)
+        .filter(
+            OmniMessageRecord.instance_name == instance_name,
+            OmniMessageRecord.sender_id == jid,
+            OmniMessageRecord.sender_name.isnot(None),
+        )
+        .first()
+    )
+    if sender_msg and sender_msg[0]:
+        return sender_msg[0]
+
+    return None
+
+
 def _get_messages_from_local(
     db: Session,
     instance_name: str,
@@ -461,6 +525,19 @@ def _get_messages_from_local(
         text_display, mentions_data = _resolve_mentions(db, instance_name, record.content_text, context_info)
         mentions = [Mention(jid=m["jid"], name=m["name"], phone=m["phone"]) for m in mentions_data]
 
+        # Extract quoted message details from context_info
+        quoted_text = None
+        quoted_sender_id = None
+        quoted_sender_name = None
+        quoted_message_type = None
+        if record.quoted_message_id and context_info:
+            quoted_text = context_info.get("quotedText")
+            quoted_sender_id = context_info.get("participant")
+            quoted_message_type = context_info.get("quotedType")
+            # Try to resolve quoted sender name
+            if quoted_sender_id:
+                quoted_sender_name = _resolve_sender_name(db, instance_name, quoted_sender_id)
+
         messages.append(
             OmniMessage(
                 id=record.platform_message_id,
@@ -479,6 +556,10 @@ def _get_messages_from_local(
                 is_forwarded=False,
                 is_reply=record.quoted_message_id is not None,
                 reply_to_message_id=record.quoted_message_id,
+                quoted_text=quoted_text,
+                quoted_sender_id=quoted_sender_id,
+                quoted_sender_name=quoted_sender_name,
+                quoted_message_type=quoted_message_type,
                 reactions=message_reactions,
                 media_content=media_content,
                 delivery_status=delivery_status,
@@ -1325,4 +1406,80 @@ async def get_message_media(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get media: {str(e)}",
+        )
+
+
+@router.get("/{instance_name}/profile-picture/{jid}")
+async def get_profile_picture(
+    instance_name: str,
+    jid: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+) -> ProfilePictureResponse:
+    """
+    Get profile picture URL for a WhatsApp user.
+
+    This endpoint fetches the profile picture URL from Evolution API.
+    The result should be cached client-side to avoid repeated API calls.
+
+    Args:
+        instance_name: The WhatsApp instance name
+        jid: The WhatsApp JID (e.g., "5511999999999@s.whatsapp.net" or participant JID)
+
+    Returns:
+        ProfilePictureResponse with the profile picture URL (may be null if not available)
+    """
+    import requests
+
+    try:
+        logger.debug(f"Fetching profile picture for JID '{jid}' in instance '{instance_name}'")
+
+        instance = get_instance_by_name(instance_name, db)
+        if not instance.evolution_url or not instance.evolution_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Instance not configured for Evolution API",
+            )
+
+        # Call Evolution API fetchProfilePictureUrl
+        url = f"{instance.evolution_url}/chat/fetchProfilePictureUrl/{instance_name}"
+        headers = {
+            "apikey": instance.evolution_key,
+            "Content-Type": "application/json",
+        }
+        payload = {"number": jid}
+
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            if response.status_code == 200:
+                evo_result = response.json()
+                profile_url = evo_result.get("profilePictureUrl")
+                logger.debug(f"Got profile picture for {jid}: {profile_url is not None}")
+                return ProfilePictureResponse(
+                    jid=jid,
+                    profile_picture_url=profile_url,
+                    source="evolution",
+                )
+            else:
+                logger.warning(f"Evolution API returned {response.status_code} for profile picture: {response.text}")
+                return ProfilePictureResponse(
+                    jid=jid,
+                    profile_picture_url=None,
+                    source="evolution",
+                )
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout fetching profile picture for {jid}")
+            return ProfilePictureResponse(
+                jid=jid,
+                profile_picture_url=None,
+                source="evolution",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get profile picture for '{jid}' in instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get profile picture: {str(e)}",
         )
