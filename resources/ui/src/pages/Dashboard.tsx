@@ -34,7 +34,15 @@ export default function Dashboard() {
     refetchInterval: 15000,
   });
 
-  // Query for gateway channels to check running status
+  // Query for health status (actual service health, not just process running)
+  const { data: healthData } = useQuery({
+    queryKey: ['health'],
+    queryFn: () => api.health(),
+    refetchInterval: 15000,
+  });
+
+  // Query for gateway channels to check Discord running status
+  // (Discord runs as separate process, health endpoint doesn't track it)
   const { data: channelsData } = useQuery({
     queryKey: ['gateway-channels'],
     queryFn: () => api.gateway.getChannels(),
@@ -45,10 +53,14 @@ export default function Dashboard() {
   const whatsappInstances = instances?.filter((i) => i.channel_type === 'whatsapp') || [];
   const discordInstances = instances?.filter((i) => i.channel_type === 'discord') || [];
 
-  const evolutionChannel = channelsData?.channels?.find((c) => c.name === 'evolution');
+  // Use health endpoint for Evolution status (actually pings the service)
+  const evolutionStatus = healthData?.services?.evolution?.status;
+  const isEvolutionUp = evolutionStatus === 'up';
+
+  // Use gateway channels for Discord (separate process not tracked by health)
   const discordChannel = channelsData?.channels?.find((c) => c.name === 'discord');
 
-  const hasStoppedWhatsApp = whatsappInstances.length > 0 && evolutionChannel && !evolutionChannel.running;
+  const hasStoppedWhatsApp = whatsappInstances.length > 0 && evolutionStatus && !isEvolutionUp;
   const hasStoppedDiscord = discordInstances.length > 0 && discordChannel && !discordChannel.running;
 
   const hasStoppedServices = hasStoppedWhatsApp || hasStoppedDiscord;
