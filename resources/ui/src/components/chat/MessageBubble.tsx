@@ -23,7 +23,54 @@ function groupReactionsByEmoji(reactions: OmniMessageReaction[]): Record<string,
   );
 }
 
-// Render text with highlighted @mentions
+// URL regex pattern
+const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+
+// Render a single text segment, detecting and linking URLs
+function TextSegment({ text, isLink }: { text: string; isLink?: boolean }) {
+  if (isLink) {
+    return (
+      <a
+        href={text}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline hover:text-primary/80 break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {text}
+      </a>
+    );
+  }
+  return <>{text}</>;
+}
+
+// Parse text and render URLs as clickable links
+function TextWithLinks({ text }: { text: string }) {
+  const parts = text.split(URL_REGEX);
+  const urls = text.match(URL_REGEX) || [];
+
+  if (urls.length === 0) {
+    return <>{text}</>;
+  }
+
+  const result: JSX.Element[] = [];
+  let urlIndex = 0;
+
+  parts.forEach((part, i) => {
+    if (part) {
+      if (urls.includes(part)) {
+        result.push(<TextSegment key={`url-${i}`} text={part} isLink />);
+        urlIndex++;
+      } else {
+        result.push(<TextSegment key={`text-${i}`} text={part} />);
+      }
+    }
+  });
+
+  return <>{result}</>;
+}
+
+// Render text with highlighted @mentions and clickable links
 function TextWithMentions({
   text,
   mentions,
@@ -33,66 +80,47 @@ function TextWithMentions({
   mentions?: Array<{ jid: string; name?: string | null; phone?: string | null }>;
   className?: string;
 }) {
-  // If we have mentions data, use exact matching on resolved names
-  if (mentions && mentions.length > 0) {
-    // Build list of mention strings to highlight (e.g., "@Gustavo Batista", "@+5511...")
-    const mentionStrings = mentions
-      .map((m) => {
-        if (m.name) return `@${m.name}`;
-        if (m.phone) return `@+${m.phone}`;
-        // Fallback to JID without domain
-        const jidId = m.jid.split('@')[0];
-        return `@${jidId}`;
-      })
-      .filter(Boolean);
+  // Build mention strings for highlighting
+  const mentionStrings =
+    mentions && mentions.length > 0
+      ? mentions
+          .map((m) => {
+            if (m.name) return `@${m.name}`;
+            if (m.phone) return `@+${m.phone}`;
+            const jidId = m.jid.split('@')[0];
+            return `@${jidId}`;
+          })
+          .filter(Boolean)
+      : [];
 
-    if (mentionStrings.length === 0) {
-      return <span className={className}>{text}</span>;
-    }
-
-    // Create regex pattern from mention strings (escape special chars)
-    const escapedMentions = mentionStrings.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const mentionRegex = new RegExp(`(${escapedMentions.join('|')})`, 'g');
-
-    const parts = text.split(mentionRegex);
-
+  // If no mentions, just handle links
+  if (mentionStrings.length === 0) {
     return (
       <span className={className}>
-        {parts.map((part, i) =>
-          mentionStrings.includes(part) ? (
-            <span key={i} className="font-semibold text-primary">
-              {part}
-            </span>
-          ) : (
-            part
-          ),
-        )}
+        <TextWithLinks text={text} />
       </span>
     );
   }
 
-  // Fallback: simple regex for @mentions (capitalized words)
-  const fallbackRegex = /@[A-Z][a-zA-ZÀ-ÿ]*(?:\s+[A-Z][a-zA-ZÀ-ÿ]*)*/g;
-  const parts = text.split(fallbackRegex);
-  const matches = text.match(fallbackRegex) || [];
+  // Create regex pattern from mention strings (escape special chars)
+  const escapedMentions = mentionStrings.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const mentionRegex = new RegExp(`(${escapedMentions.join('|')})`, 'g');
 
-  if (matches.length === 0) {
-    return <span className={className}>{text}</span>;
-  }
+  const parts = text.split(mentionRegex);
 
-  const result: (string | JSX.Element)[] = [];
-  parts.forEach((part, i) => {
-    result.push(part);
-    if (matches[i]) {
-      result.push(
-        <span key={i} className="font-semibold text-primary">
-          {matches[i]}
-        </span>,
-      );
-    }
-  });
-
-  return <span className={className}>{result}</span>;
+  return (
+    <span className={className}>
+      {parts.map((part, i) =>
+        mentionStrings.includes(part) ? (
+          <span key={i} className="font-semibold text-primary">
+            {part}
+          </span>
+        ) : (
+          <TextWithLinks key={i} text={part} />
+        ),
+      )}
+    </span>
+  );
 }
 
 export function MessageBubble({ message, instanceName, showAvatar = false }: MessageBubbleProps) {
