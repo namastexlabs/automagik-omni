@@ -679,6 +679,67 @@ class WhatsAppMessageHandler:
             logger.error(f"Error processing media content: {e}", exc_info=True)
             return None
 
+    def _update_chat_on_message(
+        self,
+        db_session,
+        instance_name: str,
+        chat_id: str,
+        canonical_chat_id: str,
+        message_timestamp,
+        message_preview: str,
+        sender_name: str,
+    ) -> None:
+        """
+        Update omni_chats when a new message arrives (real-time sync).
+
+        This ensures the chat list is updated immediately when a message is received,
+        rather than waiting for the periodic sync.
+        """
+        from src.db.trace_models import OmniChatRecord
+
+        # Generate chat record ID
+        chat_record_id = f"{instance_name}:{chat_id}"
+
+        # Check if chat exists
+        chat_record = db_session.query(OmniChatRecord).filter(OmniChatRecord.id == chat_record_id).first()
+
+        if chat_record:
+            # Update existing chat
+            chat_record.last_message_at = message_timestamp
+            chat_record.last_message_preview = message_preview[:250] if message_preview else None
+            chat_record.message_count = (chat_record.message_count or 0) + 1
+            chat_record.canonical_chat_id = canonical_chat_id
+            chat_record.updated_at = datetime_utcnow()
+
+            # Update name if we have a better one (contact name vs phone number)
+            if sender_name and chat_record.name and "@" in chat_record.name:
+                chat_record.name = sender_name
+
+            db_session.commit()
+            logger.debug(f"Updated chat {chat_record_id} on new message")
+        else:
+            # Create new chat record
+            is_group = "@g.us" in chat_id
+            chat_type = "group" if is_group else "direct"
+
+            new_chat = OmniChatRecord(
+                id=chat_record_id,
+                instance_name=instance_name,
+                channel_type="whatsapp",
+                chat_id=chat_id,
+                canonical_chat_id=canonical_chat_id,
+                name=sender_name or chat_id.split("@")[0],
+                chat_type=chat_type,
+                message_count=1,
+                last_message_at=message_timestamp,
+                last_message_preview=message_preview[:250] if message_preview else None,
+                created_at=datetime_utcnow(),
+                updated_at=datetime_utcnow(),
+            )
+            db_session.add(new_chat)
+            db_session.commit()
+            logger.debug(f"Created new chat {chat_record_id} on first message")
+
     def _save_to_omni_messages(
         self,
         message: Dict[str, Any],
@@ -728,6 +789,9 @@ class WhatsAppMessageHandler:
             is_from_me = key_data.get("fromMe", False)
             sender_id = key_data.get("participant") or (None if is_from_me else key_data.get("remoteJid"))
             sender_name = data.get("pushName", "")
+
+            # Store remoteJidAlt for later mapping extraction (after db_session is created)
+            remote_jid_alt = key_data.get("remoteJidAlt", "")
 
             # Map message type to omni format
             type_map = {
@@ -830,6 +894,29 @@ class WhatsAppMessageHandler:
             # Save to database
             db_session = SessionLocal()
             try:
+                # Extract LID <-> phone mapping from remoteJidAlt if present (real-time discovery)
+                if remote_jid_alt and chat_id:
+                    lid_jid, phone_jid = None, None
+                    if "@lid" in chat_id and "@s.whatsapp.net" in remote_jid_alt:
+                        lid_jid, phone_jid = chat_id, remote_jid_alt
+                    elif "@s.whatsapp.net" in chat_id and "@lid" in remote_jid_alt:
+                        phone_jid, lid_jid = chat_id, remote_jid_alt
+
+                    if lid_jid and phone_jid:
+                        try:
+                            from src.services.chat_id_resolver import ChatIdResolver as Resolver
+
+                            temp_resolver = Resolver(db_session)
+                            temp_resolver.add_mapping(
+                                instance_name=instance_name,
+                                canonical_chat_id=phone_jid,
+                                alternate_chat_id=lid_jid,
+                                contact_name=sender_name if not is_from_me else None,
+                                discovery_method="webhook",
+                            )
+                        except Exception as e:
+                            logger.debug(f"Failed to add chat ID mapping: {e}")
+
                 # Resolve canonical chat ID for unified conversations
                 resolver = ChatIdResolver(db_session)
                 canonical_chat_id = resolver.get_canonical_id(instance_name, chat_id)
@@ -887,6 +974,20 @@ class WhatsAppMessageHandler:
 
                 db_session.add(record)
                 db_session.commit()
+
+                # Immediately update omni_chats for this chat (real-time sync)
+                try:
+                    self._update_chat_on_message(
+                        db_session=db_session,
+                        instance_name=instance_name,
+                        chat_id=chat_id,
+                        canonical_chat_id=canonical_chat_id,
+                        message_timestamp=msg_timestamp,
+                        message_preview=text_content[:250] if text_content else omni_type,
+                        sender_name=sender_name,
+                    )
+                except Exception as chat_err:
+                    logger.debug(f"Failed to update chat on message: {chat_err}")
 
                 logger.info(
                     f"Saved webhook message to omni_messages: {record_id} (type={omni_type}, has_media={has_media})"

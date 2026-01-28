@@ -65,6 +65,16 @@ class ChatSyncService:
                 logger.warning(f"Instance {instance_name} not found in evo_Instance")
                 return stats
 
+            # Step 0: Discover LID <-> phone mappings from evo_Message keys
+            # This ensures we have the latest mappings before resolving chat IDs
+            from src.services.chat_id_resolver import ChatIdResolver
+
+            resolver = ChatIdResolver(self.db)
+            mapping_stats = resolver.discover_mappings_from_evo_messages(instance_name)
+            logger.info(
+                f"Mapping discovery: {mapping_stats['discovered']} new, {mapping_stats['already_exists']} existing"
+            )
+
             # Step 1: Load contacts into cache (for name/avatar resolution)
             self._contacts_cache = self._get_evo_contacts(evo_instance.id)
             stats["from_evo_contact"] = len(self._contacts_cache)
@@ -239,7 +249,11 @@ class ChatSyncService:
         omni_ts = None
         if omni_result:
             text, msg_type, omni_ts = omni_result
-            if text:
+            if msg_type == "reaction":
+                # For reactions, show the emoji (stored in content_text)
+                emoji = text or "👍"
+                omni_preview = f"Reacted {emoji}"
+            elif text:
                 omni_preview = text[:250]
             else:
                 type_labels = {
@@ -327,6 +341,12 @@ class ChatSyncService:
             text = message_json["extendedTextMessage"].get("text", "")
             return text[:250] if text else None
 
+        # Handle reactions specially - extract the emoji
+        if "reactionMessage" in message_json:
+            reaction_msg = message_json.get("reactionMessage", {})
+            emoji = reaction_msg.get("text", "👍")  # Default to thumbs up
+            return f"Reacted {emoji}"
+
         # Media type indicators
         type_labels = {
             "imageMessage": "📷 Image",
@@ -336,7 +356,6 @@ class ChatSyncService:
             "stickerMessage": "🎨 Sticker",
             "locationMessage": "📍 Location",
             "contactMessage": "👤 Contact",
-            "reactionMessage": "reaction",
         }
 
         for key, label in type_labels.items():

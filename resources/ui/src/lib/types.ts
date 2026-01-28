@@ -421,20 +421,24 @@ export interface EvolutionMessage {
     id?: string;
     remoteJid?: string;
     fromMe?: boolean;
+    participant?: string;
   };
+  pushName?: string;
   message?: {
     conversation?: string;
     extendedTextMessage?: { text?: string };
     imageMessage?: { caption?: string; jpegThumbnail?: string };
     videoMessage?: { caption?: string; jpegThumbnail?: string };
-    audioMessage?: { ptt?: boolean };
-    documentMessage?: { fileName?: string };
+    audioMessage?: { ptt?: boolean; seconds?: number };
+    documentMessage?: { fileName?: string; pageCount?: number; fileLength?: { low?: number } };
     stickerMessage?: unknown;
     contactMessage?: { displayName?: string };
-    locationMessage?: unknown;
-    reactionMessage?: { text?: string };
+    locationMessage?: { degreesLatitude?: number; degreesLongitude?: number };
+    reactionMessage?: { text?: string; key?: { id?: string; remoteJid?: string } };
   };
+  messageType?: string;
   messageTimestamp?: number | string;
+  status?: string;
 }
 
 export interface EvolutionChat {
@@ -493,6 +497,23 @@ export interface AccessRuleCreate {
 // Message delivery status enum
 export type MessageDeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'unknown';
 
+// Reaction on a message
+export interface OmniMessageReaction {
+  emoji: string;
+  sender_id?: string | null;
+  sender_name?: string | null;
+  timestamp?: string | null;
+}
+
+// Processed media content (transcript for audio, description for images)
+export interface OmniMediaContent {
+  content_type: 'audio_transcript' | 'image_description' | 'video_description' | 'document_content';
+  content: string;
+  processor_name?: string | null;
+  confidence_score?: number | null;
+  processed_at?: string | null;
+}
+
 // Unified message type for Omni API
 export interface OmniMessage {
   id: string;
@@ -521,6 +542,8 @@ export interface OmniMessage {
   is_forwarded: boolean;
   is_reply: boolean;
   reply_to_message_id?: string | null;
+  reactions?: OmniMessageReaction[];
+  media_content?: OmniMediaContent | null;
   delivery_status: MessageDeliveryStatus;
   is_read: boolean;
   timestamp: string;

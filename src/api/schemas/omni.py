@@ -143,6 +143,25 @@ class MessageDirection(str, Enum):
     OUTBOUND = "outbound"  # Message sent by the instance
 
 
+class MessageReaction(BaseModel):
+    """Reaction attached to a message (like WhatsApp emoji reactions)."""
+
+    emoji: str = Field(..., description="The reaction emoji")
+    sender_id: Optional[str] = Field(None, description="ID of who reacted")
+    sender_name: Optional[str] = Field(None, description="Name of who reacted")
+    timestamp: Optional[datetime] = Field(None, description="When the reaction was added")
+
+
+class MediaContent(BaseModel):
+    """Processed media content (transcript for audio, description for images)."""
+
+    content_type: str = Field(..., description="Type: audio_transcript, image_description, etc.")
+    content: str = Field(..., description="The transcript or description text")
+    processor_name: Optional[str] = Field(None, description="Processor used (groq_whisper, gemini, etc.)")
+    confidence_score: Optional[float] = Field(None, description="Confidence score if available")
+    processed_at: Optional[datetime] = Field(None, description="When content was processed")
+
+
 class OmniMessage(BaseModel):
     """Omni message representation across all channels."""
 
@@ -169,6 +188,9 @@ class OmniMessage(BaseModel):
     is_reply: bool = Field(False, description="Whether message is a reply")
     reply_to_message_id: Optional[str] = Field(None, description="ID of message being replied to")
 
+    # Reactions (attached to this message)
+    reactions: List["MessageReaction"] = Field(default_factory=list, description="Emoji reactions on this message")
+
     # Delivery and read status
     delivery_status: MessageDeliveryStatus = Field(
         MessageDeliveryStatus.UNKNOWN, description="Message delivery status (pending/sent/delivered/read/failed)"
@@ -179,6 +201,9 @@ class OmniMessage(BaseModel):
     timestamp: datetime = Field(..., description="Message timestamp")
     edited_at: Optional[datetime] = Field(None, description="Edit timestamp if edited")
     read_at: Optional[datetime] = Field(None, description="Timestamp when message was read")
+
+    # Processed media content (transcript for audio, description for images)
+    media_content: Optional["MediaContent"] = Field(None, description="Processed media content if available")
 
     # Channel-specific data
     channel_type: ChannelType = Field(..., description="Source channel type")
@@ -459,3 +484,13 @@ class MessageImportRequest(BaseModel):
     days: int = Field(30, ge=1, le=365, description="Number of days of history to import")
     batch_size: int = Field(500, ge=100, le=2000, description="Batch size for processing")
     skip_existing: bool = Field(True, description="Skip messages that already exist")
+
+
+class MediaResponse(BaseModel):
+    """Response model for media content endpoint."""
+
+    base64: str = Field(..., description="Base64-encoded media content")
+    mimetype: str = Field(..., description="MIME type of the media")
+    fileName: Optional[str] = Field(None, description="Original file name if available")
+    media_status: str = Field(..., description="Media status: downloaded, pending, failed, expired")
+    source: str = Field(..., description="Where media was retrieved from: local, evolution")

@@ -841,7 +841,7 @@ export const api = {
         const response = await fetch(`/api/logs/status/${service}`);
         if (!response.ok) throw new Error('Failed to get status');
         return response.json();
-      } catch (error) {
+      } catch (_error) {
         return { online: false, message: 'Failed to get status' };
       }
     },
@@ -851,7 +851,7 @@ export const api = {
         const response = await fetch('/api/logs/status');
         if (!response.ok) throw new Error('Failed to get statuses');
         return response.json();
-      } catch (error) {
+      } catch (_error) {
         return {
           api: { online: false },
           discord: { online: false },
@@ -1461,7 +1461,7 @@ export const api = {
           if (proc && proc.healthy) {
             return true;
           }
-        } catch (e) {
+        } catch (_e) {
           // Keep polling
         }
         await new Promise((r) => setTimeout(r, 1000));
@@ -1489,6 +1489,41 @@ export const api = {
   // Backward compatibility alias - use api.whatsappWeb for new code
   get evolution() {
     return this.whatsappWeb;
+  },
+
+  // Omni API (unified local endpoints)
+  omni: {
+    /**
+     * Get messages from local omni_messages table.
+     * Uses canonical_chat_id for unified conversations (merges @lid and @s.whatsapp.net).
+     */
+    async getMessages(
+      instanceName: string,
+      chatId: string,
+      params?: { page?: number; page_size?: number },
+    ): Promise<import('./types').OmniMessagesResponse> {
+      const queryParams = new URLSearchParams({
+        source: 'local',
+        unified: 'true',
+        page_size: (params?.page_size ?? 100).toString(),
+      });
+      if (params?.page) queryParams.append('page', params.page.toString());
+
+      const encodedChatId = encodeURIComponent(chatId);
+      // Omni routes are mounted under /instances namespace
+      return apiRequest(`/instances/${instanceName}/chats/${encodedChatId}/messages?${queryParams}`);
+    },
+
+    /**
+     * Get media content for a message.
+     * Serves from local storage if available, downloads if needed, falls back to Evolution API.
+     */
+    async getMedia(
+      instanceName: string,
+      messageId: string,
+    ): Promise<{ base64: string; mimetype: string; fileName?: string; media_status: string; source: string }> {
+      return apiRequest(`/instances/${instanceName}/messages/${messageId}/media`);
+    },
   },
 
   // Access Rules API
@@ -1828,7 +1863,7 @@ export function setInstanceKey(instanceName: string, evolutionKey: string) {
   instanceKeys.set(instanceName, evolutionKey);
 }
 
-async function evolutionRequest<T>(endpoint: string, options: RequestInit = {}, instanceName?: string): Promise<T> {
+async function evolutionRequest<T>(endpoint: string, options: RequestInit = {}, _instanceName?: string): Promise<T> {
   const apiKey = getApiKey();
 
   if (!apiKey) {

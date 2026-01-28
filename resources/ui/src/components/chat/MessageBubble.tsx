@@ -2,20 +2,39 @@ import { useState, useEffect, useRef } from 'react';
 import { Check, CheckCheck, Clock, User, Play, Pause, Mic, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn, api, formatTimeFromTimestamp } from '@/lib';
-import type { EvolutionMessage } from '@/lib';
+import type { OmniMessage, OmniMessageReaction, OmniMediaContent, EvolutionMessage } from '@/lib';
 
 interface MessageBubbleProps {
-  message: EvolutionMessage;
+  message: OmniMessage;
   instanceName: string;
   showAvatar?: boolean;
 }
 
+// Group reactions by emoji and count
+function groupReactionsByEmoji(reactions: OmniMessageReaction[]): Record<string, OmniMessageReaction[]> {
+  return reactions.reduce(
+    (acc, r) => {
+      const emoji = r.emoji;
+      if (!acc[emoji]) acc[emoji] = [];
+      acc[emoji].push(r);
+      return acc;
+    },
+    {} as Record<string, OmniMessageReaction[]>,
+  );
+}
+
 export function MessageBubble({ message, instanceName, showAvatar = false }: MessageBubbleProps) {
-  const isFromMe = message.key?.fromMe;
-  const content = getMessageContent(message);
-  const timestamp = formatMessageTime(message.messageTimestamp);
-  const status = message.status;
-  const senderName = message.pushName;
+  const isFromMe = message.is_from_me;
+  const content = getOmniMessageContent(message);
+  const timestamp = formatOmniTimestamp(message.timestamp);
+  const status = mapDeliveryStatus(message.delivery_status);
+  const senderName = message.sender_name;
+  const reactions = message.reactions;
+
+  // Don't render reaction messages as standalone bubbles
+  if (message.message_type === 'reaction') {
+    return null;
+  }
 
   return (
     <div className={cn('flex gap-2 mb-1', isFromMe ? 'justify-end' : 'justify-start')}>
@@ -78,11 +97,29 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
           </div>
         )}
 
-        {/* Reaction message */}
-        {content.type === 'reaction' && <div className="text-2xl">{content.text}</div>}
-
         {/* Unsupported */}
         {content.type === 'unsupported' && <p className="text-sm text-muted-foreground italic">{content.text}</p>}
+
+        {/* Media content (transcript/description) */}
+        {message.media_content && message.media_content.content && (
+          <MediaContentDisplay mediaContent={message.media_content} messageType={message.message_type} />
+        )}
+
+        {/* Reactions display */}
+        {reactions && reactions.length > 0 && (
+          <div className="flex gap-1 mt-1 flex-wrap">
+            {Object.entries(groupReactionsByEmoji(reactions)).map(([emoji, senders]) => (
+              <span
+                key={emoji}
+                className="inline-flex items-center bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5 text-xs cursor-default"
+                title={senders.map((s) => s.sender_name || 'Unknown').join(', ')}
+              >
+                {emoji}
+                {senders.length > 1 && <span className="ml-1 text-gray-500">{senders.length}</span>}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Timestamp and status */}
         <div
@@ -113,21 +150,19 @@ function ImageMessage({
   instanceName,
   caption,
 }: {
-  message: EvolutionMessage;
+  message: OmniMessage;
   instanceName: string;
   caption?: string;
 }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const thumbnail = message.message?.imageMessage?.jpegThumbnail;
 
   useEffect(() => {
     const fetchMedia = async () => {
       try {
-        const result = await api.evolution.getBase64FromMediaMessage(instanceName, {
-          message: { key: { id: message.key.id, remoteJid: message.key.remoteJid } },
-        });
+        // Use omni endpoint which serves from local storage or downloads
+        const result = await api.omni.getMedia(instanceName, message.id);
         setImageSrc(`data:${result.mimetype};base64,${result.base64}`);
       } catch (err) {
         console.error('Failed to load image:', err);
@@ -137,21 +172,21 @@ function ImageMessage({
       }
     };
     fetchMedia();
-  }, [message.key.id, message.key.remoteJid, instanceName]);
-
-  const thumbnailSrc = thumbnail ? `data:image/jpeg;base64,${thumbnail}` : null;
+  }, [message.id, instanceName]);
 
   return (
     <div className="relative">
-      {loading && thumbnailSrc ? (
-        <img src={thumbnailSrc} alt="Loading..." className="rounded-lg max-w-full max-h-80 object-contain blur-sm" />
+      {loading ? (
+        <div className="flex items-center justify-center h-40 w-60 bg-muted rounded-lg animate-pulse">
+          <ImageIcon className="h-8 w-8 text-muted-foreground" />
+        </div>
       ) : error ? (
         <div className="flex items-center justify-center h-40 w-60 bg-muted rounded-lg">
           <ImageIcon className="h-8 w-8 text-muted-foreground" />
         </div>
       ) : (
         <img
-          src={imageSrc || thumbnailSrc || ''}
+          src={imageSrc || ''}
           alt="Image"
           className="rounded-lg max-w-full max-h-80 object-contain cursor-pointer hover:opacity-90 transition-opacity"
           onClick={() => imageSrc && window.open(imageSrc, '_blank')}
@@ -168,21 +203,18 @@ function VideoMessage({
   instanceName,
   caption,
 }: {
-  message: EvolutionMessage;
+  message: OmniMessage;
   instanceName: string;
   caption?: string;
 }) {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const thumbnail = message.message?.videoMessage?.jpegThumbnail;
 
   useEffect(() => {
     const fetchMedia = async () => {
       try {
-        const result = await api.evolution.getBase64FromMediaMessage(instanceName, {
-          message: { key: { id: message.key.id, remoteJid: message.key.remoteJid } },
-          convertToMp4: true,
-        });
+        // Use omni endpoint which serves from local storage or downloads
+        const result = await api.omni.getMedia(instanceName, message.id);
         setVideoSrc(`data:${result.mimetype};base64,${result.base64}`);
       } catch (err) {
         console.error('Failed to load video:', err);
@@ -191,21 +223,14 @@ function VideoMessage({
       }
     };
     fetchMedia();
-  }, [message.key.id, message.key.remoteJid, instanceName]);
-
-  const thumbnailSrc = thumbnail ? `data:image/jpeg;base64,${thumbnail}` : null;
+  }, [message.id, instanceName]);
 
   return (
     <div className="relative">
       {loading ? (
-        <div className="relative">
-          {thumbnailSrc && (
-            <img src={thumbnailSrc} alt="Video thumbnail" className="rounded-lg max-w-full max-h-80 blur-sm" />
-          )}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-black/50 rounded-full p-3">
-              <Play className="h-8 w-8 text-white" />
-            </div>
+        <div className="relative flex items-center justify-center h-40 w-60 bg-muted rounded-lg">
+          <div className="bg-black/50 rounded-full p-3">
+            <Play className="h-8 w-8 text-white" />
           </div>
         </div>
       ) : (
@@ -213,7 +238,6 @@ function VideoMessage({
           src={videoSrc || ''}
           controls
           className="rounded-lg max-w-full max-h-80"
-          poster={thumbnailSrc || undefined}
         />
       )}
       {caption && <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">{caption}</p>}
@@ -227,7 +251,7 @@ function AudioMessage({
   instanceName,
   isPtt,
 }: {
-  message: EvolutionMessage;
+  message: OmniMessage;
   instanceName: string;
   isPtt: boolean;
 }) {
@@ -241,9 +265,8 @@ function AudioMessage({
   useEffect(() => {
     const fetchMedia = async () => {
       try {
-        const result = await api.evolution.getBase64FromMediaMessage(instanceName, {
-          message: { key: { id: message.key.id, remoteJid: message.key.remoteJid } },
-        });
+        // Use omni endpoint which serves from local storage or downloads
+        const result = await api.omni.getMedia(instanceName, message.id);
         setAudioSrc(`data:${result.mimetype};base64,${result.base64}`);
       } catch (err) {
         console.error('Failed to load audio:', err);
@@ -252,7 +275,7 @@ function AudioMessage({
       }
     };
     fetchMedia();
-  }, [message.key.id, message.key.remoteJid, instanceName]);
+  }, [message.id, instanceName]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -296,7 +319,7 @@ function AudioMessage({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const audioDuration = message.message?.audioMessage?.seconds || duration;
+  const audioDuration = duration;
 
   return (
     <div className="flex items-center gap-3 min-w-[200px] py-1">
@@ -363,7 +386,7 @@ function DocumentMessage({
   instanceName,
   filename,
 }: {
-  message: EvolutionMessage;
+  message: OmniMessage;
   instanceName: string;
   filename?: string;
 }) {
@@ -372,9 +395,8 @@ function DocumentMessage({
   const handleDownload = async () => {
     setLoading(true);
     try {
-      const result = await api.evolution.getBase64FromMediaMessage(instanceName, {
-        message: { key: { id: message.key.id, remoteJid: message.key.remoteJid } },
-      });
+      // Use omni endpoint which serves from local storage or downloads
+      const result = await api.omni.getMedia(instanceName, message.id);
       const link = document.createElement('a');
       link.href = `data:${result.mimetype};base64,${result.base64}`;
       link.download = result.fileName || filename || 'document';
@@ -386,9 +408,7 @@ function DocumentMessage({
     }
   };
 
-  const docMessage = message.message?.documentMessage;
-  const pageCount = docMessage?.pageCount;
-  const fileSize = docMessage?.fileLength?.low;
+  const fileSize = message.media_size;
 
   return (
     <div
@@ -400,10 +420,11 @@ function DocumentMessage({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{filename || 'Document'}</p>
-        <p className="text-xs text-muted-foreground">
-          {pageCount && `${pageCount} pages • `}
-          {fileSize && `${(fileSize / 1024).toFixed(1)} KB`}
-        </p>
+        {fileSize && (
+          <p className="text-xs text-muted-foreground">
+            {(fileSize / 1024).toFixed(1)} KB
+          </p>
+        )}
       </div>
       {loading ? (
         <div className="w-5 h-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
@@ -415,22 +436,21 @@ function DocumentMessage({
 }
 
 // Sticker Message Component
-function StickerMessage({ message, instanceName }: { message: EvolutionMessage; instanceName: string }) {
+function StickerMessage({ message, instanceName }: { message: OmniMessage; instanceName: string }) {
   const [stickerSrc, setStickerSrc] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchMedia = async () => {
       try {
-        const result = await api.evolution.getBase64FromMediaMessage(instanceName, {
-          message: { key: { id: message.key.id, remoteJid: message.key.remoteJid } },
-        });
+        // Use omni endpoint which serves from local storage or downloads
+        const result = await api.omni.getMedia(instanceName, message.id);
         setStickerSrc(`data:${result.mimetype};base64,${result.base64}`);
       } catch (err) {
         console.error('Failed to load sticker:', err);
       }
     };
     fetchMedia();
-  }, [message.key.id, message.key.remoteJid, instanceName]);
+  }, [message.id, instanceName]);
 
   return <img src={stickerSrc || ''} alt="Sticker" className="w-32 h-32 object-contain" />;
 }
@@ -454,6 +474,63 @@ function StatusIcon({ status, light = false }: { status?: string; light?: boolea
   }
 }
 
+// Media Content Display Component (transcript for audio, description for images)
+function MediaContentDisplay({
+  mediaContent,
+  messageType: _messageType,
+}: {
+  mediaContent: OmniMediaContent;
+  messageType: string;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const content = mediaContent.content;
+  const isLong = content.length > 150;
+  const displayContent = isExpanded || !isLong ? content : content.slice(0, 150) + '...';
+
+  // Icon and label based on content type
+  const getLabel = () => {
+    switch (mediaContent.content_type) {
+      case 'audio_transcript':
+        return { icon: '🎤', label: 'Transcript' };
+      case 'image_description':
+        return { icon: '🖼️', label: 'Description' };
+      case 'video_description':
+        return { icon: '🎬', label: 'Description' };
+      case 'document_content':
+        return { icon: '📄', label: 'Content' };
+      default:
+        return { icon: '📝', label: 'Content' };
+    }
+  };
+
+  const { icon, label } = getLabel();
+
+  return (
+    <div className="mt-2 pt-2 border-t border-muted-foreground/20">
+      <div className="flex items-center gap-1 mb-1">
+        <span className="text-xs">{icon}</span>
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{label}</span>
+        {mediaContent.processor_name && (
+          <span className="text-[9px] text-muted-foreground/60 ml-auto">
+            via {mediaContent.processor_name}
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+        {displayContent}
+      </p>
+      {isLong && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-[10px] text-primary hover:underline mt-1"
+        >
+          {isExpanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface MessageContent {
   type:
     | 'text'
@@ -472,7 +549,75 @@ interface MessageContent {
   filename?: string;
 }
 
-function getMessageContent(message: EvolutionMessage): MessageContent {
+// Map OmniMessage delivery_status to StatusIcon format
+function mapDeliveryStatus(deliveryStatus: string): string {
+  switch (deliveryStatus) {
+    case 'pending':
+      return 'PENDING';
+    case 'sent':
+      return 'SENT';
+    case 'delivered':
+      return 'DELIVERED';
+    case 'read':
+      return 'READ';
+    case 'failed':
+      return 'FAILED';
+    default:
+      return 'SENT';
+  }
+}
+
+// Format ISO timestamp for display
+function formatOmniTimestamp(timestamp: string | null | undefined): string {
+  if (!timestamp) return '';
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+// Extract content from OmniMessage
+function getOmniMessageContent(message: OmniMessage): MessageContent {
+  const messageType = message.message_type;
+  const text = message.text || message.caption;
+
+  switch (messageType) {
+    case 'text':
+      return { type: 'text', text };
+    case 'image':
+      return { type: 'image', text: message.caption, url: message.media_url ?? undefined };
+    case 'video':
+      return { type: 'video', text: message.caption, url: message.media_url ?? undefined };
+    case 'audio': {
+      // Check channel_data for ptt (push-to-talk/voice note) flag
+      const isPtt = message.channel_data?.ptt === true;
+      return { type: isPtt ? 'ptt' : 'audio', url: message.media_url ?? undefined };
+    }
+    case 'document':
+      return {
+        type: 'document',
+        filename: (message.channel_data?.fileName as string) || 'Document',
+        url: message.media_url ?? undefined,
+      };
+    case 'sticker':
+      return { type: 'sticker', url: message.media_url ?? undefined };
+    case 'location':
+      return { type: 'location', text: text || '📍 Location shared' };
+    case 'contact':
+      return { type: 'contact', text: text || '👤 Contact shared' };
+    case 'reaction':
+      return { type: 'reaction', text };
+    case 'system':
+      return { type: 'unsupported', text: '' };
+    default:
+      return { type: 'text', text: text || `[${messageType || 'Unknown'}]` };
+  }
+}
+
+// Legacy: Extract content from EvolutionMessage (kept for reference)
+function _getMessageContent(message: EvolutionMessage): MessageContent {
   const msg = message.message || {};
   const messageType = message.messageType;
 
@@ -544,6 +689,6 @@ function getMessageContent(message: EvolutionMessage): MessageContent {
   return { type: 'unsupported', text: `[${messageType || 'Unknown message type'}]` };
 }
 
-function formatMessageTime(timestamp: number | undefined): string {
+function _formatMessageTime(timestamp: number | undefined): string {
   return formatTimeFromTimestamp(timestamp);
 }

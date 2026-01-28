@@ -26,6 +26,7 @@ from src.api.schemas.omni import (
     ValidateRecipientResponse,
     RecipientValidationResult,
     RecipientProfile,
+    MediaResponse,
 )
 from src.services.chat_id_resolver import ChatIdResolver
 from src.db.models import InstanceConfig
@@ -97,22 +98,56 @@ def _get_chats_from_local(
     # Get all matching records (we'll deduplicate in Python for simplicity)
     all_records = query.order_by(desc(OmniChatRecord.last_message_at)).all()
 
-    # Deduplicate: prefer @s.whatsapp.net over @lid for same contact name
-    # First pass: collect names that have phone number entries
-    phone_number_names = set()
-    for record in all_records:
-        if record.chat_id and "@s.whatsapp.net" in record.chat_id:
-            if record.name:
-                phone_number_names.add(record.name)
+    # Deduplicate @lid vs @s.whatsapp.net chats
+    # Strategy: Keep the version with the BEST name, preferring real names over phone numbers
+    #
+    # Build a map of canonical_chat_id -> best record
+    best_by_canonical: dict[str, OmniChatRecord] = {}
 
-    # Second pass: filter out @lid entries when phone number entry exists for same name
+    def has_real_name(record: OmniChatRecord) -> bool:
+        """Check if record has a real contact name (not phone number or JID)."""
+        if not record.name:
+            return False
+        # Name is just the chat_id or contains @ (JID format)
+        if "@" in record.name:
+            return False
+        # Name is all digits (phone number)
+        if record.name.replace("+", "").isdigit():
+            return False
+        return True
+
+    for record in all_records:
+        # Use canonical_chat_id as the dedup key, fallback to chat_id
+        key = record.canonical_chat_id or record.chat_id
+
+        if key not in best_by_canonical:
+            best_by_canonical[key] = record
+        else:
+            existing = best_by_canonical[key]
+            # Prefer the record with a real name
+            existing_has_name = has_real_name(existing)
+            current_has_name = has_real_name(record)
+
+            if current_has_name and not existing_has_name:
+                # Current has better name, use it
+                best_by_canonical[key] = record
+            elif current_has_name == existing_has_name:
+                # Same name quality, prefer more messages
+                if (record.message_count or 0) > (existing.message_count or 0):
+                    best_by_canonical[key] = record
+
+    # Filter out records that aren't the "best" for their canonical ID
+    # Also filter out records with no proper name at all
     deduplicated_records = []
     for record in all_records:
-        is_lid = record.chat_id and "@lid" in record.chat_id
-        has_phone_entry = record.name in phone_number_names
+        key = record.canonical_chat_id or record.chat_id
 
-        # Skip @lid entries if we have a phone number entry for this contact
-        if is_lid and has_phone_entry:
+        # Skip if this isn't the best record for this canonical ID
+        if best_by_canonical.get(key) != record:
+            continue
+
+        # Skip records with JID as name (no useful identifier)
+        if record.name and "@lid" in record.name:
             continue
 
         deduplicated_records.append(record)
@@ -134,10 +169,13 @@ def _get_chats_from_local(
         else:
             chat_type = OmniChatType.DIRECT
 
+        # Use canonical_chat_id as the ID (the phone number version)
+        # but keep the name from whichever record has the best name
+        chat_id_to_use = record.canonical_chat_id or record.chat_id
         chats.append(
             OmniChat(
-                id=record.chat_id,
-                name=record.name or record.chat_id,
+                id=chat_id_to_use,
+                name=record.name or chat_id_to_use,
                 chat_type=chat_type,
                 channel_type=ChannelType(channel_type),
                 instance_name=instance_name,
@@ -161,6 +199,19 @@ def _get_chats_from_local(
     return chats, total_count
 
 
+def _extract_reaction_target_id(record: OmniMessageRecord) -> Optional[str]:
+    """Extract the target message ID from a reaction message's content_raw."""
+    try:
+        content_raw = record.get_content_raw()
+        if content_raw and "reactionMessage" in content_raw:
+            reaction_msg = content_raw.get("reactionMessage", {})
+            key = reaction_msg.get("key", {})
+            return key.get("id")
+    except Exception:
+        pass
+    return None
+
+
 def _get_messages_from_local(
     db: Session,
     instance_name: str,
@@ -175,7 +226,15 @@ def _get_messages_from_local(
 
     Args:
         unified: If True, uses canonical_chat_id for merged conversations
+
+    Reactions are aggregated and attached to their target messages rather than
+    being displayed as separate messages.
+
+    Media content (transcripts, descriptions) is fetched and attached to messages.
     """
+    from src.api.schemas.omni import MessageReaction, MediaContent as MediaContentSchema
+    from src.db.trace_models import MediaContent
+
     query = db.query(OmniMessageRecord).filter(OmniMessageRecord.instance_name == instance_name)
 
     # Filter by chat_id - optionally use canonical for unified queries
@@ -186,13 +245,57 @@ def _get_messages_from_local(
     else:
         query = query.filter(OmniMessageRecord.chat_id == chat_id)
 
-    # Get total count
-    total_count = query.count()
+    # Get all messages (we need to process reactions before pagination)
+    all_records = query.order_by(desc(OmniMessageRecord.message_timestamp)).all()
 
-    # Apply pagination and ordering (newest first)
-    message_records = (
-        query.order_by(desc(OmniMessageRecord.message_timestamp)).offset((page - 1) * page_size).limit(page_size).all()
+    # Separate reactions from regular messages and build reaction map
+    reactions_by_target: dict[str, list] = {}
+    regular_records = []
+
+    for record in all_records:
+        if record.message_type == "reaction":
+            # Extract target message ID from reaction
+            target_id = _extract_reaction_target_id(record)
+            if target_id:
+                if target_id not in reactions_by_target:
+                    reactions_by_target[target_id] = []
+                reactions_by_target[target_id].append(
+                    {
+                        "emoji": record.content_text or "👍",
+                        "sender_id": record.sender_id,
+                        "sender_name": record.sender_name,
+                        "timestamp": record.message_timestamp,
+                    }
+                )
+        else:
+            regular_records.append(record)
+
+    # Count and paginate non-reaction messages
+    total_count = len(regular_records)
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    paginated_records = regular_records[start_idx:end_idx]
+
+    # Fetch media content (transcripts, descriptions) for paginated messages
+    message_ids = [r.platform_message_id for r in paginated_records]
+    media_content_records = (
+        db.query(MediaContent)
+        .filter(
+            MediaContent.instance_name == instance_name,
+            MediaContent.original_message_id.in_(message_ids),
+            MediaContent.content_type.in_(
+                ["audio_transcript", "image_description", "video_description", "document_content"]
+            ),
+        )
+        .all()
     )
+
+    # Build media content map by message ID
+    media_content_by_msg: dict[str, MediaContent] = {}
+    for mc in media_content_records:
+        # Keep the most recent content if multiple exist
+        if mc.original_message_id not in media_content_by_msg:
+            media_content_by_msg[mc.original_message_id] = mc
 
     # Map message type string to enum
     type_map = {
@@ -219,9 +322,34 @@ def _get_messages_from_local(
 
     # Convert to OmniMessage objects
     messages = []
-    for record in message_records:
+    for record in paginated_records:
         msg_type = type_map.get(record.message_type, OmniMessageType.TEXT)
         delivery_status = status_map.get(record.delivery_status, MessageDeliveryStatus.UNKNOWN)
+
+        # Get reactions for this message
+        message_reactions = []
+        if record.platform_message_id in reactions_by_target:
+            for r in reactions_by_target[record.platform_message_id]:
+                message_reactions.append(
+                    MessageReaction(
+                        emoji=r["emoji"],
+                        sender_id=r["sender_id"],
+                        sender_name=r["sender_name"],
+                        timestamp=r["timestamp"],
+                    )
+                )
+
+        # Get media content (transcript/description) if available
+        media_content = None
+        if record.platform_message_id in media_content_by_msg:
+            mc = media_content_by_msg[record.platform_message_id]
+            media_content = MediaContentSchema(
+                content_type=mc.content_type,
+                content=mc.content or "",
+                processor_name=mc.processor_name,
+                confidence_score=mc.confidence_score,
+                processed_at=mc.processed_at,
+            )
 
         messages.append(
             OmniMessage(
@@ -239,6 +367,8 @@ def _get_messages_from_local(
                 is_forwarded=False,
                 is_reply=record.quoted_message_id is not None,
                 reply_to_message_id=record.quoted_message_id,
+                reactions=message_reactions,
+                media_content=media_content,
                 delivery_status=delivery_status,
                 is_read=delivery_status == MessageDeliveryStatus.READ,
                 timestamp=record.message_timestamp,
@@ -944,3 +1074,143 @@ async def bulk_toggle_chat_processing(
         "not_found_count": len(not_found),
         "not_found_chat_ids": not_found,
     }
+
+
+@router.get("/{instance_name}/messages/{message_id}/media")
+async def get_message_media(
+    instance_name: str,
+    message_id: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get media content for a message.
+
+    This endpoint serves media from local storage if available, or downloads it first.
+    Falls back to Evolution API if local download fails.
+
+    Returns base64-encoded media content that can be displayed in the UI.
+    """
+    import base64
+    from pathlib import Path
+    from src.services.media_download import MediaDownloadService
+
+    try:
+        logger.info(f"Fetching media for message '{message_id}' in instance '{instance_name}'")
+
+        # Find the message in omni_messages
+        message = (
+            db.query(OmniMessageRecord)
+            .filter(
+                OmniMessageRecord.instance_name == instance_name,
+                OmniMessageRecord.platform_message_id == message_id,
+            )
+            .first()
+        )
+
+        if not message:
+            # Also try by composite ID
+            message = (
+                db.query(OmniMessageRecord).filter(OmniMessageRecord.id == f"{instance_name}:{message_id}").first()
+            )
+
+        if not message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Message {message_id} not found in instance {instance_name}",
+            )
+
+        if not message.has_media:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Message does not have media",
+            )
+
+        # Check if media is already downloaded locally
+        if message.media_status == "downloaded" and message.media_local_path:
+            local_path = Path(message.media_local_path)
+            if local_path.exists():
+                # Serve from local storage
+                logger.info(f"Serving media from local storage: {local_path}")
+                with open(local_path, "rb") as f:
+                    media_data = f.read()
+
+                return MediaResponse(
+                    base64=base64.b64encode(media_data).decode("utf-8"),
+                    mimetype=message.media_mime_type or "application/octet-stream",
+                    fileName=local_path.name,
+                    media_status="downloaded",
+                    source="local",
+                )
+
+        # Try to download the media
+        download_service = MediaDownloadService(db)
+        result = download_service.download_and_update(message.id)
+
+        if result["success"]:
+            # Refresh message from DB to get updated path
+            db.refresh(message)
+
+            if message.media_local_path:
+                local_path = Path(message.media_local_path)
+                if local_path.exists():
+                    logger.info(f"Serving freshly downloaded media: {local_path}")
+                    with open(local_path, "rb") as f:
+                        media_data = f.read()
+
+                    return MediaResponse(
+                        base64=base64.b64encode(media_data).decode("utf-8"),
+                        mimetype=message.media_mime_type or "application/octet-stream",
+                        fileName=local_path.name,
+                        media_status="downloaded",
+                        source="local",
+                    )
+
+        # Local download failed - try Evolution API as fallback
+        logger.info(f"Local download failed, trying Evolution API fallback for message {message_id}")
+
+        instance = get_instance_by_name(instance_name, db)
+        if instance.evolution_url and instance.evolution_key:
+            import requests
+
+            # Call Evolution API getBase64FromMediaMessage
+            url = f"{instance.evolution_url}/chat/getBase64FromMediaMessage/{instance_name}"
+            headers = {
+                "apikey": instance.evolution_key,
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "message": {"key": {"id": message_id}},
+                "convertToMp4": False,
+            }
+
+            try:
+                response = requests.post(url, headers=headers, json=payload, timeout=60)
+                if response.status_code == 200:
+                    evo_result = response.json()
+                    if evo_result and evo_result.get("base64"):
+                        logger.info(f"Served media from Evolution API for message {message_id}")
+                        return MediaResponse(
+                            base64=evo_result["base64"],
+                            mimetype=evo_result.get("mimetype", message.media_mime_type or "application/octet-stream"),
+                            fileName=evo_result.get("fileName"),
+                            media_status=message.media_status or "pending",
+                            source="evolution",
+                        )
+            except Exception as evo_error:
+                logger.warning(f"Evolution API fallback failed: {evo_error}")
+
+        # All methods failed
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Media not available. Status: {result.get('status', 'unknown')}. Error: {result.get('error', 'Unknown')}",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get media for message '{message_id}' in instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get media: {str(e)}",
+        )

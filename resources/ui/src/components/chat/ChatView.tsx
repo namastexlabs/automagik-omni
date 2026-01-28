@@ -1,5 +1,5 @@
-import { useRef, useEffect, useMemo, useState } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useRef, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2, User, Users, Pause, Play } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { api } from '@/lib';
-import type { EvolutionChat, EvolutionMessage } from '@/lib';
+import type { EvolutionChat } from '@/lib';
 
 interface ChatViewProps {
   instanceName: string;
@@ -86,60 +86,24 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
     }
   };
 
-  // For LID chats, we need to fetch messages by both LID and resolved phone JID
-  // because sent messages are stored with the phone JID, not the LID
-  const phoneJid = chat.resolvedPhoneNumber ? `${chat.resolvedPhoneNumber}@s.whatsapp.net` : null;
-  const jidsToQuery = phoneJid && phoneJid !== remoteJid ? [remoteJid, phoneJid] : [remoteJid];
-
-  // Fetch messages for all relevant JIDs
-  const messageQueries = useQueries({
-    queries: jidsToQuery.map((jid) => ({
-      queryKey: ['messages', instanceName, jid],
-      queryFn: () =>
-        api.evolution.findMessages(instanceName, {
-          where: { key: { remoteJid: jid } },
-          limit: 100,
-        }),
-      refetchInterval: 5000,
-    })),
+  // Fetch messages from local omni_messages table (unified by canonical_chat_id)
+  // This single query handles both @lid and @s.whatsapp.net JID formats
+  const { data: messagesData, isLoading, refetch } = useQuery({
+    queryKey: ['omni-messages', instanceName, remoteJid],
+    queryFn: () => api.omni.getMessages(instanceName, remoteJid, { page_size: 100 }),
+    refetchInterval: 5000,
   });
 
-  const isLoading = messageQueries.some((q) => q.isLoading);
-  const refetch = () => messageQueries.forEach((q) => q.refetch());
-
-  // Merge messages from all queries and deduplicate by message ID
-  const messages: EvolutionMessage[] = useMemo(() => {
-    const allMessages: EvolutionMessage[] = [];
-    const seenIds = new Set<string>();
-
-    for (const query of messageQueries) {
-      const data = query.data;
-      const msgs: EvolutionMessage[] = Array.isArray(data) ? data : [];
-      for (const msg of msgs) {
-        const id = msg.key?.id;
-        if (id && !seenIds.has(id)) {
-          seenIds.add(id);
-          allMessages.push(msg);
-        } else if (!id) {
-          allMessages.push(msg);
-        }
-      }
-    }
-
-    return allMessages;
-  }, [messageQueries]);
-
-  // Sort messages by timestamp
-  const sortedMessages = [...messages].sort(
-    (a, b) => (Number(a.messageTimestamp) || 0) - (Number(b.messageTimestamp) || 0),
-  );
+  // Messages come pre-sorted (newest first from API), with reactions pre-attached
+  // Reverse to oldest-first for display
+  const sortedMessages = [...(messagesData?.messages ?? [])].reverse();
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length]);
+  }, [sortedMessages.length]);
 
   const handleMessageSent = () => {
     refetch();
@@ -205,7 +169,7 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
             <div className="space-y-1">
               {sortedMessages.map((message, index) => (
                 <MessageBubble
-                  key={message.key?.id || index}
+                  key={message.id || index}
                   message={message}
                   instanceName={instanceName}
                   showAvatar={isGroup}

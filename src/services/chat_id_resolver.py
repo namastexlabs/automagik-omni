@@ -225,9 +225,109 @@ class ChatIdResolver:
         logger.info(f"Mapping discovery complete: {stats['discovered']} new, {stats['already_exists']} existing")
         return stats
 
+    def discover_mappings_from_evo_messages(self, instance_name: str) -> Dict[str, any]:
+        """
+        Discover chat ID mappings from evo_Message.key.remoteJidAlt field.
+
+        WhatsApp stores the alternative JID format in messages:
+        - When remoteJid is @lid, remoteJidAlt contains @s.whatsapp.net
+        - When remoteJid is @s.whatsapp.net, remoteJidAlt contains @lid
+
+        This is the most reliable source for LID <-> phone number mappings.
+
+        Returns:
+            Dict with discovery stats
+        """
+        import json
+        from sqlalchemy import text
+
+        stats = {
+            "discovered": 0,
+            "already_exists": 0,
+            "mappings": [],
+        }
+
+        # Get instance ID
+        from src.db.models import EvolutionInstance
+
+        evo_instance = self.db.query(EvolutionInstance).filter(EvolutionInstance.name == instance_name).first()
+        if not evo_instance:
+            logger.warning(f"Instance {instance_name} not found in evo_Instance")
+            return stats
+
+        # Query evo_Message for keys containing remoteJidAlt
+        # Only look at messages where remoteJid is @lid (these have phone in remoteJidAlt)
+        result = self.db.execute(
+            text("""
+                SELECT DISTINCT "key"::text
+                FROM "evo_Message"
+                WHERE "instanceId" = :instance_id
+                  AND "key"::text LIKE '%@lid%'
+                  AND "key"::text LIKE '%remoteJidAlt%'
+            """),
+            {"instance_id": evo_instance.id},
+        ).fetchall()
+
+        for (key_json,) in result:
+            try:
+                key = json.loads(key_json)
+                remote_jid = key.get("remoteJid", "")
+                remote_jid_alt = key.get("remoteJidAlt", "")
+
+                # Skip if either is missing or not the right format
+                if not remote_jid or not remote_jid_alt:
+                    continue
+
+                # Determine which is @lid and which is @s.whatsapp.net
+                if "@lid" in remote_jid and "@s.whatsapp.net" in remote_jid_alt:
+                    lid_jid = remote_jid
+                    phone_jid = remote_jid_alt
+                elif "@s.whatsapp.net" in remote_jid and "@lid" in remote_jid_alt:
+                    phone_jid = remote_jid
+                    lid_jid = remote_jid_alt
+                else:
+                    continue
+
+                # Check if mapping already exists
+                existing = (
+                    self.db.query(ChatIdMapping)
+                    .filter(
+                        and_(
+                            ChatIdMapping.instance_name == instance_name,
+                            ChatIdMapping.alternate_chat_id == lid_jid,
+                        )
+                    )
+                    .first()
+                )
+
+                if existing:
+                    stats["already_exists"] += 1
+                else:
+                    self.add_mapping(
+                        instance_name=instance_name,
+                        canonical_chat_id=phone_jid,
+                        alternate_chat_id=lid_jid,
+                        contact_name=None,  # We'll get this from other sources
+                        discovery_method="evo_message_key",
+                    )
+                    stats["discovered"] += 1
+                    stats["mappings"].append({"lid": lid_jid, "phone": phone_jid})
+
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.debug(f"Failed to parse message key: {e}")
+                continue
+
+        logger.info(f"evo_Message mapping discovery: {stats['discovered']} new, {stats['already_exists']} existing")
+        return stats
+
     def update_canonical_chat_ids(self, instance_name: str) -> Dict[str, any]:
         """
         Update canonical_chat_id for all messages in an instance.
+
+        Handles three cases:
+        1. @lid messages with NULL/empty canonical_chat_id
+        2. @lid messages where canonical_chat_id equals chat_id (not yet mapped)
+        3. @s.whatsapp.net messages with NULL/empty canonical_chat_id
 
         Returns:
             Dict with update stats
@@ -238,7 +338,8 @@ class ChatIdResolver:
             "no_mapping": 0,
         }
 
-        # Get all messages with @lid chat_id that don't have canonical_chat_id set
+        # Get all @lid messages that need canonical_chat_id update
+        # This includes: NULL, empty, or canonical == chat_id (not yet mapped)
         lid_messages = (
             self.db.query(OmniMessageRecord)
             .filter(
@@ -248,6 +349,8 @@ class ChatIdResolver:
                     or_(
                         OmniMessageRecord.canonical_chat_id.is_(None),
                         OmniMessageRecord.canonical_chat_id == "",
+                        # Also update if canonical still equals the @lid chat_id
+                        OmniMessageRecord.canonical_chat_id == OmniMessageRecord.chat_id,
                     ),
                 )
             )
@@ -343,6 +446,10 @@ class ChatIdResolver:
 def discover_and_update_mappings(instance_name: str) -> Dict[str, any]:
     """
     Utility function to discover mappings and update canonical_chat_ids.
+
+    Uses multiple discovery methods:
+    1. evo_Message.key.remoteJidAlt - Most reliable (WhatsApp's own mapping)
+    2. Sender name matching - Fallback for older data
     """
     from src.db.database import SessionLocal
 
@@ -350,14 +457,18 @@ def discover_and_update_mappings(instance_name: str) -> Dict[str, any]:
     try:
         resolver = ChatIdResolver(db)
 
-        # Discover mappings
-        discovery_stats = resolver.discover_mappings_by_sender_name(instance_name)
+        # Primary: Discover from evo_Message.key.remoteJidAlt (most reliable)
+        evo_msg_stats = resolver.discover_mappings_from_evo_messages(instance_name)
+
+        # Secondary: Discover by sender name matching (fallback)
+        sender_name_stats = resolver.discover_mappings_by_sender_name(instance_name)
 
         # Update canonical_chat_ids
         update_stats = resolver.update_canonical_chat_ids(instance_name)
 
         return {
-            "discovery": discovery_stats,
+            "discovery_evo_message": evo_msg_stats,
+            "discovery_sender_name": sender_name_stats,
             "updates": update_stats,
         }
     finally:
