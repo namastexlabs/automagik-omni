@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, TraceAnalytics, HealthResponse, cn } from '@/lib';
+import { api, TraceAnalytics, HealthResponse, cn, InstanceConfig } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBreakdownChart } from '../charts/StatusBreakdownChart';
 import { MessageTypesChart } from '../charts/MessageTypesChart';
 import { useTimeRange } from '../TimeRangeSelector';
-import { MessageSquare, CheckCircle, Clock, Server, Circle } from 'lucide-react';
+import { MessageSquare, CheckCircle, Clock, Server, Circle, MessageCircle } from 'lucide-react';
 
 interface MetricCardProps {
   title: string;
@@ -100,6 +100,27 @@ export function OverviewTab() {
     refetchInterval: 30000,
   });
 
+  // Query all instances from database (includes both WhatsApp and Discord)
+  const { data: instances, isLoading: instancesLoading } = useQuery<InstanceConfig[]>({
+    queryKey: ['instances'],
+    queryFn: () => api.instances.list({ limit: 100, include_status: true }),
+    refetchInterval: 30000,
+  });
+
+  // Query gateway channels for Discord status
+  const { data: channelsData } = useQuery({
+    queryKey: ['gateway-channels'],
+    queryFn: () => api.gateway.getChannels(),
+    refetchInterval: 30000,
+  });
+
+  const discordChannel = channelsData?.channels?.find((c: { name: string }) => c.name === 'discord');
+  const isDiscordRunning = discordChannel?.running || false;
+
+  // Separate instances by channel type
+  const whatsappInstances = instances?.filter((i) => i.channel_type === 'whatsapp') || [];
+  const discordInstances = instances?.filter((i) => i.channel_type === 'discord') || [];
+
   // Log errors for debugging
   if (analyticsError) {
     console.error('[OverviewTab] Analytics error:', analyticsError);
@@ -170,10 +191,10 @@ export function OverviewTab() {
         />
         <MetricCard
           title="Active Instances"
-          value={`${evolutionDetails?.instances?.connected || 0}/${evolutionDetails?.instances?.total || 0}`}
+          value={`${(evolutionDetails?.instances?.connected || 0) + (isDiscordRunning ? discordInstances.length : 0)}/${(evolutionDetails?.instances?.total || 0) + discordInstances.length}`}
           subtitle="Connected instances"
           icon={<Server className="h-4 w-4 text-muted-foreground" />}
-          isLoading={healthLoading}
+          isLoading={healthLoading || instancesLoading}
         />
       </div>
 
@@ -202,28 +223,76 @@ export function OverviewTab() {
         </Card>
       </div>
 
-      {/* Instance Cards */}
-      <div>
-        <h3 className="text-lg font-medium mb-4">WhatsApp Instances</h3>
-        {healthLoading ? (
-          <Skeleton className="h-20 w-full" />
-        ) : evolutionDetails?.instanceDetails && evolutionDetails.instanceDetails.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {evolutionDetails.instanceDetails.map((instance) => (
-              <InstanceCard
-                key={instance.name}
-                name={instance.name}
-                status={instance.connectionStatus === 'open' ? 'connected' : 'disconnected'}
-                messages={instance.counts?.messages ?? 0}
-                contacts={instance.counts?.contacts ?? 0}
-                chats={instance.counts?.chats ?? 0}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted-foreground">No instance data available</p>
-        )}
-      </div>
+      {/* WhatsApp Instance Cards */}
+      {whatsappInstances.length > 0 && (
+        <div>
+          <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-[#25D366]" />
+            WhatsApp Instances
+          </h3>
+          {healthLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : evolutionDetails?.instanceDetails && evolutionDetails.instanceDetails.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {evolutionDetails.instanceDetails.map((instance) => (
+                <InstanceCard
+                  key={instance.name}
+                  name={instance.name}
+                  status={instance.connectionStatus === 'open' ? 'connected' : 'disconnected'}
+                  messages={instance.counts?.messages ?? 0}
+                  contacts={instance.counts?.contacts ?? 0}
+                  chats={instance.counts?.chats ?? 0}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No WhatsApp instance data available</p>
+          )}
+        </div>
+      )}
+
+      {/* Discord Instance Cards */}
+      {discordInstances.length > 0 && (
+        <div>
+          <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-[#5865F2]" />
+            Discord Instances
+          </h3>
+          {instancesLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {discordInstances.map((instance) => (
+                <Card key={instance.name}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-3">
+                      <Circle
+                        className={cn(
+                          'h-3 w-3 fill-current',
+                          isDiscordRunning && instance.is_active ? 'text-success' : 'text-destructive',
+                        )}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium">{instance.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {isDiscordRunning && instance.is_active ? 'Connected' : 'Disconnected'}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty state if no instances at all */}
+      {whatsappInstances.length === 0 && discordInstances.length === 0 && !instancesLoading && (
+        <div>
+          <p className="text-muted-foreground">No instances configured</p>
+        </div>
+      )}
     </div>
   );
 }
