@@ -533,7 +533,10 @@ def _get_messages_from_local(
         if record.quoted_message_id and context_info:
             quoted_text = context_info.get("quotedText")
             quoted_sender_id = context_info.get("participant")
-            quoted_message_type = context_info.get("quotedType")
+            # quotedType can be int (0=text) or string - convert to string
+            raw_quoted_type = context_info.get("quotedType")
+            if raw_quoted_type is not None:
+                quoted_message_type = str(raw_quoted_type)
             # Try to resolve quoted sender name
             if quoted_sender_id:
                 quoted_sender_name = _resolve_sender_name(db, instance_name, quoted_sender_id)
