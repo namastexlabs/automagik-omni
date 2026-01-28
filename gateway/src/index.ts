@@ -236,12 +236,13 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
         // Query Python API to check which channels have active instances
         // If Python isn't ready yet, fall back to starting enabled channels
         const pythonPort = processManager.portRegistry.getPort('python');
-        let channelInfo: {
+        interface ChannelStartupInfo {
           evolution_needed?: boolean;
           discord_needed?: boolean;
           evolution_reason?: string;
           discord_reason?: string;
-        } | null = null;
+        }
+        let channelInfo: ChannelStartupInfo | null = null;
 
         if (pythonPort) {
           // Retry a few times - Python may still be starting
@@ -250,7 +251,7 @@ ${PROXY_ONLY ? '(Proxy-only mode: not spawning processes, connecting to existing
               const url = `http://127.0.0.1:${pythonPort}/api/v1/_internal/channel-startup-info`;
               const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
               if (response.ok) {
-                channelInfo = (await response.json()) as typeof channelInfo;
+                channelInfo = (await response.json()) as ChannelStartupInfo;
                 console.log('[Gateway] Channel startup info:', JSON.stringify(channelInfo, null, 2));
                 break;
               }
