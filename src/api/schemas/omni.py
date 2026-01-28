@@ -162,6 +162,14 @@ class MediaContent(BaseModel):
     processed_at: Optional[datetime] = Field(None, description="When content was processed")
 
 
+class Mention(BaseModel):
+    """A user mention in a message."""
+
+    jid: str = Field(..., description="The JID/ID of the mentioned user (e.g., 123@lid or 123@s.whatsapp.net)")
+    name: Optional[str] = Field(None, description="Resolved display name of the mentioned user")
+    phone: Optional[str] = Field(None, description="Phone number if known")
+
+
 class OmniMessage(BaseModel):
     """Omni message representation across all channels."""
 
@@ -173,7 +181,11 @@ class OmniMessage(BaseModel):
 
     # Message content
     message_type: OmniMessageType = Field(..., description="Type of message")
-    text: Optional[str] = Field(None, description="Text content")
+    text: Optional[str] = Field(None, description="Raw text content with original mention IDs")
+    text_display: Optional[str] = Field(None, description="Display text with mention names resolved")
+
+    # Mentions
+    mentions: List[Mention] = Field(default_factory=list, description="Users mentioned in this message")
 
     # Media fields
     media_url: Optional[str] = Field(None, description="Media file URL")

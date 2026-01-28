@@ -1,5 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { Loader2, User, Users, Pause, Play } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { api } from '@/lib';
-import type { EvolutionChat } from '@/lib';
+import type { EvolutionChat, OmniMessage } from '@/lib';
 
 interface ChatViewProps {
   instanceName: string;
@@ -16,7 +16,6 @@ interface ChatViewProps {
 }
 
 export function ChatView({ instanceName, chat }: ChatViewProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const remoteJid = chat.remoteJid || chat.id || '';
   const name = chat.name || chat.pushName || (remoteJid ? remoteJid.split('@')[0] : 'Unknown');
   const isGroup = remoteJid?.includes('@g.us') || chat.isGroup;
@@ -86,24 +85,97 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
     }
   };
 
+  // Infinite scroll state
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number>(0);
+  const hasScrolledToBottomRef = useRef(false);
+
   // Fetch messages from local omni_messages table (unified by canonical_chat_id)
   // This single query handles both @lid and @s.whatsapp.net JID formats
-  const { data: messagesData, isLoading, refetch } = useQuery({
+  const {
+    data: messagesData,
+    isLoading,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['omni-messages', instanceName, remoteJid],
-    queryFn: () => api.omni.getMessages(instanceName, remoteJid, { page_size: 100 }),
+    queryFn: async ({ pageParam = 1 }) => {
+      return api.omni.getMessages(instanceName, remoteJid, { page: pageParam, page_size: 50 });
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      // If there are more messages, return next page number
+      if (lastPage.has_more) {
+        return allPages.length + 1;
+      }
+      return undefined;
+    },
     refetchInterval: 5000,
+    // Only refetch the first page on interval (for new messages)
+    refetchOnWindowFocus: false,
   });
 
+  // Flatten all pages into single array, reverse for display (oldest first)
   // Messages come pre-sorted (newest first from API), with reactions pre-attached
-  // Reverse to oldest-first for display
-  const sortedMessages = [...(messagesData?.messages ?? [])].reverse();
+  const sortedMessages: OmniMessage[] = (messagesData?.pages ?? [])
+    .flatMap((page) => page.messages)
+    .reverse();
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      // Find the actual scrollable element inside ScrollArea
+      const scrollableEl = container.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollableEl) {
+        scrollableEl.scrollTop = scrollableEl.scrollHeight;
+      }
     }
-  }, [sortedMessages.length]);
+  }, []);
+
+  // Auto-scroll to bottom when chat opens or changes
+  useEffect(() => {
+    hasScrolledToBottomRef.current = false;
+  }, [instanceName, remoteJid]);
+
+  // Scroll to bottom after messages load (initial load only)
+  useEffect(() => {
+    if (!isLoading && sortedMessages.length > 0 && !hasScrolledToBottomRef.current) {
+      // Small delay to ensure DOM is updated
+      requestAnimationFrame(() => {
+        scrollToBottom();
+        hasScrolledToBottomRef.current = true;
+      });
+    }
+  }, [isLoading, sortedMessages.length, scrollToBottom]);
+
+  // Handle scroll for infinite loading (fetch older messages when near top)
+  const handleScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLDivElement;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+
+      // Fetch more when scrolled to top 20%
+      const scrollPercentage = scrollTop / (scrollHeight - clientHeight);
+      if (scrollPercentage < 0.2 && hasNextPage && !isFetchingNextPage && !isFetchingMore) {
+        setIsFetchingMore(true);
+        prevScrollHeightRef.current = scrollHeight;
+
+        fetchNextPage().finally(() => {
+          setIsFetchingMore(false);
+          // Preserve scroll position after loading more
+          requestAnimationFrame(() => {
+            const newScrollHeight = target.scrollHeight;
+            const scrollDiff = newScrollHeight - prevScrollHeightRef.current;
+            target.scrollTop = scrollTop + scrollDiff;
+          });
+        });
+      }
+    },
+    [hasNextPage, isFetchingNextPage, isFetchingMore, fetchNextPage],
+  );
 
   const handleMessageSent = () => {
     refetch();
@@ -157,28 +229,38 @@ export function ChatView({ instanceName, chat }: ChatViewProps) {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 bg-muted/20" ref={scrollRef}>
-        <div className="p-3">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : sortedMessages.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground">No messages yet</div>
-          ) : (
-            <div className="space-y-1">
-              {sortedMessages.map((message, index) => (
-                <MessageBubble
-                  key={message.id || index}
-                  message={message}
-                  instanceName={instanceName}
-                  showAvatar={isGroup}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+      <div className="flex-1 bg-muted/20 overflow-hidden" ref={scrollContainerRef}>
+        <ScrollArea className="h-full" onScrollCapture={handleScroll}>
+          <div className="p-3">
+            {/* Loading more indicator at top */}
+            {isFetchingNextPage && (
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading older messages...</span>
+              </div>
+            )}
+
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : sortedMessages.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">No messages yet</div>
+            ) : (
+              <div className="space-y-1">
+                {sortedMessages.map((message, index) => (
+                  <MessageBubble
+                    key={message.id || index}
+                    message={message}
+                    instanceName={instanceName}
+                    showAvatar={isGroup}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       {/* Input */}
       <ChatInput

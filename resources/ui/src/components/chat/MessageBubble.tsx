@@ -37,10 +37,10 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
   }
 
   return (
-    <div className={cn('flex gap-2 mb-1', isFromMe ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex gap-2 mb-1 items-start', isFromMe ? 'justify-end' : 'justify-start')}>
       {/* Avatar for group messages (not from me) */}
       {showAvatar && !isFromMe && (
-        <Avatar className="h-8 w-8 flex-shrink-0 mt-auto">
+        <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
           <AvatarFallback className="text-xs bg-primary/20">
             {senderName?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
           </AvatarFallback>
@@ -581,15 +581,17 @@ function formatOmniTimestamp(timestamp: string | null | undefined): string {
 // Extract content from OmniMessage
 function getOmniMessageContent(message: OmniMessage): MessageContent {
   const messageType = message.message_type;
-  const text = message.text || message.caption;
+  // Use text_display (with resolved mentions) if available, otherwise fall back to raw text
+  const text = message.text_display || message.text || message.caption;
+  const caption = message.text_display || message.caption;
 
   switch (messageType) {
     case 'text':
       return { type: 'text', text };
     case 'image':
-      return { type: 'image', text: message.caption, url: message.media_url ?? undefined };
+      return { type: 'image', text: caption, url: message.media_url ?? undefined };
     case 'video':
-      return { type: 'video', text: message.caption, url: message.media_url ?? undefined };
+      return { type: 'video', text: caption, url: message.media_url ?? undefined };
     case 'audio': {
       // Check channel_data for ptt (push-to-talk/voice note) flag
       const isPtt = message.channel_data?.ptt === true;

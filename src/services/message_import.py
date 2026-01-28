@@ -202,7 +202,7 @@ class MessageImportService:
 
         # Clean up context info to remove large nested data
         cleaned = {}
-        for key in ("stanzaId", "participant", "quotedType"):
+        for key in ("stanzaId", "participant", "quotedType", "mentionedJid"):
             if key in context_info:
                 cleaned[key] = context_info[key]
 

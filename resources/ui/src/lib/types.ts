@@ -514,6 +514,13 @@ export interface OmniMediaContent {
   processed_at?: string | null;
 }
 
+// A user mention in a message
+export interface OmniMention {
+  jid: string;
+  name?: string | null;
+  phone?: string | null;
+}
+
 // Unified message type for Omni API
 export interface OmniMessage {
   id: string;
@@ -533,6 +540,8 @@ export interface OmniMessage {
     | 'system'
     | 'unknown';
   text?: string | null;
+  text_display?: string | null; // Text with mentions resolved to names
+  mentions?: OmniMention[]; // Users mentioned in this message
   media_url?: string | null;
   media_mime_type?: string | null;
   media_size?: number | null;

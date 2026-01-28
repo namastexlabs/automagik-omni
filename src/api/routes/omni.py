@@ -212,6 +212,111 @@ def _extract_reaction_target_id(record: OmniMessageRecord) -> Optional[str]:
     return None
 
 
+def _resolve_mentions(
+    db: Session,
+    instance_name: str,
+    text: Optional[str],
+    context_info: Optional[dict],
+) -> Tuple[Optional[str], list]:
+    """
+    Resolve mentions in message text to display names.
+
+    Args:
+        db: Database session
+        instance_name: Instance name
+        text: Original message text
+        context_info: Message context info containing mentionedJid
+
+    Returns:
+        Tuple of (text_display, mentions_list)
+        - text_display: Text with @JID replaced by @Name
+        - mentions_list: List of {jid, name, phone} dicts
+    """
+    from src.db.trace_models import ChatIdMapping
+
+    if not text or not context_info:
+        return text, []
+
+    mentioned_jids = context_info.get("mentionedJid", [])
+    if not mentioned_jids:
+        return text, []
+
+    mentions = []
+    text_display = text
+
+    for jid in mentioned_jids:
+        if not jid:
+            continue
+
+        # Extract the ID part (before @)
+        jid_id = jid.split("@")[0] if "@" in jid else jid
+        name = None
+        phone = None
+
+        # Try to resolve the name
+        # 1. Check ChatIdMapping for LID → phone mappings
+        if "@lid" in jid:
+            mapping = (
+                db.query(ChatIdMapping)
+                .filter(
+                    ChatIdMapping.instance_name == instance_name,
+                    ChatIdMapping.alternate_chat_id == jid,
+                )
+                .first()
+            )
+            if mapping:
+                name = mapping.contact_name
+                phone = mapping.phone_number
+
+        # 2. If still no name, check for phone format
+        if not name and "@s.whatsapp.net" in jid:
+            phone = jid_id
+            # Try to find contact name from ChatIdMapping
+            mapping = (
+                db.query(ChatIdMapping)
+                .filter(
+                    ChatIdMapping.instance_name == instance_name,
+                    ChatIdMapping.canonical_chat_id == jid,
+                )
+                .first()
+            )
+            if mapping and mapping.contact_name:
+                name = mapping.contact_name
+
+        # 3. If still no name, try to find from sender in messages
+        if not name:
+            from src.db.trace_models import OmniMessageRecord
+
+            # Look for messages from this sender to get their name
+            sender_msg = (
+                db.query(OmniMessageRecord.sender_name)
+                .filter(
+                    OmniMessageRecord.instance_name == instance_name,
+                    OmniMessageRecord.sender_id == jid,
+                    OmniMessageRecord.sender_name.isnot(None),
+                )
+                .first()
+            )
+            if sender_msg and sender_msg[0]:
+                name = sender_msg[0]
+
+        # Build mention object
+        mentions.append(
+            {
+                "jid": jid,
+                "name": name,
+                "phone": phone,
+            }
+        )
+
+        # Replace in text_display: @jid_id → @Name (or @phone if no name)
+        display_name = name or (f"+{phone}" if phone else jid_id)
+        # Match patterns like @123456789 (the ID without domain)
+        text_display = text_display.replace(f"@{jid_id}", f"@{display_name}")
+
+    return text_display, mentions
+
+
 def _get_messages_from_local(
     db: Session,
     instance_name: str,
@@ -232,7 +337,7 @@ def _get_messages_from_local(
 
     Media content (transcripts, descriptions) is fetched and attached to messages.
     """
-    from src.api.schemas.omni import MessageReaction, MediaContent as MediaContentSchema
+    from src.api.schemas.omni import MessageReaction, MediaContent as MediaContentSchema, Mention
     from src.db.trace_models import MediaContent
 
     query = db.query(OmniMessageRecord).filter(OmniMessageRecord.instance_name == instance_name)
@@ -351,6 +456,11 @@ def _get_messages_from_local(
                 processed_at=mc.processed_at,
             )
 
+        # Resolve mentions in text
+        context_info = record.get_context_info()
+        text_display, mentions_data = _resolve_mentions(db, instance_name, record.content_text, context_info)
+        mentions = [Mention(jid=m["jid"], name=m["name"], phone=m["phone"]) for m in mentions_data]
+
         messages.append(
             OmniMessage(
                 id=record.platform_message_id,
@@ -359,6 +469,8 @@ def _get_messages_from_local(
                 sender_name=record.sender_name,
                 message_type=msg_type,
                 text=record.content_text,
+                text_display=text_display,
+                mentions=mentions,
                 media_url=record.media_url,
                 media_mime_type=record.media_mime_type,
                 media_size=record.media_size_bytes,
