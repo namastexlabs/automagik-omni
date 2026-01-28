@@ -1380,24 +1380,53 @@ class DiscordBotManager:
         )
 
     async def _handle_ipc_status(self, request: web.Request) -> web.Response:
-        """Handle IPC status request."""
+        """Handle IPC status request with detailed bot info."""
         instance_name = request.app["instance_name"]
         manager = request.app["manager"]
 
-        status = manager.get_bot_status(instance_name)
-        if not status:
+        bot = manager.bots.get(instance_name)
+        if not bot:
             return web.json_response({"status": "error", "message": "Bot not found"}, status=404)
 
-        return web.json_response(
-            {
-                "status": status.status,
-                "instance": status.instance_name,
-                "guild_count": status.guild_count,
-                "user_count": status.user_count,
-                "latency_ms": status.latency,
-                "uptime": status.uptime.isoformat() if status.uptime else None,
+        status = manager.get_bot_status(instance_name)
+        if not status:
+            return web.json_response({"status": "error", "message": "Bot status unavailable"}, status=404)
+
+        # Build detailed response with bot profile info
+        response = {
+            "status": status.status,
+            "instance": status.instance_name,
+            "guild_count": status.guild_count,
+            "user_count": status.user_count,
+            "latency_ms": round(status.latency, 2),
+            "uptime": status.uptime.isoformat() if status.uptime else None,
+        }
+
+        # Add bot user info if connected
+        if bot.is_ready() and bot.user:
+            response["bot"] = {
+                "id": str(bot.user.id),
+                "name": bot.user.name,
+                "discriminator": bot.user.discriminator,
+                "display_name": bot.user.display_name,
+                "avatar_url": str(bot.user.avatar.url) if bot.user.avatar else None,
+                "banner_url": str(bot.user.banner.url) if bot.user.banner else None,
+                "created_at": bot.user.created_at.isoformat() if bot.user.created_at else None,
             }
-        )
+
+            # Add guild details
+            response["guilds"] = [
+                {
+                    "id": str(guild.id),
+                    "name": guild.name,
+                    "icon_url": str(guild.icon.url) if guild.icon else None,
+                    "member_count": guild.member_count,
+                    "owner_id": str(guild.owner_id) if guild.owner_id else None,
+                }
+                for guild in bot.guilds
+            ]
+
+        return web.json_response(response)
 
 
 # Utility functions for Discord message formatting

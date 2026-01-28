@@ -368,7 +368,7 @@ export default function InstanceSettings() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Profile */}
+                    {/* WhatsApp Profile */}
                     {instance?.channel_type === 'whatsapp' && (instance?.profile_name || instance?.owner_jid) && (
                       <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
                         <Avatar className="h-16 w-16">
@@ -383,6 +383,74 @@ export default function InstanceSettings() {
                             {instance?.owner_jid?.replace('@s.whatsapp.net', '')}
                           </p>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Discord Bot Profile */}
+                    {instance?.channel_type === 'discord' && connectionState?.channel_data?.bot && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                          <Avatar className="h-16 w-16">
+                            <AvatarImage src={connectionState.channel_data.bot.avatar_url || undefined} />
+                            <AvatarFallback>
+                              <DiscordIcon className="h-8 w-8 text-[#5865F2]" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="font-medium text-lg">
+                              {connectionState.channel_data.bot.display_name || connectionState.channel_data.bot.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              @{connectionState.channel_data.bot.name}
+                              {connectionState.channel_data.bot.discriminator !== '0' &&
+                                `#${connectionState.channel_data.bot.discriminator}`}
+                            </p>
+                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                              <span>{connectionState.channel_data.guild_count || 0} servers</span>
+                              <span>{connectionState.channel_data.user_count || 0} users</span>
+                              {connectionState.channel_data.latency_ms && (
+                                <span>{connectionState.channel_data.latency_ms}ms latency</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Connected Servers */}
+                        {connectionState.channel_data.guilds && connectionState.channel_data.guilds.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">Connected Servers</p>
+                            <div className="grid gap-2">
+                              {connectionState.channel_data.guilds.map(
+                                (guild: { id: string; name: string; icon_url?: string; member_count?: number }) => (
+                                  <div key={guild.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded-lg">
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src={guild.icon_url || undefined} />
+                                      <AvatarFallback className="text-xs">
+                                        {guild.name.slice(0, 2).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{guild.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {guild.member_count?.toLocaleString() || 0} members
+                                      </p>
+                                    </div>
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Discord - Not Connected */}
+                    {instance?.channel_type === 'discord' && !connectionState?.channel_data?.bot && (
+                      <div className="p-4 bg-muted/50 rounded-lg text-center">
+                        <DiscordIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                        <p className="text-muted-foreground">
+                          {connectionState?.status === 'connecting' ? 'Connecting to Discord...' : 'Bot not connected'}
+                        </p>
                       </div>
                     )}
 

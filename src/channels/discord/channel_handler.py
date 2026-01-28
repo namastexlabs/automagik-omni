@@ -1160,16 +1160,27 @@ class DiscordChannelHandler(ChannelHandler):
                         elif status in ("disconnected", "error"):
                             status = "disconnected"
 
+                        # Build channel_data with all available info
+                        channel_data = {
+                            "guild_count": data.get("guild_count", 0),
+                            "user_count": data.get("user_count", 0),
+                            "latency_ms": data.get("latency_ms", 0),
+                            "uptime": data.get("uptime"),
+                        }
+
+                        # Add bot profile info if available
+                        if "bot" in data:
+                            channel_data["bot"] = data["bot"]
+
+                        # Add guild details if available
+                        if "guilds" in data:
+                            channel_data["guilds"] = data["guilds"]
+
                         return ConnectionStatus(
                             instance_name=instance.name,
                             channel_type="discord",
                             status=status,
-                            channel_data={
-                                "guild_count": data.get("guild_count", 0),
-                                "user_count": data.get("user_count", 0),
-                                "latency_ms": data.get("latency_ms", 0),
-                                "uptime": data.get("uptime"),
-                            },
+                            channel_data=channel_data,
                         )
                     else:
                         return ConnectionStatus(
