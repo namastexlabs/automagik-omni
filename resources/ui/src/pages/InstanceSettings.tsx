@@ -40,6 +40,7 @@ import {
   Eye,
   Users,
   History,
+  Layers,
 } from 'lucide-react';
 import { WhatsAppIcon, DiscordIcon } from '@/components/icons/BrandIcons';
 
@@ -73,6 +74,7 @@ export default function InstanceSettings() {
     message_split_delay_min_ms: 300,
     message_split_delay_max_ms: 1000,
     disable_username_prefix: false,
+    process_media_on_blocked: true,
   });
 
   // Behavior form (WhatsApp Evolution settings)
@@ -146,6 +148,7 @@ export default function InstanceSettings() {
         message_split_delay_min_ms: instance.message_split_delay_min_ms ?? 300,
         message_split_delay_max_ms: instance.message_split_delay_max_ms ?? 1000,
         disable_username_prefix: instance.disable_username_prefix ?? false,
+        process_media_on_blocked: instance.process_media_on_blocked ?? true,
       });
       setHasChanges(false);
     }
@@ -243,6 +246,7 @@ export default function InstanceSettings() {
       message_split_delay_min_ms: messagesForm.message_split_delay_min_ms,
       message_split_delay_max_ms: messagesForm.message_split_delay_max_ms,
       disable_username_prefix: messagesForm.disable_username_prefix,
+      process_media_on_blocked: messagesForm.process_media_on_blocked,
     };
 
     if (agentForm.agent_api_url.trim()) updateData.agent_api_url = agentForm.agent_api_url.trim();
@@ -943,6 +947,25 @@ export default function InstanceSettings() {
                           id="username_prefix"
                           checked={messagesForm.disable_username_prefix}
                           onCheckedChange={(checked) => updateMessagesForm('disable_username_prefix', checked)}
+                        />
+                      </div>
+
+                      {/* Media Processing on Blocked */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <Layers className="h-5 w-5 text-muted-foreground mt-0.5" />
+                          <div>
+                            <Label htmlFor="process_media_on_blocked">Process Media When Blocked</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Transcribe audio and describe images even when the sender is blocked by access rules.
+                              Useful for passive media collection without agent responses.
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          id="process_media_on_blocked"
+                          checked={messagesForm.process_media_on_blocked}
+                          onCheckedChange={(checked) => updateMessagesForm('process_media_on_blocked', checked)}
                         />
                       </div>
                     </div>

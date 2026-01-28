@@ -761,23 +761,46 @@ async def _handle_evolution_webhook(instance_config, request: Request, db: Sessi
             )
 
             if not has_access:
-                # Message blocked by access rule
-                if trace:
-                    trace.update_trace_status(
-                        status="access_denied",
-                        blocked_by_access_rule=True,
-                        blocking_reason=f"Blocked by access rule for phone {sender_phone}",
-                        completed_at=utcnow(),
+                # Check if we should still process media even when blocked
+                process_media_on_blocked = getattr(instance_config, "process_media_on_blocked", True)
+
+                if process_media_on_blocked:
+                    # Process media but don't route to agent
+                    logger.info(
+                        f"🎬 Processing media only for blocked sender {sender_phone} (process_media_on_blocked=True)"
                     )
-                logger.info(
-                    f"🚫 Message from {sender_phone} blocked by access rule for instance {instance_config.name}"
-                )
-                return {
-                    "status": "blocked",
-                    "reason": "access_denied",
-                    "phone": sender_phone,
-                    "trace_id": trace.trace_id if trace else None,
-                }
+                    if trace:
+                        trace.update_trace_status(
+                            status="media_only",
+                            blocked_by_access_rule=True,
+                            blocking_reason="Blocked by access rule, processing media only",
+                        )
+                    # Pass media_only=True to skip agent routing
+                    agent_service.process_whatsapp_message(data, instance_config, trace, media_only=True)
+                    return {
+                        "status": "media_processed",
+                        "reason": "access_denied_media_only",
+                        "phone": sender_phone,
+                        "trace_id": trace.trace_id if trace else None,
+                    }
+                else:
+                    # Fully block - no processing at all
+                    if trace:
+                        trace.update_trace_status(
+                            status="access_denied",
+                            blocked_by_access_rule=True,
+                            blocking_reason=f"Blocked by access rule for phone {sender_phone}",
+                            completed_at=utcnow(),
+                        )
+                    logger.info(
+                        f"🚫 Message from {sender_phone} blocked by access rule for instance {instance_config.name}"
+                    )
+                    return {
+                        "status": "blocked",
+                        "reason": "access_denied",
+                        "phone": sender_phone,
+                        "trace_id": trace.trace_id if trace else None,
+                    }
 
             # Update the Evolution API sender with the webhook data
             # This sets the runtime configuration from the webhook payload

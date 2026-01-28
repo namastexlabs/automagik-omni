@@ -141,6 +141,11 @@ class InstanceConfig(Base):
     # Disable username prefix on messages to agent
     disable_username_prefix = Column(Boolean, default=False, nullable=False)
 
+    # Media processing control
+    # When True, media (audio/images) will be transcribed/described even if access rules block the sender
+    # This allows passive media collection without agent responses
+    process_media_on_blocked = Column(Boolean, default=True, nullable=False)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow)
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)

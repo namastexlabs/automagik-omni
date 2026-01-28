@@ -50,17 +50,26 @@ class AgentService:
         # No explicit cleanup needed for FastAPI-based service
         pass
 
-    def process_whatsapp_message(self, data: Dict[str, Any], instance_config=None, trace_context=None) -> Optional[str]:
+    def process_whatsapp_message(
+        self,
+        data: Dict[str, Any],
+        instance_config=None,
+        trace_context=None,
+        media_only: bool = False,
+    ) -> Optional[str]:
         """Process a WhatsApp message and generate a response.
 
         Args:
             data: WhatsApp message data
             instance_config: InstanceConfig object with per-instance configuration
+            trace_context: TraceContext for message lifecycle tracking
+            media_only: If True, only process media (transcribe/describe) without routing to agent.
+                       Used when access is blocked but process_media_on_blocked is enabled.
 
         Returns:
             Optional response text
         """
-        logger.info("Processing WhatsApp message")
+        logger.info(f"Processing WhatsApp message (media_only={media_only})")
         logger.debug(f"Message data: {data}")
         if instance_config:
             logger.info(f"Using instance configuration: {instance_config.name} -> Agent: {instance_config.agent_id}")
@@ -77,7 +86,7 @@ class AgentService:
         # The handler will take care of transcribing audio, extracting text, etc.
         # and will send the response directly to the user
         # Pass trace context for message lifecycle tracking
-        message_handler.handle_message(data, instance_config, trace_context)
+        message_handler.handle_message(data, instance_config, trace_context, media_only=media_only)
 
         # Since the handler sends the response directly, we return None here
         return None

@@ -159,6 +159,12 @@ class InstanceConfigCreate(BaseModel):
         description="Don't prepend [username]: to messages sent to agent",
     )
 
+    # Media processing control
+    process_media_on_blocked: Optional[bool] = Field(
+        default=True,
+        description="Process media (transcribe/describe) even when sender is blocked by access rules",
+    )
+
     @model_validator(mode="before")
     @classmethod
     def validate_timing_config(cls, data: Any) -> Any:
@@ -273,6 +279,9 @@ class InstanceConfigUpdate(BaseModel):
     # Disable username prefix on messages to agent
     disable_username_prefix: Optional[bool] = None
 
+    # Media processing control
+    process_media_on_blocked: Optional[bool] = None
+
     @model_validator(mode="before")
     @classmethod
     def validate_timing_config(cls, data: Any) -> Any:
@@ -385,6 +394,9 @@ class InstanceConfigResponse(BaseModel):
 
     # Disable username prefix on messages to agent
     disable_username_prefix: Optional[bool] = None
+
+    # Media processing control
+    process_media_on_blocked: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -650,6 +662,7 @@ async def list_instances(
             "message_split_delay_min_ms": getattr(instance, "message_split_delay_min_ms", 300),
             "message_split_delay_max_ms": getattr(instance, "message_split_delay_max_ms", 1000),
             "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
+            "process_media_on_blocked": getattr(instance, "process_media_on_blocked", True),
             # SECURITY FIX: Use boolean indicator instead of exposing token
             "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
             "discord_client_id": getattr(instance, "discord_client_id", None),
@@ -772,6 +785,7 @@ async def get_instance(
         "message_split_delay_min_ms": getattr(instance, "message_split_delay_min_ms", 300),
         "message_split_delay_max_ms": getattr(instance, "message_split_delay_max_ms", 1000),
         "disable_username_prefix": getattr(instance, "disable_username_prefix", False),
+        "process_media_on_blocked": getattr(instance, "process_media_on_blocked", True),
         # SECURITY FIX: Use boolean indicator instead of exposing token
         "has_discord_bot_token": bool(getattr(instance, "discord_bot_token", None)),
         "discord_client_id": getattr(instance, "discord_client_id", None),

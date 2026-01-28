@@ -282,19 +282,31 @@ class WhatsAppMessageHandler:
             "trace_context": last["trace_context"],
         }
 
-    def handle_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
+    def handle_message(
+        self,
+        message: Dict[str, Any],
+        instance_config=None,
+        trace_context=None,
+        media_only: bool = False,
+    ):
         """Queue a message for processing, with optional debounce buffering.
 
         Debounce delay is determined by instance configuration:
         - mode='disabled' -> Process immediately (default)
         - mode='fixed' -> Apply legacy message_debounce_seconds delay
         - mode='randomized' -> Apply random delay between min_ms and max_ms
+
+        Args:
+            message: The WhatsApp message data
+            instance_config: Instance configuration
+            trace_context: TraceContext for message lifecycle tracking
+            media_only: If True, only process media (transcribe/describe) without routing to agent
         """
         # Calculate debounce delay based on mode and configuration
         debounce_seconds = self._calculate_debounce_delay(instance_config)
 
-        if debounce_seconds > 0:
-            # Buffer the message with debounce
+        if debounce_seconds > 0 and not media_only:
+            # Buffer the message with debounce (skip buffering for media_only)
             self._buffer_message(message, instance_config, trace_context, debounce_seconds)
             logger.debug(f"Message buffered for debounce ({debounce_seconds:.3f}s): {message.get('event')}")
         else:
@@ -303,9 +315,10 @@ class WhatsAppMessageHandler:
                 "message": message,
                 "instance_config": instance_config,
                 "trace_context": trace_context,
+                "media_only": media_only,
             }
             self.message_queue.put(message_with_config)
-            logger.debug(f"Message queued for processing: {message.get('event')}")
+            logger.debug(f"Message queued for processing (media_only={media_only}): {message.get('event')}")
 
         if instance_config:
             logger.debug(f"Using instance config: {instance_config.name} -> Agent: {instance_config.agent_id}")
@@ -319,18 +332,20 @@ class WhatsAppMessageHandler:
                 # Get message with timeout to allow for clean shutdown
                 message_data = self.message_queue.get(timeout=1.0)
 
-                # Extract message, instance config, and trace context
+                # Extract message, instance config, trace context, and media_only flag
                 if isinstance(message_data, dict) and "message" in message_data:
                     message = message_data["message"]
                     instance_config = message_data.get("instance_config")
                     trace_context = message_data.get("trace_context")
+                    media_only = message_data.get("media_only", False)
                 else:
                     # Backward compatibility for direct message data
                     message = message_data
                     instance_config = None
                     trace_context = None
+                    media_only = False
 
-                self._process_message(message, instance_config, trace_context)
+                self._process_message(message, instance_config, trace_context, media_only=media_only)
                 self.message_queue.task_done()
             except queue.Empty:
                 # No messages, continue waiting
@@ -1092,7 +1107,13 @@ class WhatsAppMessageHandler:
             logger.error(f"Error in _save_to_omni_messages: {e}", exc_info=True)
             return None
 
-    def _process_message(self, message: Dict[str, Any], instance_config=None, trace_context=None):
+    def _process_message(
+        self,
+        message: Dict[str, Any],
+        instance_config=None,
+        trace_context=None,
+        media_only: bool = False,
+    ):
         """
         Process a WhatsApp message.
 
@@ -1100,6 +1121,7 @@ class WhatsAppMessageHandler:
             message: WhatsApp message data
             instance_config: Instance configuration for multi-tenant support
             trace_context: TraceContext for message lifecycle tracking
+            media_only: If True, only process media without routing to agent (for blocked senders)
         """
         try:
             # The message from Evolution API has a different structure from our previous code
@@ -1174,12 +1196,14 @@ class WhatsAppMessageHandler:
                 # Don't fail message processing if omni save fails
                 logger.warning(f"Failed to save to omni_messages (non-fatal): {e}")
 
-            # Start showing typing indicator immediately
+            # Start showing typing indicator immediately (skip for media_only mode)
             # Use evolution_api_sender for presence updates (RabbitMQ disabled)
             from src.channels.whatsapp.evolution_api_sender import evolution_api_sender
 
-            presence_updater = evolution_api_sender.get_presence_updater(sender_id)
-            presence_updater.start()
+            presence_updater = None
+            if not media_only:
+                presence_updater = evolution_api_sender.get_presence_updater(sender_id)
+                presence_updater.start()
             processing_start_time = time.time()  # Record when processing started
 
             try:
@@ -1224,6 +1248,13 @@ class WhatsAppMessageHandler:
                     else:
                         message_content = processed_media_text
                     logger.info(f"Added processed media content to message ({len(processed_media_text)} chars)")
+
+                # ================= Media-Only Mode: Early Return =================
+                # If media_only=True, we only process media (transcribe/describe) without routing to agent
+                # This is used when access is blocked but process_media_on_blocked is enabled
+                if media_only:
+                    logger.info("🎬 Media-only mode: processed media for blocked sender, skipping agent routing")
+                    return
 
                 # Add quoted message context if present
                 quoted_context = self._extract_quoted_context(message)
@@ -1622,7 +1653,8 @@ class WhatsAppMessageHandler:
 
             finally:
                 # Make sure typing indicator is stopped even if processing fails
-                presence_updater.stop()
+                if presence_updater:
+                    presence_updater.stop()
 
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)

@@ -94,6 +94,9 @@ export interface InstanceConfig {
 
   // Disable username prefix on messages to agent
   disable_username_prefix?: boolean;
+
+  // Media processing control
+  process_media_on_blocked?: boolean;
 }
 
 export interface InstanceCreateRequest {
@@ -159,6 +162,7 @@ export interface InstanceUpdateRequest {
   message_split_delay_min_ms?: number;
   message_split_delay_max_ms?: number;
   disable_username_prefix?: boolean;
+  process_media_on_blocked?: boolean;
 }
 
 // Contact Types
