@@ -91,6 +91,11 @@ const UserCard = ({
               )}
             </div>
 
+            {/* Show phone number if available and different from display_name */}
+            {user.phone_number && user.phone_number !== user.display_name && (
+              <p className="text-xs text-muted-foreground mb-1 font-mono">📱 {user.phone_number}</p>
+            )}
+
             <div className="flex flex-wrap gap-1 mb-2">
               {uniqueProviders.map((provider) => (
                 <ChannelBadge key={provider} provider={provider} />

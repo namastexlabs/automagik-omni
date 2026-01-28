@@ -347,7 +347,11 @@ export default function Contacts() {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground mb-2">ID: {contact.id}</p>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              {contact.channel_data?.phone_number && contact.name !== contact.channel_data.phone_number
+                                ? `📱 ${contact.channel_data.phone_number}`
+                                : `ID: ${contact.id}`}
+                            </p>
                             <div className="flex items-center justify-between">
                               {getStatusBadge(contact.status)}
                               {contact.last_seen && (
