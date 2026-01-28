@@ -70,8 +70,9 @@ const UserCard = ({
   isSelected: boolean;
   potentialMatches?: User[];
 }) => {
+  // Get unique providers from external_ids, falling back to channel_type
   const providers = user.external_ids?.map((e) => e.provider) || [];
-  const uniqueProviders = [...new Set(providers)];
+  const uniqueProviders = [...new Set([user.channel_type, ...providers])].filter(Boolean);
 
   return (
     <Card
@@ -91,10 +92,15 @@ const UserCard = ({
               )}
             </div>
 
-            {/* Show phone number if available and different from display_name */}
-            {user.phone_number && user.phone_number !== user.display_name && (
-              <p className="text-xs text-muted-foreground mb-1 font-mono">📱 {user.phone_number}</p>
-            )}
+            {/* Show phone or Discord info based on channel type */}
+            {user.channel_type === 'discord'
+              ? user.discord_username && (
+                  <p className="text-xs text-muted-foreground mb-1 font-mono">💬 @{user.discord_username}</p>
+                )
+              : user.phone_number &&
+                user.phone_number !== user.display_name && (
+                  <p className="text-xs text-muted-foreground mb-1 font-mono">📱 {user.phone_number}</p>
+                )}
 
             <div className="flex flex-wrap gap-1 mb-2">
               {uniqueProviders.map((provider) => (
@@ -206,6 +212,32 @@ const UserDetailPanel = ({
                   ) : (
                     <p className="text-sm text-muted-foreground">No external IDs linked</p>
                   )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* User Info */}
+              <div>
+                <h4 className="text-sm font-medium mb-3">User Info</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-24">Channel:</span>
+                    <ChannelBadge provider={user.channel_type} />
+                  </div>
+                  {user.channel_type === 'discord'
+                    ? user.discord_username && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-24">Username:</span>
+                          <span className="text-sm font-mono">@{user.discord_username}</span>
+                        </div>
+                      )
+                    : user.phone_number && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-24">Phone:</span>
+                          <span className="text-sm font-mono">{user.phone_number}</span>
+                        </div>
+                      )}
                 </div>
               </div>
 

@@ -113,6 +113,7 @@ class UserService:
             display_name=display_name,
             last_session_name_interaction=session_name,
             message_count=1,
+            channel_type="whatsapp",
         )
 
         db.add(user)
@@ -358,19 +359,19 @@ class UserService:
                 logger.info(f"Updated existing Discord user {user.id} for discord_id {discord_user_id}")
                 return user
 
-        # No existing link or user - check if we can find by synthetic phone
-        synthetic_phone = f"discord_{discord_user_id}"
-        synthetic_jid = f"{discord_user_id}@discord.user"
-
-        user = db.query(User).filter_by(phone_number=synthetic_phone, instance_name=instance_name).first()
+        # No existing link - check if we can find by discord_user_id field directly
+        user = db.query(User).filter_by(discord_user_id=discord_user_id, instance_name=instance_name).first()
 
         if user:
-            # Found user by synthetic phone, update and ensure external link
+            # Found user by discord_user_id, update and ensure external link
             user.last_seen_at = utcnow()
             user.message_count += 1
 
             if display_name:
                 user.display_name = display_name
+
+            if username:
+                user.discord_username = username
 
             if session_name:
                 user.last_session_name_interaction = session_name
@@ -386,18 +387,20 @@ class UserService:
                 logger.exception("Failed to ensure Discord external ID link for existing user")
 
             logger.info(
-                f"Updated existing Discord user {user.id} (by synthetic phone) for discord_id {discord_user_id}"
+                f"Updated existing Discord user {user.id} (by discord_user_id) for discord_id {discord_user_id}"
             )
             return user
 
-        # Create new user with synthetic phone/JID for Discord
+        # Create new user with proper Discord fields (no synthetic phone/jid)
         user = User(
-            phone_number=synthetic_phone,
-            whatsapp_jid=synthetic_jid,
+            channel_type="discord",
+            discord_user_id=discord_user_id,
+            discord_username=username,
             instance_name=instance_name,
             display_name=display_name or username or f"Discord User {discord_user_id}",
             last_session_name_interaction=session_name,
             message_count=1,
+            # phone_number and whatsapp_jid are now nullable, left as None for Discord
         )
 
         db.add(user)
@@ -541,8 +544,11 @@ class UserService:
 
         return {
             "id": user.id,
+            "channel_type": user.channel_type,
             "phone_number": user.phone_number,
             "whatsapp_jid": user.whatsapp_jid,
+            "discord_user_id": user.discord_user_id,
+            "discord_username": user.discord_username,
             "instance_name": user.instance_name,
             "display_name": user.display_name,
             "last_session_name_interaction": user.last_session_name_interaction,

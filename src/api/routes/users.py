@@ -35,8 +35,11 @@ class UserResponse(BaseModel):
     """User response model."""
 
     id: str
-    phone_number: str
-    whatsapp_jid: str
+    channel_type: str = "whatsapp"
+    phone_number: Optional[str] = None
+    whatsapp_jid: Optional[str] = None
+    discord_user_id: Optional[str] = None
+    discord_username: Optional[str] = None
     instance_name: str
     display_name: Optional[str] = None
     last_session_name_interaction: Optional[str] = None
@@ -123,8 +126,11 @@ async def list_users(
             users=[
                 UserResponse(
                     id=u.id,
+                    channel_type=u.channel_type or "whatsapp",
                     phone_number=u.phone_number,
                     whatsapp_jid=u.whatsapp_jid,
+                    discord_user_id=u.discord_user_id,
+                    discord_username=u.discord_username,
                     instance_name=u.instance_name,
                     display_name=u.display_name,
                     last_session_name_interaction=u.last_session_name_interaction,
@@ -174,8 +180,11 @@ async def get_user(
 
         return UserResponse(
             id=user_data["id"],
+            channel_type=user_data.get("channel_type") or "whatsapp",
             phone_number=user_data["phone_number"],
             whatsapp_jid=user_data["whatsapp_jid"],
+            discord_user_id=user_data.get("discord_user_id"),
+            discord_username=user_data.get("discord_username"),
             instance_name=user_data["instance_name"],
             display_name=user_data["display_name"],
             last_session_name_interaction=user_data["last_session_name_interaction"],
@@ -247,8 +256,11 @@ async def link_external_id(
 
         return UserResponse(
             id=user_data["id"],
+            channel_type=user_data.get("channel_type") or "whatsapp",
             phone_number=user_data["phone_number"],
             whatsapp_jid=user_data["whatsapp_jid"],
+            discord_user_id=user_data.get("discord_user_id"),
+            discord_username=user_data.get("discord_username"),
             instance_name=user_data["instance_name"],
             display_name=user_data["display_name"],
             last_session_name_interaction=user_data["last_session_name_interaction"],

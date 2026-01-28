@@ -233,16 +233,25 @@ class User(Base):
     # Stable primary identifier (never changes)
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
 
-    # User identification (most stable identifier from WhatsApp)
-    phone_number = Column(String, nullable=False, index=True)
-    whatsapp_jid = Column(String, nullable=False, index=True)  # Formatted WhatsApp ID
+    # Channel type - identifies the source channel (whatsapp, discord, etc.)
+    channel_type = Column(String(20), nullable=False, default="whatsapp", index=True)
+
+    # User identification
+    # For WhatsApp: phone_number and whatsapp_jid are the primary identifiers
+    # For Discord: these can be null, use external_ids instead
+    phone_number = Column(String, nullable=True, index=True)
+    whatsapp_jid = Column(String, nullable=True, index=True)  # Formatted WhatsApp ID
+
+    # Discord-specific fields (null for WhatsApp users)
+    discord_user_id = Column(String, nullable=True, index=True)  # Discord snowflake ID
+    discord_username = Column(String, nullable=True)  # Discord username#discriminator
 
     # Instance relationship
     instance_name = Column(String, ForeignKey("omni_instance_configs.name"), nullable=False, index=True)
     instance = relationship("InstanceConfig", back_populates="users")
 
     # User information
-    display_name = Column(String, nullable=True)  # From pushName, can change
+    display_name = Column(String, nullable=True)  # From pushName (WhatsApp) or global_name (Discord)
 
     # Session tracking (can change over time)
     last_session_name_interaction = Column(String, nullable=True, index=True)
@@ -257,6 +266,8 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow)
 
     def __repr__(self):
+        if self.channel_type == "discord":
+            return f"<User(id='{self.id}', discord='{self.discord_user_id}', instance='{self.instance_name}')>"
         return f"<User(id='{self.id}', phone='{self.phone_number}', instance='{self.instance_name}')>"
 
     @property

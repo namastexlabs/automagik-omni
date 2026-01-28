@@ -694,8 +694,11 @@ export interface UserExternalId {
 
 export interface User {
   id: string;
-  phone_number: string;
-  whatsapp_jid: string;
+  channel_type: 'whatsapp' | 'discord';
+  phone_number?: string | null;
+  whatsapp_jid?: string | null;
+  discord_user_id?: string | null;
+  discord_username?: string | null;
   instance_name: string;
   display_name?: string | null;
   last_session_name_interaction?: string | null;
