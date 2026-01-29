@@ -284,8 +284,8 @@ async def get_trace_analytics(
 
         # Calculate basic metrics
         total_messages = len(traces)
-        # Success = completed OR access_denied (system correctly blocked the message)
-        successful_messages = len([t for t in traces if t.status in ["completed", "access_denied"]])
+        # Success = completed OR access_denied (system correctly blocked) OR media_only (media processed for blocked sender)
+        successful_messages = len([t for t in traces if t.status in ["completed", "access_denied", "media_only"]])
         failed_messages = len([t for t in traces if t.status == "failed"])
         success_rate = (successful_messages / total_messages * 100) if total_messages > 0 else 0
 
