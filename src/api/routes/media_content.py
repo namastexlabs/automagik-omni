@@ -290,8 +290,10 @@ async def _run_batch_processing(job_id: str, request_params: dict):
                     totals_callback=add_to_totals,
                 )
             elif content_type == "video":
-                result = await media_processing_service.batch_reprocess_videos(
+                # Use omni_messages-based processing (works with synced messages, not just traces)
+                result = await media_processing_service.batch_reprocess_from_omni_messages(
                     instance_name=instance_name,
+                    content_type="video",
                     days_back=days_back,
                     limit=limit,
                     force=force,
@@ -577,8 +579,10 @@ async def reprocess_batch(
                 results["results"].extend(image_result["results"])
 
             if "video" in request.content_types:
-                video_result = await media_processing_service.batch_reprocess_videos(
+                # Use omni_messages-based processing (works with synced messages)
+                video_result = await media_processing_service.batch_reprocess_from_omni_messages(
                     instance_name=request.instance_name,
+                    content_type="video",
                     days_back=request.days_back,
                     limit=request.limit,
                     force=request.force,
