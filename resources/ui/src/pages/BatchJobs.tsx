@@ -426,6 +426,7 @@ export default function BatchJobs() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8"></TableHead>
+                        <TableHead>Job ID</TableHead>
                         <TableHead>Instance</TableHead>
                         <TableHead>Types</TableHead>
                         <TableHead>Period</TableHead>
@@ -453,6 +454,9 @@ export default function BatchJobs() {
                                 ) : (
                                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                 )}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {job.job_id.substring(0, 8)}
                               </TableCell>
                               <TableCell className="text-sm">{job.instance_name || 'All'}</TableCell>
                               <TableCell>
