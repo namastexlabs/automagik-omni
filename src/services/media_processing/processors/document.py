@@ -27,6 +27,8 @@ class DocumentProcessor(BaseProcessor):
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "text/plain",
         "text/markdown",
+        "application/json",
+        "text/csv",
     ]
 
     # Minimum text length to consider extraction successful
@@ -103,6 +105,14 @@ Output the complete text content in markdown format."""
         if mime_type in ["text/plain", "text/markdown"]:
             return await self._process_text_file(file_path, start_time)
 
+        # Handle JSON files
+        if mime_type == "application/json":
+            return await self._process_json_file(file_path, start_time)
+
+        # Handle CSV files
+        if mime_type == "text/csv":
+            return await self._process_csv_file(file_path, start_time)
+
         # Handle PDF files
         if mime_type == "application/pdf":
             return await self._process_pdf(file_path, use_gemini_fallback, start_time)
@@ -148,6 +158,127 @@ Output the complete text content in markdown format."""
             return ProcessingResult(
                 success=False,
                 processor_name="text_reader",
+                error_message=str(e),
+            )
+
+    async def _process_json_file(self, file_path: Path, start_time: float) -> ProcessingResult:
+        """Process JSON files - extract structure and content."""
+        import json as json_module
+
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                raw_content = f.read()
+
+            try:
+                data = json_module.loads(raw_content)
+                # Pretty-print for readability
+                formatted_content = json_module.dumps(data, indent=2, ensure_ascii=False)
+
+                # Add structure summary
+                summary_parts = ["**JSON Document Summary**\n"]
+
+                if isinstance(data, dict):
+                    keys = list(data.keys())
+                    summary_parts.append(f"- Type: Object with {len(keys)} keys")
+                    if len(keys) <= 20:
+                        summary_parts.append(f"- Keys: {', '.join(keys)}")
+                    else:
+                        summary_parts.append(f"- Keys (first 20): {', '.join(keys[:20])}...")
+                elif isinstance(data, list):
+                    summary_parts.append(f"- Type: Array with {len(data)} items")
+                    if data and isinstance(data[0], dict):
+                        summary_parts.append(f"- Item structure: Object with keys: {', '.join(data[0].keys())}")
+
+                summary_parts.append(f"\n**Content** ({len(raw_content)} bytes):\n```json\n{formatted_content}\n```")
+                content = "\n".join(summary_parts)
+
+            except json_module.JSONDecodeError:
+                # Invalid JSON - just return the raw content
+                content = f"**Invalid JSON** (could not parse)\n\nRaw content:\n```\n{raw_content[:5000]}\n```"
+
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            cost_info = calculate_processing_cost("json_reader", "local")
+
+            return ProcessingResult(
+                success=True,
+                content=content,
+                content_format="markdown",
+                processor_name="json_reader",
+                processing_time_ms=processing_time_ms,
+                confidence_score=100,
+                cost_input_usd=cost_info["input_cost_usd"],
+                cost_output_usd=cost_info["output_cost_usd"],
+                cost_total_usd=cost_info["total_cost_usd"],
+                pricing_model=cost_info["pricing_model"],
+            )
+        except Exception as e:
+            logger.error(f"Error reading JSON file: {e}")
+            return ProcessingResult(
+                success=False,
+                processor_name="json_reader",
+                error_message=str(e),
+            )
+
+    async def _process_csv_file(self, file_path: Path, start_time: float) -> ProcessingResult:
+        """Process CSV files - extract structure and sample data."""
+        import csv
+
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                raw_content = f.read()
+
+            # Parse CSV
+            lines = raw_content.strip().split("\n")
+            reader = csv.reader(lines)
+            rows = list(reader)
+
+            if not rows:
+                content = "**Empty CSV file**"
+            else:
+                headers = rows[0] if rows else []
+                data_rows = rows[1:] if len(rows) > 1 else []
+
+                summary_parts = ["**CSV Document Summary**\n"]
+                summary_parts.append(f"- Columns: {len(headers)}")
+                summary_parts.append(f"- Rows: {len(data_rows)}")
+                if headers:
+                    summary_parts.append(f"- Headers: {', '.join(headers)}")
+
+                # Show sample data as markdown table (first 10 rows)
+                if data_rows:
+                    summary_parts.append("\n**Sample Data** (first 10 rows):\n")
+                    summary_parts.append("| " + " | ".join(headers) + " |")
+                    summary_parts.append("| " + " | ".join(["---"] * len(headers)) + " |")
+                    for row in data_rows[:10]:
+                        # Pad row if needed
+                        padded_row = row + [""] * (len(headers) - len(row))
+                        summary_parts.append("| " + " | ".join(padded_row[: len(headers)]) + " |")
+
+                    if len(data_rows) > 10:
+                        summary_parts.append(f"\n*... and {len(data_rows) - 10} more rows*")
+
+                content = "\n".join(summary_parts)
+
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            cost_info = calculate_processing_cost("csv_reader", "local")
+
+            return ProcessingResult(
+                success=True,
+                content=content,
+                content_format="markdown",
+                processor_name="csv_reader",
+                processing_time_ms=processing_time_ms,
+                confidence_score=100,
+                cost_input_usd=cost_info["input_cost_usd"],
+                cost_output_usd=cost_info["output_cost_usd"],
+                cost_total_usd=cost_info["total_cost_usd"],
+                pricing_model=cost_info["pricing_model"],
+            )
+        except Exception as e:
+            logger.error(f"Error reading CSV file: {e}")
+            return ProcessingResult(
+                success=False,
+                processor_name="csv_reader",
                 error_message=str(e),
             )
 

@@ -74,12 +74,15 @@ class MediaProcessingService:
                 )
                 logger.info("AudioProcessor initialized")
 
-            # Initialize image processor
-            if gemini_key:
+            # Initialize image processor with OpenAI fallback
+            if gemini_key or openai_key:
                 self._image_processor = ImageProcessor(
                     gemini_api_key=gemini_key,
+                    openai_api_key=openai_key,  # Fallback when Gemini rate-limited
                 )
-                logger.info("ImageProcessor initialized")
+                logger.info(
+                    f"ImageProcessor initialized (Gemini: {'yes' if gemini_key else 'no'}, OpenAI fallback: {'yes' if openai_key else 'no'})"
+                )
 
             # Initialize document processor (PyMuPDF + Gemini fallback)
             self._document_processor = DocumentProcessor(
@@ -566,6 +569,7 @@ class MediaProcessingService:
         language: str = "pt",
         force: bool = False,
         db: Optional[Session] = None,
+        batch_job_id: Optional[str] = None,
     ) -> Optional[MediaContent]:
         """
         Reprocess audio from a stored trace payload.
@@ -678,12 +682,16 @@ class MediaProcessingService:
                         media_size_bytes=size_bytes,
                         media_duration_seconds=duration,
                         status="processing",
+                        batch_job_id=batch_job_id,
                     )
                     db.add(media_content)
                     db.commit()
                     db.refresh(media_content)
 
                 media_content.status = "processing"
+                # Update batch job link if provided and not already set
+                if batch_job_id and not media_content.batch_job_id:
+                    media_content.batch_job_id = batch_job_id
                 db.commit()
 
                 # Process the audio
@@ -747,6 +755,8 @@ class MediaProcessingService:
         force: bool = False,
         db: Optional[Session] = None,
         progress_callback: Optional[callable] = None,
+        batch_job_id: Optional[str] = None,
+        totals_callback: Optional[callable] = None,
     ) -> dict:
         """
         Batch reprocess audio messages from traces.
@@ -858,6 +868,10 @@ class MediaProcessingService:
                 "results": [],
             }
 
+            # Report totals to caller before processing starts
+            if totals_callback:
+                totals_callback(total_found, len(traces), already_processed_count)
+
             for trace in traces:
                 try:
                     # Report progress if callback provided
@@ -869,6 +883,7 @@ class MediaProcessingService:
                         language=language,
                         force=force,
                         db=db,
+                        batch_job_id=batch_job_id,
                     )
 
                     if result and result.status == "completed":
@@ -917,6 +932,7 @@ class MediaProcessingService:
         custom_prompt: Optional[str] = None,
         force: bool = False,
         db: Optional[Session] = None,
+        batch_job_id: Optional[str] = None,
     ) -> Optional[MediaContent]:
         """
         Reprocess image from a stored trace payload.
@@ -1024,12 +1040,16 @@ class MediaProcessingService:
                         media_mime_type=mime_type,
                         media_size_bytes=size_bytes,
                         status="processing",
+                        batch_job_id=batch_job_id,
                     )
                     db.add(media_content)
                     db.commit()
                     db.refresh(media_content)
 
                 media_content.status = "processing"
+                # Update batch job link if provided and not already set
+                if batch_job_id and not media_content.batch_job_id:
+                    media_content.batch_job_id = batch_job_id
                 db.commit()
 
                 # Build prompt with caption context
@@ -1096,6 +1116,8 @@ class MediaProcessingService:
         force: bool = False,
         db: Optional[Session] = None,
         progress_callback: Optional[callable] = None,
+        batch_job_id: Optional[str] = None,
+        totals_callback: Optional[callable] = None,
     ) -> dict:
         """
         Batch reprocess image messages from traces.
@@ -1203,6 +1225,10 @@ class MediaProcessingService:
                 "results": [],
             }
 
+            # Report totals to caller before processing starts
+            if totals_callback:
+                totals_callback(total_found, len(traces), already_processed_count)
+
             for trace in traces:
                 try:
                     # Report progress if callback provided
@@ -1214,6 +1240,7 @@ class MediaProcessingService:
                         custom_prompt=custom_prompt,
                         force=force,
                         db=db,
+                        batch_job_id=batch_job_id,
                     )
 
                     if result and result.status == "completed":
@@ -1407,6 +1434,7 @@ class MediaProcessingService:
         self,
         trace_id: str,
         db: Optional[Session] = None,
+        batch_job_id: Optional[str] = None,
     ) -> Optional[MediaContent]:
         """
         Reprocess document from a stored trace payload.
@@ -1512,12 +1540,16 @@ class MediaProcessingService:
                         media_mime_type=mime_type,
                         media_size_bytes=size_bytes,
                         status="processing",
+                        batch_job_id=batch_job_id,
                     )
                     db.add(media_content)
                     db.commit()
                     db.refresh(media_content)
 
                 media_content.status = "processing"
+                # Update batch job link if provided and not already set
+                if batch_job_id and not media_content.batch_job_id:
+                    media_content.batch_job_id = batch_job_id
                 db.commit()
 
                 # Process the document
@@ -1577,6 +1609,8 @@ class MediaProcessingService:
         force: bool = False,
         db: Optional[Session] = None,
         progress_callback: Optional[callable] = None,
+        batch_job_id: Optional[str] = None,
+        totals_callback: Optional[callable] = None,
     ) -> dict:
         """
         Batch reprocess document messages from traces.
@@ -1683,6 +1717,10 @@ class MediaProcessingService:
                 "results": [],
             }
 
+            # Report totals to caller before processing starts
+            if totals_callback:
+                totals_callback(total_found, len(traces), already_processed_count)
+
             for trace in traces:
                 try:
                     # Report progress if callback provided
@@ -1692,6 +1730,7 @@ class MediaProcessingService:
                     result = await self.reprocess_document_from_trace(
                         trace_id=trace.trace_id,
                         db=db,
+                        batch_job_id=batch_job_id,
                     )
 
                     if result and result.status == "completed":
@@ -1744,6 +1783,8 @@ class MediaProcessingService:
         force: bool = False,
         db: Optional[Session] = None,
         progress_callback: Optional[callable] = None,
+        batch_job_id: Optional[str] = None,
+        totals_callback: Optional[callable] = None,
     ) -> dict:
         """
         Batch reprocess media from omni_messages table.
@@ -1860,6 +1901,10 @@ class MediaProcessingService:
                 f"{already_processed_count} already processed, {len(messages)} to process"
             )
 
+            # Report totals to caller before processing starts
+            if totals_callback:
+                totals_callback(total_found, len(messages), already_processed_count)
+
             stats = {
                 "total_found": total_found,
                 "already_processed": already_processed_count,
@@ -1962,6 +2007,7 @@ class MediaProcessingService:
                                 media_size_bytes=msg.media_size_bytes,
                                 media_duration_seconds=msg.media_duration_seconds,
                                 status="processing",
+                                batch_job_id=batch_job_id,
                             )
                             db.add(media_content)
                             db.flush()
@@ -1984,6 +2030,9 @@ class MediaProcessingService:
                         media_content.pricing_rate_output = result.pricing_rate_output
                         media_content.status = "completed"
                         media_content.processed_at = utcnow()
+                        # Set batch job link if provided
+                        if batch_job_id:
+                            media_content.batch_job_id = batch_job_id
 
                         # Update omni_message status
                         msg.media_status = "processed"

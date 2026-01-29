@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +35,9 @@ import {
   DollarSign,
   Layers,
   Ban,
+  ChevronDown,
+  ChevronRight,
+  AlertCircle,
 } from 'lucide-react';
 
 function formatDuration(startedAt: string | null, completedAt: string | null): string {
@@ -104,6 +107,7 @@ export default function BatchJobs() {
   const [language, setLanguage] = useState('pt');
   const [contentTypes, setContentTypes] = useState<string[]>(['audio']);
   const [forceReprocess, setForceReprocess] = useState(false);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
   // Fetch instances for dropdown
   const { data: instances } = useQuery({
@@ -125,6 +129,13 @@ export default function BatchJobs() {
       const hasRunning = data?.some((job) => job.status === 'pending' || job.status === 'processing');
       return hasRunning ? 2000 : false;
     },
+  });
+
+  // Fetch job details when expanded
+  const { data: jobDetails, isLoading: isLoadingDetails } = useQuery({
+    queryKey: ['batchJobDetails', expandedJobId],
+    queryFn: () => (expandedJobId ? api.batchJobs.getDetails(expandedJobId) : null),
+    enabled: !!expandedJobId,
   });
 
   // Start reprocess mutation
@@ -405,6 +416,7 @@ export default function BatchJobs() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-8"></TableHead>
                         <TableHead>Instance</TableHead>
                         <TableHead>Types</TableHead>
                         <TableHead>Period</TableHead>
@@ -419,65 +431,179 @@ export default function BatchJobs() {
                       {completedJobs.map((job) => {
                         const params = job.request_params;
                         const types = params?.content_types || [];
+                        const isExpanded = expandedJobId === job.job_id;
                         return (
-                          <TableRow key={job.job_id}>
-                            <TableCell className="text-sm">{job.instance_name || 'All'}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                {types.includes('audio') && (
-                                  <FileAudio className="h-4 w-4 text-blue-500" title="Audio" />
+                          <Fragment key={job.job_id}>
+                            <TableRow
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => setExpandedJobId(isExpanded ? null : job.job_id)}
+                            >
+                              <TableCell className="w-8">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                 )}
-                                {types.includes('image') && (
-                                  <FileImage className="h-4 w-4 text-green-500" title="Image" />
-                                )}
-                                {types.includes('document') && (
-                                  <FileText className="h-4 w-4 text-orange-500" title="Document" />
-                                )}
-                                {types.length === 0 && <span className="text-muted-foreground text-xs">-</span>}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {params?.days_back ? `${params.days_back}d` : '-'}
-                            </TableCell>
-                            <TableCell>{getStatusBadge(job.status)}</TableCell>
-                            <TableCell>
-                              <div className="text-sm space-y-0.5">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-muted-foreground">Found:</span>
-                                  <span>{job.total_found || 0}</span>
-                                </div>
-                                {job.skipped_items > 0 && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <span>Skipped:</span>
-                                    <span>{job.skipped_items}</span>
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-1">
-                                  <span className="text-green-600">Processed:</span>
-                                  <span className="text-green-600">{job.processed_items}</span>
-                                  {job.failed_items > 0 && (
-                                    <span className="text-destructive">({job.failed_items} failed)</span>
+                              </TableCell>
+                              <TableCell className="text-sm">{job.instance_name || 'All'}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  {types.includes('audio') && (
+                                    <FileAudio className="h-4 w-4 text-blue-500" title="Audio" />
                                   )}
+                                  {types.includes('image') && (
+                                    <FileImage className="h-4 w-4 text-green-500" title="Image" />
+                                  )}
+                                  {types.includes('document') && (
+                                    <FileText className="h-4 w-4 text-orange-500" title="Document" />
+                                  )}
+                                  {types.length === 0 && <span className="text-muted-foreground text-xs">-</span>}
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {formatDuration(job.started_at, job.completed_at)}
-                            </TableCell>
-                            <TableCell>
-                              {job.total_cost_usd !== null && job.total_cost_usd > 0 ? (
-                                <span className="flex items-center gap-1 text-sm">
-                                  <DollarSign className="h-3 w-3" />
-                                  {formatCost(job.total_cost_usd)}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {job.created_at ? formatDateTime(job.created_at) : '-'}
-                            </TableCell>
-                          </TableRow>
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {params?.days_back ? `${params.days_back}d` : '-'}
+                              </TableCell>
+                              <TableCell>{getStatusBadge(job.status)}</TableCell>
+                              <TableCell>
+                                <div className="text-sm space-y-0.5">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-muted-foreground">Found:</span>
+                                    <span>{job.total_found || 0}</span>
+                                  </div>
+                                  {job.skipped_items > 0 && (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <span>Skipped:</span>
+                                      <span>{job.skipped_items}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-green-600">Processed:</span>
+                                    <span className="text-green-600">{job.processed_items}</span>
+                                    {job.failed_items > 0 && (
+                                      <span className="text-destructive">({job.failed_items} failed)</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {formatDuration(job.started_at, job.completed_at)}
+                              </TableCell>
+                              <TableCell>
+                                {job.total_cost_usd !== null && job.total_cost_usd > 0 ? (
+                                  <span className="flex items-center gap-1 text-sm">
+                                    <DollarSign className="h-3 w-3" />
+                                    {formatCost(job.total_cost_usd)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {job.created_at ? formatDateTime(job.created_at) : '-'}
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && (
+                              <TableRow className="bg-muted/30">
+                                <TableCell colSpan={9} className="p-4">
+                                  {isLoadingDetails ? (
+                                    <div className="flex items-center justify-center py-4">
+                                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                      <span className="ml-2 text-sm text-muted-foreground">Loading details...</span>
+                                    </div>
+                                  ) : jobDetails ? (
+                                    <div className="space-y-4">
+                                      {/* Processed Items */}
+                                      {jobDetails.processed_items.length > 0 && (
+                                        <div>
+                                          <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                            Processed Items ({jobDetails.processed_count})
+                                          </h4>
+                                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                                            {jobDetails.processed_items.map((item, idx) => (
+                                              <div
+                                                key={`${item.message_id}-${idx}`}
+                                                className="bg-background rounded-md p-3 text-sm border"
+                                              >
+                                                <div className="flex items-start justify-between gap-4">
+                                                  <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                      <Badge variant="outline" className="text-xs">
+                                                        {item.content_type.replace('_', ' ')}
+                                                      </Badge>
+                                                      {item.processor_name && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                          via {item.processor_name}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                    {item.content_preview && (
+                                                      <p className="text-xs text-muted-foreground line-clamp-2">
+                                                        {item.content_preview}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                  <div className="text-xs text-muted-foreground whitespace-nowrap">
+                                                    {item.processed_at ? formatDateTime(item.processed_at) : ''}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Failed Items */}
+                                      {jobDetails.failed_items.length > 0 && (
+                                        <div>
+                                          <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                                            <AlertCircle className="h-4 w-4 text-destructive" />
+                                            Failed Items ({jobDetails.failed_count})
+                                          </h4>
+                                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            {jobDetails.failed_items.map((item, idx) => (
+                                              <div
+                                                key={`${item.message_id}-${idx}`}
+                                                className="bg-destructive/10 rounded-md p-3 text-sm border border-destructive/20"
+                                              >
+                                                <div className="flex items-start justify-between gap-4">
+                                                  <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                      <Badge variant="destructive" className="text-xs">
+                                                        {item.content_type.replace('_', ' ')}
+                                                      </Badge>
+                                                      <span className="text-xs font-mono text-muted-foreground">
+                                                        {item.message_id.substring(0, 12)}...
+                                                      </span>
+                                                    </div>
+                                                    {item.error_message && (
+                                                      <p className="text-xs text-destructive">{item.error_message}</p>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* No items */}
+                                      {jobDetails.processed_items.length === 0 &&
+                                        jobDetails.failed_items.length === 0 && (
+                                          <div className="text-center py-4 text-sm text-muted-foreground">
+                                            No detailed item information available for this job.
+                                          </div>
+                                        )}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-4 text-sm text-muted-foreground">
+                                      Failed to load job details.
+                                    </div>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </TableBody>

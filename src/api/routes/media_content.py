@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -109,6 +109,40 @@ class BatchJobStatusResponse(BaseModel):
         from_attributes = True
 
 
+class BatchJobItemResult(BaseModel):
+    """Individual item result from a batch job."""
+
+    message_id: str
+    content_type: str
+    status: str  # completed, failed, skipped
+    error_message: Optional[str] = None
+    processor_name: Optional[str] = None
+    content_preview: Optional[str] = None  # First 200 chars of content
+    cost_usd: Optional[float] = None
+    processed_at: Optional[datetime] = None
+
+
+class BatchJobDetailsResponse(BaseModel):
+    """Response model for job details with individual items."""
+
+    job_id: str
+    job_type: str
+    status: str
+    instance_name: Optional[str]
+    # Summary stats
+    total_found: int = 0
+    processed_count: int = 0
+    failed_count: int = 0
+    skipped_count: int = 0
+    # Item lists
+    processed_items: List[BatchJobItemResult] = []
+    failed_items: List[BatchJobItemResult] = []
+    # Pagination
+    page: int = 1
+    page_size: int = 50
+    has_more: bool = False
+
+
 class ReprocessTraceRequest(BaseModel):
     """Request model for single trace reprocessing."""
 
@@ -174,6 +208,19 @@ class OmniMediaBatchRequest(BaseModel):
     async_mode: bool = True
 
 
+def _run_batch_processing_sync(job_id: str, request_params: dict):
+    """
+    Synchronous wrapper to run batch processing in a thread pool.
+    Creates a new event loop in the thread to run the async function.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_run_batch_processing(job_id, request_params))
+    finally:
+        loop.close()
+
+
 async def _run_batch_processing(job_id: str, request_params: dict):
     """
     Background task to run batch processing and update job status.
@@ -208,6 +255,15 @@ async def _run_batch_processing(job_id: str, request_params: dict):
         total_tokens = 0
         all_results = []
 
+        # Helper to accumulate totals across content types
+        def add_to_totals(found: int, to_process: int, skipped: int):
+            nonlocal total_found, total_items, already_processed
+            total_found += found
+            total_items += to_process
+            already_processed += skipped
+            # Update job with running totals
+            _update_job_totals(db, job_id, total_found, total_items, already_processed)
+
         # Process each content type
         for content_type in content_types:
             if content_type == "audio":
@@ -219,6 +275,8 @@ async def _run_batch_processing(job_id: str, request_params: dict):
                     force=force,
                     db=db,
                     progress_callback=lambda item: _update_job_progress(db, job_id, item),
+                    batch_job_id=job_id,
+                    totals_callback=add_to_totals,
                 )
             elif content_type == "image":
                 result = await media_processing_service.batch_reprocess_images(
@@ -228,6 +286,8 @@ async def _run_batch_processing(job_id: str, request_params: dict):
                     force=force,
                     db=db,
                     progress_callback=lambda item: _update_job_progress(db, job_id, item),
+                    batch_job_id=job_id,
+                    totals_callback=add_to_totals,
                 )
             elif content_type == "document":
                 result = await media_processing_service.batch_reprocess_documents(
@@ -237,6 +297,8 @@ async def _run_batch_processing(job_id: str, request_params: dict):
                     force=force,
                     db=db,
                     progress_callback=lambda item: _update_job_progress(db, job_id, item),
+                    batch_job_id=job_id,
+                    totals_callback=add_to_totals,
                 )
             else:
                 continue
@@ -246,7 +308,8 @@ async def _run_batch_processing(job_id: str, request_params: dict):
             already_processed += result.get("already_processed", 0)
             total_items += result.get("total", 0)
             processed_items += result.get("processed", 0)
-            failed_items += result.get("failed", 0)
+            # Include download_failed in failed count
+            failed_items += result.get("failed", 0) + result.get("download_failed", 0)
             skipped_items += result.get("skipped", 0)
             all_results.extend(result.get("results", []))
 
@@ -268,7 +331,19 @@ async def _run_batch_processing(job_id: str, request_params: dict):
         job.skipped_items = already_processed  # Store already_processed as skipped_items
         job.total_cost_usd = total_cost if total_cost > 0 else None
         job.total_tokens = total_tokens if total_tokens > 0 else None
-        job.results_summary = json.dumps({"results_count": len(all_results)})
+        # Store detailed breakdown in results_summary
+        job.results_summary = json.dumps(
+            {
+                "results_count": len(all_results),
+                "breakdown": {
+                    "total_found": total_found,
+                    "already_processed": already_processed,
+                    "to_process": total_items,
+                    "processed": processed_items,
+                    "failed": failed_items,
+                },
+            }
+        )
         job.current_item = None
         db.commit()
 
@@ -299,6 +374,19 @@ def _update_job_progress(db: Session, job_id: str, current_item: str):
             db.commit()
     except Exception as e:
         logger.warning(f"Failed to update job progress: {e}")
+
+
+def _update_job_totals(db: Session, job_id: str, total_found: int, total_to_process: int, skipped: int):
+    """Update job totals at the start of processing."""
+    try:
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+        if job:
+            job.total_found = total_found
+            job.total_items = total_to_process
+            job.skipped_items = skipped
+            db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to update job totals: {e}")
 
 
 @router.get("/media-content", response_model=List[MediaContentResponse])
@@ -417,20 +505,24 @@ async def reprocess_batch(
             db.add(job)
             db.commit()
 
-            # Schedule background processing using asyncio.create_task
-            # This truly runs in background without blocking the response
-            asyncio.create_task(
-                _run_batch_processing(
-                    job_id,
-                    {
-                        "instance_name": request.instance_name,
-                        "days_back": request.days_back,
-                        "limit": request.limit if request.limit else None,  # 0 or None = no limit
-                        "language": request.language,
-                        "content_types": request.content_types,
-                        "force": request.force,
-                    },
-                )
+            # Schedule background processing in a thread pool to avoid blocking the event loop
+            # Using run_in_executor ensures synchronous DB operations don't block other requests
+            import concurrent.futures
+
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(
+                executor,
+                _run_batch_processing_sync,
+                job_id,
+                {
+                    "instance_name": request.instance_name,
+                    "days_back": request.days_back,
+                    "limit": request.limit if request.limit else None,  # 0 or None = no limit
+                    "language": request.language,
+                    "content_types": request.content_types,
+                    "force": request.force,
+                },
             )
 
             return BatchJobResponse(
@@ -638,6 +730,152 @@ async def cancel_batch_job(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/batch-jobs/{job_id}/details", response_model=BatchJobDetailsResponse)
+async def get_batch_job_details(
+    job_id: str,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get detailed results for a batch job, including individual processed and failed items.
+
+    Returns processed items with content preview and failed items with error messages.
+    """
+    from src.db.trace_models import MediaContent
+
+    try:
+        job = db.query(BatchJob).filter(BatchJob.job_id == job_id).first()
+
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+
+        # Parse request params to get content types and time range
+        request_params = {}
+        if job.request_params:
+            try:
+                request_params = json.loads(job.request_params)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        content_types = request_params.get("content_types", ["audio"])
+        instance_name = job.instance_name or request_params.get("instance_name")
+
+        # Map content types to media_content content_type values
+        content_type_map = {
+            "audio": "audio_transcript",
+            "image": "image_description",
+            "video": "video_description",
+            "document": "document_content",
+        }
+        mc_content_types = [content_type_map.get(ct, ct) for ct in content_types]
+
+        # Try to query by batch_job_id first (new jobs will have this set)
+        # Fall back to time-based filtering for older jobs without batch_job_id
+        has_batch_job_records = db.query(MediaContent).filter(MediaContent.batch_job_id == job_id).first() is not None
+
+        if has_batch_job_records:
+            # Use precise batch_job_id filtering
+            base_query = db.query(MediaContent).filter(
+                MediaContent.batch_job_id == job_id,
+            )
+        else:
+            # Fall back to time-based filtering for older jobs
+            cutoff_start = job.created_at - timedelta(minutes=5) if job.created_at else None
+            cutoff_end = job.completed_at + timedelta(minutes=5) if job.completed_at else datetime_utcnow()
+
+            base_query = db.query(MediaContent).filter(
+                MediaContent.content_type.in_(mc_content_types),
+            )
+
+            if instance_name:
+                base_query = base_query.filter(MediaContent.instance_name == instance_name)
+
+            if cutoff_start:
+                base_query = base_query.filter(MediaContent.created_at >= cutoff_start)
+
+            base_query = base_query.filter(MediaContent.created_at <= cutoff_end)
+
+        # Get processed items (status = completed)
+        processed_query = base_query.filter(MediaContent.status == "completed")
+        processed_count = processed_query.count()
+
+        # Get failed items (status = failed or has error_message)
+        failed_query = base_query.filter((MediaContent.status == "failed") | (MediaContent.error_message.isnot(None)))
+
+        # Paginate processed items
+        offset = (page - 1) * page_size
+        processed_records = (
+            processed_query.order_by(MediaContent.created_at.desc()).offset(offset).limit(page_size).all()
+        )
+
+        # Always include all failed items (usually small number)
+        failed_records = failed_query.order_by(MediaContent.created_at.desc()).limit(100).all()
+
+        # Build response items
+        processed_items = []
+        # Collect successfully processed message IDs to filter out from failed
+        successful_message_ids = set()
+        for mc in processed_records:
+            successful_message_ids.add((mc.original_message_id, mc.content_type))
+            processed_items.append(
+                BatchJobItemResult(
+                    message_id=mc.original_message_id or "unknown",
+                    content_type=mc.content_type,
+                    status="completed",
+                    processor_name=mc.processor_name,
+                    content_preview=mc.content[:200] + "..." if mc.content and len(mc.content) > 200 else mc.content,
+                    cost_usd=float(mc.cost_total_usd) if mc.cost_total_usd else None,
+                    processed_at=mc.processed_at,
+                )
+            )
+
+        # Filter out failed items that were later successfully processed
+        failed_items = []
+        for mc in failed_records:
+            # Skip if this item has a successful version
+            if (mc.original_message_id, mc.content_type) in successful_message_ids:
+                continue
+            failed_items.append(
+                BatchJobItemResult(
+                    message_id=mc.original_message_id or "unknown",
+                    content_type=mc.content_type,
+                    status="failed",
+                    error_message=mc.error_message,
+                    processor_name=mc.processor_name,
+                    processed_at=mc.created_at,
+                )
+            )
+
+        has_more = (offset + len(processed_records)) < processed_count
+
+        return BatchJobDetailsResponse(
+            job_id=job.job_id,
+            job_type=job.job_type,
+            status=job.status,
+            instance_name=instance_name,
+            total_found=job.total_found or 0,
+            processed_count=processed_count,
+            failed_count=len(failed_items),  # Use actual filtered count
+            skipped_count=job.skipped_items or 0,
+            processed_items=processed_items,
+            failed_items=failed_items,
+            page=page,
+            page_size=page_size,
+            has_more=has_more,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job details: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/media-content/reprocess-trace", response_model=MediaContentResponse)
 async def reprocess_trace(
     request: ReprocessTraceRequest,
@@ -678,6 +916,16 @@ async def reprocess_trace(
 # =============================================================================
 # Message Import Endpoints (Import from evo_Message to omni_messages)
 # =============================================================================
+
+
+def _run_message_import_sync(job_id: str, instance_name: str, days: int, batch_size: int):
+    """Synchronous wrapper to run message import in a thread pool."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_run_message_import(job_id, instance_name, days, batch_size))
+    finally:
+        loop.close()
 
 
 async def _run_message_import(job_id: str, instance_name: str, days: int, batch_size: int):
@@ -795,8 +1043,19 @@ async def import_messages(
             db.add(job)
             db.commit()
 
-            # Schedule background processing
-            asyncio.create_task(_run_message_import(job_id, request.instance_name, request.days, request.batch_size))
+            # Schedule background processing in a thread pool
+            import concurrent.futures
+
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(
+                executor,
+                _run_message_import_sync,
+                job_id,
+                request.instance_name,
+                request.days,
+                request.batch_size,
+            )
 
             return MessageImportJobResponse(
                 job_id=job_id,
@@ -949,6 +1208,16 @@ async def list_stored_messages(
 # =============================================================================
 
 
+def _run_omni_batch_processing_sync(job_id: str, request_params: dict):
+    """Synchronous wrapper to run omni batch processing in a thread pool."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_run_omni_batch_processing(job_id, request_params))
+    finally:
+        loop.close()
+
+
 async def _run_omni_batch_processing(job_id: str, request_params: dict):
     """Background task to batch process media from omni_messages."""
     db = SessionLocal()
@@ -979,6 +1248,10 @@ async def _run_omni_batch_processing(job_id: str, request_params: dict):
             force=force,
             db=db,
             progress_callback=lambda item: _update_job_progress(db, job_id, item),
+            batch_job_id=job_id,
+            totals_callback=lambda found, to_process, skipped: _update_job_totals(
+                db, job_id, found, to_process, skipped
+            ),
         )
 
         # Calculate totals
@@ -1083,18 +1356,23 @@ async def reprocess_from_omni_messages(
             db.add(job)
             db.commit()
 
-            asyncio.create_task(
-                _run_omni_batch_processing(
-                    job_id,
-                    {
-                        "content_type": request.content_type,
-                        "instance_name": request.instance_name,
-                        "days_back": request.days_back,
-                        "limit": request.limit,
-                        "language": request.language,
-                        "force": request.force,
-                    },
-                )
+            # Schedule background processing in a thread pool
+            import concurrent.futures
+
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(
+                executor,
+                _run_omni_batch_processing_sync,
+                job_id,
+                {
+                    "content_type": request.content_type,
+                    "instance_name": request.instance_name,
+                    "days_back": request.days_back,
+                    "limit": request.limit,
+                    "language": request.language,
+                    "force": request.force,
+                },
             )
 
             return BatchJobResponse(
@@ -1347,6 +1625,9 @@ async def _run_discord_import(
     skip_channels: Optional[List[str]],
 ):
     """Background task to import Discord history."""
+    # Yield immediately to allow the API response to return
+    await asyncio.sleep(0)
+
     db = SessionLocal()
     try:
         # Update job to processing

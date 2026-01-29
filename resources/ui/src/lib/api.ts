@@ -102,6 +102,33 @@ export interface BatchJobStartResponse {
   message: string;
 }
 
+export interface BatchJobItemResult {
+  message_id: string;
+  content_type: string;
+  status: string;
+  error_message: string | null;
+  processor_name: string | null;
+  content_preview: string | null;
+  cost_usd: number | null;
+  processed_at: string | null;
+}
+
+export interface BatchJobDetails {
+  job_id: string;
+  job_type: string;
+  status: string;
+  instance_name: string | null;
+  total_found: number;
+  processed_count: number;
+  failed_count: number;
+  skipped_count: number;
+  processed_items: BatchJobItemResult[];
+  failed_items: BatchJobItemResult[];
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
 // Media Content Types
 export interface MediaContent {
   id: number;
@@ -1740,6 +1767,14 @@ export const api = {
 
     async get(jobId: string): Promise<BatchJob> {
       return apiRequest(`/batch-jobs/${jobId}`);
+    },
+
+    async getDetails(jobId: string, params?: { page?: number; page_size?: number }): Promise<BatchJobDetails> {
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+      const query = queryParams.toString();
+      return apiRequest(`/batch-jobs/${jobId}/details${query ? `?${query}` : ''}`);
     },
 
     async cancel(jobId: string): Promise<{ message: string; status: string }> {

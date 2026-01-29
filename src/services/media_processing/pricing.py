@@ -128,6 +128,34 @@ OPENAI_GPT4O_MINI_TRANSCRIBE = PricingRate(
     description="OpenAI GPT-4o Mini Transcribe - Cost-effective",
 )
 
+# OpenAI Vision (for image description fallback)
+OPENAI_GPT4O_MINI_VISION = PricingRate(
+    model_id="gpt-4o-mini",
+    provider="openai",
+    unit=PricingUnit.PER_MILLION_TOKENS,
+    input_rate=Decimal("0.15"),  # $0.15 per 1M input tokens
+    output_rate=Decimal("0.60"),  # $0.60 per 1M output tokens
+    description="OpenAI GPT-4o Mini Vision - Cost-effective image analysis",
+)
+
+OPENAI_GPT4O_VISION = PricingRate(
+    model_id="gpt-4o",
+    provider="openai",
+    unit=PricingUnit.PER_MILLION_TOKENS,
+    input_rate=Decimal("2.50"),  # $2.50 per 1M input tokens
+    output_rate=Decimal("10.00"),  # $10.00 per 1M output tokens
+    description="OpenAI GPT-4o Vision - High quality image analysis",
+)
+
+OPENAI_GPT5_NANO_VISION = PricingRate(
+    model_id="gpt-5-nano",
+    provider="openai",
+    unit=PricingUnit.PER_MILLION_TOKENS,
+    input_rate=Decimal("0.05"),  # $0.05 per 1M input tokens
+    output_rate=Decimal("0.40"),  # $0.40 per 1M output tokens
+    description="OpenAI GPT-5 Nano Vision - Cheapest multimodal model",
+)
+
 
 # =============================================================================
 # GOOGLE GEMINI PRICING (January 2026)
@@ -185,6 +213,10 @@ PRICING_REGISTRY: dict[str, PricingRate] = {
     "openai_whisper:whisper-1": OPENAI_WHISPER,
     "openai_whisper:gpt-4o-transcribe": OPENAI_GPT4O_TRANSCRIBE,
     "openai_whisper:gpt-4o-mini-transcribe": OPENAI_GPT4O_MINI_TRANSCRIBE,
+    # OpenAI Vision (images - fallback)
+    "openai_vision:gpt-5-nano": OPENAI_GPT5_NANO_VISION,
+    "openai_vision:gpt-4o-mini": OPENAI_GPT4O_MINI_VISION,
+    "openai_vision:gpt-4o": OPENAI_GPT4O_VISION,
     # Gemini Vision (images)
     "gemini_vision:gemini-2.0-flash": GEMINI_2_0_FLASH,
     "gemini_vision:gemini-2.0-flash-exp": GEMINI_2_0_FLASH,  # Alias

@@ -317,6 +317,9 @@ class MediaContent(Base):
     error_message = Column(Text)
     retry_count = Column(Integer, default=0)
 
+    # Batch job link (for tracking which job processed this item)
+    batch_job_id = Column(String(36), ForeignKey("omni_batch_jobs.job_id"), index=True, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime_utcnow, index=True)
     processed_at = Column(DateTime)
@@ -356,6 +359,7 @@ class MediaContent(Base):
             "status": self.status,
             "error_message": self.error_message,
             "retry_count": self.retry_count,
+            "batch_job_id": self.batch_job_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "processed_at": self.processed_at.isoformat() if self.processed_at else None,
         }
