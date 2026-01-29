@@ -275,14 +275,22 @@ class MessageRouter:
                         logger.error(f"Agno API error: {e}")
                         return {"response": str(e), "success": False}
 
-                # Run the async function
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
+                # Run the async function in a thread to avoid event loop conflicts
+                from concurrent.futures import ThreadPoolExecutor
+
+                def run_async_in_thread():
+                    """Run async code in a new thread with its own event loop."""
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(call_agno())
+                    finally:
+                        loop.close()
 
-                response = loop.run_until_complete(call_agno())
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(run_async_in_thread)
+                    response = future.result(timeout=120)  # 2 minute timeout
+
                 return response.get("response", "Error processing Agno request")
 
             elif agent_config and "api_url" in agent_config:

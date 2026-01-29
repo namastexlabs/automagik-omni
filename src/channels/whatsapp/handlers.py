@@ -606,21 +606,28 @@ class WhatsAppMessageHandler:
                             logger.warning("Audio processor not configured (missing API keys)")
                             return None
 
-                        # Run async processing
+                        # Run async processing in a thread to avoid event loop conflicts
                         from pathlib import Path
+                        from concurrent.futures import ThreadPoolExecutor
 
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            result = loop.run_until_complete(
-                                media_processing_service._audio_processor.process(
-                                    file_path=Path(temp_path),
-                                    mime_type=mime_type,
-                                    language=language,
+                        def run_async_in_thread():
+                            """Run async code in a new thread with its own event loop."""
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                return loop.run_until_complete(
+                                    media_processing_service._audio_processor.process(
+                                        file_path=Path(temp_path),
+                                        mime_type=mime_type,
+                                        language=language,
+                                    )
                                 )
-                            )
-                        finally:
-                            loop.close()
+                            finally:
+                                loop.close()
+
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(run_async_in_thread)
+                            result = future.result(timeout=120)  # 2 minute timeout
 
                         if result.success and result.content:
                             logger.info(f"Audio transcribed: {result.content[:100]}...")
@@ -687,21 +694,28 @@ class WhatsAppMessageHandler:
                         if caption:
                             custom_prompt = f"The user sent this image with the caption: '{caption}'\n\n{media_processing_service._image_processor.prompt}"
 
-                        # Run async processing
+                        # Run async processing in a thread to avoid event loop conflicts
                         from pathlib import Path
+                        from concurrent.futures import ThreadPoolExecutor
 
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            result = loop.run_until_complete(
-                                media_processing_service._image_processor.process(
-                                    file_path=Path(temp_path),
-                                    mime_type=mime_type,
-                                    custom_prompt=custom_prompt,
+                        def run_async_in_thread():
+                            """Run async code in a new thread with its own event loop."""
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                return loop.run_until_complete(
+                                    media_processing_service._image_processor.process(
+                                        file_path=Path(temp_path),
+                                        mime_type=mime_type,
+                                        custom_prompt=custom_prompt,
+                                    )
                                 )
-                            )
-                        finally:
-                            loop.close()
+                            finally:
+                                loop.close()
+
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(run_async_in_thread)
+                            result = future.result(timeout=120)  # 2 minute timeout
 
                         if result.success and result.content:
                             logger.info(f"Image described: {result.content[:100]}...")
@@ -775,21 +789,28 @@ class WhatsAppMessageHandler:
                         if caption:
                             custom_prompt = f"The user sent this video with the caption: '{caption}'\n\n{media_processing_service._video_processor.prompt}"
 
-                        # Run async processing
+                        # Run async processing in a thread to avoid event loop conflicts
                         from pathlib import Path
+                        from concurrent.futures import ThreadPoolExecutor
 
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            result = loop.run_until_complete(
-                                media_processing_service._video_processor.process(
-                                    file_path=Path(temp_path),
-                                    mime_type=mime_type,
-                                    custom_prompt=custom_prompt,
+                        def run_async_in_thread():
+                            """Run async code in a new thread with its own event loop."""
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                return loop.run_until_complete(
+                                    media_processing_service._video_processor.process(
+                                        file_path=Path(temp_path),
+                                        mime_type=mime_type,
+                                        custom_prompt=custom_prompt,
+                                    )
                                 )
-                            )
-                        finally:
-                            loop.close()
+                            finally:
+                                loop.close()
+
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(run_async_in_thread)
+                            result = future.result(timeout=120)  # 2 minute timeout
 
                         if result.success and result.content:
                             logger.info(f"Video described: {result.content[:100]}...")
@@ -871,20 +892,27 @@ class WhatsAppMessageHandler:
                             logger.warning("Document processor not initialized")
                             return None
 
-                        # Run async processing
+                        # Run async processing in a thread to avoid event loop conflicts
                         from pathlib import Path
+                        from concurrent.futures import ThreadPoolExecutor
 
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            result = loop.run_until_complete(
-                                media_processing_service._document_processor.process(
-                                    file_path=Path(temp_path),
-                                    mime_type=mime_type,
+                        def run_async_in_thread():
+                            """Run async code in a new thread with its own event loop."""
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                return loop.run_until_complete(
+                                    media_processing_service._document_processor.process(
+                                        file_path=Path(temp_path),
+                                        mime_type=mime_type,
+                                    )
                                 )
-                            )
-                        finally:
-                            loop.close()
+                            finally:
+                                loop.close()
+
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(run_async_in_thread)
+                            result = future.result(timeout=120)  # 2 minute timeout
 
                         if result.success and result.content:
                             logger.info(f"Document extracted: {result.content[:100]}...")
