@@ -316,6 +316,23 @@ class InstanceConfigUpdate(BaseModel):
         return data
 
 
+class InstanceProfileUpdate(BaseModel):
+    """Schema for updating instance profile (name, picture, status/activity)."""
+
+    # WhatsApp profile fields
+    profile_name: Optional[str] = Field(None, description="New profile name (WhatsApp)")
+    profile_status: Optional[str] = Field(None, description="New status/bio text (WhatsApp)")
+    profile_picture_url: Optional[str] = Field(None, description="URL to new profile picture (WhatsApp)")
+
+    # Discord bot fields
+    bot_username: Optional[str] = Field(None, description="New bot username (Discord, rate limited to 2/hour)")
+    bot_avatar_url: Optional[str] = Field(None, description="URL to new bot avatar image (Discord)")
+    activity_type: Optional[str] = Field(
+        None, description="Activity type: playing, watching, listening, competing (Discord)"
+    )
+    activity_name: Optional[str] = Field(None, description="Activity name/description (Discord)")
+
+
 class WhatsAppWebStatusInfo(BaseModel):
     """Schema for WhatsApp Web API connection status information."""
 
@@ -1142,6 +1159,119 @@ async def logout_instance(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to logout instance: {str(e)}",
+        )
+
+
+@router.put(
+    "/instances/{instance_name}/profile",
+    summary="Update Instance Profile",
+    description="Update the profile of an instance (name, picture, status for WhatsApp; username, avatar, activity for Discord)",
+)
+async def update_instance_profile(
+    instance_name: str,
+    profile_data: InstanceProfileUpdate,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Update instance profile settings.
+
+    For WhatsApp:
+    - profile_name: Update the display name
+    - profile_status: Update the status/bio text
+    - profile_picture_url: Update the profile picture (URL to image)
+
+    For Discord:
+    - bot_username: Update the bot username (rate limited to 2 changes per hour by Discord)
+    - bot_avatar_url: Update the bot avatar (URL to image)
+    - activity_type: Set activity type (playing, watching, listening, competing)
+    - activity_name: Set activity description
+    """
+    # Normalize instance name
+    instance_name = normalize_instance_name(instance_name)
+
+    # Get instance
+    instance = db.query(InstanceConfig).filter(InstanceConfig.name == instance_name).first()
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance '{instance_name}' not found",
+        )
+
+    results = {"updated": [], "errors": []}
+
+    try:
+        if instance.channel_type == "whatsapp":
+            # Import WhatsApp sender
+            from src.channels.whatsapp.evolution_api_sender import EvolutionApiSender
+
+            sender = EvolutionApiSender(
+                server_url=ensure_ipv4_in_config(instance.evolution_url),
+                api_key=instance.evolution_key,
+                instance_name=instance.whatsapp_instance or instance.name,
+            )
+
+            # Update profile name
+            if profile_data.profile_name:
+                if sender.update_profile_name(profile_data.profile_name):
+                    results["updated"].append("profile_name")
+                else:
+                    results["errors"].append("Failed to update profile name")
+
+            # Update profile status
+            if profile_data.profile_status:
+                if sender.update_profile_status(profile_data.profile_status):
+                    results["updated"].append("profile_status")
+                else:
+                    results["errors"].append("Failed to update profile status")
+
+            # Update profile picture
+            if profile_data.profile_picture_url:
+                if sender.update_profile_picture(profile_data.profile_picture_url):
+                    results["updated"].append("profile_picture")
+                else:
+                    results["errors"].append("Failed to update profile picture")
+
+        elif instance.channel_type == "discord":
+            # Get Discord handler and update profile
+            handler = ChannelHandlerFactory.get_handler("discord")
+            update_result = await handler.update_profile(
+                instance=instance,
+                username=profile_data.bot_username,
+                avatar_url=profile_data.bot_avatar_url,
+                activity_type=profile_data.activity_type,
+                activity_name=profile_data.activity_name,
+            )
+
+            if update_result.get("success"):
+                results["updated"].extend(update_result.get("updated", []))
+            if update_result.get("errors"):
+                results["errors"].extend(update_result.get("errors", []))
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Profile update not supported for channel type '{instance.channel_type}'",
+            )
+
+        # Determine success
+        success = len(results["updated"]) > 0 or len(results["errors"]) == 0
+
+        return {
+            "success": success,
+            "instance_name": instance_name,
+            "channel_type": instance.channel_type,
+            "updated": results["updated"],
+            "errors": results["errors"],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update instance profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update instance profile: {str(e)}",
         )
 
 

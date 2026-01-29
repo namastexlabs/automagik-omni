@@ -18,7 +18,13 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { api } from '@/lib';
-import type { InstanceConfig, InstanceUpdateRequest, AgentProvider } from '@/lib';
+import type {
+  InstanceConfig,
+  InstanceUpdateRequest,
+  AgentProvider,
+  InstanceProfileUpdate,
+  InstanceProfileUpdateResponse,
+} from '@/lib';
 import {
   Wifi,
   WifiOff,
@@ -41,7 +47,10 @@ import {
   Users,
   History,
   Layers,
+  Pencil,
+  X,
 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { WhatsAppIcon, DiscordIcon } from '@/components/icons/BrandIcons';
 
 export default function InstanceSettings() {
@@ -75,6 +84,20 @@ export default function InstanceSettings() {
     message_split_delay_max_ms: 1000,
     disable_username_prefix: false,
     process_media_on_blocked: true,
+  });
+
+  // Profile editing state
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    // WhatsApp fields
+    profile_name: '',
+    profile_status: '',
+    profile_picture_url: '',
+    // Discord fields
+    bot_username: '',
+    bot_avatar_url: '',
+    activity_type: '' as '' | 'playing' | 'watching' | 'listening' | 'competing',
+    activity_name: '',
   });
 
   // Behavior form (WhatsApp Evolution settings)
@@ -212,6 +235,23 @@ export default function InstanceSettings() {
     onError: (err: Error) => toast.error(err.message || 'Failed to save behavior settings'),
   });
 
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: InstanceProfileUpdate) =>
+      api.instances.updateProfile(instanceName!, data) as Promise<InstanceProfileUpdateResponse>,
+    onSuccess: (result) => {
+      if (result.updated.length > 0) {
+        toast.success(`Profile updated: ${result.updated.join(', ')}`);
+      }
+      if (result.errors.length > 0) {
+        result.errors.forEach((error) => toast.error(error));
+      }
+      setProfileEditing(false);
+      queryClient.invalidateQueries({ queryKey: ['connection-state', instanceName] });
+      queryClient.invalidateQueries({ queryKey: ['instance', instanceName] });
+    },
+    onError: (err: Error) => toast.error(err.message || 'Failed to update profile'),
+  });
+
   // Helpers
   const updateAgentForm = <K extends keyof typeof agentForm>(key: K, value: (typeof agentForm)[K]) => {
     setAgentForm((prev) => ({ ...prev, [key]: value }));
@@ -226,6 +266,58 @@ export default function InstanceSettings() {
   const updateBehaviorForm = <K extends keyof typeof behaviorForm>(key: K, value: (typeof behaviorForm)[K]) => {
     setBehaviorForm((prev) => ({ ...prev, [key]: value }));
     setBehaviorHasChanges(true);
+  };
+
+  const updateProfileForm = <K extends keyof typeof profileForm>(key: K, value: (typeof profileForm)[K]) => {
+    setProfileForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSaveProfile = () => {
+    const data: InstanceProfileUpdate = {};
+
+    if (instance?.channel_type === 'whatsapp') {
+      if (profileForm.profile_name.trim()) data.profile_name = profileForm.profile_name.trim();
+      if (profileForm.profile_status.trim()) data.profile_status = profileForm.profile_status.trim();
+      if (profileForm.profile_picture_url.trim()) data.profile_picture_url = profileForm.profile_picture_url.trim();
+    } else if (instance?.channel_type === 'discord') {
+      if (profileForm.bot_username.trim()) data.bot_username = profileForm.bot_username.trim();
+      if (profileForm.bot_avatar_url.trim()) data.bot_avatar_url = profileForm.bot_avatar_url.trim();
+      if (profileForm.activity_type) data.activity_type = profileForm.activity_type;
+      if (profileForm.activity_name.trim()) data.activity_name = profileForm.activity_name.trim();
+    }
+
+    if (Object.keys(data).length === 0) {
+      toast.error('No changes to save');
+      return;
+    }
+
+    updateProfileMutation.mutate(data);
+  };
+
+  const startProfileEditing = () => {
+    // Initialize form with current values
+    if (instance?.channel_type === 'whatsapp') {
+      setProfileForm({
+        profile_name: instance.profile_name || '',
+        profile_status: '',
+        profile_picture_url: '',
+        bot_username: '',
+        bot_avatar_url: '',
+        activity_type: '',
+        activity_name: '',
+      });
+    } else if (instance?.channel_type === 'discord' && connectionState?.channel_data?.bot) {
+      setProfileForm({
+        profile_name: '',
+        profile_status: '',
+        profile_picture_url: '',
+        bot_username: connectionState.channel_data.bot.name || '',
+        bot_avatar_url: '',
+        activity_type: '',
+        activity_name: '',
+      });
+    }
+    setProfileEditing(true);
   };
 
   const handleSave = () => {
@@ -374,19 +466,95 @@ export default function InstanceSettings() {
                   <CardContent className="space-y-6">
                     {/* WhatsApp Profile */}
                     {instance?.channel_type === 'whatsapp' && (instance?.profile_name || instance?.owner_jid) && (
-                      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-                        <Avatar className="h-16 w-16">
-                          <AvatarImage src={instance?.profile_pic_url || undefined} />
-                          <AvatarFallback>
-                            <User className="h-8 w-8" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{instance?.profile_name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {instance?.owner_jid?.replace('@s.whatsapp.net', '')}
-                          </p>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                          <div className="relative group">
+                            <Avatar className="h-16 w-16">
+                              <AvatarImage src={instance?.profile_pic_url || undefined} />
+                              <AvatarFallback>
+                                <User className="h-8 w-8" />
+                              </AvatarFallback>
+                            </Avatar>
+                            {isConnected && !profileEditing && (
+                              <button
+                                onClick={startProfileEditing}
+                                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Pencil className="h-5 w-5 text-white" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium">{instance?.profile_name || 'Unknown'}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {instance?.owner_jid?.replace('@s.whatsapp.net', '')}
+                            </p>
+                          </div>
+                          {isConnected && !profileEditing && (
+                            <Button variant="outline" size="sm" onClick={startProfileEditing}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit Profile
+                            </Button>
+                          )}
                         </div>
+
+                        {/* WhatsApp Profile Edit Form */}
+                        {profileEditing && instance?.channel_type === 'whatsapp' && (
+                          <div className="p-4 border rounded-lg space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium">Edit Profile</h4>
+                              <Button variant="ghost" size="sm" onClick={() => setProfileEditing(false)}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                <Label htmlFor="wa-profile-name">Profile Name</Label>
+                                <Input
+                                  id="wa-profile-name"
+                                  placeholder="Enter new profile name"
+                                  value={profileForm.profile_name}
+                                  onChange={(e) => updateProfileForm('profile_name', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="wa-profile-status">Status / Bio</Label>
+                                <Textarea
+                                  id="wa-profile-status"
+                                  placeholder="Enter new status message"
+                                  value={profileForm.profile_status}
+                                  onChange={(e) => updateProfileForm('profile_status', e.target.value)}
+                                  rows={3}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="wa-profile-picture">Profile Picture URL</Label>
+                                <Input
+                                  id="wa-profile-picture"
+                                  placeholder="https://example.com/image.jpg"
+                                  value={profileForm.profile_picture_url}
+                                  onChange={(e) => updateProfileForm('profile_picture_url', e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Enter a URL to an image (must be publicly accessible)
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                              <Button onClick={handleSaveProfile} disabled={updateProfileMutation.isPending}>
+                                {updateProfileMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Save className="h-4 w-4 mr-2" />
+                                )}
+                                Save Profile
+                              </Button>
+                              <Button variant="outline" onClick={() => setProfileEditing(false)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -394,12 +562,22 @@ export default function InstanceSettings() {
                     {instance?.channel_type === 'discord' && connectionState?.channel_data?.bot && (
                       <div className="space-y-4">
                         <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-                          <Avatar className="h-16 w-16">
-                            <AvatarImage src={connectionState.channel_data.bot.avatar_url || undefined} />
-                            <AvatarFallback>
-                              <DiscordIcon className="h-8 w-8 text-[#5865F2]" />
-                            </AvatarFallback>
-                          </Avatar>
+                          <div className="relative group">
+                            <Avatar className="h-16 w-16">
+                              <AvatarImage src={connectionState.channel_data.bot.avatar_url || undefined} />
+                              <AvatarFallback>
+                                <DiscordIcon className="h-8 w-8 text-[#5865F2]" />
+                              </AvatarFallback>
+                            </Avatar>
+                            {!profileEditing && (
+                              <button
+                                onClick={startProfileEditing}
+                                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Pencil className="h-5 w-5 text-white" />
+                              </button>
+                            )}
+                          </div>
                           <div className="flex-1">
                             <p className="font-medium text-lg">
                               {connectionState.channel_data.bot.display_name || connectionState.channel_data.bot.name}
@@ -417,7 +595,101 @@ export default function InstanceSettings() {
                               )}
                             </div>
                           </div>
+                          {!profileEditing && (
+                            <Button variant="outline" size="sm" onClick={startProfileEditing}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit Profile
+                            </Button>
+                          )}
                         </div>
+
+                        {/* Discord Profile Edit Form */}
+                        {profileEditing && instance?.channel_type === 'discord' && (
+                          <div className="p-4 border rounded-lg space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium">Edit Bot Profile</h4>
+                              <Button variant="ghost" size="sm" onClick={() => setProfileEditing(false)}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                <Label htmlFor="discord-username">Bot Username</Label>
+                                <Input
+                                  id="discord-username"
+                                  placeholder="Enter new bot username"
+                                  value={profileForm.bot_username}
+                                  onChange={(e) => updateProfileForm('bot_username', e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground text-yellow-600">
+                                  Discord limits username changes to 2 per hour
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="discord-avatar">Avatar URL</Label>
+                                <Input
+                                  id="discord-avatar"
+                                  placeholder="https://example.com/avatar.png"
+                                  value={profileForm.bot_avatar_url}
+                                  onChange={(e) => updateProfileForm('bot_avatar_url', e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Enter a URL to an image (PNG, JPG, or GIF)
+                                </p>
+                              </div>
+                              <Separator />
+                              <div className="space-y-2">
+                                <Label>Bot Activity</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-2">
+                                    <Select
+                                      value={profileForm.activity_type || 'none'}
+                                      onValueChange={(val) =>
+                                        updateProfileForm(
+                                          'activity_type',
+                                          val === 'none' ? '' : (val as typeof profileForm.activity_type),
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Activity type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">No Activity</SelectItem>
+                                        <SelectItem value="playing">Playing</SelectItem>
+                                        <SelectItem value="watching">Watching</SelectItem>
+                                        <SelectItem value="listening">Listening to</SelectItem>
+                                        <SelectItem value="competing">Competing in</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <Input
+                                    placeholder="Activity name"
+                                    value={profileForm.activity_name}
+                                    onChange={(e) => updateProfileForm('activity_name', e.target.value)}
+                                    disabled={!profileForm.activity_type}
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Set what the bot appears to be doing (e.g., "Playing Minecraft")
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                              <Button onClick={handleSaveProfile} disabled={updateProfileMutation.isPending}>
+                                {updateProfileMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Save className="h-4 w-4 mr-2" />
+                                )}
+                                Save Profile
+                              </Button>
+                              <Button variant="outline" onClick={() => setProfileEditing(false)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Connected Servers */}
                         {connectionState.channel_data.guilds && connectionState.channel_data.guilds.length > 0 && (

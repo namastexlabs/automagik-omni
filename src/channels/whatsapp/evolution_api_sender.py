@@ -738,6 +738,70 @@ class EvolutionApiSender:
             logger.error(f"Failed to update profile picture: {str(e)}")
             return False
 
+    def update_profile_name(self, name: str) -> bool:
+        """
+        Update the instance's profile name via Evolution API.
+
+        Args:
+            name: New profile name to set
+
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot update profile name: missing server URL, API key, or instance name")
+            return False
+
+        url = f"{self.server_url}/chat/updateProfileName/{quote(self.instance_name, safe='')}"
+
+        headers = {"apikey": self.api_key, "Content-Type": "application/json"}
+
+        payload = {"name": name}
+
+        try:
+            logger.info(f"Updating profile name for instance {self.instance_name}")
+            response = requests.post(url, headers=headers, json=payload)
+
+            response.raise_for_status()
+            logger.info(f"Profile name updated for instance {self.instance_name}")
+            return True
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to update profile name: {str(e)}")
+            return False
+
+    def update_profile_status(self, status: str) -> bool:
+        """
+        Update the instance's profile status/bio via Evolution API.
+
+        Args:
+            status: New status/bio text to set
+
+        Returns:
+            bool: Success status
+        """
+        if not all([self.server_url, self.api_key, self.instance_name]):
+            logger.error("Cannot update profile status: missing server URL, API key, or instance name")
+            return False
+
+        url = f"{self.server_url}/chat/updateProfileStatus/{quote(self.instance_name, safe='')}"
+
+        headers = {"apikey": self.api_key, "Content-Type": "application/json"}
+
+        payload = {"status": status}
+
+        try:
+            logger.info(f"Updating profile status for instance {self.instance_name}")
+            response = requests.post(url, headers=headers, json=payload)
+
+            response.raise_for_status()
+            logger.info(f"Profile status updated for instance {self.instance_name}")
+            return True
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to update profile status: {str(e)}")
+            return False
+
     def send_presence(
         self,
         recipient: str,

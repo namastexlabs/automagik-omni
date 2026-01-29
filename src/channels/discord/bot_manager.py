@@ -1302,6 +1302,7 @@ class DiscordBotManager:
             app.router.add_post("/send", self._handle_ipc_send_message)
             app.router.add_get("/health", self._handle_ipc_health_check)
             app.router.add_get("/status", self._handle_ipc_status)
+            app.router.add_post("/update-profile", self._handle_ipc_update_profile)
 
             # Store instance name in app for handler access
             app["instance_name"] = instance_name
@@ -1427,6 +1428,101 @@ class DiscordBotManager:
             ]
 
         return web.json_response(response)
+
+    async def _handle_ipc_update_profile(self, request: web.Request) -> web.Response:
+        """Handle IPC request to update bot profile (username, avatar, activity)."""
+        try:
+            instance_name = request.app["instance_name"]
+            manager = request.app["manager"]
+
+            bot = manager.bots.get(instance_name)
+            if not bot:
+                return web.json_response({"success": False, "error": "Bot not found"}, status=404)
+
+            if not bot.is_ready() or not bot.user:
+                return web.json_response({"success": False, "error": "Bot not connected"}, status=503)
+
+            data = await request.json()
+            username = data.get("username")
+            avatar_url = data.get("avatar_url")
+            activity_type = data.get("activity_type")
+            activity_name = data.get("activity_name")
+
+            results = {"updated": [], "errors": []}
+
+            # Update username and/or avatar if provided
+            if username or avatar_url:
+                try:
+                    edit_kwargs = {}
+                    if username:
+                        edit_kwargs["username"] = username
+                    if avatar_url:
+                        # Fetch avatar image from URL
+                        import aiohttp
+
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(avatar_url) as resp:
+                                if resp.status == 200:
+                                    avatar_data = await resp.read()
+                                    edit_kwargs["avatar"] = avatar_data
+                                else:
+                                    results["errors"].append(f"Failed to fetch avatar: HTTP {resp.status}")
+
+                    if edit_kwargs:
+                        await bot.user.edit(**edit_kwargs)
+                        if "username" in edit_kwargs:
+                            results["updated"].append("username")
+                        if "avatar" in edit_kwargs:
+                            results["updated"].append("avatar")
+                except discord.HTTPException as e:
+                    if "rate limited" in str(e).lower() or e.status == 429:
+                        results["errors"].append("Rate limited: Discord username changes are limited to 2 per hour")
+                    else:
+                        results["errors"].append(f"Failed to update profile: {str(e)}")
+                except Exception as e:
+                    results["errors"].append(f"Failed to update profile: {str(e)}")
+
+            # Update presence/activity if provided
+            if activity_type and activity_name:
+                try:
+                    activity_types = {
+                        "playing": discord.ActivityType.playing,
+                        "watching": discord.ActivityType.watching,
+                        "listening": discord.ActivityType.listening,
+                        "competing": discord.ActivityType.competing,
+                    }
+                    activity_enum = activity_types.get(activity_type.lower())
+                    if activity_enum:
+                        activity = discord.Activity(type=activity_enum, name=activity_name)
+                        await bot.change_presence(activity=activity)
+                        results["updated"].append("activity")
+                    else:
+                        results["errors"].append(f"Invalid activity type: {activity_type}")
+                except Exception as e:
+                    results["errors"].append(f"Failed to update activity: {str(e)}")
+            elif activity_type is None and activity_name is None and data.get("clear_activity"):
+                # Clear activity if explicitly requested
+                try:
+                    await bot.change_presence(activity=None)
+                    results["updated"].append("activity_cleared")
+                except Exception as e:
+                    results["errors"].append(f"Failed to clear activity: {str(e)}")
+
+            success = len(results["updated"]) > 0 or len(results["errors"]) == 0
+            return web.json_response(
+                {
+                    "success": success,
+                    "instance": instance_name,
+                    "updated": results["updated"],
+                    "errors": results["errors"],
+                }
+            )
+
+        except json.JSONDecodeError:
+            return web.json_response({"success": False, "error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            logger.error(f"IPC update profile error: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
 # Utility functions for Discord message formatting

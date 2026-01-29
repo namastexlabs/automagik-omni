@@ -165,6 +165,28 @@ export interface InstanceUpdateRequest {
   process_media_on_blocked?: boolean;
 }
 
+// Instance Profile Update Types
+export interface InstanceProfileUpdate {
+  // WhatsApp profile fields
+  profile_name?: string;
+  profile_status?: string;
+  profile_picture_url?: string;
+
+  // Discord bot fields
+  bot_username?: string;
+  bot_avatar_url?: string;
+  activity_type?: 'playing' | 'watching' | 'listening' | 'competing';
+  activity_name?: string;
+}
+
+export interface InstanceProfileUpdateResponse {
+  success: boolean;
+  instance_name: string;
+  channel_type: 'whatsapp' | 'discord';
+  updated: string[];
+  errors: string[];
+}
+
 // Contact Types
 export type OmniContactStatus = 'available' | 'unavailable' | 'composing' | 'recording' | 'paused';
 

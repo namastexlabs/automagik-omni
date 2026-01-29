@@ -551,6 +551,30 @@ export const api = {
       });
     },
 
+    async updateProfile(
+      name: string,
+      data: {
+        profile_name?: string;
+        profile_status?: string;
+        profile_picture_url?: string;
+        bot_username?: string;
+        bot_avatar_url?: string;
+        activity_type?: 'playing' | 'watching' | 'listening' | 'competing';
+        activity_name?: string;
+      },
+    ): Promise<{
+      success: boolean;
+      instance_name: string;
+      channel_type: string;
+      updated: string[];
+      errors: string[];
+    }> {
+      return apiRequest(`/instances/${name}/profile`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
     async discover(): Promise<{
       message: string;
       instances: Array<{

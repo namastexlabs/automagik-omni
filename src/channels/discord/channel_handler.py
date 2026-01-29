@@ -1207,6 +1207,82 @@ class DiscordChannelHandler(ChannelHandler):
                 channel_data={"error": str(e)},
             )
 
+    async def update_profile(
+        self,
+        instance: InstanceConfig,
+        username: str | None = None,
+        avatar_url: str | None = None,
+        activity_type: str | None = None,
+        activity_name: str | None = None,
+    ) -> Dict[str, Any]:
+        """Update Discord bot profile via IPC socket.
+
+        Args:
+            instance: Instance configuration
+            username: New bot username (rate limited to 2/hour by Discord)
+            avatar_url: URL to new avatar image
+            activity_type: Activity type (playing, watching, listening, competing)
+            activity_name: Activity name/description
+
+        Returns:
+            Dict with success status and updated fields or errors
+        """
+        try:
+            from src.ipc_config import IPCConfig
+            import aiohttp
+
+            socket_path = IPCConfig.get_socket_path("discord", instance.name)
+
+            # Check if socket exists
+            if not os.path.exists(socket_path):
+                logger.debug(f"Discord socket not found for '{instance.name}' at {socket_path}")
+                return {
+                    "success": False,
+                    "error": "Discord service not running for this instance",
+                }
+
+            # Build request payload
+            payload = {}
+            if username:
+                payload["username"] = username
+            if avatar_url:
+                payload["avatar_url"] = avatar_url
+            if activity_type:
+                payload["activity_type"] = activity_type
+            if activity_name:
+                payload["activity_name"] = activity_name
+
+            # Send update request via Unix socket
+            connector = aiohttp.UnixConnector(path=socket_path)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.post(
+                    "http://localhost/update-profile",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data
+                    else:
+                        error_data = await resp.json()
+                        return {
+                            "success": False,
+                            "error": error_data.get("error", f"HTTP {resp.status}"),
+                        }
+
+        except aiohttp.ClientError as e:
+            logger.debug(f"Cannot connect to Discord IPC socket for '{instance.name}': {e}")
+            return {
+                "success": False,
+                "error": "Cannot connect to Discord service",
+            }
+        except Exception as e:
+            logger.error(f"Failed to update Discord bot profile: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
     async def connect_instance(self, instance: InstanceConfig) -> Dict[str, Any]:
         """Connect Discord bot (same as create)."""
         try:
