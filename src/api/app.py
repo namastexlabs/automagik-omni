@@ -348,8 +348,8 @@ async def lifespan(app: FastAPI):
     from src.services.sync_job import start_sync_job, stop_sync_job
 
     try:
-        await start_sync_job(interval_minutes=2)  # Sync every 2 minutes
-        logger.info("🔄 Background sync job started (interval: 2 min)")
+        await start_sync_job(interval_minutes=30)  # Sync every 30 min (webhooks handle real-time)
+        logger.info("🔄 Background sync job started (interval: 30 min)")
     except Exception as e:
         logger.warning(f"Failed to start background sync job: {e}")
 
