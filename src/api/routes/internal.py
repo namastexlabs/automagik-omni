@@ -182,19 +182,21 @@ async def get_channel_startup_info(request: Request, db: Session = Depends(get_d
         # evo_Instance table might not exist yet
         pass
 
-    # Check for Discord instances that are enabled
+    # Check for Discord instances that are active and have a bot token
+    # This matches the logic in discord_service_manager.py
     try:
         discord_query = text("""
             SELECT name FROM omni_instance_configs
             WHERE channel_type = 'discord'
-              AND (channel_config->>'enabled')::boolean = true
+              AND is_active = true
+              AND discord_bot_token IS NOT NULL
         """)
         discord_rows = db.execute(discord_query).fetchall()
         result.discord_instances = [row[0] for row in discord_rows]
 
         if result.discord_instances:
             result.discord_needed = True
-            result.discord_reason = f"Found {len(result.discord_instances)} enabled Discord instance(s): {', '.join(result.discord_instances)}"
+            result.discord_reason = f"Found {len(result.discord_instances)} active Discord instance(s): {', '.join(result.discord_instances)}"
     except Exception:
         # Table might not exist or column might not be there
         pass

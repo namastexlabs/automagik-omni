@@ -1,11 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, TraceAnalytics, HealthResponse, cn, InstanceConfig } from '@/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { StatusBreakdownChart } from '../charts/StatusBreakdownChart';
 import { MessageTypesChart } from '../charts/MessageTypesChart';
 import { useTimeRange } from '../TimeRangeSelector';
-import { MessageSquare, CheckCircle, Clock, Server, Circle, MessageCircle } from 'lucide-react';
+import { MessageSquare, CheckCircle, Clock, Server, Circle, MessageCircle, Play, Square, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface MetricCardProps {
   title: string;
@@ -75,6 +77,7 @@ function InstanceCard({ name, status, messages, contacts, chats }: InstanceCardP
 
 export function OverviewTab() {
   const { dateRange } = useTimeRange();
+  const queryClient = useQueryClient();
 
   const {
     data: analytics,
@@ -116,6 +119,48 @@ export function OverviewTab() {
 
   const discordChannel = channelsData?.channels?.find((c: { name: string }) => c.name === 'discord');
   const isDiscordRunning = discordChannel?.running || false;
+  const evolutionStatus = health?.services?.evolution?.status;
+  const isEvolutionRunning = evolutionStatus === 'up';
+
+  // Service control mutations
+  const startEvolutionMutation = useMutation({
+    mutationFn: () => api.gateway.startChannel('evolution'),
+    onSuccess: () => {
+      toast.success('WhatsApp service starting...');
+      queryClient.invalidateQueries({ queryKey: ['health'] });
+    },
+    onError: (err: Error) => toast.error(`Failed to start WhatsApp: ${err.message}`),
+  });
+
+  const stopEvolutionMutation = useMutation({
+    mutationFn: () => api.gateway.stopChannel('evolution'),
+    onSuccess: () => {
+      toast.success('WhatsApp service stopped');
+      queryClient.invalidateQueries({ queryKey: ['health'] });
+    },
+    onError: (err: Error) => toast.error(`Failed to stop WhatsApp: ${err.message}`),
+  });
+
+  const startDiscordMutation = useMutation({
+    mutationFn: () => api.gateway.startChannel('discord'),
+    onSuccess: () => {
+      toast.success('Discord service starting...');
+      queryClient.invalidateQueries({ queryKey: ['gateway-channels'] });
+    },
+    onError: (err: Error) => toast.error(`Failed to start Discord: ${err.message}`),
+  });
+
+  const stopDiscordMutation = useMutation({
+    mutationFn: () => api.gateway.stopChannel('discord'),
+    onSuccess: () => {
+      toast.success('Discord service stopped');
+      queryClient.invalidateQueries({ queryKey: ['gateway-channels'] });
+    },
+    onError: (err: Error) => toast.error(`Failed to stop Discord: ${err.message}`),
+  });
+
+  const isEvolutionBusy = startEvolutionMutation.isPending || stopEvolutionMutation.isPending;
+  const isDiscordBusy = startDiscordMutation.isPending || stopDiscordMutation.isPending;
 
   // Separate instances by channel type
   const whatsappInstances = instances?.filter((i) => i.channel_type === 'whatsapp') || [];
@@ -226,10 +271,44 @@ export function OverviewTab() {
       {/* WhatsApp Instance Cards */}
       {whatsappInstances.length > 0 && (
         <div>
-          <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-[#25D366]" />
-            WhatsApp Instances
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-[#25D366]" />
+              WhatsApp Instances
+            </h3>
+            <div className="flex items-center gap-2">
+              {isEvolutionRunning ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => stopEvolutionMutation.mutate()}
+                  disabled={isEvolutionBusy}
+                >
+                  {stopEvolutionMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Square className="h-4 w-4 mr-1" />
+                  )}
+                  Stop
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-600 hover:text-green-700"
+                  onClick={() => startEvolutionMutation.mutate()}
+                  disabled={isEvolutionBusy}
+                >
+                  {startEvolutionMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-1" />
+                  )}
+                  Start
+                </Button>
+              )}
+            </div>
+          </div>
           {healthLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : evolutionDetails?.instanceDetails && evolutionDetails.instanceDetails.length > 0 ? (
@@ -254,10 +333,44 @@ export function OverviewTab() {
       {/* Discord Instance Cards */}
       {discordInstances.length > 0 && (
         <div>
-          <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-[#5865F2]" />
-            Discord Instances
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-[#5865F2]" />
+              Discord Instances
+            </h3>
+            <div className="flex items-center gap-2">
+              {isDiscordRunning ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => stopDiscordMutation.mutate()}
+                  disabled={isDiscordBusy}
+                >
+                  {stopDiscordMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Square className="h-4 w-4 mr-1" />
+                  )}
+                  Stop
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-600 hover:text-green-700"
+                  onClick={() => startDiscordMutation.mutate()}
+                  disabled={isDiscordBusy}
+                >
+                  {startDiscordMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-1" />
+                  )}
+                  Start
+                </Button>
+              )}
+            </div>
+          </div>
           {instancesLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : (
