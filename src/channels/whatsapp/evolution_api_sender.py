@@ -706,12 +706,12 @@ class EvolutionApiSender:
             logger.error(f"Failed to fetch profile: {str(e)}")
             return None
 
-    def update_profile_picture(self, picture_url: str) -> bool:
+    def update_profile_picture(self, picture: str) -> bool:
         """
         Update the instance's profile picture via Evolution API.
 
         Args:
-            picture_url: URL to the new profile picture
+            picture: URL to the new profile picture OR base64 data URL (data:image/...)
 
         Returns:
             bool: Success status
@@ -724,7 +724,7 @@ class EvolutionApiSender:
 
         headers = {"apikey": self.api_key, "Content-Type": "application/json"}
 
-        payload = {"picture": picture_url}
+        payload = {"picture": picture}
 
         try:
             logger.info(f"Updating profile picture for instance {self.instance_name}")

@@ -93,9 +93,13 @@ export default function InstanceSettings() {
     profile_name: '',
     profile_status: '',
     profile_picture_url: '',
+    profile_picture_base64: '',
+    profile_picture_preview: '', // For showing preview
     // Discord fields
     bot_username: '',
     bot_avatar_url: '',
+    bot_avatar_base64: '',
+    bot_avatar_preview: '', // For showing preview
     activity_type: '' as '' | 'playing' | 'watching' | 'listening' | 'competing',
     activity_name: '',
   });
@@ -272,16 +276,49 @@ export default function InstanceSettings() {
     setProfileForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleProfileImageUpload = (file: File, type: 'whatsapp' | 'discord') => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      if (type === 'whatsapp') {
+        setProfileForm((prev) => ({
+          ...prev,
+          profile_picture_base64: base64,
+          profile_picture_preview: base64,
+          profile_picture_url: '', // Clear URL when file is uploaded
+        }));
+      } else {
+        setProfileForm((prev) => ({
+          ...prev,
+          bot_avatar_base64: base64,
+          bot_avatar_preview: base64,
+          bot_avatar_url: '', // Clear URL when file is uploaded
+        }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveProfile = () => {
     const data: InstanceProfileUpdate = {};
 
     if (instance?.channel_type === 'whatsapp') {
       if (profileForm.profile_name.trim()) data.profile_name = profileForm.profile_name.trim();
       if (profileForm.profile_status.trim()) data.profile_status = profileForm.profile_status.trim();
-      if (profileForm.profile_picture_url.trim()) data.profile_picture_url = profileForm.profile_picture_url.trim();
+      // Use base64 if available, otherwise URL
+      if (profileForm.profile_picture_base64) {
+        data.profile_picture_base64 = profileForm.profile_picture_base64;
+      } else if (profileForm.profile_picture_url.trim()) {
+        data.profile_picture_url = profileForm.profile_picture_url.trim();
+      }
     } else if (instance?.channel_type === 'discord') {
       if (profileForm.bot_username.trim()) data.bot_username = profileForm.bot_username.trim();
-      if (profileForm.bot_avatar_url.trim()) data.bot_avatar_url = profileForm.bot_avatar_url.trim();
+      // Use base64 if available, otherwise URL
+      if (profileForm.bot_avatar_base64) {
+        data.bot_avatar_base64 = profileForm.bot_avatar_base64;
+      } else if (profileForm.bot_avatar_url.trim()) {
+        data.bot_avatar_url = profileForm.bot_avatar_url.trim();
+      }
       if (profileForm.activity_type) data.activity_type = profileForm.activity_type;
       if (profileForm.activity_name.trim()) data.activity_name = profileForm.activity_name.trim();
     }
@@ -301,8 +338,12 @@ export default function InstanceSettings() {
         profile_name: instance.profile_name || '',
         profile_status: '',
         profile_picture_url: '',
+        profile_picture_base64: '',
+        profile_picture_preview: '',
         bot_username: '',
         bot_avatar_url: '',
+        bot_avatar_base64: '',
+        bot_avatar_preview: '',
         activity_type: '',
         activity_name: '',
       });
@@ -311,8 +352,12 @@ export default function InstanceSettings() {
         profile_name: '',
         profile_status: '',
         profile_picture_url: '',
+        profile_picture_base64: '',
+        profile_picture_preview: '',
         bot_username: connectionState.channel_data.bot.name || '',
         bot_avatar_url: '',
+        bot_avatar_base64: '',
+        bot_avatar_preview: '',
         activity_type: '',
         activity_name: '',
       });
@@ -528,16 +573,37 @@ export default function InstanceSettings() {
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label htmlFor="wa-profile-picture">Profile Picture URL</Label>
-                                <Input
-                                  id="wa-profile-picture"
-                                  placeholder="https://example.com/image.jpg"
-                                  value={profileForm.profile_picture_url}
-                                  onChange={(e) => updateProfileForm('profile_picture_url', e.target.value)}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Enter a URL to an image (must be publicly accessible)
-                                </p>
+                                <Label>Profile Picture</Label>
+                                <div className="flex items-center gap-4">
+                                  {profileForm.profile_picture_preview && (
+                                    <Avatar className="h-12 w-12">
+                                      <AvatarImage src={profileForm.profile_picture_preview} />
+                                      <AvatarFallback>
+                                        <User className="h-6 w-6" />
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  )}
+                                  <div className="flex-1 space-y-2">
+                                    <Input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleProfileImageUpload(file, 'whatsapp');
+                                      }}
+                                    />
+                                    <p className="text-xs text-muted-foreground">Or enter a URL:</p>
+                                    <Input
+                                      placeholder="https://example.com/image.jpg"
+                                      value={profileForm.profile_picture_url}
+                                      onChange={(e) => {
+                                        updateProfileForm('profile_picture_url', e.target.value);
+                                        updateProfileForm('profile_picture_base64', '');
+                                        updateProfileForm('profile_picture_preview', '');
+                                      }}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             <div className="flex gap-2 pt-2">
@@ -626,16 +692,37 @@ export default function InstanceSettings() {
                                 </p>
                               </div>
                               <div className="space-y-2">
-                                <Label htmlFor="discord-avatar">Avatar URL</Label>
-                                <Input
-                                  id="discord-avatar"
-                                  placeholder="https://example.com/avatar.png"
-                                  value={profileForm.bot_avatar_url}
-                                  onChange={(e) => updateProfileForm('bot_avatar_url', e.target.value)}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Enter a URL to an image (PNG, JPG, or GIF)
-                                </p>
+                                <Label>Avatar</Label>
+                                <div className="flex items-center gap-4">
+                                  {profileForm.bot_avatar_preview && (
+                                    <Avatar className="h-12 w-12">
+                                      <AvatarImage src={profileForm.bot_avatar_preview} />
+                                      <AvatarFallback>
+                                        <DiscordIcon className="h-6 w-6 text-[#5865F2]" />
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  )}
+                                  <div className="flex-1 space-y-2">
+                                    <Input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleProfileImageUpload(file, 'discord');
+                                      }}
+                                    />
+                                    <p className="text-xs text-muted-foreground">Or enter a URL:</p>
+                                    <Input
+                                      placeholder="https://example.com/avatar.png"
+                                      value={profileForm.bot_avatar_url}
+                                      onChange={(e) => {
+                                        updateProfileForm('bot_avatar_url', e.target.value);
+                                        updateProfileForm('bot_avatar_base64', '');
+                                        updateProfileForm('bot_avatar_preview', '');
+                                      }}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                               <Separator />
                               <div className="space-y-2">

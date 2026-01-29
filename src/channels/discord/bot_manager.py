@@ -1445,18 +1445,34 @@ class DiscordBotManager:
             data = await request.json()
             username = data.get("username")
             avatar_url = data.get("avatar_url")
+            avatar_base64 = data.get("avatar_base64")
             activity_type = data.get("activity_type")
             activity_name = data.get("activity_name")
 
             results = {"updated": [], "errors": []}
 
             # Update username and/or avatar if provided
-            if username or avatar_url:
+            if username or avatar_url or avatar_base64:
                 try:
                     edit_kwargs = {}
                     if username:
                         edit_kwargs["username"] = username
-                    if avatar_url:
+                    if avatar_base64:
+                        # Decode base64 data URL
+                        import base64
+
+                        try:
+                            # Handle data URL format: data:image/png;base64,xxxxx
+                            if avatar_base64.startswith("data:"):
+                                # Extract the base64 part after the comma
+                                base64_data = avatar_base64.split(",", 1)[1]
+                            else:
+                                base64_data = avatar_base64
+                            avatar_data = base64.b64decode(base64_data)
+                            edit_kwargs["avatar"] = avatar_data
+                        except Exception as e:
+                            results["errors"].append(f"Failed to decode base64 avatar: {str(e)}")
+                    elif avatar_url:
                         # Fetch avatar image from URL
                         import aiohttp
 

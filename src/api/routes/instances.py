@@ -323,10 +323,12 @@ class InstanceProfileUpdate(BaseModel):
     profile_name: Optional[str] = Field(None, description="New profile name (WhatsApp)")
     profile_status: Optional[str] = Field(None, description="New status/bio text (WhatsApp)")
     profile_picture_url: Optional[str] = Field(None, description="URL to new profile picture (WhatsApp)")
+    profile_picture_base64: Optional[str] = Field(None, description="Base64 data URL for profile picture (WhatsApp)")
 
     # Discord bot fields
     bot_username: Optional[str] = Field(None, description="New bot username (Discord, rate limited to 2/hour)")
     bot_avatar_url: Optional[str] = Field(None, description="URL to new bot avatar image (Discord)")
+    bot_avatar_base64: Optional[str] = Field(None, description="Base64 data URL for bot avatar (Discord)")
     activity_type: Optional[str] = Field(
         None, description="Activity type: playing, watching, listening, competing (Discord)"
     )
@@ -1225,9 +1227,10 @@ async def update_instance_profile(
                 else:
                     results["errors"].append("Failed to update profile status")
 
-            # Update profile picture
-            if profile_data.profile_picture_url:
-                if sender.update_profile_picture(profile_data.profile_picture_url):
+            # Update profile picture (base64 takes priority over URL)
+            picture_data = profile_data.profile_picture_base64 or profile_data.profile_picture_url
+            if picture_data:
+                if sender.update_profile_picture(picture_data):
                     results["updated"].append("profile_picture")
                 else:
                     results["errors"].append("Failed to update profile picture")
@@ -1239,6 +1242,7 @@ async def update_instance_profile(
                 instance=instance,
                 username=profile_data.bot_username,
                 avatar_url=profile_data.bot_avatar_url,
+                avatar_base64=profile_data.bot_avatar_base64,
                 activity_type=profile_data.activity_type,
                 activity_name=profile_data.activity_name,
             )

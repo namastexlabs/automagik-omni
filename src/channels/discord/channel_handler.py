@@ -1212,6 +1212,7 @@ class DiscordChannelHandler(ChannelHandler):
         instance: InstanceConfig,
         username: str | None = None,
         avatar_url: str | None = None,
+        avatar_base64: str | None = None,
         activity_type: str | None = None,
         activity_name: str | None = None,
     ) -> Dict[str, Any]:
@@ -1221,6 +1222,7 @@ class DiscordChannelHandler(ChannelHandler):
             instance: Instance configuration
             username: New bot username (rate limited to 2/hour by Discord)
             avatar_url: URL to new avatar image
+            avatar_base64: Base64 data URL for avatar (data:image/...)
             activity_type: Activity type (playing, watching, listening, competing)
             activity_name: Activity name/description
 
@@ -1245,7 +1247,9 @@ class DiscordChannelHandler(ChannelHandler):
             payload = {}
             if username:
                 payload["username"] = username
-            if avatar_url:
+            if avatar_base64:
+                payload["avatar_base64"] = avatar_base64
+            elif avatar_url:
                 payload["avatar_url"] = avatar_url
             if activity_type:
                 payload["activity_type"] = activity_type

@@ -557,8 +557,10 @@ export const api = {
         profile_name?: string;
         profile_status?: string;
         profile_picture_url?: string;
+        profile_picture_base64?: string;
         bot_username?: string;
         bot_avatar_url?: string;
+        bot_avatar_base64?: string;
         activity_type?: 'playing' | 'watching' | 'listening' | 'competing';
         activity_name?: string;
       },
