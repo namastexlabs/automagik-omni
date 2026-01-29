@@ -32,6 +32,7 @@ import {
   FileAudio,
   FileImage,
   FileText,
+  FileVideo,
   DollarSign,
   Layers,
   Ban,
@@ -248,6 +249,14 @@ export default function BatchJobs() {
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <Checkbox
+                            checked={contentTypes.includes('video')}
+                            onCheckedChange={() => toggleContentType('video')}
+                          />
+                          <FileVideo className="h-4 w-4 text-purple-500" />
+                          Video
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
                             checked={contentTypes.includes('document')}
                             onCheckedChange={() => toggleContentType('document')}
                           />
@@ -453,6 +462,9 @@ export default function BatchJobs() {
                                   )}
                                   {types.includes('image') && (
                                     <FileImage className="h-4 w-4 text-green-500" title="Image" />
+                                  )}
+                                  {types.includes('video') && (
+                                    <FileVideo className="h-4 w-4 text-purple-500" title="Video" />
                                   )}
                                   {types.includes('document') && (
                                     <FileText className="h-4 w-4 text-orange-500" title="Document" />

@@ -59,7 +59,7 @@ class BatchReprocessRequest(BaseModel):
     days_back: int = 30
     limit: Optional[int] = 100  # None or 0 means no limit (all items)
     language: str = "pt"
-    content_types: List[str] = ["audio"]  # audio, image, document
+    content_types: List[str] = ["audio"]  # audio, image, video, document
     force: bool = False  # Force reprocess even if already completed
     async_mode: bool = True  # If True, returns job_id immediately; if False, waits for completion
 
@@ -289,6 +289,17 @@ async def _run_batch_processing(job_id: str, request_params: dict):
                     batch_job_id=job_id,
                     totals_callback=add_to_totals,
                 )
+            elif content_type == "video":
+                result = await media_processing_service.batch_reprocess_videos(
+                    instance_name=instance_name,
+                    days_back=days_back,
+                    limit=limit,
+                    force=force,
+                    db=db,
+                    progress_callback=lambda item: _update_job_progress(db, job_id, item),
+                    batch_job_id=job_id,
+                    totals_callback=add_to_totals,
+                )
             elif content_type == "document":
                 result = await media_processing_service.batch_reprocess_documents(
                     instance_name=instance_name,
@@ -469,7 +480,7 @@ async def reprocess_batch(
     """
     try:
         # Validate content types
-        valid_types = {"audio", "image", "document"}
+        valid_types = {"audio", "image", "video", "document"}
         invalid_types = set(request.content_types) - valid_types
         if invalid_types:
             raise HTTPException(
@@ -564,6 +575,20 @@ async def reprocess_batch(
                 results["failed"] += image_result["failed"]
                 results["skipped"] += image_result["skipped"]
                 results["results"].extend(image_result["results"])
+
+            if "video" in request.content_types:
+                video_result = await media_processing_service.batch_reprocess_videos(
+                    instance_name=request.instance_name,
+                    days_back=request.days_back,
+                    limit=request.limit,
+                    force=request.force,
+                    db=db,
+                )
+                results["total"] += video_result["total"]
+                results["processed"] += video_result["processed"]
+                results["failed"] += video_result["failed"]
+                results["skipped"] += video_result["skipped"]
+                results["results"].extend(video_result["results"])
 
             if "document" in request.content_types:
                 document_result = await media_processing_service.batch_reprocess_documents(

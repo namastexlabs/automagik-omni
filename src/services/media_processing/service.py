@@ -1283,6 +1283,373 @@ class MediaProcessingService:
             if close_db:
                 db.close()
 
+    async def reprocess_video_from_trace(
+        self,
+        trace_id: str,
+        custom_prompt: Optional[str] = None,
+        force: bool = False,
+        db: Optional[Session] = None,
+        batch_job_id: Optional[str] = None,
+    ) -> Optional[MediaContent]:
+        """
+        Reprocess video from a stored trace payload.
+
+        Args:
+            trace_id: The trace ID to reprocess
+            custom_prompt: Optional custom prompt for description
+            force: If True, reprocess even if already completed
+            batch_job_id: Optional batch job ID for tracking
+
+        Returns:
+            MediaContent record with description
+        """
+        self._load_settings(db)
+
+        if not self._video_processor:
+            logger.error("Video processor not configured (missing GEMINI_API_KEY)")
+            return None
+
+        close_db = False
+        if db is None:
+            db_gen = get_db()
+            db = next(db_gen)
+            close_db = True
+
+        try:
+            # Get trace and payload
+            trace = db.query(MessageTrace).filter_by(trace_id=trace_id).first()
+            if not trace:
+                logger.error(f"Trace {trace_id} not found")
+                return None
+
+            if trace.message_type not in ["video", "videoMessage"]:
+                logger.warning(f"Trace {trace_id} is not a video message: {trace.message_type}")
+                return None
+
+            # Get the payload
+            payload = db.query(TracePayload).filter_by(trace_id=trace_id, stage="webhook_received").first()
+            if not payload:
+                logger.error(f"No payload found for trace {trace_id}")
+                return None
+
+            payload_data = payload.get_payload()
+            if not payload_data:
+                logger.error(f"Could not decompress payload for trace {trace_id}")
+                return None
+
+            # Extract base64 from payload
+            msg = payload_data.get("data", {}).get("message", {})
+            b64_data = msg.get("base64")
+
+            if not b64_data:
+                logger.error(f"No base64 data in trace {trace_id}")
+                return None
+
+            # Get video metadata
+            video_msg = msg.get("videoMessage", {})
+            mime_type = video_msg.get("mimetype", "video/mp4")
+            if ";" in mime_type:
+                mime_type = mime_type.split(";")[0].strip()
+
+            caption = video_msg.get("caption")
+            file_length = video_msg.get("fileLength", {})
+            if isinstance(file_length, dict):
+                size_bytes = file_length.get("low", 0)
+            else:
+                size_bytes = file_length
+
+            # Get message ID
+            key_data = payload_data.get("data", {}).get("key", {})
+            message_id = key_data.get("id") or trace.whatsapp_message_id or trace_id
+
+            # Decode base64 and save to temp file
+            video_bytes = base64.b64decode(b64_data)
+            ext = (
+                ".mp4"
+                if "mp4" in mime_type
+                else ".webm"
+                if "webm" in mime_type
+                else ".3gp"
+                if "3gp" in mime_type
+                else ".mp4"
+            )
+            fd, temp_path = tempfile.mkstemp(suffix=ext)
+            with os.fdopen(fd, "wb") as f:
+                f.write(video_bytes)
+
+            try:
+                # Check if already processed
+                existing = (
+                    db.query(MediaContent)
+                    .filter_by(
+                        instance_name=trace.instance_name,
+                        original_message_id=message_id,
+                        content_type="video_description",
+                    )
+                    .first()
+                )
+
+                if existing and existing.status == "completed" and not force:
+                    logger.info(f"Video already described for trace {trace_id}")
+                    return existing
+
+                # Create or update record
+                if existing:
+                    media_content = existing
+                else:
+                    media_content = MediaContent(
+                        instance_name=trace.instance_name,
+                        channel_type="whatsapp",
+                        original_message_id=message_id,
+                        content_type="video_description",
+                        source_media_type="video",
+                        content="",
+                        media_mime_type=mime_type,
+                        media_size_bytes=size_bytes,
+                        status="processing",
+                        batch_job_id=batch_job_id,
+                    )
+                    db.add(media_content)
+                    db.commit()
+                    db.refresh(media_content)
+
+                media_content.status = "processing"
+                # Update batch job link if provided and not already set
+                if batch_job_id and not media_content.batch_job_id:
+                    media_content.batch_job_id = batch_job_id
+                db.commit()
+
+                # Build prompt with caption context
+                prompt = custom_prompt
+                if caption and not custom_prompt:
+                    prompt = f"The user sent this video with the caption: '{caption}'\n\n{self._video_processor.prompt}"
+
+                # Process the video
+                result = await self._video_processor.process(
+                    file_path=Path(temp_path),
+                    mime_type=mime_type,
+                    custom_prompt=prompt,
+                )
+
+                # Update record with result
+                if result.success:
+                    media_content.content = result.content or ""
+                    media_content.content_format = result.content_format
+                    media_content.processor_name = result.processor_name
+                    media_content.processor_model = result.processor_model
+                    media_content.processing_time_ms = result.processing_time_ms
+                    media_content.confidence_score = result.confidence_score
+                    # Token and cost tracking
+                    media_content.input_tokens = result.input_tokens
+                    media_content.output_tokens = result.output_tokens
+                    media_content.total_tokens = result.total_tokens
+                    media_content.cost_input_usd = result.cost_input_usd
+                    media_content.cost_output_usd = result.cost_output_usd
+                    media_content.cost_total_usd = result.cost_total_usd
+                    media_content.pricing_model = result.pricing_model
+                    media_content.pricing_rate_input = result.pricing_rate_input
+                    media_content.pricing_rate_output = result.pricing_rate_output
+                    media_content.status = "completed"
+                    media_content.processed_at = utcnow()
+                    logger.info(f"Described video trace {trace_id}: {result.content[:50]}...")
+                else:
+                    media_content.status = "failed"
+                    media_content.error_message = result.error_message
+                    media_content.retry_count += 1
+                    logger.error(f"Failed to describe video trace {trace_id}: {result.error_message}")
+
+                db.commit()
+                db.refresh(media_content)
+                return media_content
+
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+
+        except Exception as e:
+            logger.error(f"Error reprocessing video trace {trace_id}: {e}", exc_info=True)
+            return None
+
+        finally:
+            if close_db:
+                db.close()
+
+    async def batch_reprocess_videos(
+        self,
+        instance_name: Optional[str] = None,
+        days_back: int = 30,
+        limit: Optional[int] = 100,  # None or 0 means no limit
+        custom_prompt: Optional[str] = None,
+        force: bool = False,
+        db: Optional[Session] = None,
+        progress_callback: Optional[callable] = None,
+        batch_job_id: Optional[str] = None,
+        totals_callback: Optional[callable] = None,
+    ) -> dict:
+        """
+        Batch reprocess video messages from traces.
+
+        Args:
+            instance_name: Filter by instance (optional)
+            days_back: How many days back to look
+            limit: Maximum number of messages to process
+            custom_prompt: Custom prompt for descriptions
+            force: If True, reprocess even if already completed
+            progress_callback: Optional callback(current_item) for progress updates
+
+        Returns:
+            dict with processing stats
+        """
+        close_db = False
+        if db is None:
+            db_gen = get_db()
+            db = next(db_gen)
+            close_db = True
+
+        try:
+            cutoff_date = utcnow() - timedelta(days=days_back)
+
+            # Base query for all matching traces
+            base_query = db.query(MessageTrace).filter(
+                and_(
+                    MessageTrace.message_type.in_(["video", "videoMessage"]),
+                    MessageTrace.has_media == True,  # noqa: E712
+                    MessageTrace.received_at >= cutoff_date,
+                )
+            )
+
+            if instance_name:
+                base_query = base_query.filter(MessageTrace.instance_name == instance_name)
+
+            # Get chat_ids with skip_media_processing=True for filtering
+            skipped_chat_ids_subq = db.query(OmniChatRecord.chat_id).filter(
+                OmniChatRecord.skip_media_processing == True,  # noqa: E712
+            )
+            if instance_name:
+                skipped_chat_ids_subq = skipped_chat_ids_subq.filter(OmniChatRecord.instance_name == instance_name)
+            skipped_chat_ids = [r[0] for r in skipped_chat_ids_subq.all()]
+
+            # Filter out traces from skipped chats (via OmniMessageRecord link)
+            skipped_count = 0
+            if skipped_chat_ids:
+                skipped_trace_ids_subq = (
+                    db.query(OmniMessageRecord.trace_id)
+                    .filter(
+                        OmniMessageRecord.trace_id.isnot(None),
+                        OmniMessageRecord.chat_id.in_(skipped_chat_ids),
+                    )
+                    .scalar_subquery()
+                )
+                skipped_count = base_query.filter(MessageTrace.trace_id.in_(skipped_trace_ids_subq)).count()
+                base_query = base_query.filter(~MessageTrace.trace_id.in_(skipped_trace_ids_subq))
+                logger.info(f"Excluding {skipped_count} video traces from {len(skipped_chat_ids)} skipped chats")
+
+            # Count total found BEFORE filtering (for visibility)
+            total_found = base_query.count()
+
+            # Count already processed
+            already_processed_count = (
+                db.query(MediaContent)
+                .filter(
+                    MediaContent.content_type == "video_description",
+                    MediaContent.status == "completed",
+                    MediaContent.original_message_id.in_(base_query.with_entities(MessageTrace.whatsapp_message_id)),
+                )
+                .count()
+            )
+
+            # Get traces to process
+            query = base_query
+            if not force:
+                processed_ids_subq = (
+                    db.query(MediaContent.original_message_id)
+                    .filter(
+                        MediaContent.content_type == "video_description",
+                        MediaContent.status == "completed",
+                    )
+                    .scalar_subquery()
+                )
+                query = query.filter(~MessageTrace.whatsapp_message_id.in_(processed_ids_subq))
+
+            # Apply limit if specified (None or 0 means no limit)
+            if limit and limit > 0:
+                query = query.limit(limit)
+            traces = query.all()
+
+            logger.info(
+                f"Found {total_found} total video traces, {already_processed_count} already processed, "
+                f"{skipped_count} skipped (chat flag), {len(traces)} to process"
+            )
+
+            stats = {
+                "total_found": total_found,
+                "already_processed": already_processed_count,
+                "skipped_chats": skipped_count,
+                "total": len(traces),
+                "processed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "results": [],
+            }
+
+            # Report totals to caller before processing starts
+            if totals_callback:
+                totals_callback(total_found, len(traces), already_processed_count)
+
+            for trace in traces:
+                try:
+                    # Report progress if callback provided
+                    if progress_callback:
+                        progress_callback(trace.trace_id)
+
+                    result = await self.reprocess_video_from_trace(
+                        trace_id=trace.trace_id,
+                        custom_prompt=custom_prompt,
+                        force=force,
+                        db=db,
+                        batch_job_id=batch_job_id,
+                    )
+
+                    if result and result.status == "completed":
+                        stats["processed"] += 1
+                        stats["results"].append(
+                            {
+                                "trace_id": trace.trace_id,
+                                "status": "completed",
+                                "content_preview": result.content[:100] if result.content else "",
+                                "cost_usd": float(result.cost_total_usd) if result.cost_total_usd else None,
+                                "tokens": result.total_tokens,
+                            }
+                        )
+                    elif result:
+                        stats["failed"] += 1
+                        stats["results"].append(
+                            {
+                                "trace_id": trace.trace_id,
+                                "status": "failed",
+                                "error": result.error_message,
+                            }
+                        )
+                    else:
+                        stats["skipped"] += 1
+
+                except Exception as e:
+                    logger.error(f"Error processing video trace {trace.trace_id}: {e}")
+                    stats["failed"] += 1
+                    stats["results"].append(
+                        {
+                            "trace_id": trace.trace_id,
+                            "status": "error",
+                            "error": str(e),
+                        }
+                    )
+
+            return stats
+
+        finally:
+            if close_db:
+                db.close()
+
     async def process_document(
         self,
         instance_name: str,
