@@ -672,6 +672,104 @@ class WhatsAppMessageHandler:
                         if os_module.path.exists(temp_path):
                             os_module.unlink(temp_path)
 
+                # Process video messages
+                elif message_type in ["videoMessage", "video"]:
+                    video_meta = message_obj.get("videoMessage", {})
+                    mime_type = video_meta.get("mimetype", "video/mp4")
+                    if ";" in mime_type:
+                        mime_type = mime_type.split(";")[0].strip()
+                    caption = video_meta.get("caption", "")
+
+                    logger.info(f"Processing video message for description (mime: {mime_type})")
+
+                    # Decode base64 and save to temp file
+                    video_bytes = base64.b64decode(base64_data)
+                    ext = (
+                        ".mp4"
+                        if "mp4" in mime_type
+                        else ".webm"
+                        if "webm" in mime_type
+                        else ".3gp"
+                        if "3gp" in mime_type
+                        else ".mp4"
+                    )
+                    fd, temp_path = tempfile.mkstemp(suffix=ext)
+                    try:
+                        with os_module.fdopen(fd, "wb") as f:
+                            f.write(video_bytes)
+
+                        # Load settings and process
+                        media_processing_service._load_settings(db)
+
+                        if not media_processing_service._video_processor:
+                            logger.warning("Video processor not configured (missing GEMINI_API_KEY)")
+                            return None
+
+                        # Build prompt with caption context
+                        custom_prompt = None
+                        if caption:
+                            custom_prompt = f"The user sent this video with the caption: '{caption}'\n\n{media_processing_service._video_processor.prompt}"
+
+                        # Run async processing
+                        from pathlib import Path
+
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            result = loop.run_until_complete(
+                                media_processing_service._video_processor.process(
+                                    file_path=Path(temp_path),
+                                    mime_type=mime_type,
+                                    custom_prompt=custom_prompt,
+                                )
+                            )
+                        finally:
+                            loop.close()
+
+                        if result.success and result.content:
+                            logger.info(f"Video described: {result.content[:100]}...")
+                            # Store in database for future reference
+                            from src.db.trace_models import MediaContent
+                            from src.utils.datetime_utils import utcnow
+
+                            media_content = MediaContent(
+                                instance_name=instance_name,
+                                channel_type="whatsapp",
+                                original_message_id=message_id,
+                                sender_id=sender_id,
+                                content_type="video_description",
+                                source_media_type="video",
+                                content=result.content,
+                                content_format=result.content_format or "text",
+                                processor_name=result.processor_name,
+                                processor_model=result.processor_model,
+                                processing_time_ms=result.processing_time_ms,
+                                confidence_score=result.confidence_score,
+                                media_mime_type=mime_type,
+                                status="completed",
+                                processed_at=utcnow(),
+                                # Token and cost tracking
+                                input_tokens=result.input_tokens,
+                                output_tokens=result.output_tokens,
+                                total_tokens=result.total_tokens,
+                                cost_input_usd=result.cost_input_usd,
+                                cost_output_usd=result.cost_output_usd,
+                                cost_total_usd=result.cost_total_usd,
+                                pricing_model=result.pricing_model,
+                                pricing_rate_input=result.pricing_rate_input,
+                                pricing_rate_output=result.pricing_rate_output,
+                            )
+                            db.add(media_content)
+                            db.commit()
+
+                            return f"[Video Description]: {result.content}"
+                        else:
+                            logger.warning(f"Video description failed: {result.error_message}")
+                            return None
+                    finally:
+                        if os_module.path.exists(temp_path):
+                            os_module.unlink(temp_path)
+
                 # Process document messages
                 elif message_type in ["documentMessage", "document"]:
                     doc_meta = message_obj.get("documentMessage", {})

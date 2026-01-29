@@ -13,7 +13,9 @@ import {
   Image as ImageIcon,
   Phone,
   UserCircle,
+  Copy,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, api, formatTimeFromTimestamp } from '@/lib';
 import type { OmniMessage, OmniMessageReaction, OmniMediaContent, EvolutionMessage } from '@/lib';
@@ -379,11 +381,26 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
         {/* Timestamp and status */}
         <div
           className={cn(
-            'flex items-center gap-1 justify-end mt-0.5',
+            'flex items-center gap-1 justify-end mt-0.5 group/timestamp',
             (content.type === 'image' || content.type === 'video') &&
               'absolute bottom-2 right-2 bg-black/40 rounded px-1',
           )}
         >
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(message.id);
+              toast.success('Message ID copied');
+            }}
+            className={cn(
+              'opacity-0 group-hover/timestamp:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted/50',
+              content.type === 'image' || content.type === 'video'
+                ? 'text-white/70 hover:text-white hover:bg-white/20'
+                : 'text-muted-foreground/50 hover:text-muted-foreground',
+            )}
+            title={`Copy message ID: ${message.id}`}
+          >
+            <Copy className="h-3 w-3" />
+          </button>
           <span
             className={cn(
               'text-[11px]',
