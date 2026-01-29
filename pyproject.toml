@@ -34,10 +34,11 @@ dependencies = [
     "pytz>=2025.2",
     "thefuzz>=0.22.1",
     # Media processing (transcription, description, extraction)
-    "groq>=0.4.0",  # Groq Whisper for fast audio transcription
-    "google-generativeai>=0.8.0",  # Gemini for image description
-    "pymupdf>=1.24.0",  # PDF text extraction (lightweight)
-    "python-docx>=1.1.0",  # Word document processing
+    "groq>=0.4.0", # Groq Whisper for fast audio transcription
+    "google-generativeai>=0.8.0", # Gemini for image description
+    "pymupdf>=1.24.0", # PDF text extraction (lightweight)
+    "python-docx>=1.1.0", # Word document processing
+    "pycryptodome>=3.23.0",
 ]
 
 [project.scripts]
