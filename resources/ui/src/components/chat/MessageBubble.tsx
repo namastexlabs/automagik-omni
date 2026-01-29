@@ -14,9 +14,14 @@ import {
   Phone,
   UserCircle,
   Copy,
+  X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { cn, api, formatTimeFromTimestamp } from '@/lib';
 import type { OmniMessage, OmniMessageReaction, OmniMediaContent, EvolutionMessage } from '@/lib';
 
@@ -416,6 +421,59 @@ export function MessageBubble({ message, instanceName, showAvatar = false }: Mes
   );
 }
 
+// Image Lightbox Component
+function ImageLightbox({ src, open, onClose }: { src: string; open: boolean; onClose: () => void }) {
+  const [zoom, setZoom] = useState(1);
+
+  const handleZoomIn = () => setZoom((z) => Math.min(z + 0.5, 3));
+  const handleZoomOut = () => setZoom((z) => Math.max(z - 0.5, 0.5));
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = `image-${Date.now()}.png`;
+    link.click();
+  };
+
+  // Reset zoom when closing
+  useEffect(() => {
+    if (!open) setZoom(1);
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none overflow-hidden">
+        <div className="relative w-full h-full flex items-center justify-center">
+          {/* Controls */}
+          <div className="absolute top-4 right-4 flex gap-2 z-10">
+            <Button variant="ghost" size="icon" onClick={handleZoomOut} className="text-white hover:bg-white/20">
+              <ZoomOut className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleZoomIn} className="text-white hover:bg-white/20">
+              <ZoomIn className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleDownload} className="text-white hover:bg-white/20">
+              <Download className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {/* Image */}
+          <div className="overflow-auto max-w-full max-h-[90vh] p-4">
+            <img
+              src={src}
+              alt="Full size"
+              className="max-w-none transition-transform duration-200"
+              style={{ transform: `scale(${zoom})` }}
+            />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Image Message Component
 function ImageMessage({
   message,
@@ -429,6 +487,7 @@ function ImageMessage({
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     const fetchMedia = async () => {
@@ -457,12 +516,15 @@ function ImageMessage({
           <ImageIcon className="h-8 w-8 text-muted-foreground" />
         </div>
       ) : (
-        <img
-          src={imageSrc || ''}
-          alt="Image"
-          className="rounded-lg max-w-full max-h-80 object-contain cursor-pointer hover:opacity-90 transition-opacity"
-          onClick={() => imageSrc && window.open(imageSrc, '_blank')}
-        />
+        <>
+          <img
+            src={imageSrc || ''}
+            alt="Image"
+            className="rounded-lg max-w-full max-h-80 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+            onClick={() => setLightboxOpen(true)}
+          />
+          {imageSrc && <ImageLightbox src={imageSrc} open={lightboxOpen} onClose={() => setLightboxOpen(false)} />}
+        </>
       )}
       {caption && (
         <p className="text-sm mt-1 px-2 pb-1 text-foreground whitespace-pre-wrap">
