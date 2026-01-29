@@ -2292,16 +2292,39 @@ class MediaProcessingService:
                     if progress_callback:
                         progress_callback(msg.id)
 
+                    # Helper to create a failed MediaContent record for tracking
+                    def create_failed_record(error_msg: str):
+                        failed_record = MediaContent(
+                            instance_name=msg.instance_name,
+                            channel_type=msg.channel_type,
+                            original_message_id=msg.platform_message_id,
+                            sender_id=msg.sender_id,
+                            content_type=config["media_content_type"],
+                            source_media_type=content_type,
+                            content="",
+                            media_mime_type=msg.media_mime_type,
+                            media_size_bytes=msg.media_size_bytes,
+                            media_duration_seconds=msg.media_duration_seconds,
+                            status="failed",
+                            error_message=error_msg,
+                            batch_job_id=batch_job_id,
+                        )
+                        db.add(failed_record)
+                        db.commit()
+                        return failed_record
+
                     # Step 1: Ensure media is downloaded
                     if msg.media_status != "downloaded" or not msg.media_local_path:
                         download_result = download_service.download_and_update(msg.id)
                         if not download_result["success"]:
+                            error_msg = download_result.get("error", "Download failed")
+                            create_failed_record(error_msg)
                             stats["download_failed"] += 1
                             stats["results"].append(
                                 {
                                     "message_id": msg.id,
                                     "status": "download_failed",
-                                    "error": download_result.get("error"),
+                                    "error": error_msg,
                                 }
                             )
                             continue
@@ -2310,12 +2333,14 @@ class MediaProcessingService:
                         db.refresh(msg)
 
                     if not msg.media_local_path or not Path(msg.media_local_path).exists():
+                        error_msg = "Local file not found after download"
+                        create_failed_record(error_msg)
                         stats["download_failed"] += 1
                         stats["results"].append(
                             {
                                 "message_id": msg.id,
                                 "status": "download_failed",
-                                "error": "Local file not found after download",
+                                "error": error_msg,
                             }
                         )
                         continue
@@ -2421,6 +2446,8 @@ class MediaProcessingService:
 
                         logger.info(f"Processed {content_type} from omni_messages: {msg.id}")
                     else:
+                        # Processing failed - create a failed record
+                        create_failed_record(result.error_message or "Processing failed")
                         stats["failed"] += 1
                         stats["results"].append(
                             {
@@ -2432,6 +2459,25 @@ class MediaProcessingService:
 
                 except Exception as e:
                     logger.error(f"Error processing omni_message {msg.id}: {e}", exc_info=True)
+                    # Create a failed record for unexpected exceptions
+                    try:
+                        failed_record = MediaContent(
+                            instance_name=msg.instance_name,
+                            channel_type=msg.channel_type,
+                            original_message_id=msg.platform_message_id,
+                            sender_id=msg.sender_id,
+                            content_type=config["media_content_type"],
+                            source_media_type=content_type,
+                            content="",
+                            media_mime_type=msg.media_mime_type,
+                            status="failed",
+                            error_message=str(e)[:500],  # Truncate long errors
+                            batch_job_id=batch_job_id,
+                        )
+                        db.add(failed_record)
+                        db.commit()
+                    except Exception:
+                        pass  # Don't fail the batch if record creation fails
                     stats["failed"] += 1
                     stats["results"].append(
                         {
