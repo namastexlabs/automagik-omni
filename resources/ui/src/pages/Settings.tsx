@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DatabaseConfigSection } from '@/components/database';
 import { ProviderList } from '@/components/providers';
+import { MediaProcessingSettings } from '@/components/settings';
 import {
   Settings as SettingsIcon,
   Key,
@@ -31,6 +32,7 @@ import {
   EyeOff,
   History,
   RefreshCw,
+  Image,
 } from 'lucide-react';
 import {
   Dialog,
@@ -232,7 +234,7 @@ export default function Settings() {
         <div className="flex-1 overflow-auto bg-background">
           <div className="p-8 animate-fade-in max-w-6xl">
             <Tabs value={defaultTab} onValueChange={handleTabChange} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-3 max-w-md">
+              <TabsList className="grid w-full grid-cols-4 max-w-lg">
                 <TabsTrigger value="general" className="flex items-center gap-2">
                   <Key className="h-4 w-4" />
                   General
@@ -240,6 +242,10 @@ export default function Settings() {
                 <TabsTrigger value="providers" className="flex items-center gap-2">
                   <Server className="h-4 w-4" />
                   Providers
+                </TabsTrigger>
+                <TabsTrigger value="media" className="flex items-center gap-2">
+                  <Image className="h-4 w-4" />
+                  Media
                 </TabsTrigger>
                 <TabsTrigger value="system" className="flex items-center gap-2">
                   <Database className="h-4 w-4" />
@@ -367,6 +373,11 @@ export default function Settings() {
               {/* Providers Tab */}
               <TabsContent value="providers" className="space-y-6">
                 <ProviderList />
+              </TabsContent>
+
+              {/* Media Tab */}
+              <TabsContent value="media" className="space-y-6">
+                <MediaProcessingSettings />
               </TabsContent>
 
               {/* System Tab */}

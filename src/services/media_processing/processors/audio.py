@@ -1,5 +1,6 @@
-"""Audio processor using Groq Whisper for transcription."""
+"""Audio processor using Groq Whisper for transcription with OpenAI fallback."""
 
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -9,6 +10,11 @@ from .base import BaseProcessor, ProcessingResult
 from ..pricing import calculate_processing_cost
 
 logger = logging.getLogger(__name__)
+
+# Retry configuration
+MAX_RETRIES = 3
+INITIAL_RETRY_DELAY = 2  # seconds
+MAX_RETRY_DELAY = 30  # seconds
 
 
 class AudioProcessor(BaseProcessor):
@@ -82,6 +88,11 @@ class AudioProcessor(BaseProcessor):
             except Exception as e:
                 logger.error(f"Failed to initialize OpenAI client: {e}")
         return self._openai_client
+
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """Check if the error is a rate limit error (429)."""
+        error_str = str(error).lower()
+        return "429" in error_str or "rate limit" in error_str or "too many requests" in error_str
 
     async def process(
         self,
@@ -176,7 +187,7 @@ class AudioProcessor(BaseProcessor):
         file_path: Path,
         language: str,
     ) -> ProcessingResult:
-        """Transcribe using Groq Whisper API."""
+        """Transcribe using Groq Whisper API with retry on rate limits."""
         client = self._get_groq_client()
         if not client:
             return ProcessingResult(
@@ -184,36 +195,50 @@ class AudioProcessor(BaseProcessor):
                 error_message="Groq client not configured (missing API key or package)",
             )
 
-        try:
-            with open(file_path, "rb") as audio_file:
-                # Use whisper-large-v3-turbo for best speed/quality balance
-                transcription = client.audio.transcriptions.create(
-                    file=(file_path.name, audio_file),
-                    model="whisper-large-v3-turbo",
-                    language=language,
-                    response_format="text",
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                with open(file_path, "rb") as audio_file:
+                    # Use whisper-large-v3-turbo for best speed/quality balance
+                    transcription = client.audio.transcriptions.create(
+                        file=(file_path.name, audio_file),
+                        model="whisper-large-v3-turbo",
+                        language=language,
+                        response_format="text",
+                    )
+
+                # Groq returns the text directly when response_format="text"
+                text = transcription if isinstance(transcription, str) else transcription.text
+
+                return ProcessingResult(
+                    success=True,
+                    content=text.strip() if text else "",
+                    content_format="text",
+                    processor_name="groq_whisper",
+                    processor_model="whisper-large-v3-turbo",
+                    confidence_score=95,  # Groq Whisper is highly accurate
                 )
 
-            # Groq returns the text directly when response_format="text"
-            text = transcription if isinstance(transcription, str) else transcription.text
+            except Exception as e:
+                last_error = e
+                if self._is_rate_limit_error(e):
+                    # Rate limit - retry with exponential backoff
+                    retry_delay = min(INITIAL_RETRY_DELAY * (2**attempt), MAX_RETRY_DELAY)
+                    logger.warning(
+                        f"Groq rate limit hit (attempt {attempt + 1}/{MAX_RETRIES}), retrying in {retry_delay}s..."
+                    )
+                    await asyncio.sleep(retry_delay)
+                else:
+                    # Other error - don't retry, let fallback handle it
+                    logger.error(f"Groq transcription error: {e}")
+                    break
 
-            return ProcessingResult(
-                success=True,
-                content=text.strip() if text else "",
-                content_format="text",
-                processor_name="groq_whisper",
-                processor_model="whisper-large-v3-turbo",
-                confidence_score=95,  # Groq Whisper is highly accurate
-            )
-
-        except Exception as e:
-            logger.error(f"Groq transcription error: {e}")
-            return ProcessingResult(
-                success=False,
-                processor_name="groq_whisper",
-                processor_model="whisper-large-v3-turbo",
-                error_message=str(e),
-            )
+        return ProcessingResult(
+            success=False,
+            processor_name="groq_whisper",
+            processor_model="whisper-large-v3-turbo",
+            error_message=str(last_error) if last_error else "Transcription failed",
+        )
 
     async def _transcribe_with_openai(
         self,
