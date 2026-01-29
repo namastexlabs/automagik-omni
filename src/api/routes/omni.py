@@ -532,9 +532,11 @@ def _get_messages_from_local(
         if record.platform_message_id in media_content_by_msg:
             mc = media_content_by_msg[record.platform_message_id]
             media_content = MediaContentSchema(
+                id=mc.id,
                 content_type=mc.content_type,
                 content=mc.content or "",
                 processor_name=mc.processor_name,
+                processor_model=mc.processor_model,
                 confidence_score=mc.confidence_score,
                 processed_at=mc.processed_at,
             )
@@ -573,6 +575,8 @@ def _get_messages_from_local(
                 media_url=record.media_url,
                 media_mime_type=record.media_mime_type,
                 media_size=record.media_size_bytes,
+                media_local_path=record.media_local_path,
+                media_status=record.media_status,
                 caption=record.content_text if record.has_media else None,
                 is_from_me=record.is_from_me,
                 is_forwarded=False,

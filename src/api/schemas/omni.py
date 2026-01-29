@@ -155,9 +155,13 @@ class MessageReaction(BaseModel):
 class MediaContent(BaseModel):
     """Processed media content (transcript for audio, description for images)."""
 
+    id: Optional[int] = Field(None, description="MediaContent database ID")
     content_type: str = Field(..., description="Type: audio_transcript, image_description, etc.")
     content: str = Field(..., description="The transcript or description text")
     processor_name: Optional[str] = Field(None, description="Processor used (groq_whisper, gemini, etc.)")
+    processor_model: Optional[str] = Field(
+        None, description="Model used (whisper-large-v3-turbo, gemini-2.5-flash, etc.)"
+    )
     confidence_score: Optional[float] = Field(None, description="Confidence score if available")
     processed_at: Optional[datetime] = Field(None, description="When content was processed")
 
@@ -191,6 +195,10 @@ class OmniMessage(BaseModel):
     media_url: Optional[str] = Field(None, description="Media file URL")
     media_mime_type: Optional[str] = Field(None, description="Media MIME type")
     media_size: Optional[int] = Field(None, description="Media file size in bytes")
+    media_local_path: Optional[str] = Field(None, description="Local file path after download")
+    media_status: Optional[str] = Field(
+        None, description="Media status: pending, downloaded, processed, failed, expired"
+    )
     caption: Optional[str] = Field(None, description="Media caption")
     thumbnail_url: Optional[str] = Field(None, description="Media thumbnail URL")
 
