@@ -153,7 +153,14 @@ class WhatsAppMessageHandler:
             logger.error(f"Error calculating debounce delay for instance {instance_name}: {e}")
             return 0.0  # Fail gracefully to instant mode
 
-    def _buffer_message(self, message: Dict[str, Any], instance_config, trace_context, debounce_seconds: float):
+    def _buffer_message(
+        self,
+        message: Dict[str, Any],
+        instance_config,
+        trace_context,
+        debounce_seconds: float,
+        processed_media_text: Optional[str] = None,
+    ):
         """Buffer a message and start/restart the debounce timer.
 
         Args:
@@ -161,17 +168,19 @@ class WhatsAppMessageHandler:
             instance_config: Instance configuration
             trace_context: TraceContext for message lifecycle tracking
             debounce_seconds: Delay in seconds (float for millisecond precision) before flushing
+            processed_media_text: Pre-processed media content (transcript/description)
         """
         instance_name = instance_config.name if instance_config else "default"
         user_key = self._get_user_key(message)
 
         with self._debounce_locks[instance_name]:
-            # Add message to buffer
+            # Add message to buffer with pre-processed media text
             self._debounce_buffers[instance_name][user_key].append(
                 {
                     "message": message,
                     "instance_config": instance_config,
                     "trace_context": trace_context,
+                    "processed_media_text": processed_media_text,
                 }
             )
 
@@ -275,11 +284,18 @@ class WhatsAppMessageHandler:
 
         logger.info(f"Aggregated {len(buffered_messages)} messages into single message")
 
+        # Combine processed media text from all messages (if any)
+        media_texts = [
+            buf_msg.get("processed_media_text") for buf_msg in buffered_messages if buf_msg.get("processed_media_text")
+        ]
+        combined_media_text = "\n\n".join(media_texts) if media_texts else None
+
         # Use last message's trace context (most recent)
         return {
             "message": aggregated_message,
             "instance_config": first["instance_config"],
             "trace_context": last["trace_context"],
+            "processed_media_text": combined_media_text,
         }
 
     def handle_message(
@@ -296,18 +312,58 @@ class WhatsAppMessageHandler:
         - mode='fixed' -> Apply legacy message_debounce_seconds delay
         - mode='randomized' -> Apply random delay between min_ms and max_ms
 
+        Media processing (transcription/description) happens IMMEDIATELY when the message
+        arrives, BEFORE any debounce delay. This ensures audio transcripts are available
+        right away, even if the message is buffered for debounce.
+
         Args:
             message: The WhatsApp message data
             instance_config: Instance configuration
             trace_context: TraceContext for message lifecycle tracking
             media_only: If True, only process media (transcribe/describe) without routing to agent
         """
+        # ================= Early Media Processing =================
+        # Process media content BEFORE debounce to ensure transcripts are ready immediately
+        processed_media_text = None
+        message_type = self._extract_message_type(message)
+
+        if message_type:
+            is_audio_message = message_type in ["audioMessage", "audio", "voice", "ptt"]
+            is_media_message = message_type in [
+                "imageMessage",
+                "image",
+                "videoMessage",
+                "video",
+                "documentMessage",
+                "document",
+                "audioMessage",
+                "audio",
+                "voice",
+                "ptt",
+            ]
+
+            if is_audio_message or is_media_message:
+                logger.info(f"🎬 Processing media BEFORE debounce (type: {message_type})")
+                try:
+                    processed_media_text = self._process_media_content(
+                        message=message,
+                        instance_config=instance_config,
+                        is_audio_message=is_audio_message,
+                        is_media_message=is_media_message,
+                        message_type=message_type,
+                    )
+                    if processed_media_text:
+                        logger.info(f"✅ Media processed before debounce: {len(processed_media_text)} chars")
+                except Exception as e:
+                    logger.error(f"Failed to process media before debounce: {e}")
+
         # Calculate debounce delay based on mode and configuration
         debounce_seconds = self._calculate_debounce_delay(instance_config)
 
         if debounce_seconds > 0 and not media_only:
             # Buffer the message with debounce (skip buffering for media_only)
-            self._buffer_message(message, instance_config, trace_context, debounce_seconds)
+            # Include pre-processed media text
+            self._buffer_message(message, instance_config, trace_context, debounce_seconds, processed_media_text)
             logger.debug(f"Message buffered for debounce ({debounce_seconds:.3f}s): {message.get('event')}")
         else:
             # No debounce - queue directly
@@ -316,6 +372,7 @@ class WhatsAppMessageHandler:
                 "instance_config": instance_config,
                 "trace_context": trace_context,
                 "media_only": media_only,
+                "processed_media_text": processed_media_text,  # Include pre-processed media
             }
             self.message_queue.put(message_with_config)
             logger.debug(f"Message queued for processing (media_only={media_only}): {message.get('event')}")
@@ -332,20 +389,28 @@ class WhatsAppMessageHandler:
                 # Get message with timeout to allow for clean shutdown
                 message_data = self.message_queue.get(timeout=1.0)
 
-                # Extract message, instance config, trace context, and media_only flag
+                # Extract message, instance config, trace context, media_only flag, and pre-processed media
                 if isinstance(message_data, dict) and "message" in message_data:
                     message = message_data["message"]
                     instance_config = message_data.get("instance_config")
                     trace_context = message_data.get("trace_context")
                     media_only = message_data.get("media_only", False)
+                    processed_media_text = message_data.get("processed_media_text")
                 else:
                     # Backward compatibility for direct message data
                     message = message_data
                     instance_config = None
                     trace_context = None
                     media_only = False
+                    processed_media_text = None
 
-                self._process_message(message, instance_config, trace_context, media_only=media_only)
+                self._process_message(
+                    message,
+                    instance_config,
+                    trace_context,
+                    media_only=media_only,
+                    pre_processed_media_text=processed_media_text,
+                )
                 self.message_queue.task_done()
             except queue.Empty:
                 # No messages, continue waiting
@@ -1211,6 +1276,7 @@ class WhatsAppMessageHandler:
         instance_config=None,
         trace_context=None,
         media_only: bool = False,
+        pre_processed_media_text: Optional[str] = None,
     ):
         """
         Process a WhatsApp message.
@@ -1220,6 +1286,7 @@ class WhatsAppMessageHandler:
             instance_config: Instance configuration for multi-tenant support
             trace_context: TraceContext for message lifecycle tracking
             media_only: If True, only process media without routing to agent (for blocked senders)
+            pre_processed_media_text: Media content (transcript/description) already processed before debounce
         """
         try:
             # The message from Evolution API has a different structure from our previous code
@@ -1331,14 +1398,20 @@ class WhatsAppMessageHandler:
                 message_content = self._extract_message_content(message)
 
                 # ================= Media Processing (Transcription/Description) =================
-                # Process audio and image messages to extract text content
-                processed_media_text = self._process_media_content(
-                    message=message,
-                    instance_config=instance_config,
-                    is_audio_message=is_audio_message,
-                    is_media_message=is_media_message,
-                    message_type=message_type,
-                )
+                # Use pre-processed media text if available (processed before debounce)
+                # Otherwise, process media now (fallback for messages without pre-processing)
+                if pre_processed_media_text:
+                    processed_media_text = pre_processed_media_text
+                    logger.info(f"Using pre-processed media text ({len(processed_media_text)} chars)")
+                else:
+                    # Process audio and image messages to extract text content
+                    processed_media_text = self._process_media_content(
+                        message=message,
+                        instance_config=instance_config,
+                        is_audio_message=is_audio_message,
+                        is_media_message=is_media_message,
+                        message_type=message_type,
+                    )
                 if processed_media_text:
                     # Prepend the processed media content to the message
                     if message_content:

@@ -156,7 +156,7 @@ async def create_setting(
     "/settings/{key}",
     response_model=SettingResponse,
     summary="Update Setting",
-    description="Update an existing global setting value",
+    description="Update an existing global setting value (creates if not exists)",
 )
 async def update_setting(
     key: str,
@@ -164,11 +164,12 @@ async def update_setting(
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
-    """Update a setting's value."""
+    """Update a setting's value. Creates the setting if it doesn't exist (upsert)."""
 
     try:
         # Check if this is a secret setting and validate the value
         existing = settings_service.get_setting(key, db)
+
         if existing and existing.is_secret:
             value_str = str(update_data.value) if update_data.value is not None else ""
             # Reject masked values (contain *** in the middle)
@@ -184,13 +185,38 @@ async def update_setting(
                     detail="Secret value cannot be empty.",
                 )
 
-        setting = settings_service.update_setting(
-            key=key,
-            value=update_data.value,
-            db=db,
-            updated_by=api_key[:8] if api_key else None,
-            change_reason=update_data.change_reason,
-        )
+        if existing:
+            # Update existing setting
+            setting = settings_service.update_setting(
+                key=key,
+                value=update_data.value,
+                db=db,
+                updated_by=api_key[:8] if api_key else None,
+                change_reason=update_data.change_reason,
+            )
+        else:
+            # Create new setting (upsert behavior)
+            # Determine if it's a secret based on key naming convention
+            is_secret = "_key" in key.lower() or "_secret" in key.lower() or "_token" in key.lower()
+
+            # Determine category from key prefix
+            category = "general"
+            if key.startswith("gemini_") or key.startswith("openai_") or key.startswith("groq_"):
+                category = "api_keys"
+            elif key.startswith("media_"):
+                category = "media_processing"
+
+            setting = settings_service.create_setting(
+                key=key,
+                value=update_data.value,
+                value_type="string",
+                db=db,
+                category=category,
+                description=f"Auto-created setting for {key}",
+                is_secret=is_secret,
+                is_required=False,
+                created_by=api_key[:8] if api_key else None,
+            )
 
         return _to_setting_response(setting)
 
