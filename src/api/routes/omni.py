@@ -1717,7 +1717,12 @@ async def get_groups(
             )
             .all()
         )
-        lid_to_phone = {m.alternate_chat_id.replace("@lid", ""): m.phone_number for m in lid_mappings}
+        # Map both with and without @lid suffix for easier lookup
+        lid_to_phone = {}
+        for m in lid_mappings:
+            lid_num = m.alternate_chat_id.replace("@lid", "")
+            lid_to_phone[lid_num] = m.phone_number
+            lid_to_phone[m.alternate_chat_id] = m.phone_number
 
         groups = []
         for record in group_records:
@@ -1740,9 +1745,12 @@ async def get_groups(
                     )
                     # Resolve LID to phone number if available
                     phone = p.phone_number
-                    if not phone and p.participant_id:
-                        lid_num = p.participant_id.replace("@lid", "").replace("@s.whatsapp.net", "")
-                        phone = lid_to_phone.get(lid_num)
+                    if p.participant_id and "@lid" in p.participant_id:
+                        # For LID participants, try to resolve to real phone
+                        lid_num = p.participant_id.replace("@lid", "")
+                        resolved = lid_to_phone.get(lid_num) or lid_to_phone.get(p.participant_id)
+                        if resolved:
+                            phone = resolved
 
                     participants.append(
                         GroupParticipant(
@@ -1837,7 +1845,12 @@ async def get_group_participants(
             )
             .all()
         )
-        lid_to_phone = {m.alternate_chat_id.replace("@lid", ""): m.phone_number for m in lid_mappings}
+        # Map both with and without @lid suffix for easier lookup
+        lid_to_phone = {}
+        for m in lid_mappings:
+            lid_num = m.alternate_chat_id.replace("@lid", "")
+            lid_to_phone[lid_num] = m.phone_number
+            lid_to_phone[m.alternate_chat_id] = m.phone_number
 
         # Read participants from local database
         participant_records = (
@@ -1858,9 +1871,12 @@ async def get_group_participants(
             )
             # Resolve LID to phone number if available
             phone = p.phone_number
-            if not phone and p.participant_id:
-                lid_num = p.participant_id.replace("@lid", "").replace("@s.whatsapp.net", "")
-                phone = lid_to_phone.get(lid_num)
+            if p.participant_id and "@lid" in p.participant_id:
+                # For LID participants, try to resolve to real phone
+                lid_num = p.participant_id.replace("@lid", "")
+                resolved = lid_to_phone.get(lid_num) or lid_to_phone.get(p.participant_id)
+                if resolved:
+                    phone = resolved
 
             participants.append(
                 GroupParticipant(
