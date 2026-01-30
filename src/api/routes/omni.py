@@ -1706,6 +1706,19 @@ async def get_groups(
             .all()
         )
 
+        # Build LID to phone mapping for resolving participant IDs
+        from src.db.trace_models import ChatIdMapping
+
+        lid_mappings = (
+            db.query(ChatIdMapping)
+            .filter(
+                ChatIdMapping.instance_name == instance_name,
+                ChatIdMapping.alternate_chat_id.like("%@lid"),
+            )
+            .all()
+        )
+        lid_to_phone = {m.alternate_chat_id.replace("@lid", ""): m.phone_number for m in lid_mappings}
+
         groups = []
         for record in group_records:
             participants = []
@@ -1725,10 +1738,16 @@ async def get_groups(
                         if p.role == "superadmin"
                         else (GroupParticipantRole.ADMIN if p.role == "admin" else GroupParticipantRole.MEMBER)
                     )
+                    # Resolve LID to phone number if available
+                    phone = p.phone_number
+                    if not phone and p.participant_id:
+                        lid_num = p.participant_id.replace("@lid", "").replace("@s.whatsapp.net", "")
+                        phone = lid_to_phone.get(lid_num)
+
                     participants.append(
                         GroupParticipant(
                             id=p.participant_id,
-                            phone_number=p.phone_number,
+                            phone_number=phone,
                             name=p.name,
                             role=role,
                         )
@@ -1807,6 +1826,19 @@ async def get_group_participants(
         chat_record = db.query(OmniChatRecord).filter(OmniChatRecord.id == chat_record_id).first()
         group_name = chat_record.name if chat_record else None
 
+        # Build LID to phone mapping for resolving participant IDs
+        from src.db.trace_models import ChatIdMapping
+
+        lid_mappings = (
+            db.query(ChatIdMapping)
+            .filter(
+                ChatIdMapping.instance_name == instance_name,
+                ChatIdMapping.alternate_chat_id.like("%@lid"),
+            )
+            .all()
+        )
+        lid_to_phone = {m.alternate_chat_id.replace("@lid", ""): m.phone_number for m in lid_mappings}
+
         # Read participants from local database
         participant_records = (
             db.query(OmniGroupParticipant)
@@ -1824,10 +1856,16 @@ async def get_group_participants(
                 if p.role == "superadmin"
                 else (GroupParticipantRole.ADMIN if p.role == "admin" else GroupParticipantRole.MEMBER)
             )
+            # Resolve LID to phone number if available
+            phone = p.phone_number
+            if not phone and p.participant_id:
+                lid_num = p.participant_id.replace("@lid", "").replace("@s.whatsapp.net", "")
+                phone = lid_to_phone.get(lid_num)
+
             participants.append(
                 GroupParticipant(
                     id=p.participant_id,
-                    phone_number=p.phone_number,
+                    phone_number=phone,
                     name=p.name,
                     role=role,
                 )
