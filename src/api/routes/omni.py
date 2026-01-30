@@ -1513,12 +1513,30 @@ async def get_profile_picture(
         )
 
 
-def _sync_groups_from_evolution(db: Session, instance: InstanceConfig, instance_name: str) -> int:
+def _sync_groups_from_evolution(
+    db: Session,
+    instance: InstanceConfig,
+    instance_name: str,
+    batch_size: int = 50,
+    batch_delay: float = 5.0,
+) -> dict:
     """Sync group participants from Evolution API to local database.
 
     Uses existing groups from omni_chats and fetches participants for each
-    using the faster group/participants endpoint (instead of slow fetchAllGroups).
+    using the group/participants endpoint. Processes in batches to avoid
+    WhatsApp rate limiting.
+
+    Args:
+        db: Database session
+        instance: Instance configuration
+        instance_name: Name of the instance
+        batch_size: Number of groups to process per batch (default: 50)
+        batch_delay: Seconds to wait between batches (default: 5.0)
+
+    Returns:
+        Dict with sync statistics
     """
+    import time
     import requests
     from src.db.trace_models import OmniGroupParticipant
     from src.utils.datetime_utils import datetime_utcnow
@@ -1534,7 +1552,6 @@ def _sync_groups_from_evolution(db: Session, instance: InstanceConfig, instance_
 
     headers = {"apikey": evolution_key}
     now = datetime_utcnow()
-    synced_count = 0
 
     # Get groups from local database (already synced via chat sync)
     group_records = (
@@ -1546,67 +1563,103 @@ def _sync_groups_from_evolution(db: Session, instance: InstanceConfig, instance_
         .all()
     )
 
-    logger.info(f"Syncing participants for {len(group_records)} groups")
+    total_groups = len(group_records)
+    logger.info(f"Syncing participants for {total_groups} groups (batch_size={batch_size}, delay={batch_delay}s)")
 
     # Clear existing participants for this instance (full refresh)
     db.query(OmniGroupParticipant).filter(OmniGroupParticipant.instance_name == instance_name).delete()
+    db.commit()
 
-    # Fetch participants for each group
-    for record in group_records:
-        group_id = record.chat_id
-        try:
-            # Call Evolution API group/participants (faster than fetchAllGroups)
-            url = f"{evolution_url}/group/participants/{instance_name}"
-            params = {"groupJid": group_id}
-            response = requests.get(url, headers=headers, params=params, timeout=10)
+    # Stats
+    synced_count = 0
+    success_count = 0
+    failed_count = 0
+    timeout_count = 0
 
-            if response.status_code != 200:
-                logger.warning(f"Failed to get participants for {group_id}: {response.status_code}")
-                continue
+    # Process in batches
+    for batch_num, batch_start in enumerate(range(0, total_groups, batch_size)):
+        batch_end = min(batch_start + batch_size, total_groups)
+        batch = group_records[batch_start:batch_end]
 
-            data = response.json()
-            participants = data.get("participants", data) if isinstance(data, dict) else data
+        logger.info(f"Processing batch {batch_num + 1}: groups {batch_start + 1}-{batch_end} of {total_groups}")
 
-            # Update participant count
-            record.participant_count = len(participants) if isinstance(participants, list) else 0
-            record.updated_at = now
+        for record in batch:
+            group_id = record.chat_id
+            try:
+                # Call Evolution API group/participants
+                url = f"{evolution_url}/group/participants/{instance_name}"
+                params = {"groupJid": group_id}
+                response = requests.get(url, headers=headers, params=params, timeout=15)
 
-            # Add participants
-            for p in participants if isinstance(participants, list) else []:
-                participant_id = p.get("id", "")
-                if not participant_id:
+                if response.status_code != 200:
+                    logger.warning(f"Failed to get participants for {group_id}: {response.status_code}")
+                    failed_count += 1
                     continue
 
-                phone = participant_id.replace("@s.whatsapp.net", "").replace("@lid", "")
-                admin_status = p.get("admin")
-                role = (
-                    "superadmin" if admin_status == "superadmin" else "admin" if admin_status == "admin" else "member"
-                )
+                data = response.json()
+                participants = data.get("participants", data) if isinstance(data, dict) else data
 
-                participant = OmniGroupParticipant(
-                    id=OmniGroupParticipant.generate_id(instance_name, group_id, participant_id),
-                    instance_name=instance_name,
-                    group_id=group_id,
-                    participant_id=participant_id,
-                    phone_number=phone if phone else None,
-                    name=p.get("name"),
-                    role=role,
-                    synced_at=now,
-                    created_at=now,
-                    updated_at=now,
-                )
-                db.add(participant)
-                synced_count += 1
+                # Update participant count
+                record.participant_count = len(participants) if isinstance(participants, list) else 0
+                record.updated_at = now
 
-        except requests.exceptions.Timeout:
-            logger.warning(f"Timeout getting participants for {group_id}")
-            continue
-        except Exception as e:
-            logger.warning(f"Error getting participants for {group_id}: {e}")
-            continue
+                # Add participants
+                for p in participants if isinstance(participants, list) else []:
+                    participant_id = p.get("id", "")
+                    if not participant_id:
+                        continue
 
-    db.commit()
-    return synced_count
+                    phone = participant_id.replace("@s.whatsapp.net", "").replace("@lid", "")
+                    admin_status = p.get("admin")
+                    role = (
+                        "superadmin"
+                        if admin_status == "superadmin"
+                        else "admin"
+                        if admin_status == "admin"
+                        else "member"
+                    )
+
+                    participant = OmniGroupParticipant(
+                        id=OmniGroupParticipant.generate_id(instance_name, group_id, participant_id),
+                        instance_name=instance_name,
+                        group_id=group_id,
+                        participant_id=participant_id,
+                        phone_number=phone if phone else None,
+                        name=p.get("name"),
+                        role=role,
+                        synced_at=now,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    db.add(participant)
+                    synced_count += 1
+
+                success_count += 1
+
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout getting participants for {group_id}")
+                timeout_count += 1
+                continue
+            except Exception as e:
+                logger.warning(f"Error getting participants for {group_id}: {e}")
+                failed_count += 1
+                continue
+
+        # Commit after each batch
+        db.commit()
+
+        # Delay between batches (except after last batch)
+        if batch_end < total_groups:
+            logger.info(f"Batch complete. Waiting {batch_delay}s before next batch...")
+            time.sleep(batch_delay)
+
+    return {
+        "total_groups": total_groups,
+        "success": success_count,
+        "failed": failed_count,
+        "timeouts": timeout_count,
+        "participants_synced": synced_count,
+    }
 
 
 @router.get("/{instance_name}/groups", response_model=GroupsResponse)
@@ -1804,44 +1857,37 @@ async def get_group_participants(
 @router.post("/{instance_name}/groups/sync")
 async def sync_groups(
     instance_name: str,
+    batch_size: int = Query(50, ge=10, le=100, description="Groups to process per batch"),
+    batch_delay: float = Query(5.0, ge=1.0, le=30.0, description="Seconds to wait between batches"),
     db: Session = Depends(get_database),
     api_key: str = Depends(verify_api_key),
 ):
     """
     Sync all groups and participants from Evolution API.
 
-    This endpoint fetches all groups and their participants from Evolution API
-    and stores them in the local database for fast subsequent queries.
+    Processes groups in batches to avoid WhatsApp rate limiting.
+    For 249 groups with batch_size=50 and delay=5s, expect ~30 seconds total.
 
     Args:
         instance_name: The WhatsApp instance name
+        batch_size: Groups per batch (default: 50, range: 10-100)
+        batch_delay: Seconds between batches (default: 5, range: 1-30)
 
     Returns:
-        Sync statistics
+        Sync statistics including success/failure counts
     """
     try:
-        logger.info(f"Starting group sync for instance '{instance_name}'")
+        logger.info(f"Starting group sync for instance '{instance_name}' (batch={batch_size}, delay={batch_delay}s)")
 
         instance = get_instance_by_name(instance_name, db)
-        synced_count = _sync_groups_from_evolution(db, instance, instance_name)
+        stats = _sync_groups_from_evolution(db, instance, instance_name, batch_size=batch_size, batch_delay=batch_delay)
 
-        # Count groups synced
-        group_count = (
-            db.query(OmniChatRecord)
-            .filter(
-                OmniChatRecord.instance_name == instance_name,
-                OmniChatRecord.chat_type == "group",
-            )
-            .count()
-        )
-
-        logger.info(f"Group sync complete for '{instance_name}': {group_count} groups, {synced_count} participants")
+        logger.info(f"Group sync complete for '{instance_name}': {stats}")
 
         return {
             "instance_name": instance_name,
-            "groups_synced": group_count,
-            "participants_synced": synced_count,
             "status": "success",
+            **stats,
         }
 
     except HTTPException:
