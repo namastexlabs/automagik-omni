@@ -28,6 +28,11 @@ from src.api.schemas.omni import (
     RecipientProfile,
     MediaResponse,
     ProfilePictureResponse,
+    GroupParticipant,
+    GroupParticipantRole,
+    GroupInfo,
+    GroupsResponse,
+    GroupParticipantsResponse,
 )
 from src.services.chat_id_resolver import ChatIdResolver
 from src.db.models import InstanceConfig
@@ -1505,4 +1510,206 @@ async def get_profile_picture(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get profile picture: {str(e)}",
+        )
+
+
+@router.get("/{instance_name}/groups", response_model=GroupsResponse)
+async def get_groups(
+    instance_name: str,
+    include_participants: bool = Query(True, description="Include participant list for each group"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get all WhatsApp groups for an instance with their participants.
+
+    This endpoint fetches groups directly from Evolution API which has access
+    to full group metadata including all participants.
+
+    Args:
+        instance_name: The WhatsApp instance name
+        include_participants: Whether to include participant list (default: True)
+
+    Returns:
+        List of groups with participant information
+    """
+    import requests
+
+    try:
+        logger.info(f"Fetching groups for instance '{instance_name}' (include_participants={include_participants})")
+
+        instance = get_instance_by_name(instance_name, db)
+        if not instance.evolution_url or not instance.evolution_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Instance not configured for Evolution API",
+            )
+
+        # Call Evolution API fetchAllGroups
+        url = f"{instance.evolution_url}/group/fetchAllGroups/{instance_name}"
+        headers = {"apikey": instance.evolution_key}
+        params = {"getParticipants": str(include_participants).lower()}
+
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        if response.status_code != 200:
+            logger.error(f"Evolution API error: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Evolution API error: {response.status_code}",
+            )
+
+        groups_data = response.json()
+
+        # Transform to our schema
+        groups = []
+        for group in groups_data:
+            participants = []
+            if include_participants:
+                for p in group.get("participants", []):
+                    participant_id = p.get("id", "")
+                    phone = participant_id.replace("@s.whatsapp.net", "").replace("@lid", "")
+                    admin_status = p.get("admin")
+
+                    role = GroupParticipantRole.MEMBER
+                    if admin_status == "superadmin":
+                        role = GroupParticipantRole.SUPERADMIN
+                    elif admin_status == "admin":
+                        role = GroupParticipantRole.ADMIN
+
+                    participants.append(
+                        GroupParticipant(
+                            id=participant_id,
+                            phone_number=phone if phone else None,
+                            name=p.get("name"),
+                            role=role,
+                        )
+                    )
+
+            groups.append(
+                GroupInfo(
+                    id=group.get("id", ""),
+                    subject=group.get("subject", group.get("name", "Unknown")),
+                    owner=group.get("owner"),
+                    description=group.get("desc") or group.get("description"),
+                    participant_count=len(participants) if participants else group.get("size", 0),
+                    participants=participants,
+                    creation_timestamp=group.get("creation"),
+                )
+            )
+
+        logger.info(f"Successfully fetched {len(groups)} groups for instance '{instance_name}'")
+
+        return GroupsResponse(
+            groups=groups,
+            total_count=len(groups),
+            instance_name=instance_name,
+            channel_type=ChannelType.WHATSAPP,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get groups for instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get groups: {str(e)}",
+        )
+
+
+@router.get("/{instance_name}/groups/{group_id}/participants", response_model=GroupParticipantsResponse)
+async def get_group_participants(
+    instance_name: str,
+    group_id: str,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get participants for a specific WhatsApp group.
+
+    This endpoint fetches participant details from Evolution API including
+    phone numbers, names (if in contacts), and admin roles.
+
+    Args:
+        instance_name: The WhatsApp instance name
+        group_id: The group JID (e.g., "120363421396472428@g.us")
+
+    Returns:
+        List of participants with their roles and contact info
+    """
+    import requests
+
+    try:
+        logger.info(f"Fetching participants for group '{group_id}' in instance '{instance_name}'")
+
+        instance = get_instance_by_name(instance_name, db)
+        if not instance.evolution_url or not instance.evolution_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Instance not configured for Evolution API",
+            )
+
+        # Ensure group_id has proper suffix
+        if not group_id.endswith("@g.us"):
+            group_id = f"{group_id}@g.us"
+
+        # Call Evolution API group/participants
+        url = f"{instance.evolution_url}/group/participants/{instance_name}"
+        headers = {"apikey": instance.evolution_key}
+        params = {"groupJid": group_id}
+
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        if response.status_code != 200:
+            logger.error(f"Evolution API error: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Evolution API error: {response.status_code}",
+            )
+
+        data = response.json()
+
+        # Evolution API returns {"participants": [...]} or just [...]
+        participants_data = data.get("participants", data) if isinstance(data, dict) else data
+
+        # Transform to our schema
+        participants = []
+        group_name = data.get("subject") if isinstance(data, dict) else None
+
+        for p in participants_data:
+            participant_id = p.get("id", "")
+            phone = participant_id.replace("@s.whatsapp.net", "").replace("@lid", "")
+            admin_status = p.get("admin")
+
+            role = GroupParticipantRole.MEMBER
+            if admin_status == "superadmin":
+                role = GroupParticipantRole.SUPERADMIN
+            elif admin_status == "admin":
+                role = GroupParticipantRole.ADMIN
+
+            participants.append(
+                GroupParticipant(
+                    id=participant_id,
+                    phone_number=phone if phone else None,
+                    name=p.get("name"),
+                    role=role,
+                )
+            )
+
+        logger.info(f"Successfully fetched {len(participants)} participants for group '{group_id}'")
+
+        return GroupParticipantsResponse(
+            group_id=group_id,
+            group_name=group_name,
+            participants=participants,
+            total_count=len(participants),
+            instance_name=instance_name,
+            channel_type=ChannelType.WHATSAPP,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get participants for group '{group_id}' in instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get group participants: {str(e)}",
         )
