@@ -19,6 +19,13 @@ DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 DEFAULT_MODEL_ID = "eleven_v3"
 DEFAULT_STABILITY = 0.5
 DEFAULT_SIMILARITY_BOOST = 0.75
+FALLBACK_DURATION_MS = 3000
+
+
+def _validate_path_segment(value: str, name: str) -> None:
+    """Validate that a value is safe to use in a URL path segment."""
+    if "/" in value or ".." in value:
+        raise TTSError(f"Invalid {name} format")
 
 
 class TTSError(Exception):
@@ -59,6 +66,7 @@ async def generate_tts_audio(
     if voice_id is None:
         voice_id = os.getenv("XI_VOICE_ID", DEFAULT_VOICE_ID)
 
+    _validate_path_segment(voice_id, "voice_id")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     headers = {
         "xi-api-key": api_key,
@@ -93,12 +101,11 @@ def _get_audio_duration_ms(mp3_bytes: bytes) -> int:
         audio = AudioSegment.from_mp3(io.BytesIO(mp3_bytes))
         return len(audio)
     except ImportError:
-        # Fallback: estimate ~150 words/min, ~5 chars/word
-        logger.warning("pydub not installed, estimating duration from text length")
-        return 3000
+        logger.warning("pydub not installed, using fallback duration")
+        return FALLBACK_DURATION_MS
     except Exception as e:
         logger.warning(f"Failed to measure audio duration: {e}, using fallback")
-        return 3000
+        return FALLBACK_DURATION_MS
 
 
 def _convert_mp3_to_ogg(mp3_bytes: bytes) -> bytes:
@@ -159,6 +166,8 @@ async def send_tts_voice_note(
         TTSConfigError: If API keys or dependencies are missing.
         TTSError: If generation or sending fails.
     """
+    _validate_path_segment(instance_name, "instance_name")
+
     # 1. Generate audio
     mp3_bytes, duration_ms = await generate_tts_audio(
         text=text,

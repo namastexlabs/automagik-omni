@@ -14,11 +14,12 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 
 from src.services.tts_service import (
-    generate_tts_audio,
-    send_tts_voice_note,
     TTSConfigError,
     TTSError,
+    _convert_mp3_to_ogg,
     _get_audio_duration_ms,
+    generate_tts_audio,
+    send_tts_voice_note,
 )
 
 
@@ -58,18 +59,9 @@ class TestGenerateTTSAudio:
     @pytest.mark.asyncio
     async def test_missing_api_key_raises_config_error(self):
         """Should raise TTSConfigError when XI_API_KEY is not set."""
-        with patch.dict("os.environ", {}, clear=False):
-            with patch.dict("os.environ", {"XI_API_KEY": ""}, clear=False):
-                # Remove the key entirely
-                import os
-
-                original = os.environ.pop("XI_API_KEY", None)
-                try:
-                    with pytest.raises(TTSConfigError, match="XI_API_KEY"):
-                        await generate_tts_audio("Hello world")
-                finally:
-                    if original:
-                        os.environ["XI_API_KEY"] = original
+        with patch.dict("os.environ", {"XI_API_KEY": ""}):
+            with pytest.raises(TTSConfigError, match="XI_API_KEY"):
+                await generate_tts_audio("Hello world")
 
     @pytest.mark.asyncio
     async def test_elevenlabs_api_error_raises_tts_error(self):
@@ -153,6 +145,20 @@ class TestGenerateTTSAudio:
         assert body["voice_settings"]["stability"] == 0.8
         assert body["voice_settings"]["similarity_boost"] == 0.9
 
+    @pytest.mark.asyncio
+    async def test_rejects_voice_id_with_path_traversal(self):
+        """Should reject voice_id containing path traversal characters."""
+        with patch.dict("os.environ", {"XI_API_KEY": "test-key"}):
+            with pytest.raises(TTSError, match="Invalid voice_id"):
+                await generate_tts_audio("Hello", voice_id="../../v1/models")
+
+    @pytest.mark.asyncio
+    async def test_rejects_voice_id_with_slash(self):
+        """Should reject voice_id containing slashes."""
+        with patch.dict("os.environ", {"XI_API_KEY": "test-key"}):
+            with pytest.raises(TTSError, match="Invalid voice_id"):
+                await generate_tts_audio("Hello", voice_id="foo/bar")
+
 
 # ===== Unit Tests: _get_audio_duration_ms =====
 
@@ -163,16 +169,13 @@ class TestGetAudioDurationMs:
     def test_fallback_when_pydub_not_installed(self):
         """Should return fallback duration when pydub is not available."""
         with patch.dict("sys.modules", {"pydub": None}):
-            with patch("src.services.tts_service._get_audio_duration_ms") as mock_fn:
-                mock_fn.return_value = 3000
-                result = mock_fn(b"\x00" * 100)
-                assert result == 3000
+            result = _get_audio_duration_ms(b"\x00" * 100)
+            assert result == 3000
 
     def test_fallback_on_decode_error(self):
         """Should return fallback when audio can't be decoded."""
-        # Invalid audio bytes should trigger fallback
         result = _get_audio_duration_ms(b"not valid audio data")
-        assert result == 3000  # fallback value
+        assert result == 3000
 
 
 # ===== Unit Tests: _convert_mp3_to_ogg =====
@@ -184,11 +187,8 @@ class TestConvertMp3ToOgg:
     def test_raises_config_error_when_pydub_missing(self):
         """Should raise TTSConfigError when pydub is not installed."""
         with patch.dict("sys.modules", {"pydub": None}):
-            # Force reimport to pick up the mocked module
-            with patch("src.services.tts_service._convert_mp3_to_ogg") as mock_fn:
-                mock_fn.side_effect = TTSConfigError("pydub not installed")
-                with pytest.raises(TTSConfigError, match="pydub"):
-                    mock_fn(b"\x00" * 100)
+            with pytest.raises(TTSConfigError, match="pydub"):
+                _convert_mp3_to_ogg(b"\x00" * 100)
 
 
 # ===== Unit Tests: send_tts_voice_note =====
