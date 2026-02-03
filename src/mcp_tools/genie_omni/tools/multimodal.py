@@ -51,6 +51,7 @@ def register_tools(mcp: FastMCP, get_client: Callable, get_config: Callable):
                 model_id=model_id,
                 stability=stability if stability is not None else 0.5,
                 similarity_boost=similarity_boost if similarity_boost is not None else 0.75,
+                presence_delay=1200,
             )
 
             message_id = result.get("message_id")
