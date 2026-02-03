@@ -133,11 +133,11 @@ async def send_tts_voice_note(
     model_id: str = DEFAULT_MODEL_ID,
     stability: float = DEFAULT_STABILITY,
     similarity_boost: float = DEFAULT_SIMILARITY_BOOST,
+    presence_delay: Optional[int] = None,
 ) -> dict:
     """Generate TTS audio and send as WhatsApp voice note.
 
-    Shows "recording" presence with dynamic delay matching the audio duration,
-    then sends the voice note via Evolution API.
+    Shows "recording" presence before sending the voice note.
 
     Args:
         evolution_url: Evolution API base URL.
@@ -149,6 +149,8 @@ async def send_tts_voice_note(
         model_id: ElevenLabs model ID.
         stability: Voice stability (0-1).
         similarity_boost: Voice similarity boost (0-1).
+        presence_delay: Recording presence delay in ms. None = auto (audio duration).
+            0 = skip presence entirely.
 
     Returns:
         Dict with success, message_id, audio_size_kb, duration_ms.
@@ -170,23 +172,25 @@ async def send_tts_voice_note(
     ogg_bytes = _convert_mp3_to_ogg(mp3_bytes)
     audio_size_kb = len(ogg_bytes) / 1024
 
-    # 3. Send "recording" presence with dynamic delay = audio duration
+    # 3. Send "recording" presence (skip if presence_delay == 0)
+    effective_delay = duration_ms if presence_delay is None else presence_delay
     async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            await client.post(
-                f"{evolution_url}/chat/sendPresence/{instance_name}",
-                headers={"apikey": evolution_key, "Content-Type": "application/json"},
-                json={
-                    "number": recipient,
-                    "options": {
-                        "delay": duration_ms,
-                        "presence": "recording",
+        if effective_delay > 0:
+            try:
+                await client.post(
+                    f"{evolution_url}/chat/sendPresence/{instance_name}",
+                    headers={"apikey": evolution_key, "Content-Type": "application/json"},
+                    json={
                         "number": recipient,
+                        "options": {
+                            "delay": effective_delay,
+                            "presence": "recording",
+                            "number": recipient,
+                        },
                     },
-                },
-            )
-        except Exception as e:
-            logger.warning(f"Failed to send recording presence: {e}")
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send recording presence: {e}")
 
         # 4. Send voice note via Evolution API
         audio_base64 = base64.b64encode(ogg_bytes).decode("utf-8")

@@ -353,6 +353,76 @@ class TestSendTTSVoiceNote:
         assert result["success"] is True
         assert result["message_id"] == "msg-789"
 
+    @pytest.mark.asyncio
+    async def test_custom_presence_delay_overrides_dynamic(self):
+        """Should use provided presence_delay instead of audio duration."""
+        presence_payload = {}
+
+        async def capture_post(url, **kwargs):
+            if "sendPresence" in url:
+                presence_payload.update(kwargs.get("json", {}))
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"key": {"id": "msg-fixed"}}
+            mock_resp.raise_for_status = MagicMock()
+            return mock_resp
+
+        mock_client = AsyncMock()
+        mock_client.post = capture_post
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("src.services.tts_service.generate_tts_audio", new_callable=AsyncMock) as mock_gen:
+            mock_gen.return_value = (b"\x00" * 100, 8000)  # audio is 8s
+            with patch("src.services.tts_service._convert_mp3_to_ogg", return_value=b"\x00" * 80):
+                with patch("httpx.AsyncClient", return_value=mock_client):
+                    await send_tts_voice_note(
+                        evolution_url="http://evo.test",
+                        evolution_key="evo-key",
+                        instance_name="test",
+                        recipient="5511999999999@s.whatsapp.net",
+                        text="Test",
+                        presence_delay=2000,  # override to 2s
+                    )
+
+        assert presence_payload["options"]["delay"] == 2000
+
+    @pytest.mark.asyncio
+    async def test_presence_delay_zero_skips_presence(self):
+        """Should skip presence entirely when presence_delay is 0."""
+        post_urls = []
+
+        async def capture_post(url, **kwargs):
+            post_urls.append(url)
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"key": {"id": "msg-no-presence"}}
+            mock_resp.raise_for_status = MagicMock()
+            return mock_resp
+
+        mock_client = AsyncMock()
+        mock_client.post = capture_post
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("src.services.tts_service.generate_tts_audio", new_callable=AsyncMock) as mock_gen:
+            mock_gen.return_value = (b"\x00" * 100, 5000)
+            with patch("src.services.tts_service._convert_mp3_to_ogg", return_value=b"\x00" * 80):
+                with patch("httpx.AsyncClient", return_value=mock_client):
+                    result = await send_tts_voice_note(
+                        evolution_url="http://evo.test",
+                        evolution_key="evo-key",
+                        instance_name="test",
+                        recipient="5511999999999@s.whatsapp.net",
+                        text="Test",
+                        presence_delay=0,
+                    )
+
+        assert result["success"] is True
+        # Only sendMedia should have been called, no sendPresence
+        assert len(post_urls) == 1
+        assert "sendMedia" in post_urls[0]
+
 
 # ===== Integration Tests: REST API endpoint =====
 
@@ -473,6 +543,77 @@ class TestSendTTSEndpoint:
         assert call_kwargs["voice_id"] == "custom-voice-id"
         assert call_kwargs["stability"] == 0.8
         assert call_kwargs["similarity_boost"] == 0.9
+
+    def test_send_tts_with_presence_delay(self, test_client):
+        """Should pass presence_delay to the service."""
+        tts_result = {
+            "success": True,
+            "message_id": "msg-delay",
+            "audio_size_kb": 10.0,
+            "duration_ms": 5000,
+        }
+
+        with patch("src.services.tts_service.send_tts_voice_note", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = tts_result
+
+            response = test_client.post(
+                "/api/v1/instance/test-instance/send-tts",
+                json={
+                    "phone_number": "+5511999999999",
+                    "text": "Hello",
+                    "presence_delay": 2000,
+                },
+            )
+
+        assert response.status_code == 200
+        assert mock_send.call_args.kwargs["presence_delay"] == 2000
+
+    def test_send_tts_with_presence_delay_zero(self, test_client):
+        """Should pass presence_delay=0 to disable presence."""
+        tts_result = {
+            "success": True,
+            "message_id": "msg-no-pres",
+            "audio_size_kb": 10.0,
+            "duration_ms": 5000,
+        }
+
+        with patch("src.services.tts_service.send_tts_voice_note", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = tts_result
+
+            response = test_client.post(
+                "/api/v1/instance/test-instance/send-tts",
+                json={
+                    "phone_number": "+5511999999999",
+                    "text": "Hello",
+                    "presence_delay": 0,
+                },
+            )
+
+        assert response.status_code == 200
+        assert mock_send.call_args.kwargs["presence_delay"] == 0
+
+    def test_send_tts_without_presence_delay_defaults_none(self, test_client):
+        """Should default presence_delay to None (auto) when not provided."""
+        tts_result = {
+            "success": True,
+            "message_id": "msg-auto",
+            "audio_size_kb": 10.0,
+            "duration_ms": 5000,
+        }
+
+        with patch("src.services.tts_service.send_tts_voice_note", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = tts_result
+
+            response = test_client.post(
+                "/api/v1/instance/test-instance/send-tts",
+                json={
+                    "phone_number": "+5511999999999",
+                    "text": "Hello",
+                },
+            )
+
+        assert response.status_code == 200
+        assert mock_send.call_args.kwargs["presence_delay"] is None
 
     def test_send_tts_stability_out_of_range(self, test_client):
         """Should return 422 when stability is outside 0-1 range."""

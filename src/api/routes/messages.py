@@ -100,6 +100,11 @@ class SendTTSRequest(BaseModel, populate_by_name=True):
     model_id: str = Field(default="eleven_v3", description="ElevenLabs model ID")
     stability: float = Field(default=0.5, ge=0, le=1, description="Voice stability (0-1)")
     similarity_boost: float = Field(default=0.75, ge=0, le=1, description="Voice similarity boost (0-1)")
+    presence_delay: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Recording presence delay in ms. If null, auto-calculated from audio duration. Set to 0 to disable presence.",
+    )
 
 
 class SendStickerRequest(BaseModel):
@@ -469,6 +474,7 @@ async def send_tts_message(
             model_id=request.model_id,
             stability=request.stability,
             similarity_boost=request.similarity_boost,
+            presence_delay=request.presence_delay,
         )
 
         return MessageResponse(
