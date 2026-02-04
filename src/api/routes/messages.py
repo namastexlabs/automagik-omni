@@ -88,6 +88,25 @@ class SendAudioRequest(BaseModel, populate_by_name=True):
     audio_base64: Optional[str] = Field(None, description="Base64 encoded audio data")
 
 
+class SendTTSRequest(BaseModel, populate_by_name=True):
+    """Schema for sending TTS (text-to-speech) voice messages via ElevenLabs."""
+
+    user_id: Union[str, None] = Field(None, description="User ID (UUID string, if known)")
+    phone: Optional[str] = Field(
+        None, description="Phone number with country code or Discord channel ID", alias="phone_number"
+    )
+    text: str = Field(description="Text to convert to speech. Supports ElevenLabs audio tags like [happy], [laughs].")
+    voice_id: Optional[str] = Field(None, description="ElevenLabs voice ID (defaults to XI_VOICE_ID env var)")
+    model_id: str = Field(default="eleven_v3", description="ElevenLabs model ID")
+    stability: float = Field(default=0.5, ge=0, le=1, description="Voice stability (0-1)")
+    similarity_boost: float = Field(default=0.75, ge=0, le=1, description="Voice similarity boost (0-1)")
+    presence_delay: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Recording presence delay in ms. If null, auto-calculated from audio duration. Set to 0 to disable presence.",
+    )
+
+
 class SendStickerRequest(BaseModel):
     """Schema for sending stickers."""
 
@@ -415,6 +434,68 @@ async def send_audio_message(
         raise
     except Exception as e:
         logger.error(f"Failed to send audio message: {e}")
+        return MessageResponse(success=False, status="error", error=str(e))
+
+
+@router.post(
+    "/{instance_name}/send-tts",
+    response_model=MessageResponse,
+    summary="Send TTS Voice Message",
+    description="Generate speech from text using ElevenLabs and send as a WhatsApp voice note. "
+    "Shows 'recording' presence with duration matching the generated audio.",
+)
+async def send_tts_message(
+    instance_name: str,
+    request: SendTTSRequest,
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """Generate TTS audio via ElevenLabs and send as WhatsApp voice note."""
+    from src.services.tts_service import TTSConfigError, TTSError, send_tts_voice_note
+
+    instance_config = get_instance_by_name(instance_name, db)
+
+    if not instance_config.evolution_url or not instance_config.evolution_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Evolution API not configured for instance '{instance_name}'",
+        )
+
+    try:
+        recipient = _resolve_recipient(request.user_id, request.phone, db, instance_config.channel_type)
+
+        result = await send_tts_voice_note(
+            evolution_url=instance_config.evolution_url,
+            evolution_key=instance_config.evolution_key,
+            instance_name=instance_name,
+            recipient=recipient,
+            text=request.text,
+            voice_id=request.voice_id,
+            model_id=request.model_id,
+            stability=request.stability,
+            similarity_boost=request.similarity_boost,
+            presence_delay=request.presence_delay,
+        )
+
+        return MessageResponse(
+            success=True,
+            message_id=result.get("message_id"),
+            status="sent",
+            evolution_response={
+                "audio_size_kb": result.get("audio_size_kb"),
+                "duration_ms": result.get("duration_ms"),
+            },
+        )
+
+    except TTSConfigError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    except TTSError as e:
+        logger.error(f"TTS error: {e}")
+        return MessageResponse(success=False, status="error", error=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send TTS message: {e}")
         return MessageResponse(success=False, status="error", error=str(e))
 
 
