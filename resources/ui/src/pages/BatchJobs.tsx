@@ -236,10 +236,13 @@ export default function BatchJobs() {
                     {/* Sync Mode */}
                     <div className="grid gap-2">
                       <Label>Sync Mode</Label>
-                      <Select value={syncMode} onValueChange={(v) => {
-                        setSyncMode(v as 'batch' | 'targeted');
-                        setSelectedChatId(''); // Reset chat selection when switching modes
-                      }}>
+                      <Select
+                        value={syncMode}
+                        onValueChange={(v) => {
+                          setSyncMode(v as 'batch' | 'targeted');
+                          setSelectedChatId(''); // Reset chat selection when switching modes
+                        }}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -289,7 +292,9 @@ export default function BatchJobs() {
                                 <div className="flex items-center justify-between">
                                   <span className="truncate">{chat.name || chat.chat_id}</span>
                                   {chat.skip_media_processing && (
-                                    <Badge variant="outline" className="ml-2 text-xs">Skip</Badge>
+                                    <Badge variant="outline" className="ml-2 text-xs">
+                                      Skip
+                                    </Badge>
                                   )}
                                 </div>
                               </SelectItem>
@@ -420,7 +425,8 @@ export default function BatchJobs() {
                       disabled={
                         startMutation.isPending ||
                         contentTypes.length === 0 ||
-                        (syncMode === 'targeted' && (!selectedInstance || selectedInstance === '__all__' || !selectedChatId))
+                        (syncMode === 'targeted' &&
+                          (!selectedInstance || selectedInstance === '__all__' || !selectedChatId))
                       }
                     >
                       {startMutation.isPending ? (
