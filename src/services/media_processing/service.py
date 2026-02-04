@@ -2146,6 +2146,7 @@ class MediaProcessingService:
         content_type: str = "audio",  # 'audio', 'image', 'document'
         days_back: int = 30,
         limit: Optional[int] = 100,
+        chat_id: Optional[str] = None,
         language: str = "pt",
         force: bool = False,
         db: Optional[Session] = None,
@@ -2163,8 +2164,9 @@ class MediaProcessingService:
         Args:
             instance_name: Filter by instance (optional)
             content_type: Type of content to process ('audio', 'image', 'document')
-            days_back: How many days back to look
-            limit: Maximum number of messages to process
+            days_back: How many days back to look (ignored if chat_id set)
+            limit: Maximum number of messages to process (ignored if chat_id set)
+            chat_id: If set, process ALL messages from this specific chat (targeted mode)
             language: Language code for transcription (audio only)
             force: If True, reprocess even if already completed
             progress_callback: Optional callback(current_item) for progress updates
@@ -2218,13 +2220,24 @@ class MediaProcessingService:
                 return {"error": f"No processor configured for {content_type}"}
 
             # Base query for all matching messages
-            base_query = db.query(OmniMessageRecord).filter(
-                and_(
-                    OmniMessageRecord.message_type.in_(config["message_types"]),
-                    OmniMessageRecord.has_media == True,  # noqa: E712
-                    OmniMessageRecord.message_timestamp >= cutoff_date,
+            if chat_id:
+                # Targeted mode: process ALL messages from this specific chat
+                base_query = db.query(OmniMessageRecord).filter(
+                    and_(
+                        OmniMessageRecord.message_type.in_(config["message_types"]),
+                        OmniMessageRecord.has_media == True,  # noqa: E712
+                        OmniMessageRecord.chat_id == chat_id,
+                    )
                 )
-            )
+            else:
+                # Batch mode: apply time-based filter
+                base_query = db.query(OmniMessageRecord).filter(
+                    and_(
+                        OmniMessageRecord.message_type.in_(config["message_types"]),
+                        OmniMessageRecord.has_media == True,  # noqa: E712
+                        OmniMessageRecord.message_timestamp >= cutoff_date,
+                    )
+                )
 
             if instance_name:
                 base_query = base_query.filter(OmniMessageRecord.instance_name == instance_name)
@@ -2258,8 +2271,8 @@ class MediaProcessingService:
                 )
                 query = query.filter(~OmniMessageRecord.platform_message_id.in_(processed_ids_subq))
 
-            # Apply limit if specified
-            if limit and limit > 0:
+            # Apply limit only in batch mode (not in targeted chat sync mode)
+            if not chat_id and limit and limit > 0:
                 query = query.limit(limit)
             messages = query.all()
 

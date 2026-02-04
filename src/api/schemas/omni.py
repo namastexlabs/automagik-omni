@@ -528,3 +528,57 @@ class ProfilePictureResponse(BaseModel):
     jid: str = Field(..., description="The JID of the user")
     profile_picture_url: Optional[str] = Field(None, description="URL of the profile picture, null if not available")
     source: str = Field(..., description="Where data was retrieved from: local, evolution")
+
+
+# =============================================================================
+# Group Participants Models
+# =============================================================================
+
+
+class GroupParticipantRole(str, Enum):
+    """Role of a participant in a group."""
+
+    MEMBER = "member"
+    ADMIN = "admin"
+    SUPERADMIN = "superadmin"
+
+
+class GroupParticipant(BaseModel):
+    """A participant in a WhatsApp group."""
+
+    id: str = Field(..., description="Participant JID (e.g., 5511999999999@s.whatsapp.net)")
+    phone_number: Optional[str] = Field(None, description="Phone number extracted from JID")
+    name: Optional[str] = Field(None, description="Contact name if available")
+    role: GroupParticipantRole = Field(GroupParticipantRole.MEMBER, description="Role in the group")
+
+
+class GroupInfo(BaseModel):
+    """Information about a WhatsApp group."""
+
+    id: str = Field(..., description="Group JID (e.g., 120363...@g.us)")
+    subject: str = Field(..., description="Group name/subject")
+    owner: Optional[str] = Field(None, description="Group owner JID")
+    description: Optional[str] = Field(None, description="Group description")
+    participant_count: int = Field(0, description="Number of participants")
+    participants: List[GroupParticipant] = Field(default_factory=list, description="List of participants")
+    creation_timestamp: Optional[int] = Field(None, description="Group creation timestamp (epoch)")
+
+
+class GroupsResponse(BaseModel):
+    """Response model for groups list endpoint."""
+
+    groups: List[GroupInfo] = Field(..., description="List of groups")
+    total_count: int = Field(..., description="Total number of groups")
+    instance_name: str = Field(..., description="Instance name")
+    channel_type: ChannelType = Field(ChannelType.WHATSAPP, description="Channel type")
+
+
+class GroupParticipantsResponse(BaseModel):
+    """Response model for group participants endpoint."""
+
+    group_id: str = Field(..., description="Group JID")
+    group_name: Optional[str] = Field(None, description="Group name if available")
+    participants: List[GroupParticipant] = Field(..., description="List of participants")
+    total_count: int = Field(..., description="Total number of participants")
+    instance_name: str = Field(..., description="Instance name")
+    channel_type: ChannelType = Field(ChannelType.WHATSAPP, description="Channel type")

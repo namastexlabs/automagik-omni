@@ -28,6 +28,11 @@ from src.api.schemas.omni import (
     RecipientProfile,
     MediaResponse,
     ProfilePictureResponse,
+    GroupParticipant,
+    GroupParticipantRole,
+    GroupInfo,
+    GroupsResponse,
+    GroupParticipantsResponse,
 )
 from src.services.chat_id_resolver import ChatIdResolver
 from src.db.models import InstanceConfig
@@ -1505,4 +1510,445 @@ async def get_profile_picture(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get profile picture: {str(e)}",
+        )
+
+
+def _sync_groups_from_evolution(
+    db: Session,
+    instance: InstanceConfig,
+    instance_name: str,
+    batch_size: int = 50,
+    batch_delay: float = 5.0,
+) -> dict:
+    """Sync group participants from Evolution API to local database.
+
+    Uses existing groups from omni_chats and fetches participants for each
+    using the group/participants endpoint. Processes in batches to avoid
+    WhatsApp rate limiting.
+
+    Args:
+        db: Database session
+        instance: Instance configuration
+        instance_name: Name of the instance
+        batch_size: Number of groups to process per batch (default: 50)
+        batch_delay: Seconds to wait between batches (default: 5.0)
+
+    Returns:
+        Dict with sync statistics
+    """
+    import time
+    import requests
+    from src.db.trace_models import OmniGroupParticipant
+    from src.utils.datetime_utils import datetime_utcnow
+    from src.services.settings_service import get_evolution_api_key_global
+    from src.config import config
+
+    # Use Evolution API URL from config
+    evolution_url = config.get_env("EVOLUTION_API_URL", "http://127.0.0.1:18082")
+    evolution_key = get_evolution_api_key_global()
+
+    if not evolution_url or not evolution_key:
+        raise Exception("Evolution API not configured")
+
+    headers = {"apikey": evolution_key}
+    now = datetime_utcnow()
+
+    # Get groups from local database (already synced via chat sync)
+    group_records = (
+        db.query(OmniChatRecord)
+        .filter(
+            OmniChatRecord.instance_name == instance_name,
+            OmniChatRecord.chat_type == "group",
+        )
+        .all()
+    )
+
+    total_groups = len(group_records)
+    logger.info(f"Syncing participants for {total_groups} groups (batch_size={batch_size}, delay={batch_delay}s)")
+
+    # Clear existing participants for this instance (full refresh)
+    db.query(OmniGroupParticipant).filter(OmniGroupParticipant.instance_name == instance_name).delete()
+    db.commit()
+
+    # Stats
+    synced_count = 0
+    success_count = 0
+    failed_count = 0
+    timeout_count = 0
+
+    # Process in batches
+    for batch_num, batch_start in enumerate(range(0, total_groups, batch_size)):
+        batch_end = min(batch_start + batch_size, total_groups)
+        batch = group_records[batch_start:batch_end]
+
+        logger.info(f"Processing batch {batch_num + 1}: groups {batch_start + 1}-{batch_end} of {total_groups}")
+
+        for record in batch:
+            group_id = record.chat_id
+            try:
+                # Call Evolution API group/participants
+                url = f"{evolution_url}/group/participants/{instance_name}"
+                params = {"groupJid": group_id}
+                response = requests.get(url, headers=headers, params=params, timeout=15)
+
+                if response.status_code != 200:
+                    logger.warning(f"Failed to get participants for {group_id}: {response.status_code}")
+                    failed_count += 1
+                    continue
+
+                data = response.json()
+                participants = data.get("participants", data) if isinstance(data, dict) else data
+
+                # Update participant count
+                record.participant_count = len(participants) if isinstance(participants, list) else 0
+                record.updated_at = now
+
+                # Add participants
+                for p in participants if isinstance(participants, list) else []:
+                    participant_id = p.get("id", "")
+                    if not participant_id:
+                        continue
+
+                    phone = participant_id.replace("@s.whatsapp.net", "").replace("@lid", "")
+                    admin_status = p.get("admin")
+                    role = (
+                        "superadmin"
+                        if admin_status == "superadmin"
+                        else "admin"
+                        if admin_status == "admin"
+                        else "member"
+                    )
+
+                    participant = OmniGroupParticipant(
+                        id=OmniGroupParticipant.generate_id(instance_name, group_id, participant_id),
+                        instance_name=instance_name,
+                        group_id=group_id,
+                        participant_id=participant_id,
+                        phone_number=phone if phone else None,
+                        name=p.get("name"),
+                        role=role,
+                        synced_at=now,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    db.add(participant)
+                    synced_count += 1
+
+                success_count += 1
+
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout getting participants for {group_id}")
+                timeout_count += 1
+                continue
+            except Exception as e:
+                logger.warning(f"Error getting participants for {group_id}: {e}")
+                failed_count += 1
+                continue
+
+        # Commit after each batch
+        db.commit()
+
+        # Delay between batches (except after last batch)
+        if batch_end < total_groups:
+            logger.info(f"Batch complete. Waiting {batch_delay}s before next batch...")
+            time.sleep(batch_delay)
+
+    return {
+        "total_groups": total_groups,
+        "success": success_count,
+        "failed": failed_count,
+        "timeouts": timeout_count,
+        "participants_synced": synced_count,
+    }
+
+
+@router.get("/{instance_name}/groups", response_model=GroupsResponse)
+async def get_groups(
+    instance_name: str,
+    include_participants: bool = Query(True, description="Include participant list for each group"),
+    sync: bool = Query(False, description="Force sync from Evolution API (slower, updates local cache)"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get all WhatsApp groups for an instance with their participants.
+
+    By default reads from local database (fast). Use sync=true to fetch
+    fresh data from Evolution API and update the local cache.
+
+    Args:
+        instance_name: The WhatsApp instance name
+        include_participants: Whether to include participant list (default: True)
+        sync: Force sync from Evolution API (default: False)
+
+    Returns:
+        List of groups with participant information
+    """
+    from src.db.trace_models import OmniGroupParticipant
+
+    try:
+        logger.info(f"Fetching groups for instance '{instance_name}' (sync={sync})")
+
+        instance = get_instance_by_name(instance_name, db)
+
+        # Sync from Evolution if requested
+        if sync:
+            synced = _sync_groups_from_evolution(db, instance, instance_name)
+            logger.info(f"Synced {synced} participants from Evolution API")
+
+        # Read from local database
+        group_records = (
+            db.query(OmniChatRecord)
+            .filter(
+                OmniChatRecord.instance_name == instance_name,
+                OmniChatRecord.chat_type == "group",
+            )
+            .all()
+        )
+
+        # Build LID to phone mapping for resolving participant IDs
+        from src.db.trace_models import ChatIdMapping
+
+        lid_mappings = (
+            db.query(ChatIdMapping)
+            .filter(
+                ChatIdMapping.instance_name == instance_name,
+                ChatIdMapping.alternate_chat_id.like("%@lid"),
+            )
+            .all()
+        )
+        # Map both with and without @lid suffix for easier lookup
+        lid_to_phone = {}
+        for m in lid_mappings:
+            lid_num = m.alternate_chat_id.replace("@lid", "")
+            lid_to_phone[lid_num] = m.phone_number
+            lid_to_phone[m.alternate_chat_id] = m.phone_number
+
+        groups = []
+        for record in group_records:
+            participants = []
+            if include_participants:
+                participant_records = (
+                    db.query(OmniGroupParticipant)
+                    .filter(
+                        OmniGroupParticipant.instance_name == instance_name,
+                        OmniGroupParticipant.group_id == record.chat_id,
+                    )
+                    .all()
+                )
+
+                for p in participant_records:
+                    role = (
+                        GroupParticipantRole.SUPERADMIN
+                        if p.role == "superadmin"
+                        else (GroupParticipantRole.ADMIN if p.role == "admin" else GroupParticipantRole.MEMBER)
+                    )
+                    # Resolve LID to phone number if available
+                    phone = p.phone_number
+                    if p.participant_id and "@lid" in p.participant_id:
+                        # For LID participants, try to resolve to real phone
+                        lid_num = p.participant_id.replace("@lid", "")
+                        resolved = lid_to_phone.get(lid_num) or lid_to_phone.get(p.participant_id)
+                        if resolved:
+                            phone = resolved
+
+                    participants.append(
+                        GroupParticipant(
+                            id=p.participant_id,
+                            phone_number=phone,
+                            name=p.name,
+                            role=role,
+                        )
+                    )
+
+            groups.append(
+                GroupInfo(
+                    id=record.chat_id,
+                    subject=record.name or "Unknown",
+                    owner=None,  # Not stored locally
+                    description=record.description,
+                    participant_count=record.participant_count or len(participants),
+                    participants=participants,
+                    creation_timestamp=None,
+                )
+            )
+
+        logger.info(f"Returning {len(groups)} groups for instance '{instance_name}'")
+
+        return GroupsResponse(
+            groups=groups,
+            total_count=len(groups),
+            instance_name=instance_name,
+            channel_type=ChannelType.WHATSAPP,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get groups for instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get groups: {str(e)}",
+        )
+
+
+@router.get("/{instance_name}/groups/{group_id}/participants", response_model=GroupParticipantsResponse)
+async def get_group_participants(
+    instance_name: str,
+    group_id: str,
+    sync: bool = Query(False, description="Force sync from Evolution API (slower, updates local cache)"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get participants for a specific WhatsApp group.
+
+    By default reads from local database (fast). Use sync=true to fetch
+    fresh data from Evolution API and update the local cache.
+
+    Args:
+        instance_name: The WhatsApp instance name
+        group_id: The group JID (e.g., "120363421396472428@g.us")
+        sync: Force sync from Evolution API (default: False)
+
+    Returns:
+        List of participants with their roles and contact info
+    """
+    from src.db.trace_models import OmniGroupParticipant
+
+    try:
+        logger.info(f"Fetching participants for group '{group_id}' in instance '{instance_name}' (sync={sync})")
+
+        # Ensure group_id has proper suffix
+        if not group_id.endswith("@g.us"):
+            group_id = f"{group_id}@g.us"
+
+        instance = get_instance_by_name(instance_name, db)
+
+        # Sync from Evolution if requested
+        if sync:
+            _sync_groups_from_evolution(db, instance, instance_name)
+
+        # Get group name from omni_chats
+        chat_record_id = OmniChatRecord.generate_id(instance_name, group_id)
+        chat_record = db.query(OmniChatRecord).filter(OmniChatRecord.id == chat_record_id).first()
+        group_name = chat_record.name if chat_record else None
+
+        # Build LID to phone mapping for resolving participant IDs
+        from src.db.trace_models import ChatIdMapping
+
+        lid_mappings = (
+            db.query(ChatIdMapping)
+            .filter(
+                ChatIdMapping.instance_name == instance_name,
+                ChatIdMapping.alternate_chat_id.like("%@lid"),
+            )
+            .all()
+        )
+        # Map both with and without @lid suffix for easier lookup
+        lid_to_phone = {}
+        for m in lid_mappings:
+            lid_num = m.alternate_chat_id.replace("@lid", "")
+            lid_to_phone[lid_num] = m.phone_number
+            lid_to_phone[m.alternate_chat_id] = m.phone_number
+
+        # Read participants from local database
+        participant_records = (
+            db.query(OmniGroupParticipant)
+            .filter(
+                OmniGroupParticipant.instance_name == instance_name,
+                OmniGroupParticipant.group_id == group_id,
+            )
+            .all()
+        )
+
+        participants = []
+        for p in participant_records:
+            role = (
+                GroupParticipantRole.SUPERADMIN
+                if p.role == "superadmin"
+                else (GroupParticipantRole.ADMIN if p.role == "admin" else GroupParticipantRole.MEMBER)
+            )
+            # Resolve LID to phone number if available
+            phone = p.phone_number
+            if p.participant_id and "@lid" in p.participant_id:
+                # For LID participants, try to resolve to real phone
+                lid_num = p.participant_id.replace("@lid", "")
+                resolved = lid_to_phone.get(lid_num) or lid_to_phone.get(p.participant_id)
+                if resolved:
+                    phone = resolved
+
+            participants.append(
+                GroupParticipant(
+                    id=p.participant_id,
+                    phone_number=phone,
+                    name=p.name,
+                    role=role,
+                )
+            )
+
+        logger.info(f"Returning {len(participants)} participants for group '{group_id}'")
+
+        return GroupParticipantsResponse(
+            group_id=group_id,
+            group_name=group_name,
+            participants=participants,
+            total_count=len(participants),
+            instance_name=instance_name,
+            channel_type=ChannelType.WHATSAPP,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get participants for group '{group_id}' in instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get group participants: {str(e)}",
+        )
+
+
+@router.post("/{instance_name}/groups/sync")
+async def sync_groups(
+    instance_name: str,
+    batch_size: int = Query(50, ge=10, le=100, description="Groups to process per batch"),
+    batch_delay: float = Query(5.0, ge=1.0, le=30.0, description="Seconds to wait between batches"),
+    db: Session = Depends(get_database),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Sync all groups and participants from Evolution API.
+
+    Processes groups in batches to avoid WhatsApp rate limiting.
+    For 249 groups with batch_size=50 and delay=5s, expect ~30 seconds total.
+
+    Args:
+        instance_name: The WhatsApp instance name
+        batch_size: Groups per batch (default: 50, range: 10-100)
+        batch_delay: Seconds between batches (default: 5, range: 1-30)
+
+    Returns:
+        Sync statistics including success/failure counts
+    """
+    try:
+        logger.info(f"Starting group sync for instance '{instance_name}' (batch={batch_size}, delay={batch_delay}s)")
+
+        instance = get_instance_by_name(instance_name, db)
+        stats = _sync_groups_from_evolution(db, instance, instance_name, batch_size=batch_size, batch_delay=batch_delay)
+
+        logger.info(f"Group sync complete for '{instance_name}': {stats}")
+
+        return {
+            "instance_name": instance_name,
+            "status": "success",
+            **stats,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to sync groups for instance '{instance_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync groups: {str(e)}",
         )

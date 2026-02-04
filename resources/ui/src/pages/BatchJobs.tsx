@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
@@ -20,7 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageHeader } from '@/components/PageHeader';
-import { api, BatchJob, formatDateTime } from '@/lib';
+import { api, BatchJob, OmniChat, formatDateTime } from '@/lib';
 import {
   Play,
   Square,
@@ -109,12 +110,27 @@ export default function BatchJobs() {
   const [contentTypes, setContentTypes] = useState<string[]>(['audio']);
   const [forceReprocess, setForceReprocess] = useState(false);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [syncMode, setSyncMode] = useState<'batch' | 'targeted'>('batch');
+  const [selectedChatId, setSelectedChatId] = useState<string>('');
 
   // Fetch instances for dropdown
   const { data: instances } = useQuery({
     queryKey: ['instances'],
     queryFn: () => api.instances.list(),
   });
+
+  // Fetch chats for targeted mode
+  const { data: chatsData } = useQuery({
+    queryKey: ['chats', selectedInstance],
+    queryFn: async () => {
+      if (selectedInstance === '__all__') return null;
+      return api.chats.list(selectedInstance, { page_size: 500 });
+    },
+    enabled: syncMode === 'targeted' && selectedInstance !== '__all__',
+  });
+
+  const chats = (chatsData?.data || []) as OmniChat[];
+  const selectedChat = chats.find((c) => c.chat_id === selectedChatId);
 
   // Fetch batch jobs
   const {
@@ -141,16 +157,24 @@ export default function BatchJobs() {
 
   // Start reprocess mutation
   const startMutation = useMutation({
-    mutationFn: () =>
-      api.batchJobs.startReprocess({
+    mutationFn: () => {
+      const params: Parameters<typeof api.batchJobs.startReprocess>[0] = {
         instance_name: selectedInstance === '__all__' ? undefined : selectedInstance,
-        days_back: daysBack,
-        limit: limit === 0 ? undefined : limit, // 0 means "all" - send undefined
         language,
         content_types: contentTypes,
         force: forceReprocess,
         async_mode: true,
-      }),
+      };
+
+      if (syncMode === 'batch') {
+        params.days_back = daysBack;
+        params.limit = limit === 0 ? undefined : limit;
+      } else {
+        params.chat_id = selectedChatId;
+      }
+
+      return api.batchJobs.startReprocess(params);
+    },
     onSuccess: (data) => {
       toast.success(`Job started: ${data.job_id.substring(0, 8)}...`);
       queryClient.invalidateQueries({ queryKey: ['batchJobs'] });
@@ -209,15 +233,42 @@ export default function BatchJobs() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
-                    {/* Instance */}
+                    {/* Sync Mode */}
                     <div className="grid gap-2">
-                      <Label>Instance (optional)</Label>
-                      <Select value={selectedInstance} onValueChange={setSelectedInstance}>
+                      <Label>Sync Mode</Label>
+                      <Select
+                        value={syncMode}
+                        onValueChange={(v) => {
+                          setSyncMode(v as 'batch' | 'targeted');
+                          setSelectedChatId(''); // Reset chat selection when switching modes
+                        }}
+                      >
                         <SelectTrigger>
-                          <SelectValue placeholder="All instances" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__all__">All instances</SelectItem>
+                          <SelectItem value="batch">Batch (time-based)</SelectItem>
+                          <SelectItem value="targeted">Targeted Chat (all messages)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Instance */}
+                    <div className="grid gap-2">
+                      <Label>Instance {syncMode === 'targeted' && '(required)'}</Label>
+                      <Select
+                        value={selectedInstance}
+                        onValueChange={(v) => {
+                          setSelectedInstance(v);
+                          setSelectedChatId(''); // Reset chat when instance changes
+                        }}
+                        disabled={syncMode === 'targeted'}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={syncMode === 'targeted' ? 'Select instance' : 'All instances'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {syncMode === 'batch' && <SelectItem value="__all__">All instances</SelectItem>}
                           {instances?.map((inst) => (
                             <SelectItem key={inst.name} value={inst.name}>
                               {inst.name}
@@ -226,6 +277,44 @@ export default function BatchJobs() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Chat Selection - Targeted Mode Only */}
+                    {syncMode === 'targeted' && selectedInstance !== '__all__' && (
+                      <div className="grid gap-2">
+                        <Label>Select Chat</Label>
+                        <Select value={selectedChatId} onValueChange={setSelectedChatId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choose a chat..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {chats.map((chat) => (
+                              <SelectItem key={chat.chat_id} value={chat.chat_id}>
+                                <div className="flex items-center justify-between">
+                                  <span className="truncate">{chat.name || chat.chat_id}</span>
+                                  {chat.skip_media_processing && (
+                                    <Badge variant="outline" className="ml-2 text-xs">
+                                      Skip
+                                    </Badge>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {selectedChat?.skip_media_processing && (
+                          <Alert variant="destructive" className="mt-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Media Processing Disabled</AlertTitle>
+                            <AlertDescription>
+                              {selectedChat.processing_note || 'This chat has media processing disabled.'}
+                              <br />
+                              <strong>Proceeding anyway.</strong>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    )}
 
                     {/* Content Types */}
                     <div className="grid gap-2">
@@ -266,42 +355,44 @@ export default function BatchJobs() {
                       </div>
                     </div>
 
-                    {/* Days Back & Limit */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label>Days Back</Label>
-                        <Select value={String(daysBack)} onValueChange={(v) => setDaysBack(parseInt(v))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="7">7 days</SelectItem>
-                            <SelectItem value="14">14 days</SelectItem>
-                            <SelectItem value="30">30 days</SelectItem>
-                            <SelectItem value="60">60 days</SelectItem>
-                            <SelectItem value="90">90 days</SelectItem>
-                            <SelectItem value="180">180 days</SelectItem>
-                            <SelectItem value="365">1 year</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    {/* Days Back & Limit - Batch Mode Only */}
+                    {syncMode === 'batch' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label>Days Back</Label>
+                          <Select value={String(daysBack)} onValueChange={(v) => setDaysBack(parseInt(v))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="7">7 days</SelectItem>
+                              <SelectItem value="14">14 days</SelectItem>
+                              <SelectItem value="30">30 days</SelectItem>
+                              <SelectItem value="60">60 days</SelectItem>
+                              <SelectItem value="90">90 days</SelectItem>
+                              <SelectItem value="180">180 days</SelectItem>
+                              <SelectItem value="365">1 year</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Max Items</Label>
+                          <Select value={String(limit)} onValueChange={(v) => setLimit(parseInt(v))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="50">50</SelectItem>
+                              <SelectItem value="100">100</SelectItem>
+                              <SelectItem value="250">250</SelectItem>
+                              <SelectItem value="500">500</SelectItem>
+                              <SelectItem value="1000">1000</SelectItem>
+                              <SelectItem value="0">All</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      <div className="grid gap-2">
-                        <Label>Max Items</Label>
-                        <Select value={String(limit)} onValueChange={(v) => setLimit(parseInt(v))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="50">50</SelectItem>
-                            <SelectItem value="100">100</SelectItem>
-                            <SelectItem value="250">250</SelectItem>
-                            <SelectItem value="500">500</SelectItem>
-                            <SelectItem value="1000">1000</SelectItem>
-                            <SelectItem value="0">All</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Language */}
                     <div className="grid gap-2">
@@ -331,7 +422,12 @@ export default function BatchJobs() {
                     </Button>
                     <Button
                       onClick={() => startMutation.mutate()}
-                      disabled={startMutation.isPending || contentTypes.length === 0}
+                      disabled={
+                        startMutation.isPending ||
+                        contentTypes.length === 0 ||
+                        (syncMode === 'targeted' &&
+                          (!selectedInstance || selectedInstance === '__all__' || !selectedChatId))
+                      }
                     >
                       {startMutation.isPending ? (
                         <>

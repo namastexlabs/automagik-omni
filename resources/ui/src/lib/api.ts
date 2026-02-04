@@ -69,6 +69,7 @@ export interface BatchJobRequestParams {
   instance_name?: string;
   days_back?: number;
   limit?: number;
+  chat_id?: string;
   language?: string;
   content_types?: string[];
   force?: boolean;
@@ -1813,13 +1814,13 @@ export const api = {
       instance_name?: string;
       days_back?: number;
       limit?: number;
+      chat_id?: string;
       language?: string;
       content_types?: string[];
       force?: boolean;
       async_mode?: boolean;
     }): Promise<BatchJobStartResponse> {
       const body: Record<string, unknown> = {
-        days_back: params.days_back ?? 30,
         language: params.language ?? 'pt',
         content_types: params.content_types ?? ['audio'],
         force: params.force ?? false,
@@ -1827,7 +1828,14 @@ export const api = {
       };
       // Only include optional params if set
       if (params.instance_name) body.instance_name = params.instance_name;
-      if (params.limit !== undefined) body.limit = params.limit;
+      // For batch mode, include days_back and limit; for targeted mode, chat_id
+      if (params.chat_id) {
+        body.chat_id = params.chat_id;
+      } else {
+        // Batch mode defaults
+        body.days_back = params.days_back ?? 30;
+        body.limit = params.limit ?? 100;
+      }
 
       return apiRequest('/media-content/reprocess-batch', {
         method: 'POST',

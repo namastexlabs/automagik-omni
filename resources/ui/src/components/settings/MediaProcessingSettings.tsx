@@ -238,7 +238,8 @@ export function MediaProcessingSettings() {
             <div className="space-y-1">
               <p className="text-sm font-medium">How Media Processing Works</p>
               <p className="text-xs text-muted-foreground">
-                Process media attachments to extract text and generate audio. These are then available to your AI agents as context or for sending voice messages.
+                Process media attachments to extract text and generate audio. These are then available to your AI agents
+                as context or for sending voice messages.
               </p>
               <ul className="text-xs text-muted-foreground mt-2 space-y-1">
                 <li>

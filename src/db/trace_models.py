@@ -7,7 +7,7 @@ import uuid
 import json
 import zlib
 import base64
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Numeric
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Numeric, Index
 from sqlalchemy.orm import relationship
 from typing import Dict, Any, Optional
 from .database import Base
@@ -714,3 +714,46 @@ class OmniChatRecord(Base):
 
     def __repr__(self):
         return f"<OmniChatRecord(id='{self.id}', name='{self.name}', type='{self.chat_type}')>"
+
+
+class OmniGroupParticipant(Base):
+    """
+    Local storage for WhatsApp group participants.
+
+    Synced from Evolution API fetchAllGroups endpoint for fast queries.
+    """
+
+    __tablename__ = "omni_group_participants"
+
+    # Primary key: composite format {instance}:{group_id}:{participant_id}
+    id = Column(String(768), primary_key=True)
+
+    # Instance and group linkage
+    instance_name = Column(String(255), nullable=False, index=True)
+    group_id = Column(String(255), nullable=False, index=True)  # Group JID (e.g., 120363...@g.us)
+
+    # Participant identification
+    participant_id = Column(String(255), nullable=False)  # Participant JID (e.g., 5511...@s.whatsapp.net)
+    phone_number = Column(String(50), nullable=True)  # Extracted phone number
+
+    # Participant info
+    name = Column(String(255), nullable=True)  # Contact name if known
+    role = Column(String(20), default="member", nullable=False)  # 'member', 'admin', 'superadmin'
+
+    # Timestamps
+    synced_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime_utcnow, onupdate=datetime_utcnow, nullable=False)
+
+    # Indexes
+    __table_args__ = (Index("ix_omni_group_participants_instance_group", "instance_name", "group_id"),)
+
+    @staticmethod
+    def generate_id(instance_name: str, group_id: str, participant_id: str) -> str:
+        """Generate composite ID."""
+        return f"{instance_name}:{group_id}:{participant_id}"
+
+    def __repr__(self):
+        return (
+            f"<OmniGroupParticipant(group='{self.group_id}', participant='{self.participant_id}', role='{self.role}')>"
+        )

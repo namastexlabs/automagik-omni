@@ -201,8 +201,14 @@ class OmniMediaBatchRequest(BaseModel):
 
     content_type: str = "audio"  # 'audio', 'image', 'document'
     instance_name: Optional[str] = None
+
+    # Batch mode parameters (ignored if chat_id set)
     days_back: int = 30
     limit: int = 100
+
+    # Targeted mode parameter - when set, process ALL messages from this chat
+    chat_id: Optional[str] = None
+
     language: str = "pt"  # For audio transcription
     force: bool = False
     async_mode: bool = True
@@ -1265,6 +1271,7 @@ async def _run_omni_batch_processing(job_id: str, request_params: dict):
         instance_name = request_params.get("instance_name")
         days_back = request_params.get("days_back", 30)
         limit = request_params.get("limit", 100)
+        chat_id = request_params.get("chat_id")
         language = request_params.get("language", "pt")
         force = request_params.get("force", False)
 
@@ -1273,6 +1280,7 @@ async def _run_omni_batch_processing(job_id: str, request_params: dict):
             content_type=content_type,
             days_back=days_back,
             limit=limit,
+            chat_id=chat_id,
             language=language,
             force=force,
             db=db,
@@ -1357,13 +1365,42 @@ async def reprocess_from_omni_messages(
                 detail=f"Invalid content_type: {request.content_type}. Valid: {valid_types}",
             )
 
+        # Verify chat exists if targeted mode requested
+        if request.chat_id:
+            from src.db.trace_models import OmniChatRecord
+
+            chat = (
+                db.query(OmniChatRecord)
+                .filter(
+                    OmniChatRecord.chat_id == request.chat_id, OmniChatRecord.instance_name == request.instance_name
+                )
+                .first()
+            )
+
+            if not chat:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Chat {request.chat_id} not found for instance {request.instance_name}",
+                )
+
+            # Log warning if skip flag set
+            if chat.skip_media_processing:
+                logger.warning(
+                    f"Processing chat {request.chat_id} despite skip_media_processing=True. "
+                    f"Note: {chat.processing_note or 'No note'}"
+                )
+
         if request.async_mode:
             import uuid
 
             job_id = str(uuid.uuid4())
             job = BatchJob(
                 job_id=job_id,
-                job_type=f"omni_{request.content_type}_reprocess",
+                job_type=(
+                    f"omni_{request.content_type}_chat_sync"
+                    if request.chat_id
+                    else f"omni_{request.content_type}_reprocess"
+                ),
                 instance_name=request.instance_name,
                 request_params=json.dumps(
                     {
@@ -1371,6 +1408,7 @@ async def reprocess_from_omni_messages(
                         "instance_name": request.instance_name,
                         "days_back": request.days_back,
                         "limit": request.limit,
+                        "chat_id": request.chat_id,
                         "language": request.language,
                         "force": request.force,
                         "source": "omni_messages",
@@ -1399,14 +1437,20 @@ async def reprocess_from_omni_messages(
                     "instance_name": request.instance_name,
                     "days_back": request.days_back,
                     "limit": request.limit,
+                    "chat_id": request.chat_id,
                     "language": request.language,
                     "force": request.force,
                 },
             )
 
+            job_type_str = (
+                f"omni_{request.content_type}_chat_sync"
+                if request.chat_id
+                else f"omni_{request.content_type}_reprocess"
+            )
             return BatchJobResponse(
                 job_id=job_id,
-                job_type=f"omni_{request.content_type}_reprocess",
+                job_type=job_type_str,
                 status="pending",
                 message=f"Processing {request.content_type} from omni_messages. Poll /batch-jobs/{job_id} for progress.",
             )
@@ -1416,6 +1460,7 @@ async def reprocess_from_omni_messages(
                 content_type=request.content_type,
                 days_back=request.days_back,
                 limit=request.limit,
+                chat_id=request.chat_id,
                 language=request.language,
                 force=request.force,
                 db=db,
