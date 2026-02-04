@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib';
-import { Eye, EyeOff, Save, Loader2, CheckCircle2, XCircle, Image, Mic, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Save, Loader2, CheckCircle2, XCircle, Image, Mic, Sparkles, Volume2 } from 'lucide-react';
 
 interface ApiKeyFieldProps {
   label: string;
@@ -207,6 +207,27 @@ export function MediaProcessingSettings() {
         </CardContent>
       </Card>
 
+      {/* Audio Generation / Text-to-Speech */}
+      <Card className="border-border elevation-md">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Volume2 className="h-5 w-5 text-primary" />
+            <CardTitle>Audio Generation</CardTitle>
+          </div>
+          <CardDescription>Configure API keys for text-to-speech and audio generation</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ApiKeyField
+            label="ElevenLabs API Key"
+            description="Text-to-speech voice message generation for WhatsApp"
+            settingKey="XI_API_KEY"
+            currentValue={getSetting('XI_API_KEY')}
+            icon={<Volume2 className="h-4 w-4 text-purple-500" />}
+            placeholder="sk_..."
+          />
+        </CardContent>
+      </Card>
+
       {/* Info Card */}
       <Card className="border-border bg-muted/50">
         <CardContent className="pt-6">
@@ -217,15 +238,18 @@ export function MediaProcessingSettings() {
             <div className="space-y-1">
               <p className="text-sm font-medium">How Media Processing Works</p>
               <p className="text-xs text-muted-foreground">
-                When enabled, media attachments (images, audio, video) are automatically processed to extract text
-                descriptions and transcriptions. These are then available to your AI agents as context.
+                Process media attachments to extract text and generate audio. These are then available to your AI agents
+                as context or for sending voice messages.
               </p>
               <ul className="text-xs text-muted-foreground mt-2 space-y-1">
                 <li>
                   <strong>Images:</strong> Gemini → OpenAI fallback
                 </li>
                 <li>
-                  <strong>Audio:</strong> Groq Whisper → OpenAI Whisper fallback
+                  <strong>Audio Transcription:</strong> Groq Whisper → OpenAI Whisper fallback
+                </li>
+                <li>
+                  <strong>Audio Generation:</strong> ElevenLabs TTS for voice messages
                 </li>
                 <li>
                   <strong>Video:</strong> Gemini (extracts frames and audio)
