@@ -440,51 +440,36 @@ def get_evolution_api_key_global() -> str:
     return get_omni_api_key_global()
 
 
-def get_elevenlabs_api_key_global() -> str:
-    """
-    Get ElevenLabs API key from database with .env fallback.
+def _get_global_setting(db_key: str, env_key: str, env_default: str = "") -> str:
+    """Get a setting from database with .env fallback.
 
-    The Settings UI saves this as 'XI_API_KEY' in the GlobalSetting table.
+    Args:
+        db_key: Key to look up in GlobalSetting table.
+        env_key: Environment variable name for fallback.
+        env_default: Default value if neither DB nor env is set.
 
     Returns:
-        ElevenLabs API key string, or empty string if not configured.
+        Setting value string, or env_default if not configured.
     """
     from src.db.database import SessionLocal
     from src.config import config
 
-    # Try database first (primary source - set via Settings UI)
     try:
         with SessionLocal() as db:
-            key = settings_service.get_setting_value("XI_API_KEY", db, default=None)
-            if key:
-                return key
+            value = settings_service.get_setting_value(db_key, db, default=None)
+            if value:
+                return value
     except Exception as e:
-        logger.warning(f"Failed to get ElevenLabs API key from database: {e}")
+        logger.warning(f"Failed to get setting '{db_key}' from database: {e}")
 
-    # Fallback to .env
-    return config.get_env("XI_API_KEY", "")
+    return config.get_env(env_key, env_default)
+
+
+def get_elevenlabs_api_key_global() -> str:
+    """Get ElevenLabs API key from database with .env fallback."""
+    return _get_global_setting("XI_API_KEY", "XI_API_KEY")
 
 
 def get_elevenlabs_voice_id_global() -> str:
-    """
-    Get ElevenLabs default voice ID from database with .env fallback.
-
-    The Settings UI saves this as 'XI_VOICE_ID' in the GlobalSetting table.
-
-    Returns:
-        ElevenLabs voice ID string, or empty string if not configured.
-    """
-    from src.db.database import SessionLocal
-    from src.config import config
-
-    # Try database first (primary source - set via Settings UI)
-    try:
-        with SessionLocal() as db:
-            voice_id = settings_service.get_setting_value("XI_VOICE_ID", db, default=None)
-            if voice_id:
-                return voice_id
-    except Exception as e:
-        logger.warning(f"Failed to get ElevenLabs voice ID from database: {e}")
-
-    # Fallback to .env
-    return config.get_env("XI_VOICE_ID", "")
+    """Get ElevenLabs default voice ID from database with .env fallback."""
+    return _get_global_setting("XI_VOICE_ID", "XI_VOICE_ID")

@@ -10,16 +10,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib';
 import { Eye, EyeOff, Save, Loader2, CheckCircle2, XCircle, Image, Mic, Sparkles, Volume2, AudioLines } from 'lucide-react';
 
-interface ApiKeyFieldProps {
+interface SettingFieldProps {
   label: string;
   description: string;
   settingKey: string;
   currentValue: string | null;
   icon: React.ReactNode;
   placeholder?: string;
+  isSecret?: boolean;
 }
 
-function ApiKeyField({ label, description, settingKey, currentValue, icon, placeholder }: ApiKeyFieldProps) {
+function SettingField({ label, description, settingKey, currentValue, icon, placeholder, isSecret = false }: SettingFieldProps) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState('');
   const [showValue, setShowValue] = useState(false);
@@ -51,7 +52,9 @@ function ApiKeyField({ label, description, settingKey, currentValue, icon, place
     setValue('');
   };
 
-  const maskedValue = currentValue ? `${currentValue.substring(0, 8)}...${currentValue.slice(-4)}` : null;
+  const displayValue = isSecret && currentValue
+    ? `${currentValue.substring(0, 8)}...${currentValue.slice(-4)}`
+    : currentValue;
 
   return (
     <div className="p-4 bg-muted rounded-lg border border-border space-y-3">
@@ -79,24 +82,34 @@ function ApiKeyField({ label, description, settingKey, currentValue, icon, place
       {isEditing ? (
         <div className="space-y-2">
           <div className="flex gap-2">
-            <div className="relative flex-1">
+            {isSecret ? (
+              <div className="relative flex-1">
+                <Input
+                  type={showValue ? 'text' : 'password'}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={placeholder || `Enter ${label}`}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                  onClick={() => setShowValue(!showValue)}
+                >
+                  {showValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            ) : (
               <Input
-                type={showValue ? 'text' : 'password'}
+                type="text"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder={placeholder || `Enter ${label}`}
-                className="pr-10"
+                className="flex-1"
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                onClick={() => setShowValue(!showValue)}
-              >
-                {showValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
+            )}
             <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm">
               {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             </Button>
@@ -108,102 +121,7 @@ function ApiKeyField({ label, description, settingKey, currentValue, icon, place
       ) : (
         <div className="flex items-center justify-between">
           <code className="text-sm text-muted-foreground font-mono">
-            {maskedValue || <span className="italic">Not configured</span>}
-          </code>
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-            {currentValue ? 'Update' : 'Configure'}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface SettingTextFieldProps {
-  label: string;
-  description: string;
-  settingKey: string;
-  currentValue: string | null;
-  icon: React.ReactNode;
-  placeholder?: string;
-}
-
-function SettingTextField({ label, description, settingKey, currentValue, icon, placeholder }: SettingTextFieldProps) {
-  const queryClient = useQueryClient();
-  const [value, setValue] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-
-  const updateMutation = useMutation({
-    mutationFn: (newValue: string) => api.settings.update(settingKey, { value: newValue }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success(`${label} updated successfully`);
-      setIsEditing(false);
-      setValue('');
-    },
-    onError: (err: Error) => {
-      toast.error(`Failed to update ${label}: ${err.message}`);
-    },
-  });
-
-  const handleSave = () => {
-    if (!value.trim()) {
-      toast.error('Please enter a value');
-      return;
-    }
-    updateMutation.mutate(value);
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setValue('');
-  };
-
-  return (
-    <div className="p-4 bg-muted rounded-lg border border-border space-y-3">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          {icon}
-          <div>
-            <Label className="text-sm font-medium">{label}</Label>
-            <p className="text-xs text-muted-foreground">{description}</p>
-          </div>
-        </div>
-        {currentValue ? (
-          <Badge variant="default" className="bg-green-500/10 text-green-600 border-green-500/20">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Configured
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-muted-foreground">
-            <XCircle className="h-3 w-3 mr-1" />
-            Not Set
-          </Badge>
-        )}
-      </div>
-
-      {isEditing ? (
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={placeholder || `Enter ${label}`}
-              className="flex-1"
-            />
-            <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm">
-              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" onClick={handleCancel} size="sm">
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between">
-          <code className="text-sm text-muted-foreground font-mono">
-            {currentValue || <span className="italic">Not configured</span>}
+            {displayValue || <span className="italic">Not configured</span>}
           </code>
           <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
             {currentValue ? 'Update' : 'Configure'}
@@ -254,22 +172,24 @@ export function MediaProcessingSettings() {
           <CardDescription>Configure API keys for image description and video analysis</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <ApiKeyField
+          <SettingField
             label="Google Gemini API Key"
             description="Primary provider for image/video description (gemini-2.5-flash)"
             settingKey="gemini_api_key"
             currentValue={getSetting('gemini_api_key')}
             icon={<Sparkles className="h-4 w-4 text-blue-500" />}
             placeholder="AIza..."
+            isSecret
           />
 
-          <ApiKeyField
+          <SettingField
             label="OpenAI API Key"
             description="Fallback for images when Gemini is unavailable (gpt-5-nano)"
             settingKey="openai_api_key"
             currentValue={getSetting('openai_api_key')}
             icon={<Sparkles className="h-4 w-4 text-green-500" />}
             placeholder="sk-..."
+            isSecret
           />
         </CardContent>
       </Card>
@@ -284,13 +204,14 @@ export function MediaProcessingSettings() {
           <CardDescription>Configure API keys for audio transcription services</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <ApiKeyField
+          <SettingField
             label="Groq API Key"
             description="Primary provider for audio transcription (whisper-large-v3-turbo, 216x real-time)"
             settingKey="groq_api_key"
             currentValue={getSetting('groq_api_key')}
             icon={<Mic className="h-4 w-4 text-orange-500" />}
             placeholder="gsk_..."
+            isSecret
           />
 
           <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
@@ -312,16 +233,17 @@ export function MediaProcessingSettings() {
           <CardDescription>Configure API keys for text-to-speech and audio generation</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <ApiKeyField
+          <SettingField
             label="ElevenLabs API Key"
             description="Text-to-speech voice message generation for WhatsApp"
             settingKey="XI_API_KEY"
             currentValue={getSetting('XI_API_KEY')}
             icon={<Volume2 className="h-4 w-4 text-purple-500" />}
             placeholder="sk_..."
+            isSecret
           />
 
-          <SettingTextField
+          <SettingField
             label="ElevenLabs Voice ID"
             description="Default voice for TTS generation (can be overridden per request)"
             settingKey="XI_VOICE_ID"
