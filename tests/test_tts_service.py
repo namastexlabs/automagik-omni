@@ -238,7 +238,7 @@ class TestSendTTSVoiceNote:
         # Verify presence was sent before the media
         assert len(post_calls) == 2
         assert "sendPresence" in post_calls[0]
-        assert "sendMedia" in post_calls[1]
+        assert "sendWhatsAppAudio" in post_calls[1]
 
     @pytest.mark.asyncio
     async def test_dynamic_presence_delay_matches_audio_duration(self):
@@ -419,9 +419,9 @@ class TestSendTTSVoiceNote:
                     )
 
         assert result["success"] is True
-        # Only sendMedia should have been called, no sendPresence
+        # Only sendWhatsAppAudio should have been called, no sendPresence
         assert len(post_urls) == 1
-        assert "sendMedia" in post_urls[0]
+        assert "sendWhatsAppAudio" in post_urls[0]
 
 
 # ===== Integration Tests: REST API endpoint =====

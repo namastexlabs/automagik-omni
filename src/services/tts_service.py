@@ -202,19 +202,16 @@ async def send_tts_voice_note(
             except Exception as e:
                 logger.warning(f"Failed to send recording presence: {e}")
 
-        # 4. Send voice note via Evolution API
+        # 4. Send voice note via Evolution API (dedicated audio endpoint)
         audio_base64 = base64.b64encode(ogg_bytes).decode("utf-8")
         payload = {
             "number": recipient,
-            "mediatype": "audio",
-            "media": audio_base64,
-            "mimetype": "audio/ogg; codecs=opus",
-            "ptt": True,
+            "audio": audio_base64,
         }
 
         try:
             response = await client.post(
-                f"{evolution_url}/message/sendMedia/{instance_name}",
+                f"{evolution_url}/message/sendWhatsAppAudio/{instance_name}",
                 headers={"apikey": evolution_key, "Content-Type": "application/json"},
                 json=payload,
             )
