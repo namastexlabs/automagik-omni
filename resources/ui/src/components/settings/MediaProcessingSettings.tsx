@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib';
-import { Eye, EyeOff, Save, Loader2, CheckCircle2, XCircle, Image, Mic, Sparkles, Volume2 } from 'lucide-react';
+import { Eye, EyeOff, Save, Loader2, CheckCircle2, XCircle, Image, Mic, Sparkles, Volume2, AudioLines } from 'lucide-react';
 
 interface ApiKeyFieldProps {
   label: string;
@@ -109,6 +109,101 @@ function ApiKeyField({ label, description, settingKey, currentValue, icon, place
         <div className="flex items-center justify-between">
           <code className="text-sm text-muted-foreground font-mono">
             {maskedValue || <span className="italic">Not configured</span>}
+          </code>
+          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+            {currentValue ? 'Update' : 'Configure'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SettingTextFieldProps {
+  label: string;
+  description: string;
+  settingKey: string;
+  currentValue: string | null;
+  icon: React.ReactNode;
+  placeholder?: string;
+}
+
+function SettingTextField({ label, description, settingKey, currentValue, icon, placeholder }: SettingTextFieldProps) {
+  const queryClient = useQueryClient();
+  const [value, setValue] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+
+  const updateMutation = useMutation({
+    mutationFn: (newValue: string) => api.settings.update(settingKey, { value: newValue }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      toast.success(`${label} updated successfully`);
+      setIsEditing(false);
+      setValue('');
+    },
+    onError: (err: Error) => {
+      toast.error(`Failed to update ${label}: ${err.message}`);
+    },
+  });
+
+  const handleSave = () => {
+    if (!value.trim()) {
+      toast.error('Please enter a value');
+      return;
+    }
+    updateMutation.mutate(value);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setValue('');
+  };
+
+  return (
+    <div className="p-4 bg-muted rounded-lg border border-border space-y-3">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          {icon}
+          <div>
+            <Label className="text-sm font-medium">{label}</Label>
+            <p className="text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        {currentValue ? (
+          <Badge variant="default" className="bg-green-500/10 text-green-600 border-green-500/20">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Configured
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-muted-foreground">
+            <XCircle className="h-3 w-3 mr-1" />
+            Not Set
+          </Badge>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={placeholder || `Enter ${label}`}
+              className="flex-1"
+            />
+            <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm">
+              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" onClick={handleCancel} size="sm">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <code className="text-sm text-muted-foreground font-mono">
+            {currentValue || <span className="italic">Not configured</span>}
           </code>
           <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
             {currentValue ? 'Update' : 'Configure'}
@@ -224,6 +319,15 @@ export function MediaProcessingSettings() {
             currentValue={getSetting('XI_API_KEY')}
             icon={<Volume2 className="h-4 w-4 text-purple-500" />}
             placeholder="sk_..."
+          />
+
+          <SettingTextField
+            label="ElevenLabs Voice ID"
+            description="Default voice for TTS generation (can be overridden per request)"
+            settingKey="XI_VOICE_ID"
+            currentValue={getSetting('XI_VOICE_ID')}
+            icon={<AudioLines className="h-4 w-4 text-purple-500" />}
+            placeholder="JBFqnCBsd6RMkjVDRZzb"
           />
         </CardContent>
       </Card>
