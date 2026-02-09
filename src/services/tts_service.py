@@ -8,7 +8,6 @@ Used by both the REST API endpoint and MCP talk() tool.
 import base64
 import io
 import logging
-import os
 from typing import Optional
 
 import httpx
