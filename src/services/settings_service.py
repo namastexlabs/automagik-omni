@@ -438,3 +438,38 @@ def get_evolution_api_key_global() -> str:
         Unified API key string
     """
     return get_omni_api_key_global()
+
+
+def _get_global_setting(db_key: str, env_key: str, env_default: str = "") -> str:
+    """Get a setting from database with .env fallback.
+
+    Args:
+        db_key: Key to look up in GlobalSetting table.
+        env_key: Environment variable name for fallback.
+        env_default: Default value if neither DB nor env is set.
+
+    Returns:
+        Setting value string, or env_default if not configured.
+    """
+    from src.db.database import SessionLocal
+    from src.config import config
+
+    try:
+        with SessionLocal() as db:
+            value = settings_service.get_setting_value(db_key, db, default=None)
+            if value:
+                return value
+    except Exception as e:
+        logger.warning(f"Failed to get setting '{db_key}' from database: {e}")
+
+    return config.get_env(env_key, env_default)
+
+
+def get_elevenlabs_api_key_global() -> str:
+    """Get ElevenLabs API key from database with .env fallback."""
+    return _get_global_setting("XI_API_KEY", "XI_API_KEY")
+
+
+def get_elevenlabs_voice_id_global() -> str:
+    """Get ElevenLabs default voice ID from database with .env fallback."""
+    return _get_global_setting("XI_VOICE_ID", "XI_VOICE_ID")

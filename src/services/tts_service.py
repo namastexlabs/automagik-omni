@@ -8,7 +8,6 @@ Used by both the REST API endpoint and MCP talk() tool.
 import base64
 import io
 import logging
-import os
 from typing import Optional
 
 import httpx
@@ -59,12 +58,14 @@ async def generate_tts_audio(
         TTSConfigError: If XI_API_KEY is not set.
         TTSError: If ElevenLabs API call fails.
     """
-    api_key = os.getenv("XI_API_KEY")
+    from src.services.settings_service import get_elevenlabs_api_key_global, get_elevenlabs_voice_id_global
+
+    api_key = get_elevenlabs_api_key_global()
     if not api_key:
-        raise TTSConfigError("ElevenLabs API key not found. Set XI_API_KEY environment variable.")
+        raise TTSConfigError("ElevenLabs API key not found. Set it via Settings UI or XI_API_KEY environment variable.")
 
     if voice_id is None:
-        voice_id = os.getenv("XI_VOICE_ID", DEFAULT_VOICE_ID)
+        voice_id = get_elevenlabs_voice_id_global() or DEFAULT_VOICE_ID
 
     _validate_path_segment(voice_id, "voice_id")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
