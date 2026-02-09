@@ -8,7 +8,19 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib';
-import { Eye, EyeOff, Save, Loader2, CheckCircle2, XCircle, Image, Mic, Sparkles, Volume2, AudioLines } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  Save,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Image,
+  Mic,
+  Sparkles,
+  Volume2,
+  AudioLines,
+} from 'lucide-react';
 
 interface SettingFieldProps {
   label: string;
@@ -20,7 +32,15 @@ interface SettingFieldProps {
   isSecret?: boolean;
 }
 
-function SettingField({ label, description, settingKey, currentValue, icon, placeholder, isSecret = false }: SettingFieldProps) {
+function SettingField({
+  label,
+  description,
+  settingKey,
+  currentValue,
+  icon,
+  placeholder,
+  isSecret = false,
+}: SettingFieldProps) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState('');
   const [showValue, setShowValue] = useState(false);
@@ -52,9 +72,8 @@ function SettingField({ label, description, settingKey, currentValue, icon, plac
     setValue('');
   };
 
-  const displayValue = isSecret && currentValue
-    ? `${currentValue.substring(0, 8)}...${currentValue.slice(-4)}`
-    : currentValue;
+  const displayValue =
+    isSecret && currentValue ? `${currentValue.substring(0, 8)}...${currentValue.slice(-4)}` : currentValue;
 
   return (
     <div className="p-4 bg-muted rounded-lg border border-border space-y-3">
