@@ -1,3 +1,10 @@
+> [!IMPORTANT]
+> **This repository has been superseded.** Omni v2 — a complete TypeScript/Bun rewrite with event-driven architecture (NATS JetStream), a CLI-first design, and expanded channel support — is now the active project.
+>
+> **New home: [automagik-dev/omni](https://github.com/automagik-dev/omni)**
+>
+> This repo is archived and no longer maintained. Please star and use the new one!
+
 <p align="center">
   <img src=".github/images/omni-logo.svg" alt="Automagik Omni Logo" width="400">
 </p>
